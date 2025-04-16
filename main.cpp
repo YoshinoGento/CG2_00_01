@@ -1,9 +1,11 @@
-#include <windows.h>
+ï»¿#include <windows.h>
 
-//WindowsƒAƒvƒŠ‚Å‚ÌƒGƒ“ƒgƒŠ[ƒ|ƒCƒ“ƒg(mainŠÖ”)
-int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
-	//o—ÍƒEƒBƒ“ƒhƒEŠG‚Ì•¶šo—Í
+//Windowsã‚¢ãƒ—ãƒªã§ã®ã‚¨ãƒ³ãƒˆãƒªãƒ¼ãƒã‚¤ãƒ³ãƒˆ(mainé–¢æ•°)
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+{
+	//å‡ºåŠ›ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦çµµã®æ–‡å­—å‡ºåŠ›
 	OutputDebugStringA("Hello,DirectX!\n");
+
 
 	return 0;
 }
