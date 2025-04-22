@@ -93,6 +93,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg,
 	return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
+
 //Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
