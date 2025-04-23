@@ -118,7 +118,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//ファイルを作って書き込み準備
 	std::ofstream logStream(logFilePath);
 
-
+	
 
 
 
@@ -232,12 +232,25 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//assert(device != nullptr);
 	Log(logStream, "Complete create D3D12Device!!!\n");//初期化完了のログを出す
 
-	//コマンドキューを生成
-	ID3D12CommandQueue* comandQueue = nullptr;  
-    D3D12_COMMAND_QUEUE_DESC commandQueueDesc{};
-	hr = device->CreateCommandQueue(&commandQueueDesc,
-		IID_PPV_ARGS(&comandQueue));
 
+    // コマンドキューを生成
+    ID3D12CommandQueue* commandQueue = nullptr;
+    D3D12_COMMAND_QUEUE_DESC commandQueueDesc{};
+    hr = device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&commandQueue));
+
+
+	//スワップチェーンを生成する
+	IDXGISwapChain4* swapChain = nullptr;
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
+	swapChainDesc.Width = kClientWidth;    //画面の幅。ウィンドウのクライアント領域を同じものにしておく
+	swapChainDesc.Height = kClientHeight;  //画面の高さ。ウィンドウのクライアント領域をおなじものにしておく
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;   //色の形式
+	swapChainDesc.SampleDesc.Count = 1;  //マルチサンプル
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; //描画のターゲットとして利用する
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;        //モニターに移したら、中身を破壊
+	//コマンドキュー、ウィンドウハンドル、設定を渡して生成する
+	hr = dxgiFactory->CreateSwapChainForHwnd(commandQueue, hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(&swapChain));
+	assert(SUCCEEDED(hr));
 
 
 	//コマンドキューの生成がうまくいかなかったのできどうできない
@@ -255,6 +268,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		IID_PPV_ARGS(&commandList));
 	//コマンドリストの生成がうまくいかなかったので起動できない
 	assert(SUCCEEDED(hr));
+
+
+
+
+
+
+
+
+
+
 
 
 	MSG msg{};
