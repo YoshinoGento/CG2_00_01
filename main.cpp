@@ -238,8 +238,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	hr = device->CreateCommandQueue(&commandQueueDesc,
 		IID_PPV_ARGS(&comandQueue));
 
+
+
 	//コマンドキューの生成がうまくいかなかったのできどうできない
     assert(SUCCEEDED(hr));
+
+	//コマンドアロケーターを生成する
+	ID3D12CommandAllocator* commandAllocator = nullptr;
+	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator));
+	//コマンドキューの生成がうまくいかなかったのできどうできない
+	assert(SUCCEEDED(hr));
+
+	//コマンドリストを生成する
+	ID3D12GraphicsCommandList* commandList = nullptr;
+	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, nullptr,
+		IID_PPV_ARGS(&commandList));
+	//コマンドリストの生成がうまくいかなかったので起動できない
+	assert(SUCCEEDED(hr));
+
 
 	MSG msg{};
 	//ウィンドウの×ボタンが押されるまでループ
