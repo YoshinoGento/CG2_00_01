@@ -99,7 +99,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	SetUnhandledExceptionFilter(ExportDump);
 	uint32_t* p = nullptr;
-	*p = 100;
 
 	//log出力用のフォルダ
 	std::filesystem::create_directory("logs");
@@ -246,11 +245,54 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	swapChainDesc.Height = kClientHeight;  //画面の高さ。ウィンドウのクライアント領域をおなじものにしておく
 	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;   //色の形式
 	swapChainDesc.SampleDesc.Count = 1;  //マルチサンプル
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; //描画のターゲットとして利用する
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;        //モニターに移したら、中身を破壊
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;//描画のターゲットとして利用する
+	swapChainDesc.BufferCount = 2;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;        //モニターに移したら、中身を破壊
 	//コマンドキュー、ウィンドウハンドル、設定を渡して生成する
-	hr = dxgiFactory->CreateSwapChainForHwnd(commandQueue, hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(&swapChain));
+	hr = dxgiFactory->CreateSwapChainForHwnd(
+		commandQueue,
+		hwnd,
+		&swapChainDesc,
+		nullptr,
+		nullptr,
+		reinterpret_cast<IDXGISwapChain1**>(&swapChain)
+	);
 	assert(SUCCEEDED(hr));
+
+
+	//
+	ID3D12DescriptorHeap* rtvDescriPtorHeap = nullptr;
+	D3D12_DESCRIPTOR_HEAP_DESC rtvDescritorHeapDesc{};
+	rtvDescritorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;//
+	rtvDescritorHeapDesc.NumDescriptors = 2;//
+	hr = device->CreateDescriptorHeap(&rtvDescritorHeapDesc, IID_PPV_ARGS(&rtvDescriPtorHeap));
+	//
+	assert(SUCCEEDED(hr));
+	//
+	ID3D12Resource* swapChainResources[2] = { nullptr };
+	hr = swapChain->GetBuffer(0, IID_PPV_ARGS(&swapChainResources[0]));
+	//
+	assert(SUCCEEDED(hr));
+
+	hr = swapChain->GetBuffer(1, IID_PPV_ARGS(&swapChainResources[1]));
+	assert(SUCCEEDED(hr));
+
+	//RTVの設定
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
+	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;  //
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	//
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvStartHandles = rtvDescriPtorHeap->GetCPUDescriptorHandleForHeapStart();
+	//
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandles[2];
+	//
+	rtvHandles[0] = rtvStartHandles;
+	device->CreateRenderTargetView(swapChainResources[0], &rtvDesc, rtvHandles[0]);
+	//
+    rtvHandles[1].ptr = rtvHandles[0].ptr + device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	//
+	device->CreateRenderTargetView(swapChainResources[1], &rtvDesc, rtvHandles[1]);
+
 
 
 	//コマンドキューの生成がうまくいかなかったのできどうできない
@@ -291,11 +333,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			//ゲームの処理
 
+			//画面のクリア処理
+
+			//これから書き込むバックバッファののインデックスを取得
+			UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
+			//描画先のRTVを設定する
+			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, nullptr);
+			//指定した色で画面全体をクリアする
+			float clearColor[] = { 0.1f , 0.25f , 0.5f , 1.0f };//青っぽい色。RGBAの順
+			commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
+			//コマンドリストの内容を確定させる。全てのコマンドを積んでからCloseすること
+			hr = commandList->Close();
+			
+			assert(SUCCEEDED(hr));
+
+			//GPUにコマンドリストの実行を行わせる
+			ID3D12CommandList* commandLists[] = { commandList };
+			commandQueue->ExecuteCommandLists(1, commandLists);
+			//GPSとOSに画面の交換を行うように通知する
+			swapChain->Present(1, 0);
+			//次のフレーム用のコマンドリストのを準備
+			hr = commandAllocator->Reset();
+			assert(SUCCEEDED(hr));
+			hr = commandList->Reset(commandAllocator,nullptr);
+			assert(SUCCEEDED(hr));
+
 		}
 
 
 
 	}
+
+
 
 	//出力ウィンドウ絵の文字出力
 	OutputDebugStringA("Hello,DirectX!\n");
