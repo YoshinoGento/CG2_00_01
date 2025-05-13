@@ -100,6 +100,75 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg,
 }
 
 
+IDxcBlob* CompileShader(
+	//CompilerするShaderファイルへのパス
+	const std::wstring& filePath,
+	//Compilerに使用するProfile
+	const wchar_t* profile,
+	//初期化で生成したものを3つ
+	IDxcUtils* dxcUtils,
+	IDxcCompiler3* dxcCompiler,
+	IDxcIncludeHandler* includeHandler,
+	std::ostream& os) {
+	//これからシェイダーをコンパイルする旨をログにだす
+	Log(os, ConvertString(std::format(L"Begin CompileSher,path:{}\n",profile)));
+	//hlslファイルを読む
+	IDxcBlobEncoding* shaderSource = nullptr;
+	HRESULT hr = dxcUtils->LoadFile(filePath.c_str(), nullptr, &shaderSource);
+	//
+	assert(SUCCEEDED(hr));
+	//
+	DxcBuffer shaderSourceBuffer;
+	shaderSourceBuffer.Ptr = shaderSource->GetBufferPointer();
+	shaderSourceBuffer.Size = shaderSource->GetBufferSize();
+	shaderSourceBuffer.Encoding = DXC_CP_UTF8;
+
+	LPCWSTR arguments[] = {
+		filePath.c_str(),//
+		L"-E",L"main",//
+		L"-T",profile,//
+		L"-Zi",L"-Qembed_debug",//
+		L"-Od",//
+		L"-Zpr",
+	};
+	//
+	IDxcResult* shaderResult = nullptr;
+	hr = dxcCompiler->Compile(
+		&shaderSourceBuffer,
+		arguments,
+		_countof(arguments),
+		includeHandler,
+		IID_PPV_ARGS(&shaderResult)//
+	);
+	//
+	assert(SUCCEEDED(hr));
+
+	//
+	IDxcBlobUtf8* shaderError = nullptr;
+	shaderResult->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&shaderError), nullptr);
+	if (shaderError != nullptr && shaderError->GetStringLength() != 0){
+		Log(os,shaderError->GetStringPointer());
+		//
+		assert(false);
+
+		
+	}
+		//コンパイル結果から実行用のバイナリ部分を取得
+		IDxcBlob* shaderBlob = nullptr;
+		hr = shaderResult->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shaderBlob), nullptr);
+		assert(SUCCEEDED(hr));
+		//
+		Log(os, ConvertString(std::format(L"Compile Succeeded, path{}, profile:{}\n", filePath, profile)));
+		//
+		shaderSource->Release();
+		shaderResult->Release();
+		//
+		return shaderBlob;
+
+}
+
+
+
 //Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
@@ -263,7 +332,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		// 警告時に止まる  
 		//infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
-		
+
 		// 解放  
 		infoQueue->Release();
 
@@ -367,29 +436,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	assert(SUCCEEDED(hr));
 
 
-	        //初期化0でFence
-	        ID3D12Fence* fence = nullptr;
-	        uint64_t fenceValue = 0;
-	        hr = device->CreateFence(fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
-	        assert(SUCCEEDED(hr));
-				
-			//FenceのSignalを持つためのイベントを作成する
-			HANDLE fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-			assert(fenceEvent != nullptr);
+	//初期化0でFence
+	ID3D12Fence* fence = nullptr;
+	uint64_t fenceValue = 0;
+	hr = device->CreateFence(fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+	assert(SUCCEEDED(hr));
 
-			//dxcCompilerを初期化
-			IDxcUtils* dxcUtils = nullptr;
-			IDxcCompiler3* dxcCompiler = nullptr;
-			hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxcUtils));
-			assert(SUCCEEDED(hr));
-			hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&dxcCompiler));
-			assert(SUCCEEDED(hr));
+	//FenceのSignalを持つためのイベントを作成する
+	HANDLE fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	assert(fenceEvent != nullptr);
 
-			//現時点でincludeHandlerはしないが、includeに対応するための設定を行っておく
-			IDxcIncludeHandler* includeHandler = nullptr;
-			hr = dxcUtils->CreateDefaultIncludeHandler(&includeHandler);
-			assert(SUBLANGID(hr));
+	//dxcCompilerを初期化
+	IDxcUtils* dxcUtils = nullptr;
+	IDxcCompiler3* dxcCompiler = nullptr;
+	hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxcUtils));
+	assert(SUCCEEDED(hr));
+	hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&dxcCompiler));
+	assert(SUCCEEDED(hr));
 
+	//現時点でincludeHandlerはしないが、includeに対応するための設定を行っておく
+	IDxcIncludeHandler* includeHandler = nullptr;
+	hr = dxcUtils->CreateDefaultIncludeHandler(&includeHandler);
+	assert(SUCCEEDED(hr));
+
+	
 	MSG msg{};
 
 	//ウィンドウの×ボタンが押されるまでループ
@@ -403,7 +473,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//ゲームの処理
 
 
-			
+
 
 			//画面のクリア処理
 
