@@ -477,9 +477,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 	///////////////////////////////////////////////
+	//RootSignatureの作成
 	D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
 	descriptionRootSignature.Flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	//RootParameter作成。複数設定できるので配列。今回は結果一つだけなので長さ１の配列
+	D3D12_ROOT_SIGNATURE_DESC rootParamenters[1] = {};
+	rootParamenters[0].ParameterType = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	rootParamenters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rootParamenters[0].Descriptor.
+
 	//シリアライズしてバイナリにする
 	ID3DBlob* signatureBlob = nullptr;
 	ID3DBlob* errorBlob = nullptr;
