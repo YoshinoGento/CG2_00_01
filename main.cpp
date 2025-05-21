@@ -25,6 +25,8 @@
 #include <dxcapi.h>
 #pragma comment(lib,"dxcompiler.lib")
 
+#include "Matrix.h"
+
 struct Vector4 {
 	float x;
 	float y;
@@ -54,6 +56,7 @@ static LONG WINAPI ExportDump(EXCEPTION_POINTERS* exception) {
 	//ほかに関連づけられているSEH例外ハンドラがあれば実行。通常はプロセスを終了する
 	return EXCEPTION_EXECUTE_HANDLER;
 }
+
 
 void Log(std::ostream& os, const std::string& message) {
 
@@ -98,7 +101,7 @@ ID3D12Resource* CreateBufferResource(ID3D12Device* device, size_t sizeInBytes) {
 	D3D12_RESOURCE_DESC vertexResourceDesc{};
 	//
 	vertexResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	vertexResourceDesc.Width = sizeof(Vector4) * 3;//
+	vertexResourceDesc.Width = sizeInBytes;//
 	//
 	vertexResourceDesc.Height = 1;
 	vertexResourceDesc.DepthOrArraySize = 1;
@@ -441,11 +444,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//
 	ID3D12Resource* swapChainResources[2] = { nullptr };
 	hr = swapChain->GetBuffer(0, IID_PPV_ARGS(&swapChainResources[0]));
+
 	//
 	assert(SUCCEEDED(hr));
 
 	hr = swapChain->GetBuffer(1, IID_PPV_ARGS(&swapChainResources[1]));
 	assert(SUCCEEDED(hr));
+
+
+
 
 	//RTVの設定
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
@@ -514,12 +521,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	//RootParameter作成。複数設定できるので配列。今回は結果一つだけなので長さ１の配列
-	D3D12_ROOT_PARAMETER rootParamenters[1] = {};
+	D3D12_ROOT_PARAMETER rootParamenters[2] = {};
 	rootParamenters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	rootParamenters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootParamenters[0].Descriptor.ShaderRegister = 0;
+
+	rootParamenters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParamenters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	rootParamenters[1].Descriptor.ShaderRegister = 0;
 	descriptionRootSignature.pParameters = rootParamenters;
 	descriptionRootSignature.NumParameters = _countof(rootParamenters);
+
+	//WVP用のリソースを作る。
+	ID3D12Resource* wvpResource = CreateBufferResource(device, sizeof(Matrix4x4));
+
+	//データを書き込む
+	Matrix4x4* wvpData = nullptr;
+
+	//書き込むためのアドレスを取得
+	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
+	//単位行列
+	*wvpData = MatrixMath::MakeIdentity4x4();
 
 	//シリアライズしてバイナリにする
 	ID3DBlob* signatureBlob = nullptr;
@@ -622,6 +644,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(Vector4) * 3);
 
 
+
 	//頂点バッファを作成する
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
 	//
@@ -669,6 +692,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
 	//
 	*materialData = Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+
+
+	
 
 	/////////////////////////////////
 
@@ -726,6 +752,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 			commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
+
+			//wvp用のCBufferの場所を設定
+			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
+
 
 			//描画！(DrawCall/ドローコール）・３頂点で一つのインスタンス。インスタンスについては今後
 			commandList->DrawInstanced(3, 1, 0, 0);
@@ -804,6 +834,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	pixelShaderBlob->Release();
 	vertexShaderBlob->Release();
 	materialResource->Release();
+	wvpResource->Release();
+
 	CloseWindow(hwnd);
 
 
