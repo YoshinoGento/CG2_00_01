@@ -58,8 +58,10 @@ namespace MatrixMath {
 	//6.単位行列の作成
 	Matrix4x4 MakeIdentity4x4();
 
+	
 	//
-	Matrix4x4 worldMatrix = MakeAffineMatrix();
+	Matrix4x4 worldMattix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
+	
 
 };
 
