@@ -1,8 +1,13 @@
 #pragma once
 #include "Struct.h"
+#include "Transform.h"
 struct  Matrix4x4 {
 	float m[4][4];
 };
+
+
+
+
 namespace MatrixMath {
 
 	//1.透視投影行列
@@ -52,6 +57,9 @@ namespace MatrixMath {
 
 	//6.単位行列の作成
 	Matrix4x4 MakeIdentity4x4();
+
+	//
+	Matrix4x4 worldMatrix = MakeAffineMatrix();
 
 };
 

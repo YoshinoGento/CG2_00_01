@@ -797,8 +797,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ID3D12DescriptorHeap* descriptorHeaps[] = { srvDscriptorHeap };
 			commandList->SetDescriptorHeaps(1, descriptorHeaps);
 
-			//指定した色で画面全体をクリアする
-			float clearColor[] = { 0.1f , 0.25f , 0.5f , 1.0f };//青っぽい色。RGBAの順
+			//指定した色で画面全体をクリアす
+																																												float clearColor[] = { 0.1f , 0.25f , 0.5f , 1.0f };//青っぽい色。RGBAの順
 
 			commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
 
