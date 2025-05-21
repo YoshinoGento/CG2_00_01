@@ -27,6 +27,12 @@
 
 #include "Matrix.h"
 
+//ImGui
+#include "externals/imgui/imgui.h"
+#include "externals/imgui/imgui_impl_dx12.h"
+#include "externals/imgui/imgui_impl_win32.h"
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM IParam);
+
 struct Vector4 {
 	float x;
 	float y;
@@ -119,9 +125,26 @@ ID3D12Resource* CreateBufferResource(ID3D12Device* device, size_t sizeInBytes) {
 
 }
 
+ID3D12DescriptorHeap* CreateDescriptorHeap(
+	ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT numDescriptors, bool shaderVisible) {
+	//デスクリプトビュー
+	ID3D12DescriptorHeap* descriptorHeap = nullptr;
+	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc{};
+	descriptorHeapDesc.Type = heapType;
+	descriptorHeapDesc.NumDescriptors = numDescriptors;
+	descriptorHeapDesc.Flags = shaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	HRESULT hr = device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&descriptorHeap));
+	assert(SUCCEEDED(hr));
+	return descriptorHeap;
+
+}
+
 //ウィンドウプロシージャ
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg,
 	WPARAM wparam, LPARAM lparam) {
+	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam)) {
+		return true;
+	}
 	//メッセージに応じてゲーム固有の処理を行う
 	switch (msg) {
 		//ウィンドウが破壊された
@@ -147,7 +170,7 @@ IDxcBlob* CompileShader(
 	IDxcUtils* dxcUtils,
 	IDxcCompiler3* dxcCompiler,
 	IDxcIncludeHandler* includeHandler
-	) {
+) {
 	std::ofstream logStream;
 	//これからシェイダーをコンパイルする旨をログにだす
 	Log(logStream, ConvertString(
@@ -433,13 +456,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	assert(SUCCEEDED(hr));
 
 
-	//
-	ID3D12DescriptorHeap* rtvDescriPtorHeap = nullptr;
-	D3D12_DESCRIPTOR_HEAP_DESC rtvDescritorHeapDesc{};
-	rtvDescritorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;//
-	rtvDescritorHeapDesc.NumDescriptors = 2;//
-	hr = device->CreateDescriptorHeap(&rtvDescritorHeapDesc, IID_PPV_ARGS(&rtvDescriPtorHeap));
-	//
+	//RTV用のヒープでディスクリプタの数は２。RTVはShader内で触るものではないので、ShaderVisidleはfalse
+	ID3D12DescriptorHeap* rtvDescriPtorHeap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, false);
+
+	//STV用のヒープでディスクリプタの数は128。SRVはShader内で触るものなので、ShaderVisibleはtrue
+	ID3D12DescriptorHeap* srvDscriptorHeap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128, true);
+
 	assert(SUCCEEDED(hr));
 	//
 	ID3D12Resource* swapChainResources[2] = { nullptr };
@@ -694,9 +716,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	*materialData = Vector4(1.0f, 0.0f, 0.0f, 1.0f);
 
 
-	
+
 
 	/////////////////////////////////
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui::StyleColorsClassic();
+	ImGui_ImplWin32_Init(hwnd);
+	ImGui_ImplDX12_Init(device,
+		swapChainDesc.BufferCount,
+		rtvDesc.Format,
+		srvDscriptorHeap,
+		srvDscriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+		srvDscriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	MSG msg{};
 
@@ -708,12 +741,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			DispatchMessage(&msg);
 		} else {
 
+			ImGui_ImplDX12_NewFrame();
+			ImGui_ImplWin32_NewFrame();
+			ImGui::NewFrame();
+
+			//update
+
+			//開発用UIの処理。実際に開発用のUIを出す場合はここをゲーム固有の処理に置き換える
+			ImGui::ShowDebugLogWindow();
+
+			ImGui::Begin("MaterialColor");
+			ImGui::ColorEdit4("Color", &(*materialData).x);
+			ImGui::End();
+
+
+
 			//ゲームの処理
 
-
-
-
 			//画面のクリア処理
+
+			//ImGuiの内部コマンドを生成する
+			ImGui::Render();
 
 			//これから書き込むバックバッファののインデックスを取得
 			UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
@@ -721,24 +769,37 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			//TransitionBarrierの設定
 			D3D12_RESOURCE_BARRIER barrier{};
+
 			//今回のバリアはTransition
 			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+
 			//Noneにしておく
 			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+
 			//バリアを張る対象のリソース。現在のバックバッファに対して行う
 			barrier.Transition.pResource = swapChainResources[backBufferIndex];
+
+
 			//遷移前（現在）のResourceStarte
 			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+
 			//遷移後の	ResourceStarte
 			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+
 			//TransitionBarrierを張る
 			commandList->ResourceBarrier(1, &barrier);
 
 
 			//描画先のRTVを設定する
 			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, nullptr);
+
+			//描画用のDescriptorHeapの設定
+			ID3D12DescriptorHeap* descriptorHeaps[] = { srvDscriptorHeap };
+			commandList->SetDescriptorHeaps(1, descriptorHeaps);
+
 			//指定した色で画面全体をクリアする
 			float clearColor[] = { 0.1f , 0.25f , 0.5f , 1.0f };//青っぽい色。RGBAの順
+
 			commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
 
 
@@ -761,6 +822,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->DrawInstanced(3, 1, 0, 0);
 
 
+
+			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
 
 			//画面に描く処理は全ておわり
 			//今回はRenderTargeからPresetにする
@@ -806,8 +869,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 
-
 	}
+	ImGui_ImplDX12_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
 
 	CloseHandle(fenceEvent);
 	fence->Release();
@@ -835,7 +900,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	vertexShaderBlob->Release();
 	materialResource->Release();
 	wvpResource->Release();
-
+	srvDscriptorHeap->Release();
 	CloseWindow(hwnd);
 
 
