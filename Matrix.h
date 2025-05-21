@@ -59,10 +59,7 @@ namespace MatrixMath {
 	Matrix4x4 MakeIdentity4x4();
 
 	
-	//
-	Matrix4x4 worldMattix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
 	
-
 };
 
 
