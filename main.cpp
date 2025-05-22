@@ -751,19 +751,56 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			//update
 
-			//開発用UIの処理。実際に開発用のUIを出す場合はここをゲーム固有の処理に置き換える
-			ImGui::ShowDemoWindow();
-			
-			ImGui::Begin("MaterialColor");
-			ImGui::ColorEdit4("Color", &(*materialData).x);
-			ImGui::End();
+			////開発用UIの処理。実際に開発用のUIを出す場合はここをゲーム固有の処理に置き換える
+			//ImGui::Begin("Object Transform & Material");  // ウィンドウの開始（タイトルは自由に）
+			//ImGui::ShowDemoWindow();
+
+			//ImGui::Text("Transform");  // セクション見出し
+			//ImGui::DragFloat3("Transrate", &transform.translate.x, 0.01f);
+			//ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
+
+			//ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
+			//ImGui::Separator();  // 区切り線（見やすくするため）
+
+			///*ImGui::Begin("MaterialColor");*/
+			//ImGui::ColorEdit4("Color", &(*materialData).x);
+			//ImGui::End();
+			ImGui::Begin("Settings");  // ウィンドウ開始
+
+			// ▼ モデル選択（例: Comboボックス）
+			static const char* modelTypes[] = { "Triangle", "Cube", "Sphere" };
+			static int selectedModel = 0;
+			ImGui::Combo("Model", &selectedModel, modelTypes, IM_ARRAYSIZE(modelTypes));
+
+			// ▼ Object設定（Transform）
+			if (ImGui::CollapsingHeader("Object", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::DragFloat3("Translate", &transform.translate.x, 0.01f);
+				ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
+				ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
+
+				if (ImGui::Button("Delete")) {
+					// 削除処理
+				}
+			}
+
+			// ▼ Material設定（色編集など）
+			if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::ColorEdit4("Color", &materialData->x);
+			}
+
+			// ▼ Light設定（ライト位置など追加予定ならここに）
+			if (ImGui::CollapsingHeader("Light")) {
+				// ImGui::DragFloat3("Light Pos", &lightPos.x, 0.01f); など
+			}
+
+			ImGui::End();  // ウィンドウ終了
 
 
 
 
 			//ゲームの処理
 
-			transform.rotate.y += 0.01f;
+			//transform.rotate.y += 0.01f;
 			Matrix4x4 worldMatrix = MatrixMath::MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
 			Matrix4x4 cameraMatrix = MatrixMath::MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 			Matrix4x4 viewMatrix = MatrixMath::Inverse(cameraMatrix);
