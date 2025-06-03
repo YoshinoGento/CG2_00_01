@@ -149,6 +149,7 @@ ID3D12Resource* CreateDepthStencilTextureResource(
 		IID_PPV_ARGS(&resource));//作成するResourceポインタへのポインタ
 
 	assert(SUCCEEDED(hr));
+	return resource;
 
 }
 
@@ -986,18 +987,59 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			DispatchMessage(&msg);
 		} else {
 
+
 			ImGui_ImplDX12_NewFrame();
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
 
 			//update
 
-			//開発用UIの処理。実際に開発用のUIを出す場合はここをゲーム固有の処理に置き換える
-			ImGui::ShowDemoWindow();
+			////開発用UIの処理。実際に開発用のUIを出す場合はここをゲーム固有の処理に置き換える
+			//ImGui::Begin("Object Transform & Material");  // ウィンドウの開始（タイトルは自由に）
+			//ImGui::ShowDemoWindow();
 
-			ImGui::Begin("MaterialColor");
-			ImGui::ColorEdit4("Color", &(*materialData).x);
-			ImGui::End();
+			//ImGui::Text("Transform");  // セクション見出し
+			//ImGui::DragFloat3("Transrate", &transform.translate.x, 0.01f);
+			//ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
+
+			//ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
+			//ImGui::Separator();  // 区切り線（見やすくするため）
+
+			///*ImGui::Begin("MaterialColor");*/
+			//ImGui::ColorEdit4("Color", &(*materialData).x);
+			//ImGui::End();
+			ImGui::Begin("Settings");  // ウィンドウ開始
+
+			// ▼ モデル選択（例: Comboボックス）
+			static const char* modelTypes[] = { "Triangle", "Cube", "Sphere" };
+			static int selectedModel = 0;
+			ImGui::Combo("Model", &selectedModel, modelTypes, IM_ARRAYSIZE(modelTypes));
+
+			// ▼ Object設定（Transform）
+			if (ImGui::CollapsingHeader("Object", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::DragFloat3("Translate", &transform.translate.x, 0.01f);
+				ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
+				ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
+
+				if (ImGui::Button("Delete")) {
+					// 削除処理
+				}
+			}
+
+			// ▼ Material設定（色編集など）
+			if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::ColorEdit4("Color", &materialData->x);
+			}
+
+			// ▼ Light設定（ライト位置など追加予定ならここに）
+			if (ImGui::CollapsingHeader("Light")) {
+				// ImGui::DragFloat3("Light Pos", &lightPos.x, 0.01f); など
+				Vector4 lightPos = { 0.0f, 1.0f, 0.0f, 1.0f };
+				ImGui::DragFloat3("Light Pos", &lightPos.x, 0.01f);
+				// ライトの位置を表す変数を定義  
+			}
+
+			ImGui::End();  // ウィンドウ終了
 
 
 
@@ -1160,6 +1202,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	wvpResource->Release();
 	srvDscriptorHeap->Release();
 	intermediateResoirce->Release();
+	depthStencilResource->Release();
 	CloseWindow(hwnd);
 
 
