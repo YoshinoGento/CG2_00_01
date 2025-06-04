@@ -1008,6 +1008,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	ID3D12Resource* transformationMatrixResourceSprite = CreateBufferResource(device, sizeof(Matrix4x4));
 	//データを書き込む
 	Matrix4x4* transformationMatrixDataSprite = nullptr;
+	//書き込むためのアドレスを取得
+	transformationMatrixResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&transformationMatrixDataSprite));
+	//単位行列を書きこんでおく
+	*transformationMatrixDataSprite = MatrixMath::MakeIdentity4x4();
+
+	Transform transformSprite{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f,},{0.0f,0.0f,0.0f} };
 
 
 		///////////////////////////////////////////////////////////////////
@@ -1108,7 +1114,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				ImGui::DragFloat3("Translate", &transform.translate.x, 0.01f);
 				ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
 				ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
-
+				ImGui::DragFloat3("Translate", &transformSprite.translate.x, 0.01f);
 				if (ImGui::Button("Delete")) {
 					// 削除処理
 				}
@@ -1141,6 +1147,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			Matrix4x4 projectionMatrix = MatrixMath::MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 			Matrix4x4 worldViewProjectionMatrix = MatrixMath::Multiply(worldMatrix, MatrixMath::Multiply(viewMatrix, projectionMatrix));
 			*wvpData = worldViewProjectionMatrix;
+
+
+			//スプライト
+			Matrix4x4 worldMatrixSprite = MatrixMath::MakeAffineMatrix(transformSprite.scale, transformSprite.rotate, transformSprite.translate);
+			Matrix4x4 viewMatrixSprite = MatrixMath::MakeIdentity4x4();
+			Matrix4x4 projectionMatrixSprite = MatrixMath::MakeOrthographicMatrix(0.0f, 0.0f, float(kClientWidth), float(kClientHeight), 0.0f, 100.0f);
+			Matrix4x4 worldViewProjectionMatrixDataSprite = MatrixMath::Multiply(worldMatrixSprite, MatrixMath::Multiply(viewMatrixSprite, projectionMatrixSprite));
+			*transformationMatrixDataSprite = worldViewProjectionMatrixDataSprite;
+
 
 
 			//画面のクリア処理
@@ -1182,10 +1197,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ID3D12DescriptorHeap* descriptorHeaps[] = { srvDscriptorHeap };
 			commandList->SetDescriptorHeaps(1, descriptorHeaps);
 
+			//描画先のRTVとDSVを設定する
+			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, &dsvHandle);
 			//指定した色で画面全体をクリアす
 			float clearColor[] = { 0.1f , 0.25f , 0.5f , 1.0f };//青っぽい色。RGBAの順
 
 			commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
+			//指定した深度で画面全体をクリアする
+			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+
 
 
 			commandList->RSSetViewports(1, &viewport);//Viewportを設定
@@ -1203,10 +1225,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 
 
-			//描画先のRTVとDSVを設定する
-			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, &dsvHandle);
-
 			//////////////////////////p50
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
@@ -1215,9 +1233,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 
+			//Spriteの描画。変更が必要なものだけ変更する
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);//VBVを設定する
+			//TransformationMatrixCBufferの場所を設定
+			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
+			//描画！(DrawCall/ドローコール)
+			commandList->DrawInstanced(6, 1, 0, 0);
 
-			//指定した深度で画面全体をクリアする
-			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+
 
 
 			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
@@ -1229,16 +1253,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			//TriansitionBarrierを張る
 			commandList->ResourceBarrier(1, &barrier);
 
-			//コマンドリストの内容を確定させる。全てのコマンドを積んでからCloseすること
-			hr = commandList->Close();
+			
 
 			assert(SUCCEEDED(hr));
 
 			//GPUにコマンドリストの実行を行わせる
+
+
+			//コマンドリストの内容を確定させる。全てのコマンドを積んでからCloseすること
+			hr = commandList->Close();
+
 			ID3D12CommandList* commandLists[] = { commandList };
 			commandQueue->ExecuteCommandLists(1, commandLists);
-
-
 			//GPSとOSに画面の交換を行うように通知する
 			swapChain->Present(1, 0);
 
@@ -1302,7 +1328,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	intermediateResoirce->Release();
 	depthStencilResource->Release();
 	dsvDescriptorHeap->Release();
-	
+	vertexResourceSprite->Release();
+	transformationMatrixResourceSprite->Release();
 	CloseWindow(hwnd);
 
 
