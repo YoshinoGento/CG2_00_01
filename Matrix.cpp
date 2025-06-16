@@ -242,3 +242,4 @@ Matrix4x4 MatrixMath::MakeIdentity4x4() {
 	}
 	return result;
 }
+
