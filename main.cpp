@@ -344,7 +344,7 @@ IDxcBlob* CompileShader(
 	//
 	IDxcBlobUtf8* shaderError = nullptr;
 
-	shaderResult->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&shaderError), nullptr);
+	hr = shaderResult->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&shaderError), nullptr);
 
 	if (shaderError != nullptr && shaderError->GetStringLength() != 0) {
 		Log(logStream, shaderError->GetStringPointer());
@@ -599,7 +599,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	ID3D12CommandQueue* commandQueue = nullptr;
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc{};
 	hr = device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&commandQueue));
-
+	assert(SUCCEEDED(hr));
+	assert(commandQueue != nullptr);
 
 	//スワップチェーンを生成する
 	IDXGISwapChain4* swapChain = nullptr;
@@ -620,6 +621,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		nullptr,
 		reinterpret_cast<IDXGISwapChain1**>(&swapChain)
 	);
+	
 	assert(SUCCEEDED(hr));
 
 
@@ -804,7 +806,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc{};
 	inputLayoutDesc.pInputElementDescs = inputElementDescs;
 	inputLayoutDesc.NumElements = _countof(inputElementDescs);
-	//BlendStateの設定
+	//BlendStateの設定GetBufferPointer
 	D3D12_BLEND_DESC blendDesc{};
 	//
 	blendDesc.RenderTarget[0].RenderTargetWriteMask =
@@ -1024,8 +1026,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//球/////////////////////////////////////////////////////////////////////
 
 	uint32_t kSubdivision = 16;
-	uint32_t kVertexResource = 1536;
+	uint32_t kVertexResource = kSubdivision * kSubdivision * 6;
 
+	vertexData[kVertexResource];
+	
 	//経度分割1つ分の角度φd
 	const float kLonEvery = float(std::numbers::pi) * 2.0f / float(kSubdivision);
 	//緯度分割1つ分の角度θd
@@ -1060,7 +1064,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				std::cosf(lat + kLatEvery) * std::sinf(lon),
 				1.0f
 				},{
-				1.0f - float(latIndex + 1) / float(kSubdivision)
+					float(lonIndex) / float(kSubdivision),
+				    1.0f - float(latIndex + 1) / float(kSubdivision)
 				}
 			};
 
@@ -1071,6 +1076,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 					1.0f
 				},{
 					float(lonIndex + 1) / float(kSubdivision),
+					1.0f - float(latIndex) / float(kSubdivision)
 				}
 			};
 
@@ -1084,14 +1090,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				    1.0f - float(latIndex + 1) / float(kSubdivision) 
 				}
 			};
+			
+            
+			
 
+         
 			// 四角形を2枚の三角形で描く
 			vertexData[start + 0] = verA; // 三角形1
 			vertexData[start + 1] = verB; 
 			vertexData[start + 2] = verC; 
 			
-			vertexData[start + 3] = verC; // 三角形1
-			vertexData[start + 4] = verB; 
+			vertexData[start + 3] = verC; // 三角形2
+			vertexData[start + 4] = verB;
 			vertexData[start + 5] = verD; 
 			
 			
@@ -1314,7 +1324,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
 				//描画！(DrawCall/ドローコール）・３頂点で一つのインスタンス。インスタンスについては今後
-				commandList->DrawInstanced(6, 1, 0, 0);
+				//commandList->DrawInstanced(6, 1, 0, 0);
 
 				//球
 				commandList->DrawInstanced(kVertexResource, 1, 0, 0);
