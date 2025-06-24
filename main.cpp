@@ -703,6 +703,37 @@ void GenerateSphereVertices(VertexData* vertices, int kSubdivision,
         }
     }
 }
+
+
+/// <summary>
+/// CPU 05_01
+/// </summary>
+/// <param name="descriptorHeap"></param>
+/// <param name="descriptorSize"></param>
+/// <param name="index"></param>
+/// <returns></returns>
+D3D12_CPU_DESCRIPTOR_HANDLE 
+GetCPUDescriptorHandle(
+    ID3D12DescriptorHeap* descriptorHeap,
+    uint32_t descriptorSize, uint32_t index)
+{
+    D3D12_CPU_DESCRIPTOR_HANDLE handleCPU = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+    handleCPU.ptr += (descriptorSize * index);
+
+    return handleCPU;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE
+GetGPUDescriptorHandle(
+    ID3D12DescriptorHeap* descriptorHeap,
+    uint32_t descriptorSize, uint32_t index)
+{
+    D3D12_GPU_DESCRIPTOR_HANDLE handleGPU = descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+    handleGPU.ptr += (descriptorSize * index);
+    return handleGPU;
+}
+
+
 ////////////////////
 // 関数の生成ここまで//
 ////////////////////
@@ -845,6 +876,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     const int32_t kClientWidth = 1280;
     const int32_t kClientHeight = 720;
 
+    
+
     // ウィンドウサイズを表す構造体体にクライアント領域を入れる
     RECT wrc = { 0, 0, kClientWidth, kClientHeight };
 
@@ -908,6 +941,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // 適切なアダプタが見つからなかったので起動できない
     assert(useAdapter != nullptr);
     ID3D12Device* device = nullptr;
+
     // 昨日レベルとログ出力用の文字列
     D3D_FEATURE_LEVEL featureLevels[] = {
         D3D_FEATURE_LEVEL_12_2, D3D_FEATURE_LEVEL_12_1, D3D_FEATURE_LEVEL_12_0 };
@@ -929,6 +963,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     assert(device != nullptr);
     Log(logStream,
         "Complete create D3D12Device!!!\n"); // 初期化完了のログを出す
+
+    const uint32_t desriptorSizeSRV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    const uint32_t desriptorSizeRTV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    const uint32_t desriptorSizeDSV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
 #ifdef _DEBUG
 
@@ -1163,9 +1201,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     ID3D12Resource* textureResource = CreateTextureResource(device, metadata);
     // UploadTextureData(textureResource, mipImages);
 
+
+    //2枚目のTextureを読んで転送する05_01
+    DirectX::ScratchImage mipImages2 = LoadTexture("resources/仏顔.png");
+    const DirectX::TexMetadata& metadata2 = mipImages2.GetMetadata();
+    ID3D12Resource* textureResource2 = CreateTextureResource(device, metadata2);
+    //UploadTextureData(textureResource2, mipImages2, commandList);
+
+
     // 03_00EX
     ID3D12Resource* intermediateResource =
         UploadTextureData(textureResource, mipImages, device, commandList);
+
+    ID3D12Resource* intermediateResource2 =
+        UploadTextureData(textureResource2, mipImages2, device, commandList);
+
 
     // metaDataを基にSRVの設定03_00
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -1174,7 +1224,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
     srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
 
-    // SRVを作成するDescriptorHeapの場所を決める
+
+    // metaDataを基にSRVの設定  05_01
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc2{};
+    srvDesc2.Format = metadata2.format;
+    srvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1D;//2Dテスクチャ
+    srvDesc2.Texture2D.MipLevels = UINT(metadata2.mipLevels);
+
+
+    // SRVを作成する
+    // の場所を決める
     D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU =
         srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
     D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU =
@@ -1187,8 +1247,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     // SRVの生成03_00
-    device->CreateShaderResourceView(textureResource, &srvDesc,
-        textureSrvHandleCPU);
+    device->
+        CreateShaderResourceView(textureResource, &srvDesc,textureSrvHandleCPU);
+
+    //SRVを作成するDescriptorHeapの場所を決める  05_01
+    D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2 = GetCPUDescriptorHandle(srvDescriptorHeap, desriptorSizeDSV, 2);
+    D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2 = GetCPUDescriptorHandle(srvDescriptorHeap, desriptorSizeDSV, 2);
+
+    //SRVの生成  05_01
+    device->CreateShaderResourceView(textureResource2, &srvDesc2, textureSrvHandleCPU2);
+
 
     // InputLayout
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[2] = {};
@@ -1512,6 +1580,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                 animationType = ANIM_RESET;
                 break;
 
+
             case ANIM_COLOR:
                 materialData->x = fabsf(sinf(waveTime));
                 materialData->y = fabsf(sinf(waveTime + 1.0f));
@@ -1645,13 +1714,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             // 描画
             commandList->RSSetViewports(1, &viewport);       // viewportを設定
             commandList->RSSetScissorRects(1, &scissorRect); // Scirssorを設定
+
             // RootSignatureを設定。PS0に設定しているけど別途設定が必要
             commandList->SetGraphicsRootSignature(rootSignature);
             commandList->SetPipelineState(graphicsPinelineState);     // PS0を設定
             commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // VBVを設定
+
             // 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えていけばよい
             commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
             commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
+            commandList->SetGraphicsRootDescriptorTable(2,textureSrvHandleGPU2);//資料12
 
             // マテリアルCbufferの場所を設定
             commandList->SetGraphicsRootConstantBufferView(
