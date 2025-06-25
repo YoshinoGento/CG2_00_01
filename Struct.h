@@ -9,6 +9,10 @@ struct  Vector2 {
 	float y;
 };
 
+struct Vector4 {
+	float x, y, z, w;
+};
+
 // 球  
 struct Sphere {
 	Vector3 center; //!< 中心点  

@@ -30,28 +30,15 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd,
     UINT msg,
     WPARAM wParam,
     LPARAM lParam);
-struct Vector2 {
-    float x, y;
-};
 
-struct Vector4 {
-    float x, y, z, w;
-};
-struct Vector3 {
-    float x, y, z;
-};
-struct Matrix4x4 {
-    float m[4][4];
-};
-struct Transform {
-    Vector3 scale;
-    Vector3 rotate;
-    Vector3 translate;
-};
+
+
+
 struct VertexData {
     Vector4 position;
     Vector2 texcoord;
 };
+
 struct Fragment {
     Vector3 position;
     Vector3 velocity;
@@ -60,6 +47,7 @@ struct Fragment {
     float alpha;
     bool active;
 };
+
 // 変数//--------------------
 // 16分割
 const int kSubdivision = 16;
@@ -1212,7 +1200,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // 03_00EX
     ID3D12Resource* intermediateResource =
         UploadTextureData(textureResource, mipImages, device, commandList);
-
+    //05_01
     ID3D12Resource* intermediateResource2 =
         UploadTextureData(textureResource2, mipImages2, device, commandList);
 
@@ -1229,12 +1217,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc2{};
     srvDesc2.Format = metadata2.format;
     srvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1D;//2Dテスクチャ
+    srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;//2Dテスクチャ
     srvDesc2.Texture2D.MipLevels = UINT(metadata2.mipLevels);
 
 
     // SRVを作成する
-    // の場所を決める
+    //DescriptorHeapの場所を決める
     D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU =
         srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
     D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU =
@@ -1251,8 +1239,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         CreateShaderResourceView(textureResource, &srvDesc,textureSrvHandleCPU);
 
     //SRVを作成するDescriptorHeapの場所を決める  05_01
-    D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2 = GetCPUDescriptorHandle(srvDescriptorHeap, desriptorSizeDSV, 2);
-    D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2 = GetCPUDescriptorHandle(srvDescriptorHeap, desriptorSizeDSV, 2);
+    D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2 = 
+        GetCPUDescriptorHandle(srvDescriptorHeap, desriptorSizeSRV, 2);
+    D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2 = 
+        GetGPUDescriptorHandle(srvDescriptorHeap, desriptorSizeSRV, 2);
 
     //SRVの生成  05_01
     device->CreateShaderResourceView(textureResource2, &srvDesc2, textureSrvHandleCPU2);
@@ -1490,10 +1480,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // カメラトランスフォーム
     Transform cameraTransform{
         {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -5.0f} };
+
+    bool useMonsterBall = true;
     MSG msg{};
 
     // ウィンドウの×ボタンが押されるまでループ
     while (msg.message != WM_QUIT) {
+
+        
 
         // Windowにメッセージが来てたら最優先で処理させる
         if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -1516,7 +1510,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);
             ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
             ImGui::ColorEdit4("Color", &(*materialData).x);
-
+            ImGui::Checkbox("useMonsterBall", &useMonsterBall);
             // --- アニメーション選択 ---
             ImGui::Text("Animation");
             if (ImGui::Button("None"))
@@ -1724,7 +1718,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
             commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
-            commandList->SetGraphicsRootDescriptorTable(2,textureSrvHandleGPU2);//資料12
+            commandList->SetGraphicsRootDescriptorTable(2,useMonsterBall ? textureSrvHandleGPU2 : textureSrvHandleGPU);//資料12
 
             // マテリアルCbufferの場所を設定
             commandList->SetGraphicsRootConstantBufferView(
@@ -1810,6 +1804,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     rootSignature->Release();
     pixelShaderBlob->Release();
     vertexShaderBlob->Release();
+   ;
+   
+
 #ifdef _DEBUG
     debugController->Release();
     materialResource->Release();
@@ -1818,6 +1815,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     textureResource->Release();      // 03_00
     mipImages.Release();             // 03_00
     intermediateResource->Release(); // 03_00EX
+    textureResource2->Release();     // 05_01
+    mipImages2.Release();            // 05_01
+    intermediateResource2->Release();// 05_01
     depthStencillResource->Release();
     dsvDescriptorHeap->Release();
     includHandler->Release();
