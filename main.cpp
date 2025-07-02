@@ -1901,7 +1901,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	rootSignature->Release();
 	pixelShaderBlob->Release();
 	vertexShaderBlob->Release();
-	materialResourceSprite->Release();
 	device->Release();
 	;
 
@@ -1909,6 +1908,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 #ifdef _DEBUG
 	debugController->Release();
 	materialResource->Release();
+	materialResourceSprite->Release();
 	wvpResource->Release();
 	srvDescriptorHeap->Release();
 	textureResource->Release();      // 03_00
