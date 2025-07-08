@@ -1902,7 +1902,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	pixelShaderBlob->Release();
 	vertexShaderBlob->Release();
 	device->Release();
-	;
+	CoUninitialize(); // ← これを最後に追加！
+	
 
 
 #ifdef _DEBUG
@@ -1924,9 +1925,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	dxcUtils->Release();
 	vertexResourceSprite->Release();
 	transformationMatrixResourceSprite->Release();
-	CoInitialize(nullptr);
 #endif
+	CoInitialize(nullptr);
+
 	CloseWindow(hwnd);
+
 
 	// リソースチェックCG2_01_03
 	IDXGIDebug1* debug;
