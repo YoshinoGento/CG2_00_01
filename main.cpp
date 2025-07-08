@@ -814,6 +814,7 @@ IDxcBlob* CompileShader(
 //  Windwsアプリでの円とリポウント(main関数)
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
+	CoInitialize(nullptr);
 	CoInitializeEx(0, COINIT_MULTITHREADED);
 
 	// 誰も補足しなかった場合(Unhandled),補足する関数を登録
@@ -1883,51 +1884,59 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 解放処理CG2_01_03
 	CloseHandle(fenceEvent);
 	fence->Release();
-	rtvDescriptorHeap->Release();
-	swapChainResources[0]->Release();
-	swapChainResources[1]->Release();
-	swapChain->Release();
 	commandList->Release();
 	commandAllocator->Release();
 	commandQueue->Release();
+
+	rtvDescriptorHeap->Release();
+
+	swapChainResources[0]->Release();
+	swapChainResources[1]->Release();
+	swapChain->Release();
+
 	useAdapter->Release();
 	dxgiFactory->Release();
 	vertexResource->Release();
 	graphicsPinelineState->Release();
-	signatureBlob->Release();
+
 	if (errorBlob) {
 		errorBlob->Release();
 	}
+
 	rootSignature->Release();
+
+	signatureBlob->Release();
 	pixelShaderBlob->Release();
 	vertexShaderBlob->Release();
 	device->Release();
-	CoUninitialize(); // ← これを最後に追加！
 	
 
 
 #ifdef _DEBUG
 	debugController->Release();
 	materialResource->Release();
-	materialResourceSprite->Release();
 	wvpResource->Release();
 	srvDescriptorHeap->Release();
 	textureResource->Release();      // 03_00
 	mipImages.Release();             // 03_00
 	intermediateResource->Release(); // 03_00EX
+	depthStencillResource->Release();// 03_01
+	dsvDescriptorHeap->Release();    // 03_01
 	textureResource2->Release();     // 05_01
 	mipImages2.Release();            // 05_01
 	intermediateResource2->Release();// 05_01
-	depthStencillResource->Release();
-	dsvDescriptorHeap->Release();
 	includHandler->Release();
-	dxcCompiler->Release();
-	dxcUtils->Release();
+
 	vertexResourceSprite->Release();
 	transformationMatrixResourceSprite->Release();
+	materialResourceSprite->Release();
+	DirectionRitingResource->Release(); // 05_03
+	dxcCompiler->Release();
+	dxcUtils->Release();
 #endif
-	CoInitialize(nullptr);
+	
 
+	CoUninitialize(); // ← これを最後に追加！
 	CloseWindow(hwnd);
 
 
