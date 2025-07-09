@@ -1390,168 +1390,169 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	const float kLonEvery = std::numbers::pi_v<float> *2.0f / kSubdivision;
 	const float kLatEvery = std::numbers::pi_v<float> / kSubdivision;
 
-	//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+	for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
 
-	//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+		float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
 
-	//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+		for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
 
-	//		float lon = lonIndex * kLonEvery;
-	//		VertexData vertA = {
-	//		{
-	//				std::cosf(lat) * std::cosf(lon), // x
-	//				std::sinf(lat),                 // y
-	//				std::cosf(lat) * std::sinf(lon), // z
-	//				1.0//w
-	//			},
-	//			{
-	//				float(lonIndex) / float(kSubdivision),
-	//				1.0f - float(latIndex) / float(kSubdivision) // u, v
-	//			},
-	//			{
-	//				std::cosf(lat) * std::cosf(lon), // x
-	//				std::sinf(lat),                 // y
-	//				std::cosf(lat) * std::sinf(lon)  // z
-	//			}
-	//		};
-	//		uint32_t start = (latIndex * (kSubdivision + 1)) * lonIndex;
-	//		vertexDataSprite[start] = vertA;
-	//	}
-	//}
-	//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+			//		float lon = lonIndex * kLonEvery;
+			//		VertexData vertA = {
+			//		{
+			//				std::cosf(lat) * std::cosf(lon), // x
+			//				std::sinf(lat),                 // y
+			//				std::cosf(lat) * std::sinf(lon), // z
+			//				1.0//w
+			//			},
+			//			{
+			//				float(lonIndex) / float(kSubdivision),
+			//				1.0f - float(latIndex) / float(kSubdivision) // u, v
+			//			},
+			//			{
+			//				std::cosf(lat) * std::cosf(lon), // x
+			//				std::sinf(lat),                 // y
+			//				std::cosf(lat) * std::sinf(lon)  // z
+			//			}
+			//		};
+			//		uint32_t start = (latIndex * (kSubdivision + 1)) * lonIndex;
+			//		vertexDataSprite[start] = vertA;
+			//	}
+			//}
+			//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
 
-	//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+			//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
 
-	//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+			//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
 
-	//		float lon = lonIndex * kLonEvery;
-	//		VertexData vertB = {
-	//		{
-	//				std::cosf(lat + kLatEvery) * cosf(lon),
-	//				std::sinf(lat + kLatEvery),
-	//				std::cosf(lat + kLatEvery) * sinf(lon),
-	//				1.0f,
-	//			},
-	//			{
-	//				float(lonIndex) / kSubdivision,
-	//				1.0f - float(latIndex + 1) / kSubdivision // u, v
-	//			},
-	//			{
-	//				std::cosf(lat) * std::cosf(lon), // x
-	//				std::sinf(lat),                 // y
-	//				std::cosf(lat) * std::sinf(lon)  // z
-	//			}
-	//		};
-	//		uint32_t start = latIndex + 1;
-	//		vertexDataSprite[start] = vertB;
-	//	}
-	//}
+			//		float lon = lonIndex * kLonEvery;
+			//		VertexData vertB = {
+			//		{
+			//				std::cosf(lat + kLatEvery) * cosf(lon),
+			//				std::sinf(lat + kLatEvery),
+			//				std::cosf(lat + kLatEvery) * sinf(lon),
+			//				1.0f,
+			//			},
+			//			{
+			//				float(lonIndex) / kSubdivision,
+			//				1.0f - float(latIndex + 1) / kSubdivision // u, v
+			//			},
+			//			{
+			//				std::cosf(lat) * std::cosf(lon), // x
+			//				std::sinf(lat),                 // y
+			//				std::cosf(lat) * std::sinf(lon)  // z
+			//			}
+			//		};
+			//		uint32_t start = latIndex + 1;
+			//		vertexDataSprite[start] = vertB;
+			//	}
+			//}
 
-	//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+			//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
 
-	//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+			//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
 
-	//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+			//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
 
-	//		float lon = lonIndex * kLonEvery;
-	//		VertexData vertC = {
-	//		{
-	//				cosf(lat) * cosf(lon + kLonEvery), // x
-	//				sinf(lat),                         // y
-	//				cosf(lat) * sinf(lon + kLonEvery), // z
-	//				1.0f,
-	//			},
-	//			{
-	//				float(lonIndex + 1) / kSubdivision,   // u
-	//				1.0f - float(latIndex) / kSubdivision // v
-	//			},
-	//			{
-	//				std::cosf(lat) * std::cosf(lon), // x
-	//				std::sinf(lat),                 // y
-	//				std::cosf(lat) * std::sinf(lon)  // z
-	//			}
-	//		};
-	//		uint32_t start = latIndex + 1;
-	//		vertexDataSprite[start] = vertC;
-	//	}
-	//}
+			//		float lon = lonIndex * kLonEvery;
+			//		VertexData vertC = {
+			//		{
+			//				cosf(lat) * cosf(lon + kLonEvery), // x
+			//				sinf(lat),                         // y
+			//				cosf(lat) * sinf(lon + kLonEvery), // z
+			//				1.0f,
+			//			},
+			//			{
+			//				float(lonIndex + 1) / kSubdivision,   // u
+			//				1.0f - float(latIndex) / kSubdivision // v
+			//			},
+			//			{
+			//				std::cosf(lat) * std::cosf(lon), // x
+			//				std::sinf(lat),                 // y
+			//				std::cosf(lat) * std::sinf(lon)  // z
+			//			}
+			//		};
+			//		uint32_t start = latIndex + 1;
+			//		vertexDataSprite[start] = vertC;
+			//	}
+			//}
 
-	//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+			//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
 
-	//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+			//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
 
-	//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+			//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
 
-	//		float lon = lonIndex * kLonEvery;
-	//		VertexData vertD = {
-	//		{
-	//				cosf(lat + kLatEvery) * cosf(lon + kLonEvery), // x
-	//				sinf(lat + kLatEvery),                         // y
-	//				cosf(lat + kLatEvery) * sinf(lon + kLonEvery), // z
-	//				1.0f,
-	//			},
-	//			{
-	//				float(lonIndex + 1) / kSubdivision,       // u
-	//				1.0f - float(latIndex + 1) / kSubdivision // v
-	//			},
-	//			{
-	//				std::cosf(lat) * std::cosf(lon), // x
-	//				std::sinf(lat),                 // y
-	//				std::cosf(lat) * std::sinf(lon)  // z
-	//			}
-	//		};
-	//		uint32_t start = latIndex + 1;
-	//		vertexDataSprite[start] = vertD;
-	//	}
-	//}
+			//		float lon = lonIndex * kLonEvery;
+			//		VertexData vertD = {
+			//		{
+			//				cosf(lat + kLatEvery) * cosf(lon + kLonEvery), // x
+			//				sinf(lat + kLatEvery),                         // y
+			//				cosf(lat + kLatEvery) * sinf(lon + kLonEvery), // z
+			//				1.0f,
+			//			},
+			//			{
+			//				float(lonIndex + 1) / kSubdivision,       // u
+			//				1.0f - float(latIndex + 1) / kSubdivision // v
+			//			},
+			//			{
+			//				std::cosf(lat) * std::cosf(lon), // x
+			//				std::sinf(lat),                 // y
+			//				std::cosf(lat) * std::sinf(lon)  // z
+			//			}
+			//		};
+			//		uint32_t start = latIndex + 1;
+			//		vertexDataSprite[start] = vertD;
+			//	}
+			//}
 
 
+			float lon = lonIndex * kLonEvery;
+			VertexData vertA = {
+					cosf(lat) * cosf(lon), /// 改行が気持ち悪いのでここにたくさん文字
+					sinf(lat),
+					cosf(lat) * sinf(lon),
+					1.0f,
+					{float(lonIndex) / float(kSubdivision),
+					 1.0f - float(latIndex) / float(kSubdivision)} };
 
-	//VertexData vertA = {
-	//		cosf(lat) * cosf(lon), /// 改行が気持ち悪いのでここにたくさん文字
-	//		sinf(lat),
-	//		cosf(lat) * sinf(lon),
-	//		1.0f,
-	//		{float(lonIndex) / float(kSubdivision),
-	//		 1.0f - float(latIndex) / float(kSubdivision)} };
+			VertexData vertB = {
+				cosf(lat + kLatEvery) * cosf(lon),
+				sinf(lat + kLatEvery),
+				cosf(lat + kLatEvery) * sinf(lon),
+				1.0f,
+				{static_cast<float>(lonIndex) / kSubdivision,
+				 1.0f - static_cast<float>(latIndex + 1) / kSubdivision} };
 
-	//VertexData vertB = {
-	//	cosf(lat + kLatEvery) * cosf(lon),
-	//	sinf(lat + kLatEvery),
-	//	cosf(lat + kLatEvery) * sinf(lon),
-	//	1.0f,
-	//	{static_cast<float>(lonIndex) / kSubdivision,
-	//	 1.0f - static_cast<float>(latIndex + 1) / kSubdivision} };
+			VertexData vertC = {
+				cosf(lat) * cosf(lon + kLonEvery), // x
+				sinf(lat),                         // y
+				cosf(lat) * sinf(lon + kLonEvery), // z
+				1.0f,                              // w
+				{
+					static_cast<float>(lonIndex + 1) / kSubdivision,   // u
+					1.0f - static_cast<float>(latIndex) / kSubdivision // v
+				} };
 
-	//VertexData vertC = {
-		//cosf(lat) * cosf(lon + kLonEvery), // x
-		//sinf(lat),                         // y
-		//cosf(lat) * sinf(lon + kLonEvery), // z
-		//1.0f,                              // w
-	//	{
-	//		static_cast<float>(lonIndex + 1) / kSubdivision,   // u
-	//		1.0f - static_cast<float>(latIndex) / kSubdivision // v
-	//	} };
+			VertexData vertD = {
+				cosf(lat + kLatEvery) * cosf(lon + kLonEvery), // x
+				sinf(lat + kLatEvery),                         // y
+				cosf(lat + kLatEvery) * sinf(lon + kLonEvery), // z
+				1.0f,                                          // w
+				{
+					static_cast<float>(lonIndex + 1) / kSubdivision,       // u
+					1.0f - static_cast<float>(latIndex + 1) / kSubdivision // v
+				} };
+			//初期位置
+			uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
 
-	//VertexData vertD = {
-		//cosf(lat + kLatEvery) * cosf(lon + kLonEvery), // x
-		//sinf(lat + kLatEvery),                         // y
-		//cosf(lat + kLatEvery) * sinf(lon + kLonEvery), // z
-		//1.0f,                                          // w
-	//	{
-			//static_cast<float>(lonIndex + 1) / kSubdivision,       // u
-			//1.0f - static_cast<float>(latIndex + 1) / kSubdivision // v
-	//	} };
-	// 初期位置
-	//uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
-
-	//vertices[startIndex + 0] = vertA;
-	//vertices[startIndex + 1] = vertB;
-	//vertices[startIndex + 2] = vertC;
-	//vertices[startIndex + 3] = vertC;
-	//vertices[startIndex + 4] = vertD;
-	//vertices[startIndex + 5] = vertB;
-
+			vertices[startIndex + 0] = vertA;
+			vertices[startIndex + 1] = vertB;
+			vertices[startIndex + 2] = vertC;
+			vertices[startIndex + 3] = vertC;
+			vertices[startIndex + 4] = vertD;
+			vertices[startIndex + 5] = vertB;
+		}
+	}
 	//// 初期位置
 	//uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
 
@@ -2008,7 +2009,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
 			commandList->SetGraphicsRootConstantBufferView(
 				1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
-			commandList->DrawIndexedInstanced(6, 1, 0, 0,0);
+			commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 			// 描画の最後です//----------------------------------------------------
 			//  実際のcommandListのImGuiの描画コマンドを積む
 			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
