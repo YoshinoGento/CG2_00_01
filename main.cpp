@@ -1412,574 +1412,574 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 					std::cosf(lat) * std::cosf(lon), // x
 					std::sinf(lat),                 // y
 					std::cosf(lat) * std::sinf(lon)  // z
-				} 
+				}
 			};
 			uint32_t start = (latIndex * (kSubdivision + 1)) * lonIndex;
 			vertexDataSprite[start] = vertA;
-
-			Vector3 a = { cosf(lat) * cosf(lon), sinf(lat), cosf(lat) * sinf(lon) };
-			Vector3 b = { cosf(nextLat) * cosf(lon), sinf(nextLat), cosf(nextLat) * sinf(lon) };
-			Vector3 c = { cosf(nextLat) * cosf(nextLon), sinf(nextLat), cosf(nextLat) * sinf(nextLon) };
-			Vector3 d = { cosf(lat) * cosf(nextLon), sinf(lat), cosf(lat) * sinf(nextLon) };
-
-			uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
-
-			Vector2 uv0 = { lonIndex / static_cast<float>(kSubdivision), 1.0f - latIndex / static_cast<float>(kSubdivision) };
-			Vector2 uv1 = { lonIndex / static_cast<float>(kSubdivision), 1.0f - (latIndex + 1) / static_cast<float>(kSubdivision) };
-			Vector2 uv2 = { (lonIndex + 1) / static_cast<float>(kSubdivision), 1.0f - (latIndex + 1) / static_cast<float>(kSubdivision) };
-			Vector2 uv3 = { (lonIndex + 1) / static_cast<float>(kSubdivision), 1.0f - latIndex / static_cast<float>(kSubdivision) };
-
-			// 1つ目の三角形
-			vertexData[startIndex + 0].position = { a.x, a.y, a.z, 1.0f };
-			vertexData[startIndex + 0].texcoord = uv0;
-			vertexData[startIndex + 0].normal.x = vertexData[startIndex + 0].position.x;
-			vertexData[startIndex + 0].normal.y = vertexData[startIndex + 0].position.y;
-			vertexData[startIndex + 0].normal.z = vertexData[startIndex + 0].position.z;
-
-			vertexData[startIndex + 1].position = { b.x, b.y, b.z, 1.0f };
-			vertexData[startIndex + 1].texcoord = uv1;
-			vertexData[startIndex + 1].normal.x = vertexData[startIndex + 1].position.x;
-			vertexData[startIndex + 1].normal.y = vertexData[startIndex + 1].position.y;
-			vertexData[startIndex + 1].normal.z = vertexData[startIndex + 1].position.z;
-
-			vertexData[startIndex + 2].position = { c.x, c.y, c.z, 1.0f };
-			vertexData[startIndex + 2].texcoord = uv2;
-			vertexData[startIndex + 2].normal.x = vertexData[startIndex + 2].position.x;
-			vertexData[startIndex + 2].normal.y = vertexData[startIndex + 2].position.y;
-			vertexData[startIndex + 2].normal.z = vertexData[startIndex + 2].position.z;
-
-			// 2つ目の三角形
-			vertexData[startIndex + 3].position = { a.x, a.y, a.z, 1.0f };
-			vertexData[startIndex + 3].texcoord = uv0;
-			vertexData[startIndex + 3].normal.x = vertexData[startIndex + 3].position.x;
-			vertexData[startIndex + 3].normal.y = vertexData[startIndex + 3].position.y;
-			vertexData[startIndex + 3].normal.z = vertexData[startIndex + 3].position.z;
-
-			vertexData[startIndex + 4].position = { c.x, c.y, c.z, 1.0f };
-			vertexData[startIndex + 4].texcoord = uv2;
-			vertexData[startIndex + 4].normal.x = vertexData[startIndex + 4].position.x;
-			vertexData[startIndex + 4].normal.y = vertexData[startIndex + 4].position.y;
-			vertexData[startIndex + 4].normal.z = vertexData[startIndex + 4].position.z;
-
-			vertexData[startIndex + 5].position = { d.x, d.y, d.z, 1.0f };
-			vertexData[startIndex + 5].texcoord = uv3;
-			vertexData[startIndex + 5].normal.x = vertexData[startIndex + 5].position.x;
-			vertexData[startIndex + 5].normal.y = vertexData[startIndex + 5].position.y;
-			vertexData[startIndex + 5].normal.z = vertexData[startIndex + 5].position.z;
-			}
 		}
+	}
+	Vector3 a = { cosf(lat) * cosf(lon), sinf(lat), cosf(lat) * sinf(lon) };
+	Vector3 b = { cosf(nextLat) * cosf(lon), sinf(nextLat), cosf(nextLat) * sinf(lon) };
+	Vector3 c = { cosf(nextLat) * cosf(nextLon), sinf(nextLat), cosf(nextLat) * sinf(nextLon) };
+	Vector3 d = { cosf(lat) * cosf(nextLon), sinf(lat), cosf(lat) * sinf(nextLon) };
 
-		// sprite用の頂点バッファビューを作成する04_00
-		D3D12_VERTEX_BUFFER_VIEW vertexBufferViewSprite{};
-		// sprite用のリソースの先頭のアドレスから使う04_00
-		vertexBufferViewSprite.BufferLocation =
-			vertexResourceSprite->GetGPUVirtualAddress();
-		// sprite用の使用するリーソースのサイズは頂点6つ分のサイズ04_00
-		vertexBufferViewSprite.SizeInBytes = sizeof(VertexData) * 6;
-		// sprite用の１頂点当たりのサイズ04_00
-		vertexBufferViewSprite.StrideInBytes = sizeof(VertexData);
+	uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
 
-		//  書き込むためのアドレスを取得----------------------04_00
-		vertexResourceSprite->Map(
-			0, nullptr,
-			reinterpret_cast<void**>(&vertexDataSprite)); // 04_00
-		// 1枚目の三角形
-		vertexDataSprite[0].position = { 0.0f, 360.0f, 0.0f, 1.0f }; // 左下04_00
-		vertexDataSprite[0].texcoord = { 0.0f, 1.0f };
-		vertexDataSprite[1].position = { 0.0f, 0.0f, 0.0f, 1.0f }; // 左上04_00
-		vertexDataSprite[1].texcoord = { 0.0f, 0.0f };
-		vertexDataSprite[2].position = { 640.0f, 360.0f, 0.0f, 1.0f }; // 右下04_00
-		vertexDataSprite[2].texcoord = { 1.0f, 1.0f };
-		// ２枚目の三角形
-		vertexDataSprite[3].position = { 0.0f, 0.0f, 0.0f, 1.0f }; // 左下04_00
-		vertexDataSprite[3].texcoord = { 0.0f, 0.0f };
-		vertexDataSprite[4].position = { 640.0f, 0.0f, 0.0f, 1.0f }; // 左上04_00
-		vertexDataSprite[4].texcoord = { 1.0f, 0.0f };
-		vertexDataSprite[5].position = { 640.0f, 360.0f, 0.0f, 1.0f }; // 右下04_00
-		vertexDataSprite[5].texcoord = { 1.0f, 1.0f };
+	Vector2 uv0 = { lonIndex / static_cast<float>(kSubdivision), 1.0f - latIndex / static_cast<float>(kSubdivision) };
+	Vector2 uv1 = { lonIndex / static_cast<float>(kSubdivision), 1.0f - (latIndex + 1) / static_cast<float>(kSubdivision) };
+	Vector2 uv2 = { (lonIndex + 1) / static_cast<float>(kSubdivision), 1.0f - (latIndex + 1) / static_cast<float>(kSubdivision) };
+	Vector2 uv3 = { (lonIndex + 1) / static_cast<float>(kSubdivision), 1.0f - latIndex / static_cast<float>(kSubdivision) };
 
+	// 1つ目の三角形
+	vertexData[startIndex + 0].position = { a.x, a.y, a.z, 1.0f };
+	vertexData[startIndex + 0].texcoord = uv0;
+	vertexData[startIndex + 0].normal.x = vertexData[startIndex + 0].position.x;
+	vertexData[startIndex + 0].normal.y = vertexData[startIndex + 0].position.y;
+	vertexData[startIndex + 0].normal.z = vertexData[startIndex + 0].position.z;
 
-		//   ビューポート
-		D3D12_VIEWPORT viewport{};
-		// クライアント領域のサイズと一緒にして画面全体に表示/
-		viewport.Width = kClientWidth;
-		viewport.Height = kClientHeight;
-		viewport.TopLeftX = 0;
-		viewport.TopLeftY = 0;
-		viewport.MinDepth = 0.0f;
-		viewport.MaxDepth = 1.0f;
+	vertexData[startIndex + 1].position = { b.x, b.y, b.z, 1.0f };
+	vertexData[startIndex + 1].texcoord = uv1;
+	vertexData[startIndex + 1].normal.x = vertexData[startIndex + 1].position.x;
+	vertexData[startIndex + 1].normal.y = vertexData[startIndex + 1].position.y;
+	vertexData[startIndex + 1].normal.z = vertexData[startIndex + 1].position.z;
 
-		// シザー矩形
-		D3D12_RECT scissorRect{};
-		// 基本的にビューポートと同じ矩形が構成されるようにする
-		scissorRect.left = 0;
-		scissorRect.right = kClientWidth;
-		scissorRect.top = 0;
-		scissorRect.bottom = kClientHeight;
+	vertexData[startIndex + 2].position = { c.x, c.y, c.z, 1.0f };
+	vertexData[startIndex + 2].texcoord = uv2;
+	vertexData[startIndex + 2].normal.x = vertexData[startIndex + 2].position.x;
+	vertexData[startIndex + 2].normal.y = vertexData[startIndex + 2].position.y;
+	vertexData[startIndex + 2].normal.z = vertexData[startIndex + 2].position.z;
 
-		// マテリアル用のリソースを作る今回はcolor一つ分のサイズを用意する
-		ID3D12Resource* materialResource =
-			CreateBufferResource(device, sizeof(Material));
-		// マテリアルにデータを書き込む
-		Material* materialData = nullptr;
-		// 書き込むためのアドレスを取得
-		materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
-		// 今回は赤を書き込んでみる
-		materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-		materialData->endleLighting = true;
+	// 2つ目の三角形
+	vertexData[startIndex + 3].position = { a.x, a.y, a.z, 1.0f };
+	vertexData[startIndex + 3].texcoord = uv0;
+	vertexData[startIndex + 3].normal.x = vertexData[startIndex + 3].position.x;
+	vertexData[startIndex + 3].normal.y = vertexData[startIndex + 3].position.y;
+	vertexData[startIndex + 3].normal.z = vertexData[startIndex + 3].position.z;
+
+	vertexData[startIndex + 4].position = { c.x, c.y, c.z, 1.0f };
+	vertexData[startIndex + 4].texcoord = uv2;
+	vertexData[startIndex + 4].normal.x = vertexData[startIndex + 4].position.x;
+	vertexData[startIndex + 4].normal.y = vertexData[startIndex + 4].position.y;
+	vertexData[startIndex + 4].normal.z = vertexData[startIndex + 4].position.z;
+
+	vertexData[startIndex + 5].position = { d.x, d.y, d.z, 1.0f };
+	vertexData[startIndex + 5].texcoord = uv3;
+	vertexData[startIndex + 5].normal.x = vertexData[startIndex + 5].position.x;
+	vertexData[startIndex + 5].normal.y = vertexData[startIndex + 5].position.y;
+	vertexData[startIndex + 5].normal.z = vertexData[startIndex + 5].position.z;
 
 
-		// マテリアル用のリソースを作る今回はcolor一つ分のサイズを用意する05_03
-		ID3D12Resource* materialResourceSprite =
-			CreateBufferResource(device, sizeof(Material));
-		// マテリアルにデータを書き込む
-		Material* materialDataSprite = nullptr;
-		// 書き込むためのアドレスを取得
-		materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
-		// 今回は赤を書き込んでみる
-		materialDataSprite->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	// sprite用の頂点バッファビューを作成する04_00
+	D3D12_VERTEX_BUFFER_VIEW vertexBufferViewSprite{};
+	// sprite用のリソースの先頭のアドレスから使う04_00
+	vertexBufferViewSprite.BufferLocation =
+		vertexResourceSprite->GetGPUVirtualAddress();
+	// sprite用の使用するリーソースのサイズは頂点6つ分のサイズ04_00
+	vertexBufferViewSprite.SizeInBytes = sizeof(VertexData) * 6;
+	// sprite用の１頂点当たりのサイズ04_00
+	vertexBufferViewSprite.StrideInBytes = sizeof(VertexData);
 
-		materialDataSprite->endleLighting = true;
-
-
-		///Light用
-		// 平行光源用のリソースを作る今回はcolor一つ分のサイズを用意する05_03
-		ID3D12Resource* DirectionRitingResource =
-			CreateBufferResource(device, sizeof(DirecctionalLight));
-		// マテリアルにデータを書き込む
-		DirecctionalLight* directionLightData = nullptr;
-		// 書き込むためのアドレスを取得
-		DirectionRitingResource->Map(0, nullptr, reinterpret_cast<void**>(&directionLightData));
-		// 今回は赤を書き込んでみる
-		directionLightData->color = { 1.0f,1.0f,1.0f,1.0f };
-		directionLightData->direction = { 1.0f,0.0f,0.0f };
-		directionLightData->intensity = 1.0f;
-		directionLightData->direction = Normalize(directionLightData->direction);
-
-
-
-		// WVPリソースを作る02_02
-		ID3D12Resource* wvpResource = CreateBufferResource(device, sizeof(TransformationMaterix));
-		// データを書き込む02_02
-		TransformationMaterix* wvpData = nullptr;
-		// 書き込むためのアドレスを取得02_02
-		wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
-		// 単位行列を書き込んでおく02_02
-		wvpData->WVP = MakeIdentity4x4(); // WVPリソースを作る
-
-		// sprite用のTransfomationMatrix用のリソースを作る
-		// 1つ分のサイズを用意する04_00
-		ID3D12Resource* transformationMatrixResourceSprite =
-			CreateBufferResource(device, sizeof(TransformationMaterix));
-		// sprite用のデータを書き込む04_00
-		TransformationMaterix* transformationMatrixDataSprite = nullptr;
-		// sprite用の書き込むためのアドレスを取得04_00
-		transformationMatrixResourceSprite->Map(
-			0, nullptr, reinterpret_cast<void**>(&transformationMatrixDataSprite));
-		// 単位行列を書き込んでおく04_00
-		transformationMatrixDataSprite->WVP = MakeIdentity4x4();
+	//  書き込むためのアドレスを取得----------------------04_00
+	vertexResourceSprite->Map(
+		0, nullptr,
+		reinterpret_cast<void**>(&vertexDataSprite)); // 04_00
+	// 1枚目の三角形
+	vertexDataSprite[0].position = { 0.0f, 360.0f, 0.0f, 1.0f }; // 左下04_00
+	vertexDataSprite[0].texcoord = { 0.0f, 1.0f };
+	vertexDataSprite[1].position = { 0.0f, 0.0f, 0.0f, 1.0f }; // 左上04_00
+	vertexDataSprite[1].texcoord = { 0.0f, 0.0f };
+	vertexDataSprite[2].position = { 640.0f, 360.0f, 0.0f, 1.0f }; // 右下04_00
+	vertexDataSprite[2].texcoord = { 1.0f, 1.0f };
+	// ２枚目の三角形
+	vertexDataSprite[3].position = { 0.0f, 0.0f, 0.0f, 1.0f }; // 左下04_00
+	vertexDataSprite[3].texcoord = { 0.0f, 0.0f };
+	vertexDataSprite[4].position = { 640.0f, 0.0f, 0.0f, 1.0f }; // 左上04_00
+	vertexDataSprite[4].texcoord = { 1.0f, 0.0f };
+	vertexDataSprite[5].position = { 640.0f, 360.0f, 0.0f, 1.0f }; // 右下04_00
+	vertexDataSprite[5].texcoord = { 1.0f, 1.0f };
 
 
-		// ImGuiの初期化。詳細はさして重要ではないので解説は省略する。02_03
-		// こういうもんである02_03
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-		ImGui::StyleColorsClassic();
-		ImGui_ImplWin32_Init(hwnd);
-		ImGui_ImplDX12_Init(device, swapChainDesc.BufferCount, rtvDesc.Format,
-			srvDescriptorHeap,
-			srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-			srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	//   ビューポート
+	D3D12_VIEWPORT viewport{};
+	// クライアント領域のサイズと一緒にして画面全体に表示/
+	viewport.Width = kClientWidth;
+	viewport.Height = kClientHeight;
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
 
-		// 変数//
-		// spriteトランスフォーム
-		Transform transformSprite{
-			{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
-		// トランスフォーム
-		Transform transform{
-			{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
-		// カメラトランスフォーム
-		Transform cameraTransform{
-			{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -5.0f} };
+	// シザー矩形
+	D3D12_RECT scissorRect{};
+	// 基本的にビューポートと同じ矩形が構成されるようにする
+	scissorRect.left = 0;
+	scissorRect.right = kClientWidth;
+	scissorRect.top = 0;
+	scissorRect.bottom = kClientHeight;
 
-		bool useMonsterBall = true;
-		MSG msg{};
-
-		// ウィンドウの×ボタンが押されるまでループ
-		while (msg.message != WM_QUIT) {
-
-
-
-			// Windowにメッセージが来てたら最優先で処理させる
-			if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			} else {
-
-				// ここがframeの先頭02_03
-				ImGui_ImplDX12_NewFrame();
-				ImGui_ImplWin32_NewFrame();
-				ImGui::NewFrame();
-				// 開発用UIの処理。実際に開発用のUIを出す場合はここをげ０無固有の処理を置き換える02_03
-				ImGui::
-					ShowDemoWindow(); // ImGuiの始まりの場所-----------------------------
-
-				ImGui::Begin("Materialcolor");
-				ImGui::SliderFloat3("Scale", &transform.scale.x, 0.1f, 5.0f);
-				ImGui::SliderAngle("RotateX", &transform.rotate.x, -180.0f, 180.0f);
-				ImGui::SliderAngle("RotateY", &transform.rotate.y, -180.0f, 180.0f);
-				ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);
-				ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
-				ImGui::ColorEdit4("Color", &materialData->color.x);
-				ImGui::Checkbox("useMonsterBall", &useMonsterBall);
-
-				// --- アニメーション選択 ---
-				ImGui::Text("Animation");
-				if (ImGui::Button("None"))
-					animationType = ANIM_NONE;
-				if (ImGui::Button("RESET"))
-					animationType = ANIM_RESET;
-				ImGui::SameLine();
-				if (ImGui::Button("Color"))
-					animationType = ANIM_COLOR;
-				ImGui::SameLine();
-				if (ImGui::Button("Scale"))
-					animationType = ANIM_SCALE;
-				if (ImGui::Button("Rotate"))
-					animationType = ANIM_ROTATE;
-				ImGui::SameLine();
-				if (ImGui::Button("Translate"))
-					animationType = ANIM_TRANSLATE;
-				ImGui::SameLine();
-				if (ImGui::Button("All"))
-					animationType = ANIM_ALL;
-				ImGui::SameLine();
-				if (ImGui::Button("Pulse"))
-					animationType = ANIM_PULSE;
-				ImGui::SameLine();
-				if (ImGui::Button("Aurora"))
-					animationType = ANIM_AURORA;
-				if (ImGui::Button("Bounce"))
-					animationType = ANIM_BOUNCE;
-				ImGui::SameLine();
-				if (ImGui::Button("Twist"))
-					animationType = ANIM_TWIST;
-				ImGui::End();
-
-				// ImGuiの内部コマンドを生成する02_03
-				ImGui::
-					Render(); // ImGui終わりの場所。描画の前02_03--------------------------
-				// 描画用のDescrriptorHeapの設定02_03
-				ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap };
-				commandList->SetDescriptorHeaps(1, descriptorHeaps);
-
-				//  ゲームの処理02_02
-				//  02_02
-				waveTime += 0.05f;
-
-				// アニメーション切り替え
-				switch (animationType) {
-				case ANIM_NONE:
-
-					break;
-				case ANIM_RESET:
-					// トランスフォームの初期化
-					transform.translate = { 0.0f, 0.0f, 0.0f };
-					transform.rotate = { 0.0f, 0.0f, 0.0f };
-					transform.scale = { 1.0f, 1.0f, 1.0f };
-
-					// 色の初期化（
-					materialData->color.x = 1.0f;
-					materialData->color.y = 1.0f;
-					materialData->color.z = 1.0f;
-					materialData->color.w = 1.0f;
-					animationType = ANIM_RESET;
-					break;
+	// マテリアル用のリソースを作る今回はcolor一つ分のサイズを用意する
+	ID3D12Resource* materialResource =
+		CreateBufferResource(device, sizeof(Material));
+	// マテリアルにデータを書き込む
+	Material* materialData = nullptr;
+	// 書き込むためのアドレスを取得
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
+	// 今回は赤を書き込んでみる
+	materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	materialData->endleLighting = true;
 
 
-				case ANIM_COLOR:
-					materialData->color.x = fabsf(sinf(waveTime));
-					materialData->color.y = fabsf(sinf(waveTime + 1.0f));
-					materialData->color.z = fabsf(sinf(waveTime + 2.0f));
-					break;
+	// マテリアル用のリソースを作る今回はcolor一つ分のサイズを用意する05_03
+	ID3D12Resource* materialResourceSprite =
+		CreateBufferResource(device, sizeof(Material));
+	// マテリアルにデータを書き込む
+	Material* materialDataSprite = nullptr;
+	// 書き込むためのアドレスを取得
+	materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
+	// 今回は赤を書き込んでみる
+	materialDataSprite->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 
-				case ANIM_SCALE:
-					transform.scale.x = 1.0f + 0.1f * sinf(waveTime * 2.0f);
-					transform.scale.y = 1.0f + 0.1f * cosf(waveTime * 2.0f);
-					break;
+	materialDataSprite->endleLighting = true;
 
-				case ANIM_TRANSLATE:
-					transform.translate.z = sinf(waveTime * 0.5f) * 1.0f;
-					break;
-				case ANIM_ROTATE:
 
+	///Light用
+	// 平行光源用のリソースを作る今回はcolor一つ分のサイズを用意する05_03
+	ID3D12Resource* DirectionRitingResource =
+		CreateBufferResource(device, sizeof(DirecctionalLight));
+	// マテリアルにデータを書き込む
+	DirecctionalLight* directionLightData = nullptr;
+	// 書き込むためのアドレスを取得
+	DirectionRitingResource->Map(0, nullptr, reinterpret_cast<void**>(&directionLightData));
+	// 今回は赤を書き込んでみる
+	directionLightData->color = { 1.0f,1.0f,1.0f,1.0f };
+	directionLightData->direction = { 1.0f,0.0f,0.0f };
+	directionLightData->intensity = 1.0f;
+	directionLightData->direction = Normalize(directionLightData->direction);
+
+
+
+	// WVPリソースを作る02_02
+	ID3D12Resource* wvpResource = CreateBufferResource(device, sizeof(TransformationMaterix));
+	// データを書き込む02_02
+	TransformationMaterix* wvpData = nullptr;
+	// 書き込むためのアドレスを取得02_02
+	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
+	// 単位行列を書き込んでおく02_02
+	wvpData->WVP = MakeIdentity4x4(); // WVPリソースを作る
+
+	// sprite用のTransfomationMatrix用のリソースを作る
+	// 1つ分のサイズを用意する04_00
+	ID3D12Resource* transformationMatrixResourceSprite =
+		CreateBufferResource(device, sizeof(TransformationMaterix));
+	// sprite用のデータを書き込む04_00
+	TransformationMaterix* transformationMatrixDataSprite = nullptr;
+	// sprite用の書き込むためのアドレスを取得04_00
+	transformationMatrixResourceSprite->Map(
+		0, nullptr, reinterpret_cast<void**>(&transformationMatrixDataSprite));
+	// 単位行列を書き込んでおく04_00
+	transformationMatrixDataSprite->WVP = MakeIdentity4x4();
+
+
+	// ImGuiの初期化。詳細はさして重要ではないので解説は省略する。02_03
+	// こういうもんである02_03
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui::StyleColorsClassic();
+	ImGui_ImplWin32_Init(hwnd);
+	ImGui_ImplDX12_Init(device, swapChainDesc.BufferCount, rtvDesc.Format,
+		srvDescriptorHeap,
+		srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+		srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+	// 変数//
+	// spriteトランスフォーム
+	Transform transformSprite{
+		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+	// トランスフォーム
+	Transform transform{
+		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+	// カメラトランスフォーム
+	Transform cameraTransform{
+		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -5.0f} };
+
+	bool useMonsterBall = true;
+	MSG msg{};
+
+	// ウィンドウの×ボタンが押されるまでループ
+	while (msg.message != WM_QUIT) {
+
+
+
+		// Windowにメッセージが来てたら最優先で処理させる
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		} else {
+
+			// ここがframeの先頭02_03
+			ImGui_ImplDX12_NewFrame();
+			ImGui_ImplWin32_NewFrame();
+			ImGui::NewFrame();
+			// 開発用UIの処理。実際に開発用のUIを出す場合はここをげ０無固有の処理を置き換える02_03
+			ImGui::
+				ShowDemoWindow(); // ImGuiの始まりの場所-----------------------------
+
+			ImGui::Begin("Materialcolor");
+			ImGui::SliderFloat3("Scale", &transform.scale.x, 0.1f, 5.0f);
+			ImGui::SliderAngle("RotateX", &transform.rotate.x, -180.0f, 180.0f);
+			ImGui::SliderAngle("RotateY", &transform.rotate.y, -180.0f, 180.0f);
+			ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);
+			ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
+			ImGui::ColorEdit4("Color", &materialData->color.x);
+			ImGui::Checkbox("useMonsterBall", &useMonsterBall);
+
+			// --- アニメーション選択 ---
+			ImGui::Text("Animation");
+			if (ImGui::Button("None"))
+				animationType = ANIM_NONE;
+			if (ImGui::Button("RESET"))
+				animationType = ANIM_RESET;
+			ImGui::SameLine();
+			if (ImGui::Button("Color"))
+				animationType = ANIM_COLOR;
+			ImGui::SameLine();
+			if (ImGui::Button("Scale"))
+				animationType = ANIM_SCALE;
+			if (ImGui::Button("Rotate"))
+				animationType = ANIM_ROTATE;
+			ImGui::SameLine();
+			if (ImGui::Button("Translate"))
+				animationType = ANIM_TRANSLATE;
+			ImGui::SameLine();
+			if (ImGui::Button("All"))
+				animationType = ANIM_ALL;
+			ImGui::SameLine();
+			if (ImGui::Button("Pulse"))
+				animationType = ANIM_PULSE;
+			ImGui::SameLine();
+			if (ImGui::Button("Aurora"))
+				animationType = ANIM_AURORA;
+			if (ImGui::Button("Bounce"))
+				animationType = ANIM_BOUNCE;
+			ImGui::SameLine();
+			if (ImGui::Button("Twist"))
+				animationType = ANIM_TWIST;
+			ImGui::End();
+
+			// ImGuiの内部コマンドを生成する02_03
+			ImGui::
+				Render(); // ImGui終わりの場所。描画の前02_03--------------------------
+			// 描画用のDescrriptorHeapの設定02_03
+			ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap };
+			commandList->SetDescriptorHeaps(1, descriptorHeaps);
+
+			//  ゲームの処理02_02
+			//  02_02
+			waveTime += 0.05f;
+
+			// アニメーション切り替え
+			switch (animationType) {
+			case ANIM_NONE:
+
+				break;
+			case ANIM_RESET:
+				// トランスフォームの初期化
+				transform.translate = { 0.0f, 0.0f, 0.0f };
+				transform.rotate = { 0.0f, 0.0f, 0.0f };
+				transform.scale = { 1.0f, 1.0f, 1.0f };
+
+				// 色の初期化（
+				materialData->color.x = 1.0f;
+				materialData->color.y = 1.0f;
+				materialData->color.z = 1.0f;
+				materialData->color.w = 1.0f;
+				animationType = ANIM_RESET;
+				break;
+
+
+			case ANIM_COLOR:
+				materialData->color.x = fabsf(sinf(waveTime));
+				materialData->color.y = fabsf(sinf(waveTime + 1.0f));
+				materialData->color.z = fabsf(sinf(waveTime + 2.0f));
+				break;
+
+			case ANIM_SCALE:
+				transform.scale.x = 1.0f + 0.1f * sinf(waveTime * 2.0f);
+				transform.scale.y = 1.0f + 0.1f * cosf(waveTime * 2.0f);
+				break;
+
+			case ANIM_TRANSLATE:
+				transform.translate.z = sinf(waveTime * 0.5f) * 1.0f;
+				break;
+			case ANIM_ROTATE:
+
+				transform.rotate.y += 0.02f;
+
+				transform.rotate.y += 0.1f;
+
+				transform.rotate.y += 0.05f;
+
+				break;
+
+			case ANIM_ALL:
+				materialData->color.x = fabsf(sinf(waveTime));
+				materialData->color.y = fabsf(sinf(waveTime + 1.0f));
+				materialData->color.z = fabsf(sinf(waveTime + 2.0f));
+				transform.scale.x = 1.0f + 0.1f * sinf(waveTime * 2.0f);
+				transform.scale.y = 1.0f + 0.1f * cosf(waveTime * 2.0f);
+				transform.translate.z = sinf(waveTime * 0.5f) * 1.0f;
+				switch (waveType) {
+				case WAVE_SINE:
 					transform.rotate.y += 0.02f;
-
+					break;
+				case WAVE_CHAINSAW:
 					transform.rotate.y += 0.1f;
-
+					break;
+				case WAVE_SQUARE:
 					transform.rotate.y += 0.05f;
-
-					break;
-
-				case ANIM_ALL:
-					materialData->color.x = fabsf(sinf(waveTime));
-					materialData->color.y = fabsf(sinf(waveTime + 1.0f));
-					materialData->color.z = fabsf(sinf(waveTime + 2.0f));
-					transform.scale.x = 1.0f + 0.1f * sinf(waveTime * 2.0f);
-					transform.scale.y = 1.0f + 0.1f * cosf(waveTime * 2.0f);
-					transform.translate.z = sinf(waveTime * 0.5f) * 1.0f;
-					switch (waveType) {
-					case WAVE_SINE:
-						transform.rotate.y += 0.02f;
-						break;
-					case WAVE_CHAINSAW:
-						transform.rotate.y += 0.1f;
-						break;
-					case WAVE_SQUARE:
-						transform.rotate.y += 0.05f;
-						break;
-					}
-
-				case ANIM_PULSE: {
-					float pulse = sinf(waveTime * 5.0f) * 0.2f + 1.0f;
-					transform.scale.x = pulse;
-					transform.scale.y = pulse;
-				} break;
-
-				case ANIM_AURORA:
-					materialData->color.x = 0.2f + 0.2f * sinf(waveTime);
-					materialData->color.y = 0.2f + 0.2f * sinf(waveTime + 1.5f);
-					materialData->color.z = 0.2f + 0.2f * sinf(waveTime + 3.0f);
-					break;
-
-				case ANIM_BOUNCE:
-					transform.translate.y = fabsf(sinf(waveTime * 2.0f)) * 1.1f;
-					break;
-
-				case ANIM_TWIST:
-					transform.rotate.z = sinf(waveTime * 1.0f);
-					transform.rotate.x = sinf(waveTime * 1.5f);
-					transform.rotate.y = sinf(waveTime * 2.0f);
 					break;
 				}
 
-				// メイクアフィンマトリックス02_02
-				Matrix4x4 worldMatrix = MakeAffineMatrix(
-					transform.scale, transform.rotate, transform.translate);
-				// カメラのメイクアフィンマトリックス02_02
-				Matrix4x4 cameraMatrix =
-					MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate,
-						cameraTransform.translate);
-				// 逆行列カメラ02_02
-				Matrix4x4 viewMatrix = Inverse(cameraMatrix);
-				// 透視投影行列02_02
-				Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(
-					0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
-				// ワールドビュープロジェクション行列02_02
-				Matrix4x4 worldViewProjectionMatrix =
-					Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
-				// CBVのバッファに書き込む02_02
-				wvpData->WVP = worldViewProjectionMatrix;
-				wvpData->World = worldMatrix;
+			case ANIM_PULSE: {
+				float pulse = sinf(waveTime * 5.0f) * 0.2f + 1.0f;
+				transform.scale.x = pulse;
+				transform.scale.y = pulse;
+			} break;
 
-				// Sprite用のworldviewProjectionMatrixを作る04_00
-				Matrix4x4 worldMatrixSprite =
-					MakeAffineMatrix(transformSprite.scale, transformSprite.rotate,
-						transformSprite.translate);
-				Matrix4x4 viewMatrixSprite = MakeIdentity4x4();
-				Matrix4x4 projectionMatrixSprite = MakeOrthographicMatrix(
-					0.0f, 0.0f, float(kClientWidth), float(kClientHeight), 0.0f, 100.0f);
-				Matrix4x4 woroldViewProjectionMatrixSprite =
-					Multiply(worldMatrixSprite,
-						Multiply(viewMatrixSprite, projectionMatrixSprite));
-				transformationMatrixDataSprite->WVP = woroldViewProjectionMatrixSprite;
+			case ANIM_AURORA:
+				materialData->color.x = 0.2f + 0.2f * sinf(waveTime);
+				materialData->color.y = 0.2f + 0.2f * sinf(waveTime + 1.5f);
+				materialData->color.z = 0.2f + 0.2f * sinf(waveTime + 3.0f);
+				break;
 
-				// 画面のクリア処理
-				//   これから書き込むバックバッファのインデックスを取得
-				UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
-				// TransitionBarrieの設定01_02
-				D3D12_RESOURCE_BARRIER barrier{};
-				// 今回のバリアはTransion
-				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-				// Noneにしておく
-				barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-				// バリアをはる対象のリソース。現在のバックバッファに対して行う
-				barrier.Transition.pResource = swapChainResources[backBufferIndex];
-				// 遷移前(現在)のResourceState
-				barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-				// 遷移後のResourceState
-				barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-				// TransitionBarrierを張る
-				commandList->ResourceBarrier(1, &barrier);
+			case ANIM_BOUNCE:
+				transform.translate.y = fabsf(sinf(waveTime * 2.0f)) * 1.1f;
+				break;
 
-				// 描画先のRTVうぃ設定する
-				commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false,
-					nullptr);
-				// 描画先のRTVとDSVを設定する
-				D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle =
-					dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-				commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false,
-					&dsvHandle);
-				// 指定した色で画面全体をクリアする
-				float clearColor[] = {
-					0.1f, 0.25f, 0.5f,
-					1.0f }; /// 青っぽい色RGBAの順
-				/// //これ最初の文字1.0fにするとピンク画面になる
-				commandList->ClearRenderTargetView(rtvHandles[backBufferIndex],
-					clearColor, 0, nullptr);
-				// 03_01
-				commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH,
-					1.0f, 0, 0, nullptr);
-				// 描画
-				commandList->RSSetViewports(1, &viewport);       // viewportを設定
-				commandList->RSSetScissorRects(1, &scissorRect); // Scirssorを設定
-
-				// RootSignatureを設定。PS0に設定しているけど別途設定が必要
-				commandList->SetGraphicsRootSignature(rootSignature);
-				commandList->SetPipelineState(graphicsPinelineState);     // PS0を設定
-				commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // VBVを設定
-
-				// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えていけばよい
-				commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-				commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
-
-
-				// マテリアルCbufferの場所を設定
-				commandList->SetGraphicsRootConstantBufferView(
-					0, materialResourceSprite->GetGPUVirtualAddress());
-
-				// wvp用のCBufferの場所を設定02_02
-				commandList->SetGraphicsRootConstantBufferView(
-					1, wvpResource->GetGPUVirtualAddress());
-
-				commandList->SetGraphicsRootConstantBufferView(
-					3, DirectionRitingResource->GetGPUVirtualAddress());
-
-				commandList->SetGraphicsRootDescriptorTable(2, useMonsterBall ? textureSrvHandleGPU2 : textureSrvHandleGPU);//資料12
-
-				// 描画！(DRAWCALL/ドローコール)。３頂点で１つのインスタンス。インスタンスについては今後_05_00_OHTER
-				commandList->DrawInstanced(kVertexCount, 1, 0, 0);
-				// 描画
-				// spriteの描画04_00
-				commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
-				commandList->SetGraphicsRootConstantBufferView(
-					1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
-				commandList->DrawInstanced(6, 1, 0, 0);
-				// 描画の最後です//----------------------------------------------------
-				//  実際のcommandListのImGuiの描画コマンドを積む
-				ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
-
-				//  画面に描く処理は全て終わり,画面に映すので、状態を遷移01_02
-				barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-				barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-				// TransitionBarrierを張る
-				commandList->ResourceBarrier(1, &barrier);
-
-				// コマンドリストの内容を確定させる。すべ手のコマンドを積んでからCloseすること
-				hr = commandList->Close();
-				assert(SUCCEEDED(hr));
-
-				// GPUにコマンドリストの実行を行わせる;
-				ID3D12CommandList* commandLists[] = { commandList };
-				commandQueue->ExecuteCommandLists(1, commandLists);
-				// GPUとosに画面の交換を行うよう通知する
-				swapChain->Present(1, 0);
-				// Fenceの値を更新01_02
-				fenceValue++;
-				// GPUがじじなでたどり着いたときに,Fenceの値を指定した値に代入する01_02
-				commandQueue->Signal(fence, fenceValue);
-				// Fenceの値が指定したSignal値にたどりついているか確認する01_02
-				// GetCompleteValueの初期値はFence作成時に渡した初期値01_02
-				if (fence->GetCompletedValue() < fenceValue) {
-
-					// 指定したSignalにたどり着いていないので,たどり着くまで待つようにイベントを設定する01_02
-					fence->SetEventOnCompletion(fenceValue, fenceEvent);
-					// イベント待つ01_02
-					WaitForSingleObject(fenceEvent, INFINITE);
-				}
-				// 次のｆｒａｍｅ用のコマンドりイストを準備
-				hr = commandAllocator->Reset();
-				assert(SUCCEEDED(hr));
-				hr = commandList->Reset(commandAllocator, nullptr);
-				assert(SUCCEEDED(hr));
+			case ANIM_TWIST:
+				transform.rotate.z = sinf(waveTime * 1.0f);
+				transform.rotate.x = sinf(waveTime * 1.5f);
+				transform.rotate.y = sinf(waveTime * 2.0f);
+				break;
 			}
+
+			// メイクアフィンマトリックス02_02
+			Matrix4x4 worldMatrix = MakeAffineMatrix(
+				transform.scale, transform.rotate, transform.translate);
+			// カメラのメイクアフィンマトリックス02_02
+			Matrix4x4 cameraMatrix =
+				MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate,
+					cameraTransform.translate);
+			// 逆行列カメラ02_02
+			Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+			// 透視投影行列02_02
+			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(
+				0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+			// ワールドビュープロジェクション行列02_02
+			Matrix4x4 worldViewProjectionMatrix =
+				Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+			// CBVのバッファに書き込む02_02
+			wvpData->WVP = worldViewProjectionMatrix;
+			wvpData->World = worldMatrix;
+
+			// Sprite用のworldviewProjectionMatrixを作る04_00
+			Matrix4x4 worldMatrixSprite =
+				MakeAffineMatrix(transformSprite.scale, transformSprite.rotate,
+					transformSprite.translate);
+			Matrix4x4 viewMatrixSprite = MakeIdentity4x4();
+			Matrix4x4 projectionMatrixSprite = MakeOrthographicMatrix(
+				0.0f, 0.0f, float(kClientWidth), float(kClientHeight), 0.0f, 100.0f);
+			Matrix4x4 woroldViewProjectionMatrixSprite =
+				Multiply(worldMatrixSprite,
+					Multiply(viewMatrixSprite, projectionMatrixSprite));
+			transformationMatrixDataSprite->WVP = woroldViewProjectionMatrixSprite;
+
+			// 画面のクリア処理
+			//   これから書き込むバックバッファのインデックスを取得
+			UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
+			// TransitionBarrieの設定01_02
+			D3D12_RESOURCE_BARRIER barrier{};
+			// 今回のバリアはTransion
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			// Noneにしておく
+			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			// バリアをはる対象のリソース。現在のバックバッファに対して行う
+			barrier.Transition.pResource = swapChainResources[backBufferIndex];
+			// 遷移前(現在)のResourceState
+			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			// 遷移後のResourceState
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			// TransitionBarrierを張る
+			commandList->ResourceBarrier(1, &barrier);
+
+			// 描画先のRTVうぃ設定する
+			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false,
+				nullptr);
+			// 描画先のRTVとDSVを設定する
+			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle =
+				dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false,
+				&dsvHandle);
+			// 指定した色で画面全体をクリアする
+			float clearColor[] = {
+				0.1f, 0.25f, 0.5f,
+				1.0f }; /// 青っぽい色RGBAの順
+			/// //これ最初の文字1.0fにするとピンク画面になる
+			commandList->ClearRenderTargetView(rtvHandles[backBufferIndex],
+				clearColor, 0, nullptr);
+			// 03_01
+			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH,
+				1.0f, 0, 0, nullptr);
+			// 描画
+			commandList->RSSetViewports(1, &viewport);       // viewportを設定
+			commandList->RSSetScissorRects(1, &scissorRect); // Scirssorを設定
+
+			// RootSignatureを設定。PS0に設定しているけど別途設定が必要
+			commandList->SetGraphicsRootSignature(rootSignature);
+			commandList->SetPipelineState(graphicsPinelineState);     // PS0を設定
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // VBVを設定
+
+			// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えていけばよい
+			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
+
+
+			// マテリアルCbufferの場所を設定
+			commandList->SetGraphicsRootConstantBufferView(
+				0, materialResourceSprite->GetGPUVirtualAddress());
+
+			// wvp用のCBufferの場所を設定02_02
+			commandList->SetGraphicsRootConstantBufferView(
+				1, wvpResource->GetGPUVirtualAddress());
+
+			commandList->SetGraphicsRootConstantBufferView(
+				3, DirectionRitingResource->GetGPUVirtualAddress());
+
+			commandList->SetGraphicsRootDescriptorTable(2, useMonsterBall ? textureSrvHandleGPU2 : textureSrvHandleGPU);//資料12
+
+			// 描画！(DRAWCALL/ドローコール)。３頂点で１つのインスタンス。インスタンスについては今後_05_00_OHTER
+			commandList->DrawInstanced(kVertexCount, 1, 0, 0);
+			// 描画
+			// spriteの描画04_00
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
+			commandList->SetGraphicsRootConstantBufferView(
+				1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
+			commandList->DrawInstanced(6, 1, 0, 0);
+			// 描画の最後です//----------------------------------------------------
+			//  実際のcommandListのImGuiの描画コマンドを積む
+			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
+
+			//  画面に描く処理は全て終わり,画面に映すので、状態を遷移01_02
+			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+			// TransitionBarrierを張る
+			commandList->ResourceBarrier(1, &barrier);
+
+			// コマンドリストの内容を確定させる。すべ手のコマンドを積んでからCloseすること
+			hr = commandList->Close();
+			assert(SUCCEEDED(hr));
+
+			// GPUにコマンドリストの実行を行わせる;
+			ID3D12CommandList* commandLists[] = { commandList };
+			commandQueue->ExecuteCommandLists(1, commandLists);
+			// GPUとosに画面の交換を行うよう通知する
+			swapChain->Present(1, 0);
+			// Fenceの値を更新01_02
+			fenceValue++;
+			// GPUがじじなでたどり着いたときに,Fenceの値を指定した値に代入する01_02
+			commandQueue->Signal(fence, fenceValue);
+			// Fenceの値が指定したSignal値にたどりついているか確認する01_02
+			// GetCompleteValueの初期値はFence作成時に渡した初期値01_02
+			if (fence->GetCompletedValue() < fenceValue) {
+
+				// 指定したSignalにたどり着いていないので,たどり着くまで待つようにイベントを設定する01_02
+				fence->SetEventOnCompletion(fenceValue, fenceEvent);
+				// イベント待つ01_02
+				WaitForSingleObject(fenceEvent, INFINITE);
+			}
+			// 次のｆｒａｍｅ用のコマンドりイストを準備
+			hr = commandAllocator->Reset();
+			assert(SUCCEEDED(hr));
+			hr = commandList->Reset(commandAllocator, nullptr);
+			assert(SUCCEEDED(hr));
 		}
+	}
 
-		// ImGuiの終了処理。詳細はさして重要ではないので解説は省略する。
-		// こういうもんである。初期化と逆順に行う
-		ImGui_ImplDX12_Shutdown();
-		ImGui_ImplWin32_Shutdown();
-		ImGui::DestroyContext();
+	// ImGuiの終了処理。詳細はさして重要ではないので解説は省略する。
+	// こういうもんである。初期化と逆順に行う
+	ImGui_ImplDX12_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
 
-		// 解放処理CG2_01_03
-		CloseHandle(fenceEvent);
-		fence->Release();
-		commandList->Release();
-		commandAllocator->Release();
-		commandQueue->Release();
+	// 解放処理CG2_01_03
+	CloseHandle(fenceEvent);
+	fence->Release();
+	commandList->Release();
+	commandAllocator->Release();
+	commandQueue->Release();
 
-		rtvDescriptorHeap->Release();
+	rtvDescriptorHeap->Release();
 
-		swapChainResources[0]->Release();
-		swapChainResources[1]->Release();
-		swapChain->Release();
+	swapChainResources[0]->Release();
+	swapChainResources[1]->Release();
+	swapChain->Release();
 
-		useAdapter->Release();
-		dxgiFactory->Release();
-		vertexResource->Release();
-		graphicsPinelineState->Release();
+	useAdapter->Release();
+	dxgiFactory->Release();
+	vertexResource->Release();
+	graphicsPinelineState->Release();
 
-		if (errorBlob) {
-			errorBlob->Release();
-		}
+	if (errorBlob) {
+		errorBlob->Release();
+	}
 
-		rootSignature->Release();
+	rootSignature->Release();
 
-		signatureBlob->Release();
-		pixelShaderBlob->Release();
-		vertexShaderBlob->Release();
-		device->Release();
+	signatureBlob->Release();
+	pixelShaderBlob->Release();
+	vertexShaderBlob->Release();
+	device->Release();
 
 
 
 #ifdef _DEBUG
-		debugController->Release();
-		materialResource->Release();
-		wvpResource->Release();
-		srvDescriptorHeap->Release();
-		textureResource->Release();      // 03_00
-		mipImages.Release();             // 03_00
-		intermediateResource->Release(); // 03_00EX
-		depthStencillResource->Release();// 03_01
-		dsvDescriptorHeap->Release();    // 03_01
-		textureResource2->Release();     // 05_01
-		mipImages2.Release();            // 05_01
-		intermediateResource2->Release();// 05_01
-		includHandler->Release();
+	debugController->Release();
+	materialResource->Release();
+	wvpResource->Release();
+	srvDescriptorHeap->Release();
+	textureResource->Release();      // 03_00
+	mipImages.Release();             // 03_00
+	intermediateResource->Release(); // 03_00EX
+	depthStencillResource->Release();// 03_01
+	dsvDescriptorHeap->Release();    // 03_01
+	textureResource2->Release();     // 05_01
+	mipImages2.Release();            // 05_01
+	intermediateResource2->Release();// 05_01
+	includHandler->Release();
 
-		vertexResourceSprite->Release();
-		transformationMatrixResourceSprite->Release();
-		materialResourceSprite->Release();
-		DirectionRitingResource->Release(); // 05_03
-		dxcCompiler->Release();
-		dxcUtils->Release();
+	vertexResourceSprite->Release();
+	transformationMatrixResourceSprite->Release();
+	materialResourceSprite->Release();
+	DirectionRitingResource->Release(); // 05_03
+	dxcCompiler->Release();
+	dxcUtils->Release();
 #endif
 
 
-		CoUninitialize(); // ← これを最後に追加！
-		CloseWindow(hwnd);
+	CoUninitialize(); // ← これを最後に追加！
+	CloseWindow(hwnd);
 
 
-		// リソースチェックCG2_01_03
-		IDXGIDebug1* debug;
-		if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug)))) {
-			debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
-			debug->ReportLiveObjects(DXGI_DEBUG_APP, DXGI_DEBUG_RLO_ALL);
-			debug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_ALL);
-			debug->Release();
-		}
+	// リソースチェックCG2_01_03
+	IDXGIDebug1* debug;
+	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug)))) {
+		debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
+		debug->ReportLiveObjects(DXGI_DEBUG_APP, DXGI_DEBUG_RLO_ALL);
+		debug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_ALL);
+		debug->Release();
+	}
 
-		return 0;
+	return 0;
 
-	} // 最後のカギかっこ
+} // 最後のカギかっこ
