@@ -1418,6 +1418,51 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			vertexDataSprite[start] = vertA;
 		}
 	}
+	//VertexData vertA = {
+	//		cosf(lat) * cosf(lon), /// 改行が気持ち悪いのでここにたくさん文字
+	//		sinf(lat),
+	//		cosf(lat) * sinf(lon),
+	//		1.0f,
+	//		{float(lonIndex) / float(kSubdivision),
+	//		 1.0f - float(latIndex) / float(kSubdivision)} };
+
+	//VertexData vertB = {
+	//	cosf(lat + kLatEvery) * cosf(lon),
+	//	sinf(lat + kLatEvery),
+	//	cosf(lat + kLatEvery) * sinf(lon),
+	//	1.0f,
+	//	{static_cast<float>(lonIndex) / kSubdivision,
+	//	 1.0f - static_cast<float>(latIndex + 1) / kSubdivision} };
+
+	//VertexData vertC = {
+	//	cosf(lat) * cosf(lon + kLonEvery), // x
+	//	sinf(lat),                         // y
+	//	cosf(lat) * sinf(lon + kLonEvery), // z
+	//	1.0f,                              // w
+	//	{
+	//		static_cast<float>(lonIndex + 1) / kSubdivision,   // u
+	//		1.0f - static_cast<float>(latIndex) / kSubdivision // v
+	//	} };
+
+	//VertexData vertD = {
+	//	cosf(lat + kLatEvery) * cosf(lon + kLonEvery), // x
+	//	sinf(lat + kLatEvery),                         // y
+	//	cosf(lat + kLatEvery) * sinf(lon + kLonEvery), // z
+	//	1.0f,                                          // w
+	//	{
+	//		static_cast<float>(lonIndex + 1) / kSubdivision,       // u
+	//		1.0f - static_cast<float>(latIndex + 1) / kSubdivision // v
+	//	} };
+
+	// 初期位置
+	uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
+
+	vertices[startIndex + 0] = vertA;
+	vertices[startIndex + 1] = vertB;
+	vertices[startIndex + 2] = vertC;
+	vertices[startIndex + 3] = vertC;
+	vertices[startIndex + 4] = vertD;
+	vertices[startIndex + 5] = vertB;
 	Vector3 a = { cosf(lat) * cosf(lon), sinf(lat), cosf(lat) * sinf(lon) };
 	Vector3 b = { cosf(nextLat) * cosf(lon), sinf(nextLat), cosf(nextLat) * sinf(lon) };
 	Vector3 c = { cosf(nextLat) * cosf(nextLon), sinf(nextLat), cosf(nextLat) * sinf(nextLon) };
