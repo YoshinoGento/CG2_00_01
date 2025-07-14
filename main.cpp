@@ -1333,9 +1333,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		&graphicsPipelineStateDesc, IID_PPV_ARGS(&graphicsPinelineState));
 	assert(SUCCEEDED(hr));
 
-	// sprite用の頂点リソースを作る04_00
-	ID3D12Resource* vertexResourceSprite =
-		CreateBufferResource(device, sizeof(VertexData) * 6);
+
 
 	// 03_01_Other
 	ID3D12Resource* depthStencillResource =
@@ -1351,208 +1349,249 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 	// sprite用の頂点リソースにデータを書き込む04_00
+
+
+	// 分割数
+	constexpr uint32_t kSubdivision = 4;
+
+	// 頂点数とインデックス数を算出
+	constexpr uint32_t kVertexCount = (kSubdivision + 1) * (kSubdivision + 1);
+	constexpr uint32_t kIndexCount = kSubdivision * kSubdivision * 6;
+
+	// 頂点リソース生成＆マッピング
+	ID3D12Resource* vertexResourceSprite = CreateBufferResource(device, sizeof(VertexData) * kVertexCount);
+	// sprite用の頂点リソースにデータを書き込む04_00
 	VertexData* vertexDataSprite = nullptr;
+	vertexResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&vertexDataSprite));
 
-	constexpr uint32_t kSubdivision = 16; // 分割数
-	constexpr uint32_t kVertexCount = kSubdivision * kSubdivision * 6; // 頂点数
-
-	// indexResourceSpriteを生成
-	//ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * kVertexCount);
-
-	ID3D12Resource* indexResourceSprite = CreateBufferResource(device, sizeof(uint32_t) * 6);
-
-	// VertexBufferViewを作成
-	// 頂点バッファビューを作成する
-	D3D12_INDEX_BUFFER_VIEW indexBufferViewSprite{};
-	// リソースの先頭のアドレスから使う
-	indexBufferViewSprite.BufferLocation = indexResourceSprite->GetGPUVirtualAddress();
-	// 使用するリソースのサイズは頂点3つ分のサイズ
-	indexBufferViewSprite.SizeInBytes = sizeof(uint32_t) * kVertexCount;
-	// 1頂点当たりのサイズ
-	indexBufferViewSprite.Format = DXGI_FORMAT_R32_UINT;
-
-	// Resourceにデータを書き込む
-	//VertexData* vertexData = nullptr;
-	// 書き込むためのアドレスを取得
-	//indexResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
-
-	//06_00 8枚目
+	// インデックスリソース生成＆マッピング
+	ID3D12Resource* indexResourceSprite = CreateBufferResource(device, sizeof(uint32_t) * kIndexCount);
 	uint32_t* indexDataSprite = nullptr;
 	indexResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&indexDataSprite));
-	indexDataSprite[0] = 0;
-	indexDataSprite[1] = 1;
-	indexDataSprite[2] = 2;
-	indexDataSprite[3] = 1;
-	indexDataSprite[4] = 3;
-	indexDataSprite[5] = 2;
 
-	// 球体を生成
+	// インデックスビューの設定
+	D3D12_INDEX_BUFFER_VIEW indexBufferViewSprite{};
+	indexBufferViewSprite.BufferLocation = indexResourceSprite->GetGPUVirtualAddress();
+	indexBufferViewSprite.SizeInBytes = sizeof(uint32_t) * kIndexCount;
+	indexBufferViewSprite.Format = DXGI_FORMAT_R32_UINT;
+
+	// 経度・緯度の角度
 	const float kLonEvery = std::numbers::pi_v<float> *2.0f / kSubdivision;
 	const float kLatEvery = std::numbers::pi_v<float> / kSubdivision;
 
-	for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+	uint32_t vertexIndex = 0;
+	uint32_t index = 0;
 
+	for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
 		float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
 
 		for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
-
-			//		float lon = lonIndex * kLonEvery;
-			//		VertexData vertA = {
-			//		{
-			//				std::cosf(lat) * std::cosf(lon), // x
-			//				std::sinf(lat),                 // y
-			//				std::cosf(lat) * std::sinf(lon), // z
-			//				1.0//w
-			//			},
-			//			{
-			//				float(lonIndex) / float(kSubdivision),
-			//				1.0f - float(latIndex) / float(kSubdivision) // u, v
-			//			},
-			//			{
-			//				std::cosf(lat) * std::cosf(lon), // x
-			//				std::sinf(lat),                 // y
-			//				std::cosf(lat) * std::sinf(lon)  // z
-			//			}
-			//		};
-			//		uint32_t start = (latIndex * (kSubdivision + 1)) * lonIndex;
-			//		vertexDataSprite[start] = vertA;
-			//	}
-			//}
-			//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
-
-			//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
-
-			//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
-
-			//		float lon = lonIndex * kLonEvery;
-			//		VertexData vertB = {
-			//		{
-			//				std::cosf(lat + kLatEvery) * cosf(lon),
-			//				std::sinf(lat + kLatEvery),
-			//				std::cosf(lat + kLatEvery) * sinf(lon),
-			//				1.0f,
-			//			},
-			//			{
-			//				float(lonIndex) / kSubdivision,
-			//				1.0f - float(latIndex + 1) / kSubdivision // u, v
-			//			},
-			//			{
-			//				std::cosf(lat) * std::cosf(lon), // x
-			//				std::sinf(lat),                 // y
-			//				std::cosf(lat) * std::sinf(lon)  // z
-			//			}
-			//		};
-			//		uint32_t start = latIndex + 1;
-			//		vertexDataSprite[start] = vertB;
-			//	}
-			//}
-
-			//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
-
-			//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
-
-			//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
-
-			//		float lon = lonIndex * kLonEvery;
-			//		VertexData vertC = {
-			//		{
-			//				cosf(lat) * cosf(lon + kLonEvery), // x
-			//				sinf(lat),                         // y
-			//				cosf(lat) * sinf(lon + kLonEvery), // z
-			//				1.0f,
-			//			},
-			//			{
-			//				float(lonIndex + 1) / kSubdivision,   // u
-			//				1.0f - float(latIndex) / kSubdivision // v
-			//			},
-			//			{
-			//				std::cosf(lat) * std::cosf(lon), // x
-			//				std::sinf(lat),                 // y
-			//				std::cosf(lat) * std::sinf(lon)  // z
-			//			}
-			//		};
-			//		uint32_t start = latIndex + 1;
-			//		vertexDataSprite[start] = vertC;
-			//	}
-			//}
-
-			//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
-
-			//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
-
-			//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
-
-			//		float lon = lonIndex * kLonEvery;
-			//		VertexData vertD = {
-			//		{
-			//				cosf(lat + kLatEvery) * cosf(lon + kLonEvery), // x
-			//				sinf(lat + kLatEvery),                         // y
-			//				cosf(lat + kLatEvery) * sinf(lon + kLonEvery), // z
-			//				1.0f,
-			//			},
-			//			{
-			//				float(lonIndex + 1) / kSubdivision,       // u
-			//				1.0f - float(latIndex + 1) / kSubdivision // v
-			//			},
-			//			{
-			//				std::cosf(lat) * std::cosf(lon), // x
-			//				std::sinf(lat),                 // y
-			//				std::cosf(lat) * std::sinf(lon)  // z
-			//			}
-			//		};
-			//		uint32_t start = latIndex + 1;
-			//		vertexDataSprite[start] = vertD;
-			//	}
-			//}
-
-
 			float lon = lonIndex * kLonEvery;
+
+			// 頂点A（左上）
 			VertexData vertA = {
-					cosf(lat) * cosf(lon), /// 改行が気持ち悪いのでここにたくさん文字
-					sinf(lat),
-					cosf(lat) * sinf(lon),
-					1.0f,
-					{float(lonIndex) / float(kSubdivision),
-					 1.0f - float(latIndex) / float(kSubdivision)} };
-
-			VertexData vertB = {
-				cosf(lat + kLatEvery) * cosf(lon),
-				sinf(lat + kLatEvery),
-				cosf(lat + kLatEvery) * sinf(lon),
-				1.0f,
-				{static_cast<float>(lonIndex) / kSubdivision,
-				 1.0f - static_cast<float>(latIndex + 1) / kSubdivision} };
-
-			VertexData vertC = {
-				cosf(lat) * cosf(lon + kLonEvery), // x
-				sinf(lat),                         // y
-				cosf(lat) * sinf(lon + kLonEvery), // z
-				1.0f,                              // w
 				{
-					static_cast<float>(lonIndex + 1) / kSubdivision,   // u
-					1.0f - static_cast<float>(latIndex) / kSubdivision // v
-				} };
-
-			VertexData vertD = {
-				cosf(lat + kLatEvery) * cosf(lon + kLonEvery), // x
-				sinf(lat + kLatEvery),                         // y
-				cosf(lat + kLatEvery) * sinf(lon + kLonEvery), // z
-				1.0f,                                          // w
+					std::cosf(lat) * std::cosf(lon),
+					std::sinf(lat),
+					std::cosf(lat) * std::sinf(lon),
+					1.0f
+				},
 				{
-					static_cast<float>(lonIndex + 1) / kSubdivision,       // u
-					1.0f - static_cast<float>(latIndex + 1) / kSubdivision // v
-				} };
-			//初期位置
-			uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
+					float(lonIndex) / kSubdivision,
+					1.0f - float(latIndex) / kSubdivision
+				},
+				{
 
-			vertices[startIndex + 0] = vertA;
-			vertices[startIndex + 1] = vertB;
-			vertices[startIndex + 2] = vertC;
-			vertices[startIndex + 3] = vertC;
-			vertices[startIndex + 4] = vertD;
-			vertices[startIndex + 5] = vertB;
+				std::cosf(lat) * std::cosf(lon), // x
+				std::sinf(lat),                 // y
+				std::cosf(lat) * std::sinf(lon), // z
+				}
+			};
+
+			uint32_t start = (latIndex * (kSubdivision + 1) + lonIndex);
+			vertexDataSprite[start] = vertA;
 		}
+
+		uint32_t* indexDataSprite = nullptr;
+		indexResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&indexDataSprite));
+		indexDataSprite[0] = 0;
+		indexDataSprite[1] = 1;
+		indexDataSprite[2] = 2;
+		indexDataSprite[3] = 1;
+		indexDataSprite[4] = 3;
+		indexDataSprite[5] = 2;
 	}
+			//// 頂点B（左下）
+			//VertexData vertB = {
+			//	{
+			//		std::cosf(lat + kLatEvery) * std::cosf(lon),
+			//		std::sinf(lat + kLatEvery),
+			//		std::cosf(lat + kLatEvery) * std::sinf(lon),
+			//		1.0f
+			//	},
+			//	{
+			//		float(lonIndex) / kSubdivision,
+			//		1.0f - float(latIndex + 1) / kSubdivision
+			//	}
+			//};
+
+			//// 頂点C（右上）
+			//VertexData vertC = {
+			//	{
+			//		std::cosf(lat) * std::cosf(lon + kLonEvery),
+			//		std::sinf(lat),
+			//		std::cosf(lat) * std::sinf(lon + kLonEvery),
+			//		1.0f
+			//	},
+			//	{
+			//		float(lonIndex + 1) / kSubdivision,
+			//		1.0f - float(latIndex) / kSubdivision
+			//	}
+			//};
+
+			//// 頂点D（右下）
+			//VertexData vertD = {
+			//	{
+			//		std::cosf(lat + kLatEvery) * std::cosf(lon + kLonEvery),
+			//		std::sinf(lat + kLatEvery),
+			//		std::cosf(lat + kLatEvery) * std::sinf(lon + kLonEvery),
+			//		1.0f
+			//	},
+			//	{
+			//		float(lonIndex + 1) / kSubdivision,
+			//		1.0f - float(latIndex + 1) / kSubdivision
+			//	}
+			//};
+
+			// 頂点バッファに追加
+			
+			
+
+			//// インデックスバッファに追加（三角形2枚分）
+			//// 三角形1：A, B, C
+			//indexDataSprite[index + 0] = vertexIndex + 0;
+			//indexDataSprite[index + 1] = vertexIndex + 1;
+			//indexDataSprite[index + 2] = vertexIndex + 2;
+
+			//// 三角形2：C, B, D
+			//indexDataSprite[index + 3] = vertexIndex + 2;
+			//indexDataSprite[index + 4] = vertexIndex + 1;
+			//indexDataSprite[index + 5] = vertexIndex + 3;
+
+			//vertexIndex += 4;
+			//index += 6;
+		
+	
+
+	//		float lon = lonIndex * kLonEvery;
+		//		VertexData vertA = {
+		//		{
+		//				std::cosf(lat) * std::cosf(lon), // x
+		//				std::sinf(lat),                 // y
+		//				std::cosf(lat) * std::sinf(lon), // z
+		//				1.0//w
+		//			},
+		//			{
+		//				float(lonIndex) / float(kSubdivision),
+		//				1.0f - float(latIndex) / float(kSubdivision) // u, v
+		//			},
+		//			{
+		//				std::cosf(lat) * std::cosf(lon), // x
+		//				std::sinf(lat),                 // y
+		//				std::cosf(lat) * std::sinf(lon)  // z
+		//			}
+		//		};
+		//		uint32_t start = (latIndex * (kSubdivision + 1)) * lonIndex;
+		//		vertexDataSprite[start] = vertA;
+		//	}
+		//}
+		//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+
+		//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+
+		//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+
+		//		float lon = lonIndex * kLonEvery;
+		//		VertexData vertB = {
+		//		{
+		//				std::cosf(lat + kLatEvery) * cosf(lon),
+		//				std::sinf(lat + kLatEvery),
+		//				std::cosf(lat + kLatEvery) * sinf(lon),
+		//				1.0f,
+		//			},
+		//			{
+		//				float(lonIndex) / kSubdivision,
+		//				1.0f - float(latIndex + 1) / kSubdivision // u, v
+		//			},
+		//			{
+		//				std::cosf(lat) * std::cosf(lon), // x
+		//				std::sinf(lat),                 // y
+		//				std::cosf(lat) * std::sinf(lon)  // z
+		//			}
+		//		};
+		//		uint32_t start = latIndex + 1;
+		//		vertexDataSprite[start] = vertB;
+		//	}
+		//}
+
+		//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+
+		//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+
+		//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+
+		//		float lon = lonIndex * kLonEvery;
+		//		VertexData vertC = {
+		//		{
+		//				cosf(lat) * cosf(lon + kLonEvery), // x
+		//				sinf(lat),                         // y
+		//				cosf(lat) * sinf(lon + kLonEvery), // z
+		//				1.0f,
+		//			},
+		//			{
+		//				float(lonIndex + 1) / kSubdivision,   // u
+		//				1.0f - float(latIndex) / kSubdivision // v
+		//			},
+		//			{
+		//				std::cosf(lat) * std::cosf(lon), // x
+		//				std::sinf(lat),                 // y
+		//				std::cosf(lat) * std::sinf(lon)  // z
+		//			}
+		//		};
+		//		uint32_t start = latIndex + 1;
+		//		vertexDataSprite[start] = vertC;
+		//	}
+		//}
+
+		//for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+
+		//	float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+
+		//	for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+
+		//		float lon = lonIndex * kLonEvery;
+		//		VertexData vertD = {
+		//		{
+		//				cosf(lat + kLatEvery) * cosf(lon + kLonEvery), // x
+		//				sinf(lat + kLatEvery),                         // y
+		//				cosf(lat + kLatEvery) * sinf(lon + kLonEvery), // z
+		//				1.0f,
+		//			},
+		//			{
+		//				float(lonIndex + 1) / kSubdivision,       // u
+		//				1.0f - float(latIndex + 1) / kSubdivision // v
+		//			},
+		//			{
+		//				std::cosf(lat) * std::cosf(lon), // x
+		//				std::sinf(lat),                 // y
+		//				std::cosf(lat) * std::sinf(lon)  // z
+		//			}
+		//		};
+		//		uint32_t start = latIndex + 1;
+		//		vertexDataSprite[start] = vertD;
+		//	}
+		//}
+
 	//// 初期位置
 	//uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
 
@@ -1983,6 +2022,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->SetPipelineState(graphicsPinelineState);     // PS0を設定
 			commandList->IASetIndexBuffer(&indexBufferViewSprite); // IBVを設定
 
+
 			// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えていけばよい
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -2003,7 +2043,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->SetGraphicsRootDescriptorTable(2, useMonsterBall ? textureSrvHandleGPU2 : textureSrvHandleGPU);//資料12
 
 			// 描画！(DRAWCALL/ドローコール)。３頂点で１つのインスタンス。インスタンスについては今後_05_00_OHTER
-			commandList->DrawInstanced(kVertexCount, 1, 0, 0);
+			commandList->DrawInstanced(kIndexCount, 1, 0, 0);
 			// 描画
 			// spriteの描画04_00
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
