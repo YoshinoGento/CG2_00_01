@@ -1351,6 +1351,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// sprite用の頂点リソースにデータを書き込む04_00
 
 
+
+
 	// 分割数
 	constexpr uint32_t kSubdivision = 4;
 
