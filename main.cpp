@@ -2005,18 +2005,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
-			//// ---------------------- スプライト用描画セットアップ ----------------------
-			//
-			//commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite); // ← 頂点バッファ
-			//commandList->IASetIndexBuffer(&indexBufferViewSprite);         // ← インデックスバッファ
-
-			//// 行列CBV（たとえばスプライト用）
-			//commandList->SetGraphicsRootConstantBufferView(0, transformationMatrixResourceSprite->GetGPUVirtualAddress());
-			//// マテリアルCBV（白色ならその定数バッファでも）
-			//commandList->SetGraphicsRootConstantBufferView(1, materialResourceSprite->GetGPUVirtualAddress());
-			//// テクスチャSRV
-			//commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU); // ← ルートパラメータ[2]がSRVならこれ！
-
 			// 描画
 			commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 			// 描画の最後です//----------------------------------------------------
