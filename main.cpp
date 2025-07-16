@@ -55,7 +55,10 @@ struct Fragment {
 struct Material {
 	Vector4 color;
 	int32_t endleLighting;
+	float padding[3]; // 16バイト境界に揃えるためのパディング
+	Matrix4x4 unTransform;
 };
+
 
 struct TransformationMaterix {
 	Matrix4x4 WVP;
@@ -106,6 +109,9 @@ Matrix4x4 MakeIdentity4x4() {
 		result.m[i][i] = 1.0f;
 	return result;
 }
+
+
+
 // 拡大縮小行列S
 Matrix4x4 Matrix4x4MakeScaleMatrix(const Vector3& s) {
 	Matrix4x4 result = {};
@@ -207,6 +213,7 @@ Vector3 Normalize(const Vector3& v) {
 	result.z = v.z / Length(v);
 	return result;
 }
+
 
 
 // 4x4 行列の逆行列を計算する関数
@@ -886,6 +893,8 @@ IDxcBlob* CompileShader(
 	// 実行用のバイナリを返却02_00
 	return shaderBlob;
 }
+
+
 /////
 // main関数/////-------------------------------------------------------------------------------------------------
 //  Windwsアプリでの円とリポウント(main関数)
@@ -1567,6 +1576,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 頂点リソース生成＆マッピング
 	ID3D12Resource* vertexResourceSprite = CreateBufferResource(device, sizeof(VertexData) * indexCount);
 
+	
+	//--------------------------
+	// spriteIndex用リソース
+	//--------------------------
+	// 06_00_page6
+	ID3D12Resource* indexResourceSprite =
+		CreateBufferResource(device, sizeof(uint32_t) * 6);
+	uint32_t* indexDataSprite = nullptr;
+	// インデックスリソースにデータを書き込む uint32_t *indexDataSprite = nullptr;
+	indexResourceSprite->Map(0, nullptr,
+		       reinterpret_cast<void**>(&indexDataSprite));
+	indexDataSprite[0] = 0;
+	indexDataSprite[1] = 1;
+	indexDataSprite[2] = 2;
+	indexDataSprite[3] = 1;
+	indexDataSprite[4] = 3;
+	indexDataSprite[5] = 2;
+
+	// Viewを作成する06_00_page6
+	D3D12_INDEX_BUFFER_VIEW indexBufferViewSprite{};
+	// リソースの先頭のアドレスから使う
+	indexBufferViewSprite.BufferLocation = indexResourceSprite->GetGPUVirtualAddress();
+	// 使用するリソースのサイズはインデックス６つ分のサイズ
+	indexBufferViewSprite.SizeInBytes = sizeof(uint32_t) * 6;
+	// インデックスはuint32_tとする
+	indexBufferViewSprite.Format = DXGI_FORMAT_R32_UINT;
+
+
 	// sprite用の頂点バッファビューを作成する04_00
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferViewSprite{};
 	// sprite用のリソースの先頭のアドレスから使う04_00
@@ -1599,35 +1636,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	vertexDataSprite[5].texcoord = { 1.0f, 1.0f };
 
 
-	//--------------------------
-	// spriteIndex用リソース
-	//--------------------------
-	// 06_00_page6
-	ID3D12Resource* indexResourceSprite =
-		CreateBufferResource(device, sizeof(uint32_t) * 6);
-
-	uint32_t* indexDataSprite = nullptr;
-	// インデックスリソースにデータを書き込む uint32_t *indexDataSprite = nullptr;
-	indexResourceSprite->Map(0, nullptr,
-		       reinterpret_cast<void**>(&indexDataSprite));
-	indexDataSprite[0] = 0;
-	indexDataSprite[1] = 1;
-	indexDataSprite[2] = 2;
-	indexDataSprite[3] = 1;
-	indexDataSprite[4] = 3;
-	indexDataSprite[5] = 2;
-
-	// Viewを作成する06_00_page6
-	D3D12_INDEX_BUFFER_VIEW indexBufferViewSprite{};
-	// リソースの先頭のアドレスから使う
-	indexBufferViewSprite.BufferLocation = indexResourceSprite->GetGPUVirtualAddress();
-	// 使用するリソースのサイズはインデックス６つ分のサイズ
-	indexBufferViewSprite.SizeInBytes = sizeof(uint32_t) * 6;
-	// インデックスはuint32_tとする
-	indexBufferViewSprite.Format = DXGI_FORMAT_R32_UINT;
-
-
-
 	//   ビューポート
 	D3D12_VIEWPORT viewport{};
 	// クライアント領域のサイズと一緒にして画面全体に表示/
@@ -1646,11 +1654,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	scissorRect.top = 0;
 	scissorRect.bottom = kClientHeight;
 
+
+
 	// マテリアル用のリソースを作る今回はcolor一つ分のサイズを用意する
 	ID3D12Resource* materialResource =
 		CreateBufferResource(device, sizeof(Material));
 	// マテリアルにデータを書き込む
 	Material* materialData = nullptr;
+	
+	materialData->unTransform = MakeIdentity4x4();
+
 	// 書き込むためのアドレスを取得
 	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
 	// 今回は赤を書き込んでみる
@@ -1663,10 +1676,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		CreateBufferResource(device, sizeof(Material));
 	// マテリアルにデータを書き込む
 	Material* materialDataSprite = nullptr;
+	materialDataSprite->unTransform = MakeIdentity4x4();
 	// 書き込むためのアドレスを取得
 	materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
 	// 今回は赤を書き込んでみる
 	materialDataSprite->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+
+	Transform uvTransformSprite{
+		{1.0f, 1.0f, 1.0f},
+		{0.0f, 0.0f, 0.0f},
+		{0.0f, 0.0f, 0.0f},
+	};
 
 	materialDataSprite->endleLighting = true;
 
@@ -1761,6 +1781,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
 			ImGui::ColorEdit4("Color", &materialData->color.x);
 			ImGui::Checkbox("useMonsterBall", &useMonsterBall);
+			ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
+			ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
 
 			// --- アニメーション選択 ---
 			ImGui::Text("Animation");
@@ -1922,6 +1945,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				Multiply(worldMatrixSprite,
 					Multiply(viewMatrixSprite, projectionMatrixSprite));
 			transformationMatrixDataSprite->WVP = woroldViewProjectionMatrixSprite;
+			
+			Matrix4x4 uvTransformMatrix = MatrixMath::MakeScaleMatrix(uvTransformSprite.scale);
+			uvTransformMatrix = MatrixMath::Multiply(uvTransformMatrix, MakeRotateZMatrix(uvTransformSprite.rotate.z));
+			uvTransformMatrix = MatrixMath::Multiply(uvTransformMatrix, MakeTranslateMatrix(uvTransformSprite.translate));
+			materialDataSprite->unTransform = uvTransformMatrix;
+
 
 			// 画面のクリア処理
 			//   これから書き込むバックバッファのインデックスを取得
