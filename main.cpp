@@ -2025,7 +2025,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			// 描画
 			// spriteの描画04_00
 
-			commandList->IASetVertexBuffers(0, 1, &vertexDataSprite);
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
 
 
 			commandList->IASetIndexBuffer(&indexBufferViewSprite);
