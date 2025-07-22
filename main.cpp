@@ -2027,6 +2027,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
 
+
 			commandList->IASetIndexBuffer(&indexBufferViewSprite);
 			//commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
 
