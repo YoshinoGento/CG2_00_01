@@ -872,9 +872,10 @@ IDxcBlob* CompileShader(
 	// 警告.エラーが出ていたらログに出して止める02_00
 	IDxcBlobUtf8* shaderError = nullptr;
 	shaderResult->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&shaderError), nullptr);
+
 	if (shaderError != nullptr && shaderError->GetStringLength() != 0) {
 		Log(os, shaderError->GetStringPointer());
-		// 警告、エラーダメ絶対02_00
+	// 警告、エラーダメ絶対02_00
 		assert(false);
 	}
 	// 4.Compile結果を受け取って返す02_00
@@ -1662,7 +1663,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// マテリアルにデータを書き込む
 	Material* materialData = nullptr;
 	
-	materialData->unTransform = MakeIdentity4x4();
 
 	// 書き込むためのアドレスを取得
 	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
@@ -1670,13 +1670,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	materialData->endleLighting = true;
 
+	materialData->unTransform = MakeIdentity4x4();
 
 	// マテリアル用のリソースを作る今回はcolor一つ分のサイズを用意する05_03
 	ID3D12Resource* materialResourceSprite =
 		CreateBufferResource(device, sizeof(Material));
 	// マテリアルにデータを書き込む
 	Material* materialDataSprite = nullptr;
-	materialDataSprite->unTransform = MakeIdentity4x4();
 	// 書き込むためのアドレスを取得
 	materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
 	// 今回は赤を書き込んでみる
@@ -1690,6 +1690,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	materialDataSprite->endleLighting = true;
 
+	materialDataSprite->unTransform = MakeIdentity4x4();
 
 	///Light用
 	// 平行光源用のリソースを作る今回はcolor一つ分のサイズを用意する05_03
@@ -1784,7 +1785,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
 			ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
-
+			
 			// --- アニメーション選択 ---
 			ImGui::Text("Animation");
 			if (ImGui::Button("None"))
@@ -2024,7 +2025,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			// 描画
 			// spriteの描画04_00
 
-			 //commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
 
 			commandList->IASetIndexBuffer(&indexBufferViewSprite);
 			//commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
