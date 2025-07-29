@@ -37,6 +37,10 @@
 #include "externals/imgui/imgui_impl_dx12.h"
 #include "externals/imgui/imgui_impl_win32.h"
 
+// --- blender ---
+#include <fstream>
+#include <sstream>
+
 // --- その他（必要ならアンコメント） ---
 // #include <format>  // C++20 の format 機能
 
@@ -94,6 +98,10 @@ struct DirectionalLight {
     Vector4 color;
     Vector3 direction;
     float intensity;
+};
+
+struct ModelData {
+	std::vector<VertexData> vertices;
 };
 
 // 変数//--------------------
@@ -679,6 +687,65 @@ void GenerateSphereVertices(VertexData* vertices, int kSubdivision,
         }
     }
 }
+//　--- 06_02 11P～15P ---//
+ModelData LoadObjFile(const std::string& directoryPath, const std::string& filename) {
+
+
+    // 1 ---中で必要となる変数の宣言 ---
+	ModelData modelData; //構築するMeadelData
+    std::vector<Vector4>positions; //位置
+	std::vector<Vector3>normals; //法線
+	std::vector<Vector2>texcoords; //テクスチャ座標
+    std::string line; //ファイルから読んだ1行を格納するもの
+
+	// 2 ---ファイルを開く---
+	std::ifstream file(directoryPath + "/" + filename); //ファイルを開く
+    assert(file.is_open()); // とりあえず開けなかったら止める
+
+    // 3 ---ファイルを読み、ModelDataを構築---
+    while (std::getline(file,line)){
+        std::string identifier;
+        std::istringstream s(line);
+		s >> identifier; // 先頭の識別子を読む
+
+        // ---頂点情報を読む---
+        if(identifier ==  "v") {
+
+            Vector4 position;
+            s >> position.x >> position.y >> position.z;
+            position.w = 1.0f; // 位置はw=1.0f
+            positions.push_back(position);
+
+        } else if (identifier == "vt") {
+
+            Vector2 texcoord;
+            s >> texcoord.x >> texcoord.y;
+            texcoords.push_back(texcoord);
+
+        } else if (identifier == "vn") {
+
+			Vector3 normal;
+            s >> normal.x >> normal.y >> normal.z;
+			normals.push_back(normal);
+
+        } else if (identifier == "f") {
+
+            // --面は三角形限定。その他は未対応--
+            for (int32_t faceVertex = 0; faceVertex < 3; ++faceVertex) {
+                std::string vertexDefinition;
+                s >> vertexDefinition;
+				// 頂点の要素へのindexは「位置/テクスチャ座標/法線」で格納されているので、分割してindexを取得すること
+
+            }
+        }
+    }
+
+
+}
+
+
+
+
 ////////////////////
 // 関数の生成ここまで//
 ////////////////////
