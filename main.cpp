@@ -39,6 +39,8 @@
 
 // --- blender ---
 #include <sstream>
+#include <iostream>
+
 
 // --- その他（必要ならアンコメント） ---
 // #include <format>  // C++20 の format 機能
@@ -99,8 +101,14 @@ struct DirectionalLight {
     float intensity;
 };
 
+// CG2_06_02
+struct MaterialData {
+    std::string textureFilePath;
+};
+
 struct ModelData {
 	std::vector<VertexData> vertices;
+    MaterialData material;
 };
 
 // 変数//--------------------
@@ -523,13 +531,9 @@ ID3D12Resource* CreateTextureResource(ID3D12Device* device,
         metadata.dimension); // Textureの次元数　普段使っているのは二次元
     // 2.利用するHeapの設定。非常に特殊な運用。02_04exで一般的なケース版がある
     D3D12_HEAP_PROPERTIES heapProperties{};
-    heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT; // 細かい設定を行う//03_00EX
-    // heapProperties.CPUPageProperty =
-    //     D3D12_CPU_PAGE_PROPERTY_WRITE_BACK; //
-    //     WriteBaackポリシーでCPUアクセス可能
-    // heapProperties.MemoryPoolPreference =
-    //     D3D12_MEMORY_POOL_L0; // プロセッサの近くに配置
 
+    heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT; // 細かい設定を行う//03_00EX
+   
     // 3.Resourceを生成する
     ID3D12Resource* resource = nullptr;
     HRESULT hr = device->CreateCommittedResource(
@@ -686,7 +690,47 @@ void GenerateSphereVertices(VertexData* vertices, int kSubdivision,
         }
     }
 }
+
+
+
+/// CG_02_06
+MaterialData LoadMaterialTemplateFile(const std::string& directoryPath,
+    const std::string& filename) {
+
+    // 1.中で必要となる変数の宣言
+    MaterialData materialData; // 構築するMaterialData
+
+    // 2.ファイルを開く
+    std::string line; // ファイルから読んだ１行を格納するもの
+    std::ifstream file(directoryPath + "/" + filename); // ファイルを開く
+    assert(file.is_open()); // とりあえず開けなかったら止める
+
+    // 3.実際にファイルを読み、MaterialDataを構築していく
+    while (std::getline(file, line)) {
+
+        std::string identifier;
+        std::istringstream s(line);
+        s >> identifier;
+
+        // identifierに応じた処理
+        if (identifier == "map_Kd") {
+
+            std::string textureFilename;
+            s >> textureFilename;
+            // 連結してファイルパスにする
+            materialData.textureFilePath = directoryPath + "/" + textureFilename;
+
+        }
+    }
+    // 4.materialDataを返す
+    return materialData;
+}
+
+
 ModelData LoadObjFile(const std::string& directoryPath, const std::string& filename) {
+
+
+
     // 1 ---中で必要となる変数の宣言 ---
     ModelData modelData; //構築するMeadelData
     std::vector<Vector4>positions; //位置
@@ -709,6 +753,10 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 
             Vector4 position;
             s >> position.x >> position.y >> position.z;
+
+            // 左手座標にする
+            position.x *= -1.0f;
+
             position.w = 1.0f; // 位置はw=1.0f
             positions.push_back(position);
 
@@ -716,15 +764,24 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 
             Vector2 texcoord;
             s >> texcoord.x >> texcoord.y;
+
+            texcoord.y = 1.0f - texcoord.y;
+
             texcoords.push_back(texcoord);
 
         } else if (identifier == "vn") {
 
             Vector3 normal;
             s >> normal.x >> normal.y >> normal.z;
+
+            // 左手座標にする
+            normal.x *= -1.0f;
+
             normals.push_back(normal);
 
         } else if (identifier == "f") {
+
+            VertexData triangle[3]; // 三つの頂点を保存
 
             // --面は三角形限定。その他は未対応--
             for (int32_t faceVertex = 0; faceVertex < 3; ++faceVertex) {
@@ -738,6 +795,7 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
                 for (int32_t element = 0; element < 3; ++element) {
 
                     std::string index;
+
                     std::getline(v, index, '/'); // 区切りでインデックスを読んでいく
                     elementIndices[element] = std::stoi(index);
 
@@ -747,13 +805,26 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
                 Vector4 position = positions[elementIndices[0] - 1];
                 Vector2 texcoord = texcoords[elementIndices[1] - 1];
                 Vector3 normal = normals[elementIndices[2] - 1];
-                VertexData vertex = { position,texcoord, normal };
-                modelData.vertices.push_back(vertex);
+
+                // X軸を反転して左手座標系に
+                triangle[faceVertex] = { position, texcoord, normal };
 
             }
+
+            // 逆順にして格納（2 → 1 → 0）
+            modelData.vertices.push_back(triangle[2]);
+            modelData.vertices.push_back(triangle[1]);
+            modelData.vertices.push_back(triangle[0]);
+        } else if (identifier == "mtllib") {
+            // materialTemplateLibraryファイルの名前を取得する
+            std::string materialFilename;
+            s >> materialFilename;
+            // 基本的にobjファイルと同一階層mtlは存在させるので、ディレクトリ名とファイル名を渡す。
+            modelData.material =
+                LoadMaterialTemplateFile(directoryPath, materialFilename);
         }
     }
-    return modelData; // 生成したModelDataを返す
+  return modelData; // 生成したModelDataを返す
 }
 
 
@@ -790,6 +861,7 @@ IDxcBlob* CompileShader(
     // 初期化で生成したものを3つ02_00
     IDxcUtils* dxcUtils, IDxcCompiler3* dxcCompiler,
     IDxcIncludeHandler* includeHandler, std::ostream& os) {
+
     // ここの中身を書いていく02_00
     // 1.hlslファイルを読み込む02_00
     // これからシェーダーをコンパイルする旨をログに出す02_00
@@ -1210,6 +1282,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob,
         &errorBlob);
 
+   
+
+
     // もし失敗したら、エラーメッセージを出して止める
     if (FAILED(hr)) {
         Log(logStream, reinterpret_cast<char*>(
@@ -1231,16 +1306,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     ID3D12Resource* intermediateResource =
         UploadTextureData(textureResource, mipImages, device, commandList); //?
 
+
+
+    // --モデルデータを読み込む--
+    ModelData modelData = LoadObjFile("Resources", "axis.obj");
+
+   
+
+
     // 2枚目のTextureを読んで転送するCG2_05_01_page_8
-    DirectX::ScratchImage mipImages2 = LoadTexture("resources/monsterBall.png");
+    DirectX::ScratchImage mipImages2 = LoadTexture(modelData.material.textureFilePath);
     const DirectX::TexMetadata& metadata2 = mipImages2.GetMetadata();
     ID3D12Resource* textureResource2 = CreateTextureResource(device, metadata2);
     ID3D12Resource* intermediateResource2 =
         UploadTextureData(textureResource2, mipImages2, device, commandList);
 
-    // 03_00EX
-    // ID3D12Resource *intermediateResource =
-    //    UploadTextureData(textureResource, mipImages, device, commandList);
 
 #pragma region ディスクリプタサイズを取得する（SRV/RTV/DSV）
   // DescriptorSizeを取得しておくCG2_05_01_page_6
@@ -1371,8 +1451,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // 通常モデル用リソース
     //--------------------------
 
-	// --モデルデータを読み込む--
-	ModelData modelData = LoadObjFile("Resources","plane.obj");
+	
 
     // --頂点リソースを作る--
     ID3D12Resource* vertexResource =
@@ -1391,40 +1470,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData)); //書き込むためのアドレスを取得
 	std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData)* modelData.vertices.size()); //頂点データをコピー
 
-    //--------------------------
-    // 三角形の頂点データ
-    //--------------------------
-    // 左下
-    //vertexData[0].position = {-0.5f, -0.5f, 0.0f, 1.0f};
-    //vertexData[0].texcoord = {0.0f, 1.0f};
-    ////  上
-    //vertexData[1].position = {0.0f, 0.5f, 0.0f, 1.0f};
-    //vertexData[1].texcoord = {0.5f, 0.0f};
-    ////  右下
-    //vertexData[2].position = {0.5f, -0.5f, 0.0f, 1.0f};
-    //vertexData[2].texcoord = {1.0f, 1.0f};
-
-    //// 左下２03_01_Other
-    //vertexData[3].position = {-0.5f, -0.5f, 0.5f, 1.0f};
-    //vertexData[3].texcoord = {0.0f, 1.0f};
-
-    //// 上２
-    //vertexData[4].position = {0.0f, 0.0f, 0.0f, 1.0f};
-    //vertexData[4].texcoord = {0.5f, 0.0f};
-    //// 右下２
-    //vertexData[5].position = {0.5f, -0.5f, -0.5f, 1.0f};
-    //vertexData[5].texcoord = {1.0f, 1.0f};
-    //--------------------------
-    // 頂点バッファービュー
-    //--------------------------
-    ////   頂点バッファビューを作成する
-    //D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
-    // リソースの先頭のアドレスから使う
-    //vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
-    //// 使用するリソースのサイズは頂点３つ分のサイズ
-    //vertexBufferView.SizeInBytes = sizeof(VertexData) * kNumVertices;
-    //// 1頂点あたりのサイズ
-    //vertexBufferView.StrideInBytes = sizeof(VertexData);
+   
     //--------------------------
     // マテリアル
     //--------------------------
@@ -1439,7 +1485,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
     materialData->uvTransform =
         MakeIdentity4x4(); // 06_01_UuvTransform行列を単位行列で初期化
-    materialData->enableLighting = false;
+    materialData->enableLighting = true;
+
     //--------------------------
     // WVP行列
     //--------------------------
@@ -1453,8 +1500,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // 単位行列を書き込んでおく02_02
     Matrix4x4 identity = MakeIdentity4x4();
     // 05_03
-    memcpy(&wvpData->WVP, &identity, sizeof(Matrix4x4));
-    memcpy(&wvpData->World, &identity, sizeof(Matrix4x4));
+
     
     //--------------------------
     // Sprite用リソース
@@ -1614,7 +1660,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     assert(SUCCEEDED(hr));
 
     // スフィア作成_05_00_OTHER
-    GenerateSphereVertices(vertexData, kSubdivision, 1.0f);
+    //GenerateSphereVertices(vertexData, kSubdivision, 1.0f);
 
     // ImGuiの初期化。詳細はさして重要ではないので解説は省略する。02_03
     // こういうもんである02_03
@@ -1820,8 +1866,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                 1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 
 
-            /*commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);*/
-
+         
 
             // 描画の最後です//----------------------------------------------------
             //  実際のcommandListのImGuiの描画コマンドを積む
@@ -1932,9 +1977,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // --- 照明 ---
     directionalLightResource->Release();
 
-    // --- 球体モデル用 ---
-    //vertexResourceSphere->Release();
-    //indexResourceSphere->Release();
+
 
 #ifdef _DEBUG
     // --- デバッグレイヤー（DEBUG時のみ） ---
