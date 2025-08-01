@@ -1659,8 +1659,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         &graphicsPipelineStateDesc, IID_PPV_ARGS(&graphicsPinelineState));
     assert(SUCCEEDED(hr));
 
-    // スフィア作成_05_00_OTHER
-    //GenerateSphereVertices(vertexData, kSubdivision, 1.0f);
+    //スフィア作成_05_00_OTHER
+    GenerateSphereVertices(vertexData, kSubdivision, 1.0f);
 
     // ImGuiの初期化。詳細はさして重要ではないので解説は省略する。02_03
     // こういうもんである02_03
