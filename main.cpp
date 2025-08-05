@@ -1299,17 +1299,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         IID_PPV_ARGS(&rootSignature));
     assert(SUCCEEDED(hr));
 
+
     // Textureを読んで転送する03_00
     DirectX::ScratchImage mipImages = LoadTexture("resources/uvChecker.png");
     const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
     ID3D12Resource* textureResource = CreateTextureResource(device, metadata);
     ID3D12Resource* intermediateResource =
-        UploadTextureData(textureResource, mipImages, device, commandList); //?
+        UploadTextureData(textureResource, mipImages, device, commandList);
 
 
 
     // --モデルデータを読み込む--
-    ModelData modelData = LoadObjFile("Resources", "axis.obj");
+    ModelData modelData = LoadObjFile("Resources", "Plane.obj");
 
    
 
