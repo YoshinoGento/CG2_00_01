@@ -107,7 +107,7 @@ struct MaterialData {
 };
 
 struct ModelData {
-	std::vector<VertexData> vertices;
+    std::vector<VertexData> vertices;
     MaterialData material;
 };
 
@@ -533,7 +533,7 @@ ID3D12Resource* CreateTextureResource(ID3D12Device* device,
     D3D12_HEAP_PROPERTIES heapProperties{};
 
     heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT; // 細かい設定を行う//03_00EX
-   
+
     // 3.Resourceを生成する
     ID3D12Resource* resource = nullptr;
     HRESULT hr = device->CreateCommittedResource(
@@ -824,7 +824,7 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
                 LoadMaterialTemplateFile(directoryPath, materialFilename);
         }
     }
-  return modelData; // 生成したModelDataを返す
+    return modelData; // 生成したModelDataを返す
 }
 
 
@@ -1282,7 +1282,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob,
         &errorBlob);
 
-   
+
 
 
     // もし失敗したら、エラーメッセージを出して止める
@@ -1311,7 +1311,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // --モデルデータを読み込む--
     ModelData modelData = LoadObjFile("Resources", "axis.obj");
 
-   
+
 
 
     // 2枚目のTextureを読んで転送するCG2_05_01_page_8
@@ -1323,7 +1323,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 #pragma region ディスクリプタサイズを取得する（SRV/RTV/DSV）
-  // DescriptorSizeを取得しておくCG2_05_01_page_6
+    // DescriptorSizeを取得しておくCG2_05_01_page_6
     const uint32_t descriptorSizeSRV = device->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     const uint32_t descriptorSizeRTV =
@@ -1451,26 +1451,26 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // 通常モデル用リソース
     //--------------------------
 
-	
+
 
     // --頂点リソースを作る--
     ID3D12Resource* vertexResource =
         CreateBufferResource(device, sizeof(VertexData) * modelData.vertices.size());
 
     // --頂点バッファビューを作成する--
-	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{}; 
+    D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
     vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress(); //リソースの先頭のアドレスから使う
-	vertexBufferView.SizeInBytes = 
-		UINT(sizeof(VertexData) * modelData.vertices.size());  //使用するリソースのサイズは頂点のサイズ
-	vertexBufferView.StrideInBytes = sizeof(VertexData); //1頂点あたりのサイズ
+    vertexBufferView.SizeInBytes =
+        UINT(sizeof(VertexData) * modelData.vertices.size());  //使用するリソースのサイズは頂点のサイズ
+    vertexBufferView.StrideInBytes = sizeof(VertexData); //1頂点あたりのサイズ
 
 
     // --頂点リソースにデータを書き込む--
     VertexData* vertexData = nullptr;
     vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData)); //書き込むためのアドレスを取得
-	std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData)* modelData.vertices.size()); //頂点データをコピー
+    std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData) * modelData.vertices.size()); //頂点データをコピー
 
-   
+
     //--------------------------
     // マテリアル
     //--------------------------
@@ -1501,7 +1501,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     Matrix4x4 identity = MakeIdentity4x4();
     // 05_03
 
-    
+
     //--------------------------
     // Sprite用リソース
     //--------------------------
@@ -1659,8 +1659,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         &graphicsPipelineStateDesc, IID_PPV_ARGS(&graphicsPinelineState));
     assert(SUCCEEDED(hr));
 
-    //スフィア作成_05_00_OTHER
-    GenerateSphereVertices(vertexData, kSubdivision, 1.0f);
+    // スフィア作成_05_00_OTHER
+    //GenerateSphereVertices(vertexData, kSubdivision, 1.0f);
 
     // ImGuiの初期化。詳細はさして重要ではないので解説は省略する。02_03
     // こういうもんである02_03
@@ -1837,16 +1837,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             // wvp用のCBufferの場所を設定02_02
             commandList->SetGraphicsRootConstantBufferView(
                 1, wvpResource->GetGPUVirtualAddress());
-           
+
             // 平行光源用のCbufferの場所を設定05_03
             commandList->SetGraphicsRootConstantBufferView(
                 3, directionalLightResource->GetGPUVirtualAddress());
 
             commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
-           
+
             commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
-			commandList->DrawInstanced(UINT(modelData.vertices.size()), 1, 0, 0);
+            commandList->DrawInstanced(UINT(modelData.vertices.size()), 1, 0, 0);
 
 
             // IBVを設定
@@ -1866,7 +1866,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                 1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 
 
-         
+
 
             // 描画の最後です//----------------------------------------------------
             //  実際のcommandListのImGuiの描画コマンドを積む
