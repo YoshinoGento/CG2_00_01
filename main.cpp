@@ -1309,7 +1309,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
     // --モデルデータを読み込む--
-    ModelData modelData = LoadObjFile("Resources", "axis.obj");
+    ModelData modelData = LoadObjFile("Resources", "plane.obj");
 
 
 
@@ -1388,19 +1388,41 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // BlendStateの設定
     D3D12_BLEND_DESC blendDesc{};
     // 全ての色要素を書き込む
-    blendDesc.RenderTarget[0].RenderTargetWriteMask =
-        D3D12_COLOR_WRITE_ENABLE_ALL;
+    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
     //CG3_00_01
     blendDesc.RenderTarget[0].BlendEnable = true;
+
+    //ノーマル
     blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
     blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+
+
+
+    ////加算合成
+    //blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+    //blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+    //blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+
+
+ //   //減算合成(逆減算合成)
+ //   blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+ //   blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_REV_SUBTRACT;
+ //   blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+
+ //   //乗算合成
+	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ZERO;
+ //   blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+ //   blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_SRC_COLOR;
+
+ //   //スクリーン合成
+ //   blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_INV_DEST_COLOR;
+ //   blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+ //   blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+
 	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-
-
-
+    blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
 
 
     // RasiterzerStateの設定
@@ -1732,6 +1754,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
             ImGui::ColorEdit4("Color", &materialData->color.x);
 
+          /*  ImGui::ColorEdit4("Color", &blendDesc.RenderTarget->BlendOp);*/
+            // 修正: ImGui::ColorEdit4 の引数に適切な型を渡すために、D3D12_BLEND_OP を一時的に float[4] に変換します。
+
+            //// D3D12_BLEND_DESC の RenderTarget[0] の BlendOp を ImGui::ColorEdit4 で編集するための一時変数
+            //float blendOpColor[4] = {
+            //    static_cast<float>(blendDesc.RenderTarget[0].BlendOp), // R
+            //    static_cast<float>(blendDesc.RenderTarget[0].BlendOp), // G
+            //    static_cast<float>(blendDesc.RenderTarget[0].BlendOp), // B
+            //    1.0f                                                  // A (アルファ値は固定)
+            //};
+
+            //// ImGui ウィジェットで色を編集
+            //if (ImGui::ColorEdit4("Color", blendOpColor)) {
+            //    // 編集結果を D3D12_BLEND_OP に戻す
+            //    blendDesc.RenderTarget[0].BlendOp = static_cast<D3D12_BLEND_OP>(blendOpColor[0]);
+            //}
             directionalLightData->direction =
                 Normalize(directionalLightData->direction); // 真上から下方向
 
