@@ -1732,13 +1732,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
             ImGui::ColorEdit4("Color", &materialData->color.x);
 
+            directionalLightData->direction =
+                Normalize(directionalLightData->direction); // 真上から下方向
 
+            ImGui::SliderFloat("LightX", &directionalLightData->direction.x, -10.0f, 10.0f);
+            ImGui::SliderFloat("LightY", &directionalLightData->direction.y, -10.0f, 10.0f);
+            ImGui::SliderFloat("LightZ", &directionalLightData->direction.z, -10.0f, 10.0f);
 
 
             ImGui::End();
 
-            directionalLightData->direction =
-                Normalize(directionalLightData->direction); // 真上から下方向
 
             // ImGuiの内部コマンドを生成する02_03
             ImGui::
