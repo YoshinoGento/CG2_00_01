@@ -1730,6 +1730,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                 10.0f);
             ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
 
+
+
             ImGui::End();
 
             directionalLightData->direction =
