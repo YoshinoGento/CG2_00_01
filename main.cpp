@@ -1730,6 +1730,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                 10.0f);
             ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
 
+            ImGui::ColorEdit4("Color", &materialData->color.x);
+
+
 
 
             ImGui::End();
