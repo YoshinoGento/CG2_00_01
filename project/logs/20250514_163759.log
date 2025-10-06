@@ -1,0 +1,20 @@
+Hello DirectX!
+
+clientSize:1280,720
+
+Use Adapater:NVIDIA GeForce RTX 4060 Laptop GPU
+
+FeatureLevel :12.2
+
+Complete create D3D12Device!!!
+
+Begin CompileSher,path:vs_6_0
+
+Compile Succeeded, pathObject3D.VS.hlsl, profile:vs_6_0
+
+Begin CompileSher,path:vs_6_0
+
+Object3D.PS.hlsl:6:1: error: Semantic SV_TARGETO is invalid for shader model: vs
+PixelShaderOutput main()
+^
+
