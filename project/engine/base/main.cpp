@@ -402,7 +402,7 @@ static LONG WINAPI ExportDump(EXCEPTION_POINTERS* exception) {
     GetLocalTime(&time);
     wchar_t filePath[MAX_PATH] = { 0 };
     CreateDirectory(L"./Dumps", nullptr);
-    StringCchPrintfW(filePath, MAX_PATH, L"./Dumps/%04d-%02d%02d-%02d%02d.dmp",
+    StringCchPrintfW(filePath, MAX_PATH, L"../generated/Dumps/%04d-%02d%02d-%02d%02d.dmp",
         time.wYear, time.wMonth, time.wDay, time.wHour,
         time.wMinute);
     HANDLE dumpFileHandle =
@@ -958,7 +958,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // main関数はじまってすぐに登録するとよい
     SetUnhandledExceptionFilter(ExportDump);
     // ログのディレクトリを用意
-    std::filesystem::create_directory("logs");
+    std::filesystem::create_directory("../generated/logs");
     // main関数の先頭02_04
 
     // 現在時刻を取得(UTC時刻)
@@ -971,7 +971,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // formatを使って年月日_時分秒の文字列に変換
     std::string dateString = std::format("{:%Y%m%d_%H%M%S}", loacalTime);
     // 時刻を使ってファイル名を決定
-    std::string logFilePath = std::string("logs/") + dateString + ".log";
+    std::string logFilePath = std::string("../generated/logs/") + dateString + ".log";
     // ファイルを作って書き込み準備
     std::ofstream logStream(logFilePath);
     // 出力
