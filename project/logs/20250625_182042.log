@@ -1,0 +1,12 @@
+Use Adapater:NVIDIA GeForce RTX 4060 Laptop GPU
+
+FeatureLevel : 12.2
+
+Complete create D3D12Device!!!
+
+Begin CompileShader,path:Object3d.VS.hlsl,profike:vs_6_0
+
+Object3d.VS.hlsl:23:50: error: use of undeclared identifier 'float_t3x3'
+    output.normal = normalize(mul(input.normal, (float_t3x3) gTransformationMatrix.World));
+                                                 ^
+
