@@ -1400,12 +1400,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // Shaderをコンパイルする
     IDxcBlob* vertexShaderBlob =
-        CompileShader(L"Object3d.VS.hlsl", L"vs_6_0", dxcUtils, dxcCompiler,
+        CompileShader(L"Resources/shader/Object3d.VS.hlsl", L"vs_6_0", dxcUtils, dxcCompiler,
             includHandler, logStream);
     assert(vertexShaderBlob != nullptr);
 
     IDxcBlob* pixelShaderBlob =
-        CompileShader(L"Object3d.PS.hlsl", L"ps_6_0", dxcUtils, dxcCompiler,
+        CompileShader(L"Resources/shader/Object3d.PS.hlsl", L"ps_6_0", dxcUtils, dxcCompiler,
             includHandler, logStream);
     assert(pixelShaderBlob != nullptr);
 
