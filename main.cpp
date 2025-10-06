@@ -1300,7 +1300,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     assert(SUCCEEDED(hr));
 
     // Textureを読んで転送する03_00
-    DirectX::ScratchImage mipImages = LoadTexture("resources/uvChecker.png");
+    DirectX::ScratchImage mipImages = LoadTexture("resources/fence.png");
     const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
     ID3D12Resource* textureResource = CreateTextureResource(device, metadata);
     ID3D12Resource* intermediateResource =
@@ -1308,8 +1308,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 
+    //// Textureを読んで転送する  CG3_00_03
+    //DirectX::ScratchImage mipImagesFence = LoadTexture("resources/fence.png");
+    //const DirectX::TexMetadata& metadataFence = mipImages.GetMetadata();
+    //ID3D12Resource* textureResourceFence = CreateTextureResource(device, metadata);
+    //ID3D12Resource* intermediateResourceFence =
+    //    UploadTextureData(textureResourceFence, mipImagesFence, device, commandList); //?
+
+
+
     // --モデルデータを読み込む--
-    ModelData modelData = LoadObjFile("Resources", "plane.obj");
+    ModelData modelData = LoadObjFile("Resources", "fence.obj");
+
+
 
 
 
@@ -1320,6 +1331,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     ID3D12Resource* textureResource2 = CreateTextureResource(device, metadata2);
     ID3D12Resource* intermediateResource2 =
         UploadTextureData(textureResource2, mipImages2, device, commandList);
+
+
+
+
+ 
 
 
 #pragma region ディスクリプタサイズを取得する（SRV/RTV/DSV）
@@ -1461,7 +1477,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // depthの機能を有効かする
     depthStencilDesc.DepthEnable = true;
     // 書き込みします
-    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     // 比較関数はLessEqual。つまり、近ければ描画される
     depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
     // depthStenncillの設定
