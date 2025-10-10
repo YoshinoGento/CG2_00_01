@@ -534,7 +534,7 @@ ID3D12Resource* CreateTextureResource(ID3D12Device* device,
 
     heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT; // 細かい設定を行う//03_00EX
 
-    // 3.Resourceを生成する
+    // 3.Resourceを生成するdiscard
     ID3D12Resource* resource = nullptr;
     HRESULT hr = device->CreateCommittedResource(
         &heapProperties,      // Heapの固定
@@ -1477,9 +1477,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // depthの機能を有効かする
     depthStencilDesc.DepthEnable = true;
     // 書き込みします
-    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+
     // 比較関数はLessEqual。つまり、近ければ描画される
     depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+
     // depthStenncillの設定
     graphicsPipelineStateDesc.DepthStencilState = depthStencilDesc;
     graphicsPipelineStateDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
