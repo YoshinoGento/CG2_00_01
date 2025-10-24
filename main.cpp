@@ -1211,6 +1211,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	IDxcIncludeHandler* includHandler = nullptr;
 	hr = dxcUtils->CreateDefaultIncludeHandler(&includHandler);
 	assert(SUCCEEDED(hr));
+
 	// ==== ルートシグネチャを作る準備 ====
 	// RootSignature作成02_00
 	// 頂点データの形式を使っていいよ！というフラグを立てる
@@ -1234,6 +1235,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	descriptionRootSignature.pStaticSamplers = staticSamplers;
 	descriptionRootSignature.NumStaticSamplers = _countof(staticSamplers);
 
+
+	D3D12_DESCRIPTOR_RANGE descriptorRangeForInstancing[1] = {};
+	descriptorRangeForInstancing[0].BaseShaderRegister = 0;   //0から始まる
+	descriptorRangeForInstancing[0].NumDescriptors = 1; //数は1つ
+	descriptorRangeForInstancing[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // SRVを使う
+	descriptorRangeForInstancing[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
 	// RootParameter作成。複数設定できるので配列。今回は結果１つだけなので長さ１の配列
 	// PixelShaderのMaterialとVertexShaderのTransform
 	D3D12_ROOT_PARAMETER rootParameters[4] = {};
@@ -1241,11 +1249,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	rootParameters[0].ShaderVisibility =
 		D3D12_SHADER_VISIBILITY_PIXEL;               // PixelShaderで使う
 	rootParameters[0].Descriptor.ShaderRegister = 0; // レジスタ番号０とバインド
-	// ここから[2]
-	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
-	rootParameters[1].ShaderVisibility =
-		D3D12_SHADER_VISIBILITY_VERTEX;              // Vertexshaderで使う
-	rootParameters[1].Descriptor.ShaderRegister = 0; // 得wジスタ番号０を使う
+
+
 
 	// ここまで[2]
 	// 新しいディスクリプタレンジ03_00
@@ -1260,6 +1265,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	descriptionRootSignature.NumParameters =
 		_countof(rootParameters); // 配列の長さ
 
+
+
+	// ここから[2]
+	//rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
+	//rootParameters[1].ShaderVisibility =
+	//	D3D12_SHADER_VISIBILITY_VERTEX;              // Vertexshaderで使う
+	//rootParameters[1].Descriptor.ShaderRegister = 0; // 得wジスタ番号０を使う
+
+
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; //DepscriptorTableを使う
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; //VertexShaderで使う
+	rootParameters[1].DescriptorTable.pDescriptorRanges = descriptorRangeForInstancing; //Tableの中身の配列を指定
+	rootParameters[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRangeForInstancing); //Tableで利用する数
+
+
+	
 	// 新しいディスクリプタレンジ03_00
 	// ここから[3]03_00
 	rootParameters[2].ParameterType =
@@ -1284,16 +1305,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob,
 		&errorBlob);
 
-	D3D12_DESCRIPTOR_RANGE descriptorRangeForInstancing[1] = {};
-	descriptorRangeForInstancing[0].BaseShaderRegister = 0;   //0から始まる
-	descriptorRangeForInstancing[0].NumDescriptors = 1; //数は1つ
-	descriptorRangeForInstancing[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // SRVを使う
-	descriptorRangeForInstancing[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; //DepscriptorTableを使う
-	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; //VertexShaderで使う
-	rootParameters[1].DescriptorTable.pDescriptorRanges = descriptorRangeForInstancing; //Tableの中身の配列を指定
-	rootParameters[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRangeForInstancing); //Tableで利用する数
 
 
 	// もし失敗したら、エラーメッセージを出して止める
@@ -1466,12 +1478,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	// Shaderをコンパイルする
 	IDxcBlob* vertexShaderBlob =
-		CompileShader(L"Object3d.VS.hlsl", L"vs_6_0", dxcUtils, dxcCompiler,
+		CompileShader(L"Particle.VS.hlsl", L"vs_6_0", dxcUtils, dxcCompiler,
 			includHandler, logStream);
 	assert(vertexShaderBlob != nullptr);
 
 	IDxcBlob* pixelShaderBlob =
-		CompileShader(L"Object3d.PS.hlsl", L"ps_6_0", dxcUtils, dxcCompiler,
+		CompileShader(L"Particle.PS.hlsl", L"ps_6_0", dxcUtils, dxcCompiler,
 			includHandler, logStream);
 	assert(pixelShaderBlob != nullptr);
 
@@ -1913,14 +1925,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			//CG3_01_00 18ページ
 			for (uint32_t index = 0; index < kNumInstance; ++index) {
-				Matrix4x4 worldMatrix = MakeAffineMatrix(
+				Matrix4x4 worldParticleMatrix = MakeAffineMatrix(
 					transforms[index].scale,
 					transforms[index].rotate,
 					transforms[index].translate
 				);
-				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, projectionMatrix);/////////////////////意味不/////////////////////////
+				Matrix4x4 worldViewProjectionMatrix = Multiply(worldParticleMatrix, projectionMatrix);/////////////////////意味不/////////////////////////
 				instancingData[index].WVP = worldViewProjectionMatrix;
-				instancingData[index].World = worldMatrix;
+				instancingData[index].World = worldParticleMatrix;
 			}
 
 
@@ -1989,9 +2001,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				0, materialResource
 				->GetGPUVirtualAddress()); // ここでmaterialResource使え
 
-			// wvp用のCBufferの場所を設定02_02
-			commandList->SetGraphicsRootConstantBufferView(
-				1, wvpResource->GetGPUVirtualAddress());
+			//// wvp用のCBufferの場所を設定02_02
+			//commandList->SetGraphicsRootConstantBufferView(
+			//	1, wvpResource->GetGPUVirtualAddress());
 
 			// 平行光源用のCbufferの場所を設定05_03
 			commandList->SetGraphicsRootConstantBufferView(
@@ -1999,15 +2011,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 
-			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
+			//commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
 			//commandList->DrawInstanced(UINT(modelData.vertices.size()), 1, 0, 0);
 
-			//描画!6頂点の板ポリゴンを、kNumInstance描画を行う
-			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
-
-			//描画
 			
+			//instancing用のDataを読むためにStructuredBufferのSRVを設定する
+			commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
 
 
 			// IBVを設定
@@ -2018,10 +2028,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			// 描画
 			//commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
-			//instancing用のDataを読むためにStructuredBufferのSRVを設定する
-			commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
+			//描画
+			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
 
 		
+
+			//描画!6頂点の板ポリゴンを、kNumInstance描画を行う
 
 
 
