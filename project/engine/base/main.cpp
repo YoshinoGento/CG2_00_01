@@ -1772,20 +1772,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			//----------CG2_07_01_キーボード入力処理開始----------
             
-          
-			// キーボード情報の取得開始
-            keyboard->Acquire();
+            //入力更新
+			input->Update();
+  
 
-            // 全キーの入力状態を取得する
-            BYTE key[256] = {};
-			keyboard->GetDeviceState(sizeof(key), key);
+			//// 数学の0キーが押されていたら
+   //         if (key[DIK_0] & 0x80) {
 
-			// 数学の0キーが押されていたら
-            if (key[DIK_0] & 0x80) {
+			//	OutputDebugStringA("Hit 0\n");// 出力ウィンドウに表示
 
-				OutputDebugStringA("Hit 0\n");// 出力ウィンドウに表示
-
-            }
+   //         }
 
 			//----------07_01_キーボード入力処理終了----------
             // 
