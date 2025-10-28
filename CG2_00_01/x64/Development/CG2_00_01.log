@@ -1,3 +1,0 @@
-﻿  Matrix.cpp
-  main.cpp
-C:\Users\K024G\OneDrive\デスクトップ\授業\CG2\CG2_00_01\engine\base\main.cpp(32,10): error C1083: include ファイルを開けません。'externals/DirectXTex/DirectXTex.h':No such file or directory

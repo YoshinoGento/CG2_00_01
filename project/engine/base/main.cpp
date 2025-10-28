@@ -11,6 +11,7 @@
 #include <string>
 #include <strsafe.h>
 #include <vector>
+#include "Input.h"
 
 // --- Direct3D 12 / DXGI 関連 ---
 #include <d3d12.h>
@@ -44,7 +45,15 @@
 
 // --- その他（必要ならアンコメント） ---
 // #include <format>  // C++20 の format 機能
+#include <xaudio2.h>   //XAudio2
+#pragma comment(lib, "xaudio2.lib")  
 
+#include <fstream>  //ファイル入出力
+#define DIRECTINPUT_VERSION 0x0800  // DirectInputのバージョン指定
+#include <dinput.h> //DirectInput
+
+#pragma comment(lib, "dinput8.lib")
+#pragma comment(lib, "dxguid.lib")
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd,
     UINT msg,
@@ -402,7 +411,7 @@ static LONG WINAPI ExportDump(EXCEPTION_POINTERS* exception) {
     GetLocalTime(&time);
     wchar_t filePath[MAX_PATH] = { 0 };
     CreateDirectory(L"./Dumps", nullptr);
-    StringCchPrintfW(filePath, MAX_PATH, L"./Dumps/%04d-%02d%02d-%02d%02d.dmp",
+    StringCchPrintfW(filePath, MAX_PATH, L"../generated/Dumps/%04d-%02d%02d-%02d%02d.dmp",
         time.wYear, time.wMonth, time.wDay, time.wHour,
         time.wMinute);
     HANDLE dumpFileHandle =
@@ -954,11 +963,16 @@ GetGPUDescriptorHandle(ID3D12DescriptorHeap* descriptorHeap,
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     CoInitializeEx(0, COINIT_MULTITHREADED);
 
+    // ポインタ
+    Input* input = nullptr;
+
+
+
     // 誰も補足しなかった場合(Unhandled),補足する関数を登録
     // main関数はじまってすぐに登録するとよい
     SetUnhandledExceptionFilter(ExportDump);
     // ログのディレクトリを用意
-    std::filesystem::create_directory("logs");
+    std::filesystem::create_directory("../generated/logs");
     // main関数の先頭02_04
 
     // 現在時刻を取得(UTC時刻)
@@ -971,7 +985,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // formatを使って年月日_時分秒の文字列に変換
     std::string dateString = std::format("{:%Y%m%d_%H%M%S}", loacalTime);
     // 時刻を使ってファイル名を決定
-    std::string logFilePath = std::string("logs/") + dateString + ".log";
+    std::string logFilePath = std::string("../generated/logs/") + dateString + ".log";
     // ファイルを作って書き込み準備
     std::ofstream logStream(logFilePath);
     // 出力
@@ -1075,6 +1089,33 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     assert(device != nullptr);
     Log(logStream,
         "Complete create D3D12Device!!!\n"); // 初期化完了のログを出す
+
+    //---------CG_07_01 DirectInputの初期化-----
+ //   IDirectInput8* directInput = nullptr;
+ //   HRESULT result;
+ //   result = DirectInput8Create(
+ //       wc.hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8,
+ //       (void**)&directInput, nullptr);
+ //   assert(SUCCEEDED(result));
+
+ //   //キーボードデバイスの生成
+	//IDirectInputDevice8* keyboard = nullptr;
+ //   result = directInput->CreateDevice(GUID_SysKeyboard, &keyboard, NULL);
+	//assert(SUCCEEDED(result));
+
+ //   //入力データ形式のセット
+ //   result = keyboard->SetDataFormat(&c_dfDIKeyboard); //標準形式
+	//assert(SUCCEEDED(result));
+
+	////排他制御レベルのセット
+ //   result = keyboard->SetCooperativeLevel(
+	//	hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
+ //   assert(SUCCEEDED(result));
+ // 
+	//-------------------------------------------------------------
+
+    input = new Input();
+    input->Initialize(wc.hInstance, hwnd);
 
 #ifdef _DEBUG
 
@@ -1684,6 +1725,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             DispatchMessage(&msg);
         } else {
 
+
+
             // ここがframeの先頭02_03
             ImGui_ImplDX12_NewFrame();
             ImGui_ImplWin32_NewFrame();
@@ -1726,6 +1769,26 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             // ImGuiの内部コマンドを生成する02_03
             ImGui::
                 Render(); // ImGui終わりの場所。描画の前02_03--------------------------
+
+			//----------CG2_07_01_キーボード入力処理開始----------
+            
+            //入力更新
+			input->Update();
+  
+            if (input->TriggeerKey(DIK_0)) {
+                OutputDebugStringA("Hit 0\n");// 出力ウィンドウに表示
+            }
+
+			//// 数学の0キーが押されていたら
+   //         if (key[DIK_0] & 0x80) {
+
+			//	OutputDebugStringA("Hit 0\n");// 出力ウィンドウに表示
+
+   //         }
+
+			//----------07_01_キーボード入力処理終了----------
+            // 
+           
             // 描画用のDescrriptorHeapの設定02_03
             ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap };
             commandList->SetDescriptorHeaps(1, descriptorHeaps);
