@@ -1775,6 +1775,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             //入力更新
 			input->Update();
   
+            if (input->TriggeerKey(DIK_0)) {
+                OutputDebugStringA("Hit 0\n");// 出力ウィンドウに表示
+            }
 
 			//// 数学の0キーが押されていたら
    //         if (key[DIK_0] & 0x80) {
