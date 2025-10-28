@@ -12,6 +12,7 @@ using namespace Microsoft::WRL;
 class Input {
 
 public:
+	//namespace省略
 	template<class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 	//初期化
@@ -19,7 +20,7 @@ public:
 	//更新
 	void Update();
 
-	//namespace省略
+
 
 private:
 	//キーボードデバイス
