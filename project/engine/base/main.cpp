@@ -1989,8 +1989,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	// === 解放処理 ===
 
-	//delete input;
-	delete winApp;
+	
 
 	// --- 同期・イベント系 ---
 	CloseHandle(fenceEvent);
@@ -2064,6 +2063,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	CoInitialize(nullptr);
 #endif
 	CloseWindow(winApp->GetHwnd());
+
+	//delete input;
+	delete winApp;
 
 	// リソースチェックCG2_01_03
 	IDXGIDebug1* debug;

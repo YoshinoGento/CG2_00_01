@@ -1,9 +1,9 @@
 #pragma once
-
 #include <Windows.h>
 #define DIRECTINPUT_VERSION 0x0800  // DirectInputのバージョン指定
 #include <dinput.h> //DirectInput
 #include <wrl.h>
+#include "WinApp.h"
 
 using namespace Microsoft::WRL;
 
@@ -47,6 +47,8 @@ private:
 
 	BYTE key[256] = {};
 	
+	//WindowsAPI
+	WinApp* winApp = nullptr;
 
 };
 
