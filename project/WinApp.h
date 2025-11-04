@@ -17,14 +17,20 @@ public:
 	//更新
 	void Update();
 
+	static const int32_t kClientWidth = 1280;
+	static const int32_t kClientHeight = 720;
+	// ウィンドウサイズを表す構造体体にクライアント領域を入れる
+	RECT wrc = { 0, 0, WinApp::kClientWidth, WinApp::kClientHeight };
+
+public:
+	// Getter
+	HWND GetHwnd() const { return hwnd; }
+
+	// getter
+	HINSTANCE GetHInstance() const { return wc.hInstance; }
 private:
 
-	//const int32_t kClientWidth = 1280;
-	//const int32_t kClientHeight = 720;
-	//// ウィンドウサイズを表す構造体体にクライアント領域を入れる
-	//RECT wrc = { 0, 0, kClientWidth, kClientHeight };
+	HWND hwnd= nullptr;  // ← ウィンドウハンドルを保持するメンバ変数
 
-	//HWND hwnd_= nullptr;  // ← ウィンドウハンドルを保持するメンバ変数
-
+	WNDCLASS wc{};
 };
-
