@@ -2049,7 +2049,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			
 
 
-			// 描画の最後です//----------------------------------------------------
+			// 描画の最後で//----------------------------------------------------
 			//  実際のcommandListのImGuiの描画コマンドを積む
 			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
 
