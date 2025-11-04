@@ -2064,6 +2064,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 #endif
 	CloseWindow(winApp->GetHwnd());
 
+
+	// 解放処理Delete
 	//delete input;
 	delete winApp;
 
