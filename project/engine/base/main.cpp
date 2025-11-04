@@ -12,6 +12,7 @@
 #include <strsafe.h>
 #include <vector>
 #include "Input.h"
+#include "WinApp.h"
 
 // --- Direct3D 12 / DXGI 関連 ---
 #include <d3d12.h>
@@ -55,10 +56,10 @@
 #pragma comment(lib, "dinput8.lib")
 #pragma comment(lib, "dxguid.lib")
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd,
-    UINT msg,
-    WPARAM wParam,
-    LPARAM lParam);
+//extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd,
+//    UINT msg,
+//    WPARAM wParam,
+//    LPARAM lParam);
 struct Vector2 {
     float x, y;
 };
@@ -965,6 +966,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // ポインタ
     Input* input = nullptr;
+    WinApp * winApp = nullptr;
 
 
 
@@ -990,40 +992,44 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     std::ofstream logStream(logFilePath);
     // 出力
 
-    WNDCLASS wc{};
-    // ウィンドウプロシージャ
-    wc.lpfnWndProc = WindowProc;
-    // ウィンドウクラス名(何でもよい)
-    wc.lpszClassName = L"CG2WindowClass";
-    // インスタンスバンドル
-    wc.hInstance = GetModuleHandle(nullptr);
-    // カーソル
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    // ウィンドウクラスを登録する
-    RegisterClass(&wc);
-    // クライアント領域のサイズ
-    const int32_t kClientWidth = 1280;
-    const int32_t kClientHeight = 720;
+    //HRESULT hr = CoInitializeEx(0, COINIT_MULTITHREADED);
 
-    // ウィンドウサイズを表す構造体体にクライアント領域を入れる
-    RECT wrc = { 0, 0, kClientWidth, kClientHeight };
+    //WNDCLASS wc{};
+    //// ウィンドウプロシージャ
+    //wc.lpfnWndProc = WindowProc;
+    //// ウィンドウクラス名(何でもよい)
+    //wc.lpszClassName = L"CG2WindowClass";
+    //// インスタンスバンドル
+    //wc.hInstance = GetModuleHandle(nullptr);
+    //// カーソル
+    //wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    //// ウィンドウクラスを登録する
+    //RegisterClass(&wc);
+    //// クライアント領域のサイズ
+    //const int32_t kClientWidth = 1280;
+    //const int32_t kClientHeight = 720;
 
-    // クライアント領域をもとに実際のサイズにwrcを変更してもらう
-    AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
+    //// ウィンドウサイズを表す構造体体にクライアント領域を入れる
+    //RECT wrc = { 0, 0, kClientWidth, kClientHeight };
 
-    // ウィンドウの生成
-    HWND hwnd = CreateWindow(wc.lpszClassName, // 利用するクラス名
-        L"CG2",           // タイトルバーの文字(何でもよい)
-        WS_OVERLAPPEDWINDOW,  // よく見るウィンドウスタイル
-        CW_USEDEFAULT,        // 表示X座標(Windowsに任せる)
-        CW_USEDEFAULT,        // 表示Y座標(WindowsOSに任せる)
-        wrc.right - wrc.left, // ウィンドウ横幅
-        wrc.bottom - wrc.top, // ウィンドウ縦幅
-        nullptr,              // 親ウィンドウハンドル
-        nullptr,              // メニューハンドル
-        wc.hInstance,         // インスタンスハンドル
-        nullptr);             // オプション
+    //// クライアント領域をもとに実際のサイズにwrcを変更してもらう
+    //AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 
+    //// ウィンドウの生成
+    //HWND hwnd = CreateWindow(wc.lpszClassName, // 利用するクラス名
+    //    L"CG2",           // タイトルバーの文字(何でもよい)
+    //    WS_OVERLAPPEDWINDOW,  // よく見るウィンドウスタイル
+    //    CW_USEDEFAULT,        // 表示X座標(Windowsに任せる)
+    //    CW_USEDEFAULT,        // 表示Y座標(WindowsOSに任せる)
+    //    wrc.right - wrc.left, // ウィンドウ横幅
+    //    wrc.bottom - wrc.top, // ウィンドウ縦幅
+    //    nullptr,              // 親ウィンドウハンドル
+    //    nullptr,              // メニューハンドル
+    //    wc.hInstance,         // インスタンスハンドル
+    //    nullptr);             // オプション
+
+	winApp = new WinApp();
+	winApp->Initialize();
 #ifdef _DEBUG
 
     ID3D12Debug1* debugController = nullptr;
@@ -1035,8 +1041,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
 #endif // _DEBUG
 
-    // ウィンドウを表示する
-    ShowWindow(hwnd, SW_SHOW);
+    ////// ウィンドウを表示する
+    //ShowWindow(hwnd, SW_SHOW);
+
+ 
 
     // DXGIファクトリーの生成
     IDXGIFactory7* dxgiFactory = nullptr;
@@ -1979,6 +1987,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // === 解放処理 ===
 
+    //delete input;
+    delete winApp;
+
 // --- 同期・イベント系 ---
     CloseHandle(fenceEvent);
     fence->Release();
@@ -2039,6 +2050,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // --- 照明 ---
     directionalLightResource->Release();
+
+    
 
 
 
