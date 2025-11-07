@@ -17,6 +17,9 @@ public:
 	//更新
 	void Update();
 
+	// 終了
+	void Finalize();
+
 	static const int32_t kClientWidth = 1280;
 	static const int32_t kClientHeight = 720;
 	// ウィンドウサイズを表す構造体体にクライアント領域を入れる

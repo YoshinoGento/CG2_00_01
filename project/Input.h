@@ -16,7 +16,7 @@ public:
 	template<class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 	//初期化
-	void Initialize(HINSTANCE hInstance, HWND hwnd);
+	void Initialize(WinApp * winApp);
 	//更新
 	void Update();
 
@@ -48,7 +48,7 @@ private:
 	BYTE key[256] = {};
 	
 	//WindowsAPI
-	WinApp* winApp = nullptr;
+	WinApp* winApp_ = nullptr;
 
 };
 

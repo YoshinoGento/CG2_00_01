@@ -1125,7 +1125,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//-------------------------------------------------------------
 
 	input = new Input();
-	input->Initialize(winApp->GetHInstance(), winApp->GetHwnd());
+	input->Initialize(winApp);
 
 #ifdef _DEBUG
 
@@ -2062,10 +2062,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	CoInitialize(nullptr);
 #endif
-	CloseWindow(winApp->GetHwnd());
+	
+	//WindowsAPIの終了処理
+	winApp->Finalize();
 
-	//delete input;
+	// WindoowsAppの解放処理
 	delete winApp;
+	winApp = nullptr;
 
 	// リソースチェックCG2_01_03
 	IDXGIDebug1* debug;
