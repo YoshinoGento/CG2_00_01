@@ -25,6 +25,9 @@ public:
 	// ウィンドウサイズを表す構造体体にクライアント領域を入れる
 	RECT wrc = { 0, 0, WinApp::kClientWidth, WinApp::kClientHeight };
 
+	//　メッセージの処理
+	bool ProcessMessage();
+
 public:
 	// Getter
 	HWND GetHwnd() const { return hwnd; }

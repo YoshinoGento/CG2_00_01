@@ -159,6 +159,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <WholeProgramOptimization Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</WholeProgramOptimization>
     </ClCompile>
     <ClCompile Include="engine\math\Matrix.cpp" />
+    <ClCompile Include="hoge.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="WinApp.cpp" />
   </ItemGroup>
@@ -192,6 +193,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\math\Matrix.h" />
     <ClInclude Include="engine\math\Struct.h" />
     <ClInclude Include="engine\math\Transform.h" />
+    <ClInclude Include="hoge.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="WinApp.h" />
   </ItemGroup>
