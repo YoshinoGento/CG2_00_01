@@ -1030,6 +1030,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//    wc.hInstance,         // インスタンスハンドル
 	//    nullptr);             // オプション
 
+	// ウィンドウを表示する
 	winApp = new WinApp();
 	winApp->Initialize();
 #ifdef _DEBUG
@@ -1042,9 +1043,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		debugController->SetEnableGPUBasedValidation(TRUE);
 	}
 #endif // _DEBUG
-
-	////// ウィンドウを表示する
-	//ShowWindow(hwnd, SW_SHOW);
 
 
 
@@ -1724,7 +1722,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
 		srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
-	MSG msg{};
+	
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (true) {
