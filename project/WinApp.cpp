@@ -28,36 +28,7 @@ LRESULT WinApp::WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 void WinApp::Initialize() {
 	// 初期化コードをここに記述
 
-	//// ウィンドウプロシージャ
-	//wc.lpfnWndProc = WindowProc;
-	//// ウィンドウクラス名(何でもよい)
-	//wc.lpszClassName = L"CG2WindowClass";
-	//// インスタンスバンドル
-	//wc.hInstance = GetModuleHandle(nullptr);
-	//// カーソル
-	//wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	//// ウィンドウクラスを登録する
-	//RegisterClass(&wc);
-
-	//// クライアント領域をもとに実際のサイズにwrcを変更してもらう
-	//AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
-
-	//// ウィンドウの生成
-	//hwnd = CreateWindow(wc.lpszClassName, // 利用するクラス名
-	//	L"CG2",           // タイトルバーの文字(何でもよい)
-	//	WS_OVERLAPPEDWINDOW,  // よく見るウィンドウスタイル
-	//	CW_USEDEFAULT,        // 表示X座標(Windowsに任せる)
-	//	CW_USEDEFAULT,        // 表示Y座標(WindowsOSに任せる)
-	//	wrc.right - wrc.left, // ウィンドウ横幅
-	//	wrc.bottom - wrc.top, // ウィンドウ縦幅
-	//	nullptr,              // 親ウィンドウハンドル
-	//	nullptr,              // メニューハンドル
-	//	wc.hInstance,         // インスタンスハンドル
-	//	nullptr);             // オプション
-
-	//// ウィンドウを表示する
-	//ShowWindow(hwnd_, SW_SHOW);
-
+	
 
 	HRESULT hr = CoInitializeEx(0, COINIT_MULTITHREADED);
 

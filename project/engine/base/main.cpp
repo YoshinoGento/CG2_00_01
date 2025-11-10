@@ -2072,6 +2072,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// WindoowsAppの解放処理
 	delete winApp;
 	winApp = nullptr;
+	delete dxCommon;
 
 	// リソースチェックCG2_01_03
 	IDXGIDebug1* debug;
