@@ -13,6 +13,7 @@
 #include <vector>
 #include "Input.h"
 #include "WinApp.h"
+#include "DirectXCommon.h"
 
 // --- Direct3D 12 / DXGI 関連 ---
 #include <d3d12.h>
@@ -967,6 +968,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// ポインタ
 	Input* input = nullptr;
 	WinApp* winApp = nullptr;
+	DirectXCommon* dxCommon = nullptr;
+
 
 
 
@@ -1044,7 +1047,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	}
 #endif // _DEBUG
 
-
+	// DirectXの初期化
+	dxCommon = new DirectXCommon();
+	dxCommon->Initialize();
 
 	// DXGIファクトリーの生成
 	IDXGIFactory7* dxgiFactory = nullptr;
