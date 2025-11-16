@@ -1,6 +1,6 @@
 #include "DirectXCommon.h"
 
-void DirectXCommon::Initialize() {
+void DirectXCommon::Initialize(WinApp* winApp) {
 	
 }
 
