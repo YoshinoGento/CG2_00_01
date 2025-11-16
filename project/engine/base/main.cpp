@@ -13,6 +13,7 @@
 #include <vector>
 #include "Input.h"
 #include "WinApp.h"
+#include "DirectXCommon.h"
 
 // --- Direct3D 12 / DXGI 関連 ---
 #include <d3d12.h>
@@ -155,6 +156,11 @@ enum AnimationType {
 WaveType waveType = WAVE_SINE;
 AnimationType animationType = ANIM_NONE;
 float waveTime = 0.0f;
+
+// ポインタ変数
+Input* input = nullptr;
+WinApp* winApp = nullptr;
+DirectXCommon* dxCommon = nullptr;  // ← ★これを必ず追加！
 //////////////---------------------------------------
 // 関数の作成///
 //////////////
@@ -964,11 +970,14 @@ GetGPUDescriptorHandle(ID3D12DescriptorHeap* descriptorHeap,
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	CoInitializeEx(0, COINIT_MULTITHREADED);
 
-	// ポインタ
-	Input* input = nullptr;
-	WinApp* winApp = nullptr;
+	winApp = new WinApp();
+	winApp->Initialize();
 
+	dxCommon = new DirectXCommon();
+	dxCommon->Initialize(winApp);   // WinApp が必要だから引数で渡す
 
+	input = new Input();
+	input->Initialize(winApp);
 
 	// 誰も補足しなかった場合(Unhandled),補足する関数を登録
 	// main関数はじまってすぐに登録するとよい
@@ -1732,7 +1741,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			// ゲームループを抜ける
 			break;
 		}
-
+		
 
 
 		// ここがframeの先頭02_03
@@ -1852,6 +1861,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		materialDataSprite->uvTransform = uvTransformMatrix;
 
 
+		// --- DirectX描画開始（描画前処理） ---
+		dxCommon->PreDraw();
+
+
 		// 画面のクリア処理
 		//   これから書き込むバックバッファのインデックスを取得
 		UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
@@ -1942,6 +1955,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		// 描画の最後です//----------------------------------------------------
 		//  実際のcommandListのImGuiの描画コマンドを積む
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
+
+		// --- DirectX描画終了（描画後処理） ---
+		dxCommon->PostDraw();
 
 		//  画面に描く処理は全て終わり,画面に映すので、状態を遷移01_02
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
