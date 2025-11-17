@@ -8,6 +8,7 @@
 #include <dxcapi.h>
 #include <wrl.h>
 #include <string>
+#include <chrono>
 
 #include "externals/DirectXTex/DirectXTex.h"
 
@@ -64,6 +65,15 @@ private:
     void InitializeDXCCompiler();
     void InitializeImGui();
     void InitializeFence();
+
+	// FPS 固定初期化
+    void InitializeFixFPS();
+
+    // FPS固定更新
+	void UpdateFixFPS();
+
+	//記録時間(FPS固定用)
+    std::chrono::steady_clock::time_point reference_;
 
 private:
     WinApp* winApp_ = nullptr;
