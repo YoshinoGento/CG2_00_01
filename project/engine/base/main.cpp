@@ -18,6 +18,8 @@
 #include "Input.h"
 #include "WinApp.h"
 #include "DirectXCommon.h"
+#include "SpriteCommon.h"   // ★追加
+#include "Sprite.h"         // ★追加（使うなら）
 
 // --- Direct3D 12 / DXGI 関連 ---
 #include <d3d12.h>
@@ -53,6 +55,8 @@
 #include <dinput.h>
 #pragma comment(lib, "dinput8.lib")
 #pragma comment(lib, "dxguid.lib")
+
+#include <ctime> 
 
 // ImGui の WndProc ハンドラ
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
@@ -158,6 +162,8 @@ float waveTime = 0.0f;
 Input* input = nullptr;
 WinApp* winApp = nullptr;
 DirectXCommon* dxCommon = nullptr;
+SpriteCommon* spriteCommon = nullptr; // ★追加
+Sprite* sprite = nullptr; // ★追加（使うなら）
 
 // ===============================
 //  行列・数学系の関数
@@ -805,12 +811,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // ログディレクトリ
     std::filesystem::create_directory("../generated/logs");
 
-    // ログファイル名生成
+    // ログファイル名生成（std::format を使わない版）
     auto now = std::chrono::system_clock::now();
-    auto nowSeconds =
-        std::chrono::time_point_cast<std::chrono::seconds>(now);
-    std::chrono::zoned_time localTime{ std::chrono::current_zone(), nowSeconds };
-    std::string dateString = std::format("{:%Y%m%d_%H%M%S}", localTime);
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+
+    std::tm localTime{};
+    localtime_s(&localTime, &t);   // ローカル時間に変換
+
+    char timeStr[32]{};
+    std::strftime(timeStr, sizeof(timeStr), "%Y%m%d_%H%M%S", &localTime);
+
+    std::string dateString = timeStr;
     std::string logFilePath = "../generated/logs/" + dateString + ".log";
     std::ofstream logStream(logFilePath);
 
@@ -821,6 +832,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // DirectXCommon 初期化
     dxCommon = new DirectXCommon();
     dxCommon->Initialize(winApp);
+
+
+#pragma region スプライト共通部初期化
+    // ★ スプライト共通部の初期化（資料のスライドの部分）
+    spriteCommon = new SpriteCommon();    // SpriteCommon* spriteCommon = nullptr; はグローバルで定義済み
+    spriteCommon->Initialize();
+#pragma endregion
+
+#pragma region スプライト初期化
+	// ★ スプライトの初期化（資料のスライドの部分）
+	Sprite* sprite = new Sprite;
+    sprite->Initialize();
+#pragma endregion
+ 
 
     // 各種ポインタ取得（DirectXCommon 経由）
     ID3D12Device* device = dxCommon->GetDevice();
@@ -1411,6 +1436,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     winApp->Finalize();
     delete winApp;
     winApp = nullptr;
+
+    delete spriteCommon;
+	spriteCommon = nullptr;
+
+	delete sprite;
+	sprite = nullptr;
+
 
     // DXGI Debug Live Object チェック
     IDXGIDebug1* debug;
