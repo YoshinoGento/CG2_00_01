@@ -1280,7 +1280,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	rootParameters[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRangeForInstancing); //Tableで利用する数
 
 
-	
+
 	// 新しいディスクリプタレンジ03_00
 	// ここから[3]03_00
 	rootParameters[2].ParameterType =
@@ -1341,7 +1341,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 	// --モデルデータを読み込む--
-	ModelData modelData = LoadObjFile("Resources", "plane.obj");
+	/*ModelData modelData = LoadObjFile("Resources", "plane.obj");*/
+
+	// --- モデルデータを手動構築（四角形）---
+	ModelData modelData;
+	modelData.vertices.push_back({ .position = { 1.0f, 1.0f, 0.0f, 1.0f }, .texcoord = {0.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f} }); // 左上
+	modelData.vertices.push_back({ .position = {-1.0f, 1.0f, 0.0f, 1.0f }, .texcoord = {1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f} }); // 右上
+	modelData.vertices.push_back({ .position = { 1.0f,-1.0f, 0.0f, 1.0f }, .texcoord = {0.0f, 1.0f}, .normal = {0.0f, 0.0f, 1.0f} }); // 左下
+	modelData.vertices.push_back({ .position = { 1.0f,-1.0f, 0.0f, 1.0f }, .texcoord = {0.0f, 1.0f}, .normal = {0.0f, 0.0f, 1.0f} }); // 左下
+	modelData.vertices.push_back({ .position = {-1.0f, 1.0f, 0.0f, 1.0f }, .texcoord = {1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f} }); // 右上
+	modelData.vertices.push_back({ .position = {-1.0f,-1.0f, 0.0f, 1.0f }, .texcoord = {1.0f, 1.0f}, .normal = {0.0f, 0.0f, 1.0f} }); // 右下
+
+	modelData.material.textureFilePath = "./resources/uvChecker.png";
 
 
 
@@ -1692,7 +1703,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 	//CG3_01_00_17ページ----------------------------------------------
-	
+
 	D3D12_SHADER_RESOURCE_VIEW_DESC instancingSrvDesc{};
 	instancingSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
 	instancingSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -1779,6 +1790,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		transforms[index].translate = { index * 0.5f,index * 0.1f,index * 0.1f };
 	}
 
+	// モデル用の Transform を作成
+	Transform modelTransform{
+		{1.0f, 1.0f, 1.0f},  // scale
+		{0.0f, 0.0f, 0.0f},  // rotate
+		{0.0f, 0.0f, 0.0f}   // translate
+	};
 
 
 
@@ -1832,7 +1849,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);
 			ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
 
-			/*   ImGui::ColorEdit4("Color", &(*materialData).x);*/
+			/*ImGui::ColorEdit4("Color", &(*materialData).x);*/
 			ImGui::Text("useMonstarBall");
 			ImGui::Checkbox("useMonstarBall", &useMonstarBall);
 			ImGui::Text("LIgthng");
@@ -1851,6 +1868,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			ImGui::ColorEdit4("Color", &materialData->color.x);
 
+
+			
 			/*  ImGui::ColorEdit4("Color", &blendDesc.RenderTarget->BlendOp);*/
 			  // 修正: ImGui::ColorEdit4 の引数に適切な型を渡すために、D3D12_BLEND_OP を一時的に float[4] に変換します。
 
@@ -1877,6 +1896,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			ImGui::End();
 
+			ImGui::Begin("Model Control");
+			ImGui::SliderFloat3("Translate", &modelTransform.translate.x, -10.0f, 10.0f);
+			ImGui::SliderFloat3("Scale", &modelTransform.scale.x, 0.1f, 5.0f);
+			ImGui::SliderAngle("RotateX", &modelTransform.rotate.x, -180.0f, 180.0f);
+			ImGui::SliderAngle("RotateY", &modelTransform.rotate.y, -180.0f, 180.0f);
+			ImGui::SliderAngle("RotateZ", &modelTransform.rotate.z, -180.0f, 180.0f);
+
+			ImGui::End(); // ←これを忘れない！
 
 			// ImGuiの内部コマンドを生成する02_03
 			ImGui::
@@ -2014,30 +2041,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 
-			//commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
+			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
 			//commandList->DrawInstanced(UINT(modelData.vertices.size()), 1, 0, 0);
 
-			
-			//instancing用のDataを読むためにStructuredBufferのSRVを設定する
-			commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
 
 
-			// IBVを設定
-			commandList->IASetIndexBuffer(&indexBufferViewSprite);
 
-			// spriteの描画04_00
-			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
-			// 描画
 			//commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
-			
 
-	
 
-			//描画
-			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
 
-		
+
+
 
 			//描画!6頂点の板ポリゴンを、kNumInstance描画を行う
 
@@ -2052,7 +2068,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			/*commandList->SetGraphicsRootConstantBufferView(
 				1, transformationMatrixResourceSprite->GetGPUVirtualAddress());*/
 
-			
+				//instancing用のDataを読むためにStructuredBufferのSRVを設定する
+			commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
+
+
+
+
+			// IBVを設定
+			commandList->IASetIndexBuffer(&indexBufferViewSprite);
+
+			// spriteの描画04_00
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
+			// 描画
+
+
+			//描画
+			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
+
+
 
 
 			// 描画の最後で//----------------------------------------------------
@@ -2161,7 +2194,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	textureResource2->Release();          // 05_01
 	materialResourceSprite->Release();    // 05_03
 	indexResourceSprite->Release();
-	
+
 
 	// --- 照明 ---
 	directionalLightResource->Release();
@@ -2170,7 +2203,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	instancingResource->Unmap(0, nullptr);
 	instancingResource->Release();
 
-	
+
 
 #ifdef _DEBUG
 	// --- デバッグレイヤー（DEBUG時のみ） ---
