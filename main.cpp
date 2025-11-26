@@ -2032,8 +2032,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				->GetGPUVirtualAddress()); // ここでmaterialResource使え
 
 			// wvp用のcbufferの場所を設定02_02
-			commandlist->setgraphicsrootconstantbufferview(
-				1, wvpresource->getgpuvirtualaddress());
+			commandList->SetGraphicsRootConstantBufferView(
+				1, wvpResource->GetGPUVirtualAddress());
 
 			// 平行光源用のCbufferの場所を設定05_03
 			commandList->SetGraphicsRootConstantBufferView(
