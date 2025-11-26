@@ -1774,7 +1774,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
 	// カメラトランスフォーム
 	Transform cameraTransform{
-		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -5.0f} };
+		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -20.0f} };
 	// UVTransform用の変数を用意
 	Transform uvTransformSprite{
 		{1.0f, 1.0f, 1.0f},
@@ -1960,7 +1960,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 					transforms[index].rotate,
 					transforms[index].translate
 				);
-				Matrix4x4 worldViewProjectionMatrix = Multiply(worldParticleMatrix, projectionMatrix);/////////////////////意味不/////////////////////////
+				Matrix4x4 worldViewProjectionMatrix = Multiply(worldParticleMatrix, projectionMatrix);
 				instancingData[index].WVP = worldViewProjectionMatrix;
 				instancingData[index].World = worldParticleMatrix;
 			}
@@ -2031,9 +2031,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				0, materialResource
 				->GetGPUVirtualAddress()); // ここでmaterialResource使え
 
-			//// wvp用のCBufferの場所を設定02_02
-			//commandList->SetGraphicsRootConstantBufferView(
-			//	1, wvpResource->GetGPUVirtualAddress());
+			// wvp用のcbufferの場所を設定02_02
+			commandlist->setgraphicsrootconstantbufferview(
+				1, wvpresource->getgpuvirtualaddress());
 
 			// 平行光源用のCbufferの場所を設定05_03
 			commandList->SetGraphicsRootConstantBufferView(
@@ -2078,7 +2078,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetIndexBuffer(&indexBufferViewSprite);
 
 			// spriteの描画04_00
-			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
+			commandList->IASetVertexBuffers(0, 1, & vertexBufferView);
 			// 描画
 
 
