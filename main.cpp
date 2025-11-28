@@ -1774,7 +1774,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
 	// カメラトランスフォーム
 	Transform cameraTransform{
-		{1.0f, 1.0f, 1.0f}, {0.3f, 3.14f, 0.0f}, {0.0f, 4.0f, 10.0f} };
+		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.933f, 2.268f, -0.600f} };
 	// UVTransform用の変数を用意
 	Transform uvTransformSprite{
 		{1.0f, 1.0f, 1.0f},
@@ -1899,15 +1899,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 			ImGui::End();
-
-			ImGui::Begin("Model Control");
-			ImGui::SliderFloat3("Translate", &modelTransform.translate.x, -10.0f, 10.0f);
-			ImGui::SliderFloat3("Scale", &modelTransform.scale.x, 0.1f, 5.0f);
-			ImGui::SliderAngle("RotateX", &modelTransform.rotate.x, -180.0f, 180.0f);
-			ImGui::SliderAngle("RotateY", &modelTransform.rotate.y, -180.0f, 180.0f);
-			ImGui::SliderAngle("RotateZ", &modelTransform.rotate.z, -180.0f, 180.0f);
-
-			ImGui::End(); // ←これを忘れない！
 
 			ImGui::Begin("Camera Control");
 
