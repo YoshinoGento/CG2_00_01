@@ -1774,7 +1774,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
 	// カメラトランスフォーム
 	Transform cameraTransform{
-		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -20.0f} };
+		{1.0f, 1.0f, 1.0f}, {0.3f, 3.14f, 0.0f}, {0.0f, 4.0f, 10.0f} };
 	// UVTransform用の変数を用意
 	Transform uvTransformSprite{
 		{1.0f, 1.0f, 1.0f},
@@ -1831,6 +1831,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		} else {
+
+			// 透視投影行列02_02
+			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(
+				0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 
 			// ここがframeの先頭02_03
 			ImGui_ImplDX12_NewFrame();
@@ -1905,9 +1909,36 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			ImGui::End(); // ←これを忘れない！
 
+			ImGui::Begin("Camera Control");
+
+			// カメラの位置を操作
+			ImGui::SliderFloat3("Camera Position", &cameraTransform.translate.x, -5.0f, 5.0f);
+
+			// カメラの回転を操作（角度）
+			ImGui::SliderAngle("Rotate X", &cameraTransform.rotate.x, -180.0f, 180.0f);
+			ImGui::SliderAngle("Rotate Y", &cameraTransform.rotate.y, -180.0f, 180.0f);
+			ImGui::SliderAngle("Rotate Z", &cameraTransform.rotate.z, -180.0f, 180.0f);
+
+			// 視野角（FOV）の調整用（ラジアン）
+			static float fov = 60.0f; // 初期値を人間の視野に近い値に
+			ImGui::SliderAngle("Field of View", &fov, 5.0f, 179.0f);
+			//projectionMatrix = MakePerspectiveFovMatrix(
+			//	fov, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+
+			// クリップ面調整（必要なら）
+			static float nearClip = 0.1f;
+			static float farClip = 100.0f;
+			ImGui::DragFloat("Near Clip", &nearClip, 0.01f, 0.01f, 10.0f);
+			ImGui::DragFloat("Far Clip", &farClip, 1.0f, 10.0f, 1000.0f);
+			projectionMatrix = MakePerspectiveFovMatrix(fov, float(kClientWidth) / float(kClientHeight), nearClip, farClip);
+
+			ImGui::End();
+
+
 			// ImGuiの内部コマンドを生成する02_03
 			ImGui::
-				Render(); // ImGui終わりの場所。描画の前02_03--------------------------
+				Render(); // ImGui終わりの場所。
+			//描画の前02_03--------------------------
 			// 描画用のDescrriptorHeapの設定02_03
 			ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap };
 			commandList->SetDescriptorHeaps(1, descriptorHeaps);
@@ -1926,12 +1957,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 					cameraTransform.translate);
 			// 逆行列カメラ02_02
 			Matrix4x4 viewMatrix = Inverse(cameraMatrix);
-			// 透視投影行列02_02
-			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(
-				0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+			Matrix4x4 vpMatrix = Multiply(viewMatrix, projectionMatrix);
 			// ワールドビュープロジェクション行列02_02
 			Matrix4x4 worldViewProjectionMatrix =
-				Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+				Multiply(worldMatrix, vpMatrix);
 			// CBVのバッファに書き込む02_02
 
 			wvpData->WVP = worldViewProjectionMatrix;
@@ -1960,7 +1989,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 					transforms[index].rotate,
 					transforms[index].translate
 				);
-				Matrix4x4 worldViewProjectionMatrix = Multiply(worldParticleMatrix, projectionMatrix);
+				Matrix4x4 worldViewProjectionMatrix = Multiply(worldParticleMatrix, vpMatrix);
 				instancingData[index].WVP = worldViewProjectionMatrix;
 				instancingData[index].World = worldParticleMatrix;
 			}
@@ -2032,8 +2061,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				->GetGPUVirtualAddress()); // ここでmaterialResource使え
 
 			// wvp用のcbufferの場所を設定02_02
-			commandList->SetGraphicsRootConstantBufferView(
-				1, wvpResource->GetGPUVirtualAddress());
+			//commandList->SetGraphicsRootDescriptorTable(
+			//	1, wvpResource->GetGPUVirtualAddress());
+				//instancing用のDataを読むためにStructuredBufferのSRVを設定する
+			commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
 
 			// 平行光源用のCbufferの場所を設定05_03
 			commandList->SetGraphicsRootConstantBufferView(
@@ -2068,8 +2099,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			/*commandList->SetGraphicsRootConstantBufferView(
 				1, transformationMatrixResourceSprite->GetGPUVirtualAddress());*/
 
-				//instancing用のDataを読むためにStructuredBufferのSRVを設定する
-			commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
 
 
 
@@ -2202,6 +2231,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// --- Instancing関連 ---
 	instancingResource->Unmap(0, nullptr);
 	instancingResource->Release();
+
+
+
+
 
 
 
