@@ -837,14 +837,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 #pragma region スプライト共通部初期化
     // ★ スプライト共通部の初期化（資料のスライドの部分）
     spriteCommon = new SpriteCommon();    // SpriteCommon* spriteCommon = nullptr; はグローバルで定義済み
-    spriteCommon->Initialize();
+    spriteCommon->Initialize(dxCommon);
 #pragma endregion
 
-#pragma region スプライト初期化
-	// ★ スプライトの初期化（資料のスライドの部分）
-	Sprite* sprite = new Sprite;
-    sprite->Initialize();
-#pragma endregion
  
 
     // 各種ポインタ取得（DirectXCommon 経由）
@@ -1111,70 +1106,70 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     wvpData->WVP = identity;
     wvpData->World = identity;
 
-    // ------- Sprite 用 -------
-    ID3D12Resource* vertexResourceSprite =
-        CreateBufferResource(device, sizeof(VertexData) * 4);
-    VertexData* vertexDataSprite = nullptr;
-    vertexResourceSprite->Map(0, nullptr,
-        reinterpret_cast<void**>(&vertexDataSprite));
+    //// ------- Sprite 用 -------
+    //ID3D12Resource* vertexResourceSprite =
+    //    CreateBufferResource(device, sizeof(VertexData) * 4);
+    //VertexData* vertexDataSprite = nullptr;
+    //vertexResourceSprite->Map(0, nullptr,
+    //    reinterpret_cast<void**>(&vertexDataSprite));
 
-    vertexDataSprite[0].position = { 0.0f, 360.0f, 0.0f, 1.0f };
-    vertexDataSprite[0].texcoord = { 0.0f, 1.0f };
+    //vertexDataSprite[0].position = { 0.0f, 360.0f, 0.0f, 1.0f };
+    //vertexDataSprite[0].texcoord = { 0.0f, 1.0f };
 
-    vertexDataSprite[1].position = { 0.0f, 0.0f, 0.0f, 1.0f };
-    vertexDataSprite[1].texcoord = { 0.0f, 0.0f };
+    //vertexDataSprite[1].position = { 0.0f, 0.0f, 0.0f, 1.0f };
+    //vertexDataSprite[1].texcoord = { 0.0f, 0.0f };
 
-    vertexDataSprite[2].position = { 640.0f, 360.0f, 0.0f, 1.0f };
-    vertexDataSprite[2].texcoord = { 1.0f, 1.0f };
+    //vertexDataSprite[2].position = { 640.0f, 360.0f, 0.0f, 1.0f };
+    //vertexDataSprite[2].texcoord = { 1.0f, 1.0f };
 
-    vertexDataSprite[3].position = { 640.0f, 0.0f, 0.0f, 1.0f };
-    vertexDataSprite[3].texcoord = { 1.0f, 0.0f };
+    //vertexDataSprite[3].position = { 640.0f, 0.0f, 0.0f, 1.0f };
+    //vertexDataSprite[3].texcoord = { 1.0f, 0.0f };
 
-    D3D12_VERTEX_BUFFER_VIEW vertexBufferViewSprite{};
-    vertexBufferViewSprite.BufferLocation =
-        vertexResourceSprite->GetGPUVirtualAddress();
-    vertexBufferViewSprite.SizeInBytes =
-        sizeof(VertexData) * 4;
-    vertexBufferViewSprite.StrideInBytes = sizeof(VertexData);
+    //D3D12_VERTEX_BUFFER_VIEW vertexBufferViewSprite{};
+    //vertexBufferViewSprite.BufferLocation =
+    //    vertexResourceSprite->GetGPUVirtualAddress();
+    //vertexBufferViewSprite.SizeInBytes =
+    //    sizeof(VertexData) * 4;
+    //vertexBufferViewSprite.StrideInBytes = sizeof(VertexData);
 
-    ID3D12Resource* indexResourceSprite =
-        CreateBufferResource(device, sizeof(uint32_t) * 6);
-    uint32_t* indexDataSprite = nullptr;
-    indexResourceSprite->Map(
-        0, nullptr,
-        reinterpret_cast<void**>(&indexDataSprite));
-    indexDataSprite[0] = 0;
-    indexDataSprite[1] = 1;
-    indexDataSprite[2] = 2;
-    indexDataSprite[3] = 1;
-    indexDataSprite[4] = 3;
-    indexDataSprite[5] = 2;
+    //ID3D12Resource* indexResourceSprite =
+    //    CreateBufferResource(device, sizeof(uint32_t) * 6);
+    //uint32_t* indexDataSprite = nullptr;
+    //indexResourceSprite->Map(
+    //    0, nullptr,
+    //    reinterpret_cast<void**>(&indexDataSprite));
+    //indexDataSprite[0] = 0;
+    //indexDataSprite[1] = 1;
+    //indexDataSprite[2] = 2;
+    //indexDataSprite[3] = 1;
+    //indexDataSprite[4] = 3;
+    //indexDataSprite[5] = 2;
 
-    D3D12_INDEX_BUFFER_VIEW indexBufferViewSprite{};
-    indexBufferViewSprite.BufferLocation =
-        indexResourceSprite->GetGPUVirtualAddress();
-    indexBufferViewSprite.SizeInBytes =
-        sizeof(uint32_t) * 6;
-    indexBufferViewSprite.Format = DXGI_FORMAT_R32_UINT;
+    //D3D12_INDEX_BUFFER_VIEW indexBufferViewSprite{};
+    //indexBufferViewSprite.BufferLocation =
+    //    indexResourceSprite->GetGPUVirtualAddress();
+    //indexBufferViewSprite.SizeInBytes =
+    //    sizeof(uint32_t) * 6;
+    //indexBufferViewSprite.Format = DXGI_FORMAT_R32_UINT;
 
-    ID3D12Resource* materialResourceSprite =
-        CreateBufferResource(device, sizeof(Material));
-    Material* materialDataSprite = nullptr;
-    materialResourceSprite->Map(
-        0, nullptr,
-        reinterpret_cast<void**>(&materialDataSprite));
-    materialDataSprite->color = { 1.0f, 1.0f, 1.0f, 1.0f };
-    materialDataSprite->uvTransform = MakeIdentity4x4();
-    materialDataSprite->enableLighting = 0;
+    //ID3D12Resource* materialResourceSprite =
+    //    CreateBufferResource(device, sizeof(Material));
+    //Material* materialDataSprite = nullptr;
+    //materialResourceSprite->Map(
+    //    0, nullptr,
+    //    reinterpret_cast<void**>(&materialDataSprite));
+    //materialDataSprite->color = { 1.0f, 1.0f, 1.0f, 1.0f };
+    //materialDataSprite->uvTransform = MakeIdentity4x4();
+    //materialDataSprite->enableLighting = 0;
 
-    ID3D12Resource* transformationMatrixResourceSprite =
-        CreateBufferResource(device, sizeof(TransformationMatrix));
-    TransformationMatrix* transformationMatrixDataSprite = nullptr;
-    transformationMatrixResourceSprite->Map(
-        0, nullptr,
-        reinterpret_cast<void**>(&transformationMatrixDataSprite));
-    transformationMatrixDataSprite->WVP = identity;
-    transformationMatrixDataSprite->World = identity;
+    //ID3D12Resource* transformationMatrixResourceSprite =
+    //    CreateBufferResource(device, sizeof(TransformationMatrix));
+    //TransformationMatrix* transformationMatrixDataSprite = nullptr;
+    //transformationMatrixResourceSprite->Map(
+    //    0, nullptr,
+    //    reinterpret_cast<void**>(&transformationMatrixDataSprite));
+    //transformationMatrixDataSprite->WVP = identity;
+    //transformationMatrixDataSprite->World = identity;
 
     // ------- ライト -------
     ID3D12Resource* directionalLightResource =
@@ -1203,11 +1198,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     scissorRect.bottom = WinApp::kClientHeight;
 
     // ------- 変数いろいろ -------
-    Transform transformSprite{
+   /* Transform transformSprite{
         {1.0f, 1.0f, 1.0f},
         {0.0f, 0.0f, 0.0f},
         {0.0f, 0.0f, 0.0f}
-    };
+    };*/
 
     Transform transform{
         {1.0f, 1.0f, 1.0f},
@@ -1221,11 +1216,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         {0.0f, 0.0f, -5.0f}
     };
 
-    Transform uvTransformSprite{
+  /*  Transform uvTransformSprite{
         {1.0f, 1.0f, 1.0f},
         {0.0f, 0.0f, 0.0f},
         {0.0f, 0.0f, 0.0f}
-    };
+    };*/
 
     bool useMonstarBall = true;
 
