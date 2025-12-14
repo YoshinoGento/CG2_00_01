@@ -63,27 +63,18 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
     HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // ---------- 基本構造体 ----------
-struct Vector2 {
-    float x, y;
-};
+//struct Vector2 {
+//    float x, y;
+//};
+//
+//struct Vector3 {
+//    float x, y, z;
+//};
+//
+//struct Vector4 {
+//    float x, y, z, w;
+//};
 
-struct Vector3 {
-    float x, y, z;
-};
-
-struct Vector4 {
-    float x, y, z, w;
-};
-
-struct Matrix4x4 {
-    float m[4][4];
-};
-
-struct Transform {
-    Vector3 scale;
-    Vector3 rotate;
-    Vector3 translate;
-};
 
 struct VertexData {
     Vector4 position;
@@ -170,252 +161,252 @@ Sprite* sprite = nullptr; // ★追加（使うなら）
 // ===============================
 #pragma region 行列関数
 
-Matrix4x4 MakeIdentity4x4() {
-    Matrix4x4 result{};
-    for (int i = 0; i < 4; ++i) {
-        result.m[i][i] = 1.0f;
-    }
-    return result;
-}
-
-Matrix4x4 Matrix4x4MakeScaleMatrix(const Vector3& s) {
-    Matrix4x4 result = {};
-    result.m[0][0] = s.x;
-    result.m[1][1] = s.y;
-    result.m[2][2] = s.z;
-    result.m[3][3] = 1.0f;
-    return result;
-}
-
-Matrix4x4 MakeRotateXMatrix(float radian) {
-    Matrix4x4 result = {};
-
-    result.m[0][0] = 1.0f;
-    result.m[1][1] = std::cos(radian);
-    result.m[1][2] = std::sin(radian);
-    result.m[2][1] = -std::sin(radian);
-    result.m[2][2] = std::cos(radian);
-    result.m[3][3] = 1.0f;
-
-    return result;
-}
-
-Matrix4x4 MakeRotateYMatrix(float radian) {
-    Matrix4x4 result = {};
-
-    result.m[0][0] = std::cos(radian);
-    result.m[0][2] = std::sin(radian);
-    result.m[1][1] = 1.0f;
-    result.m[2][0] = -std::sin(radian);
-    result.m[2][2] = std::cos(radian);
-    result.m[3][3] = 1.0f;
-
-    return result;
-}
-
-Matrix4x4 MakeRotateZMatrix(float radian) {
-    Matrix4x4 result = {};
-
-    result.m[0][0] = std::cos(radian);
-    result.m[0][1] = -std::sin(radian);
-    result.m[1][0] = std::sin(radian);
-    result.m[1][1] = std::cos(radian);
-    result.m[2][2] = 1.0f;
-    result.m[3][3] = 1.0f;
-
-    return result;
-}
-
-Matrix4x4 MakeTranslateMatrix(const Vector3& tlanslate) {
-    Matrix4x4 result = {};
-    result.m[0][0] = 1.0f;
-    result.m[1][1] = 1.0f;
-    result.m[2][2] = 1.0f;
-    result.m[3][3] = 1.0f;
-    result.m[3][0] = tlanslate.x;
-    result.m[3][1] = tlanslate.y;
-    result.m[3][2] = tlanslate.z;
-    return result;
-}
-
-Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
-    Matrix4x4 result{};
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            for (int k = 0; k < 4; ++k) {
-                result.m[i][j] += m1.m[i][k] * m2.m[k][j];
-            }
-        }
-    }
-    return result;
-}
-
-Matrix4x4 MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate) {
-    Matrix4x4 scaleMatrix = Matrix4x4MakeScaleMatrix(scale);
-    Matrix4x4 rotateX = MakeRotateXMatrix(rotate.x);
-    Matrix4x4 rotateY = MakeRotateYMatrix(rotate.y);
-    Matrix4x4 rotateZ = MakeRotateZMatrix(rotate.z);
-    Matrix4x4 rotateMatrix = Multiply(Multiply(rotateX, rotateY), rotateZ);
-    Matrix4x4 translateMatrix = MakeTranslateMatrix(translate);
-
-    Matrix4x4 worldMatrix = Multiply(Multiply(scaleMatrix, rotateMatrix), translateMatrix);
-    return worldMatrix;
-}
-
-Matrix4x4 Inverse(Matrix4x4 m) {
-    Matrix4x4 result;
-    float det;
-    int i;
-
-    result.m[0][0] =
-        m.m[1][1] * m.m[2][2] * m.m[3][3] - m.m[1][1] * m.m[2][3] * m.m[3][2] -
-        m.m[2][1] * m.m[1][2] * m.m[3][3] + m.m[2][1] * m.m[1][3] * m.m[3][2] +
-        m.m[3][1] * m.m[1][2] * m.m[2][3] - m.m[3][1] * m.m[1][3] * m.m[2][2];
-
-    result.m[0][1] =
-        -m.m[0][1] * m.m[2][2] * m.m[3][3] + m.m[0][1] * m.m[2][3] * m.m[3][2] +
-        m.m[2][1] * m.m[0][2] * m.m[3][3] - m.m[2][1] * m.m[0][3] * m.m[3][2] -
-        m.m[3][1] * m.m[0][2] * m.m[2][3] + m.m[3][1] * m.m[0][3] * m.m[2][2];
-
-    result.m[0][2] =
-        m.m[0][1] * m.m[1][2] * m.m[3][3] - m.m[0][1] * m.m[1][3] * m.m[3][2] -
-        m.m[1][1] * m.m[0][2] * m.m[3][3] + m.m[1][1] * m.m[0][3] * m.m[3][2] +
-        m.m[3][1] * m.m[0][2] * m.m[1][3] - m.m[3][1] * m.m[0][3] * m.m[1][2];
-
-    result.m[0][3] =
-        -m.m[0][1] * m.m[1][2] * m.m[2][3] + m.m[0][1] * m.m[1][3] * m.m[2][2] +
-        m.m[1][1] * m.m[0][2] * m.m[2][3] - m.m[1][1] * m.m[0][3] * m.m[2][2] -
-        m.m[2][1] * m.m[0][2] * m.m[1][3] + m.m[2][1] * m.m[0][3] * m.m[1][2];
-
-    result.m[1][0] =
-        -m.m[1][0] * m.m[2][2] * m.m[3][3] + m.m[1][0] * m.m[2][3] * m.m[3][2] +
-        m.m[2][0] * m.m[1][2] * m.m[3][3] - m.m[2][0] * m.m[1][3] * m.m[3][2] -
-        m.m[3][0] * m.m[1][2] * m.m[2][3] + m.m[3][0] * m.m[1][3] * m.m[2][2];
-
-    result.m[1][1] =
-        m.m[0][0] * m.m[2][2] * m.m[3][3] - m.m[0][0] * m.m[2][3] * m.m[3][2] -
-        m.m[2][0] * m.m[0][2] * m.m[3][3] + m.m[2][0] * m.m[0][3] * m.m[3][2] +
-        m.m[3][0] * m.m[0][2] * m.m[2][3] - m.m[3][0] * m.m[0][3] * m.m[2][2];
-
-    result.m[1][2] =
-        -m.m[0][0] * m.m[1][2] * m.m[3][3] + m.m[0][0] * m.m[1][3] * m.m[3][2] +
-        m.m[1][0] * m.m[0][2] * m.m[3][3] - m.m[1][0] * m.m[0][3] * m.m[3][2] -
-        m.m[3][0] * m.m[0][2] * m.m[1][3] + m.m[3][0] * m.m[0][3] * m.m[1][2];
-
-    result.m[1][3] =
-        m.m[0][0] * m.m[1][2] * m.m[2][3] - m.m[0][0] * m.m[1][3] * m.m[2][2] -
-        m.m[1][0] * m.m[0][2] * m.m[2][3] + m.m[1][0] * m.m[0][3] * m.m[2][2] +
-        m.m[2][0] * m.m[0][2] * m.m[1][3] - m.m[2][0] * m.m[0][3] * m.m[1][2];
-
-    result.m[2][0] =
-        m.m[1][0] * m.m[2][1] * m.m[3][3] - m.m[1][0] * m.m[2][3] * m.m[3][1] -
-        m.m[2][0] * m.m[1][1] * m.m[3][3] + m.m[2][0] * m.m[1][3] * m.m[3][1] +
-        m.m[3][0] * m.m[1][1] * m.m[2][3] - m.m[3][0] * m.m[1][3] * m.m[2][1];
-
-    result.m[2][1] =
-        -m.m[0][0] * m.m[2][1] * m.m[3][3] + m.m[0][0] * m.m[2][3] * m.m[3][1] +
-        m.m[2][0] * m.m[0][1] * m.m[3][3] - m.m[2][0] * m.m[0][3] * m.m[3][1] -
-        m.m[3][0] * m.m[0][1] * m.m[2][3] + m.m[3][0] * m.m[0][3] * m.m[2][1];
-
-    result.m[2][2] =
-        m.m[0][0] * m.m[1][1] * m.m[3][3] - m.m[0][0] * m.m[1][3] * m.m[3][1] -
-        m.m[1][0] * m.m[0][1] * m.m[3][3] + m.m[1][0] * m.m[0][3] * m.m[3][1] +
-        m.m[3][0] * m.m[0][1] * m.m[1][3] - m.m[3][0] * m.m[0][3] * m.m[1][1];
-
-    result.m[2][3] =
-        -m.m[0][0] * m.m[1][1] * m.m[2][3] + m.m[0][0] * m.m[1][3] * m.m[2][1] +
-        m.m[1][0] * m.m[0][1] * m.m[2][3] - m.m[1][0] * m.m[0][3] * m.m[2][1] -
-        m.m[2][0] * m.m[0][1] * m.m[1][3] + m.m[2][0] * m.m[0][3] * m.m[1][1];
-
-    result.m[3][0] =
-        -m.m[1][0] * m.m[2][1] * m.m[3][2] + m.m[1][0] * m.m[2][2] * m.m[3][1] +
-        m.m[2][0] * m.m[1][1] * m.m[3][2] - m.m[2][0] * m.m[1][2] * m.m[3][1] -
-        m.m[3][0] * m.m[1][1] * m.m[2][2] + m.m[3][0] * m.m[1][2] * m.m[2][1];
-
-    result.m[3][1] =
-        m.m[0][0] * m.m[2][1] * m.m[3][2] - m.m[0][0] * m.m[2][2] * m.m[3][1] -
-        m.m[2][0] * m.m[0][1] * m.m[3][2] + m.m[2][0] * m.m[0][2] * m.m[3][1] +
-        m.m[3][0] * m.m[0][1] * m.m[2][2] - m.m[3][0] * m.m[0][2] * m.m[2][1];
-
-    result.m[3][2] =
-        -m.m[0][0] * m.m[1][1] * m.m[3][2] + m.m[0][0] * m.m[1][2] * m.m[3][1] +
-        m.m[1][0] * m.m[0][1] * m.m[3][2] - m.m[1][0] * m.m[0][2] * m.m[3][1] -
-        m.m[3][0] * m.m[0][1] * m.m[1][2] + m.m[3][0] * m.m[0][2] * m.m[1][1];
-
-    result.m[3][3] =
-        m.m[0][0] * m.m[1][1] * m.m[2][2] - m.m[0][0] * m.m[1][2] * m.m[2][1] -
-        m.m[1][0] * m.m[0][1] * m.m[2][2] + m.m[1][0] * m.m[0][2] * m.m[2][1] +
-        m.m[2][0] * m.m[0][1] * m.m[1][2] - m.m[2][0] * m.m[0][2] * m.m[1][1];
-
-    det = m.m[0][0] * result.m[0][0] + m.m[0][1] * result.m[1][0] +
-        m.m[0][2] * result.m[2][0] + m.m[0][3] * result.m[3][0];
-
-    if (det == 0.0f) {
-        return Matrix4x4{}; // ゼロ行列返しておく
-    }
-
-    det = 1.0f / det;
-
-    for (i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            result.m[i][j] *= det;
-        }
-    }
-
-    return result;
-}
-
-Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio,
-    float nearClip, float farClip) {
-    Matrix4x4 result = {};
-
-    float f = 1.0f / std::tan(fovY / 2.0f);
-
-    result.m[0][0] = f / aspectRatio;
-    result.m[1][1] = f;
-    result.m[2][2] = farClip / (farClip - nearClip);
-    result.m[2][3] = 1.0f;
-    result.m[3][2] = -(nearClip * farClip) / (farClip - nearClip);
-    return result;
-}
-
-Matrix4x4 MakeOrthographicMatrix(float left, float top, float right,
-    float bottom, float nearClip, float farClip) {
-    Matrix4x4 m = {};
-
-    m.m[0][0] = 2.0f / (right - left);
-    m.m[1][1] = 2.0f / (top - bottom);
-    m.m[2][2] = 1.0f / (farClip - nearClip);
-    m.m[3][0] = -(right + left) / (right - left);
-    m.m[3][1] = -(top + bottom) / (top - bottom);
-    m.m[3][2] = -nearClip / (farClip - nearClip);
-    m.m[3][3] = 1.0f;
-
-    return m;
-}
-
-Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height,
-    float minDepth, float maxDepth) {
-    Matrix4x4 m = {};
-
-    m.m[0][0] = width / 2.0f;
-    m.m[1][1] = -height / 2.0f;
-    m.m[2][2] = maxDepth - minDepth;
-    m.m[3][0] = left + width / 2.0f;
-    m.m[3][1] = top + height / 2.0f;
-    m.m[3][2] = minDepth;
-    m.m[3][3] = 1.0f;
-
-    return m;
-}
-
-Vector3 Normalize(const Vector3& v) {
-    float length = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-    if (length == 0.0f) {
-        return { 0.0f, 0.0f, 0.0f };
-    }
-    return { v.x / length, v.y / length, v.z / length };
-}
+//Matrix4x4 MakeIdentity4x4() {
+//    Matrix4x4 result{};
+//    for (int i = 0; i < 4; ++i) {
+//        result.m[i][i] = 1.0f;
+//    }
+//    return result;
+//}
+//
+//Matrix4x4 Matrix4x4MakeScaleMatrix(const Vector3& s) {
+//    Matrix4x4 result = {};
+//    result.m[0][0] = s.x;
+//    result.m[1][1] = s.y;
+//    result.m[2][2] = s.z;
+//    result.m[3][3] = 1.0f;
+//    return result;
+//}
+//
+//Matrix4x4 MakeRotateXMatrix(float radian) {
+//    Matrix4x4 result = {};
+//
+//    result.m[0][0] = 1.0f;
+//    result.m[1][1] = std::cos(radian);
+//    result.m[1][2] = std::sin(radian);
+//    result.m[2][1] = -std::sin(radian);
+//    result.m[2][2] = std::cos(radian);
+//    result.m[3][3] = 1.0f;
+//
+//    return result;
+//}
+//
+//Matrix4x4 MakeRotateYMatrix(float radian) {
+//    Matrix4x4 result = {};
+//
+//    result.m[0][0] = std::cos(radian);
+//    result.m[0][2] = std::sin(radian);
+//    result.m[1][1] = 1.0f;
+//    result.m[2][0] = -std::sin(radian);
+//    result.m[2][2] = std::cos(radian);
+//    result.m[3][3] = 1.0f;
+//
+//    return result;
+//}
+//
+//Matrix4x4 MakeRotateZMatrix(float radian) {
+//    Matrix4x4 result = {};
+//
+//    result.m[0][0] = std::cos(radian);
+//    result.m[0][1] = -std::sin(radian);
+//    result.m[1][0] = std::sin(radian);
+//    result.m[1][1] = std::cos(radian);
+//    result.m[2][2] = 1.0f;
+//    result.m[3][3] = 1.0f;
+//
+//    return result;
+//}
+//
+//Matrix4x4 MakeTranslateMatrix(const Vector3& tlanslate) {
+//    Matrix4x4 result = {};
+//    result.m[0][0] = 1.0f;
+//    result.m[1][1] = 1.0f;
+//    result.m[2][2] = 1.0f;
+//    result.m[3][3] = 1.0f;
+//    result.m[3][0] = tlanslate.x;
+//    result.m[3][1] = tlanslate.y;
+//    result.m[3][2] = tlanslate.z;
+//    return result;
+//}
+//
+//Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
+//    Matrix4x4 result{};
+//    for (int i = 0; i < 4; ++i) {
+//        for (int j = 0; j < 4; ++j) {
+//            for (int k = 0; k < 4; ++k) {
+//                result.m[i][j] += m1.m[i][k] * m2.m[k][j];
+//            }
+//        }
+//    }
+//    return result;
+//}
+//
+//Matrix4x4 MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate) {
+//    Matrix4x4 scaleMatrix = Matrix4x4MakeScaleMatrix(scale);
+//    Matrix4x4 rotateX = MakeRotateXMatrix(rotate.x);
+//    Matrix4x4 rotateY = MakeRotateYMatrix(rotate.y);
+//    Matrix4x4 rotateZ = MakeRotateZMatrix(rotate.z);
+//    Matrix4x4 rotateMatrix = Multiply(Multiply(rotateX, rotateY), rotateZ);
+//    Matrix4x4 translateMatrix = MakeTranslateMatrix(translate);
+//
+//    Matrix4x4 worldMatrix = Multiply(Multiply(scaleMatrix, rotateMatrix), translateMatrix);
+//    return worldMatrix;
+//}
+//
+//Matrix4x4 Inverse(Matrix4x4 m) {
+//    Matrix4x4 result;
+//    float det;
+//    int i;
+//
+//    result.m[0][0] =
+//        m.m[1][1] * m.m[2][2] * m.m[3][3] - m.m[1][1] * m.m[2][3] * m.m[3][2] -
+//        m.m[2][1] * m.m[1][2] * m.m[3][3] + m.m[2][1] * m.m[1][3] * m.m[3][2] +
+//        m.m[3][1] * m.m[1][2] * m.m[2][3] - m.m[3][1] * m.m[1][3] * m.m[2][2];
+//
+//    result.m[0][1] =
+//        -m.m[0][1] * m.m[2][2] * m.m[3][3] + m.m[0][1] * m.m[2][3] * m.m[3][2] +
+//        m.m[2][1] * m.m[0][2] * m.m[3][3] - m.m[2][1] * m.m[0][3] * m.m[3][2] -
+//        m.m[3][1] * m.m[0][2] * m.m[2][3] + m.m[3][1] * m.m[0][3] * m.m[2][2];
+//
+//    result.m[0][2] =
+//        m.m[0][1] * m.m[1][2] * m.m[3][3] - m.m[0][1] * m.m[1][3] * m.m[3][2] -
+//        m.m[1][1] * m.m[0][2] * m.m[3][3] + m.m[1][1] * m.m[0][3] * m.m[3][2] +
+//        m.m[3][1] * m.m[0][2] * m.m[1][3] - m.m[3][1] * m.m[0][3] * m.m[1][2];
+//
+//    result.m[0][3] =
+//        -m.m[0][1] * m.m[1][2] * m.m[2][3] + m.m[0][1] * m.m[1][3] * m.m[2][2] +
+//        m.m[1][1] * m.m[0][2] * m.m[2][3] - m.m[1][1] * m.m[0][3] * m.m[2][2] -
+//        m.m[2][1] * m.m[0][2] * m.m[1][3] + m.m[2][1] * m.m[0][3] * m.m[1][2];
+//
+//    result.m[1][0] =
+//        -m.m[1][0] * m.m[2][2] * m.m[3][3] + m.m[1][0] * m.m[2][3] * m.m[3][2] +
+//        m.m[2][0] * m.m[1][2] * m.m[3][3] - m.m[2][0] * m.m[1][3] * m.m[3][2] -
+//        m.m[3][0] * m.m[1][2] * m.m[2][3] + m.m[3][0] * m.m[1][3] * m.m[2][2];
+//
+//    result.m[1][1] =
+//        m.m[0][0] * m.m[2][2] * m.m[3][3] - m.m[0][0] * m.m[2][3] * m.m[3][2] -
+//        m.m[2][0] * m.m[0][2] * m.m[3][3] + m.m[2][0] * m.m[0][3] * m.m[3][2] +
+//        m.m[3][0] * m.m[0][2] * m.m[2][3] - m.m[3][0] * m.m[0][3] * m.m[2][2];
+//
+//    result.m[1][2] =
+//        -m.m[0][0] * m.m[1][2] * m.m[3][3] + m.m[0][0] * m.m[1][3] * m.m[3][2] +
+//        m.m[1][0] * m.m[0][2] * m.m[3][3] - m.m[1][0] * m.m[0][3] * m.m[3][2] -
+//        m.m[3][0] * m.m[0][2] * m.m[1][3] + m.m[3][0] * m.m[0][3] * m.m[1][2];
+//
+//    result.m[1][3] =
+//        m.m[0][0] * m.m[1][2] * m.m[2][3] - m.m[0][0] * m.m[1][3] * m.m[2][2] -
+//        m.m[1][0] * m.m[0][2] * m.m[2][3] + m.m[1][0] * m.m[0][3] * m.m[2][2] +
+//        m.m[2][0] * m.m[0][2] * m.m[1][3] - m.m[2][0] * m.m[0][3] * m.m[1][2];
+//
+//    result.m[2][0] =
+//        m.m[1][0] * m.m[2][1] * m.m[3][3] - m.m[1][0] * m.m[2][3] * m.m[3][1] -
+//        m.m[2][0] * m.m[1][1] * m.m[3][3] + m.m[2][0] * m.m[1][3] * m.m[3][1] +
+//        m.m[3][0] * m.m[1][1] * m.m[2][3] - m.m[3][0] * m.m[1][3] * m.m[2][1];
+//
+//    result.m[2][1] =
+//        -m.m[0][0] * m.m[2][1] * m.m[3][3] + m.m[0][0] * m.m[2][3] * m.m[3][1] +
+//        m.m[2][0] * m.m[0][1] * m.m[3][3] - m.m[2][0] * m.m[0][3] * m.m[3][1] -
+//        m.m[3][0] * m.m[0][1] * m.m[2][3] + m.m[3][0] * m.m[0][3] * m.m[2][1];
+//
+//    result.m[2][2] =
+//        m.m[0][0] * m.m[1][1] * m.m[3][3] - m.m[0][0] * m.m[1][3] * m.m[3][1] -
+//        m.m[1][0] * m.m[0][1] * m.m[3][3] + m.m[1][0] * m.m[0][3] * m.m[3][1] +
+//        m.m[3][0] * m.m[0][1] * m.m[1][3] - m.m[3][0] * m.m[0][3] * m.m[1][1];
+//
+//    result.m[2][3] =
+//        -m.m[0][0] * m.m[1][1] * m.m[2][3] + m.m[0][0] * m.m[1][3] * m.m[2][1] +
+//        m.m[1][0] * m.m[0][1] * m.m[2][3] - m.m[1][0] * m.m[0][3] * m.m[2][1] -
+//        m.m[2][0] * m.m[0][1] * m.m[1][3] + m.m[2][0] * m.m[0][3] * m.m[1][1];
+//
+//    result.m[3][0] =
+//        -m.m[1][0] * m.m[2][1] * m.m[3][2] + m.m[1][0] * m.m[2][2] * m.m[3][1] +
+//        m.m[2][0] * m.m[1][1] * m.m[3][2] - m.m[2][0] * m.m[1][2] * m.m[3][1] -
+//        m.m[3][0] * m.m[1][1] * m.m[2][2] + m.m[3][0] * m.m[1][2] * m.m[2][1];
+//
+//    result.m[3][1] =
+//        m.m[0][0] * m.m[2][1] * m.m[3][2] - m.m[0][0] * m.m[2][2] * m.m[3][1] -
+//        m.m[2][0] * m.m[0][1] * m.m[3][2] + m.m[2][0] * m.m[0][2] * m.m[3][1] +
+//        m.m[3][0] * m.m[0][1] * m.m[2][2] - m.m[3][0] * m.m[0][2] * m.m[2][1];
+//
+//    result.m[3][2] =
+//        -m.m[0][0] * m.m[1][1] * m.m[3][2] + m.m[0][0] * m.m[1][2] * m.m[3][1] +
+//        m.m[1][0] * m.m[0][1] * m.m[3][2] - m.m[1][0] * m.m[0][2] * m.m[3][1] -
+//        m.m[3][0] * m.m[0][1] * m.m[1][2] + m.m[3][0] * m.m[0][2] * m.m[1][1];
+//
+//    result.m[3][3] =
+//        m.m[0][0] * m.m[1][1] * m.m[2][2] - m.m[0][0] * m.m[1][2] * m.m[2][1] -
+//        m.m[1][0] * m.m[0][1] * m.m[2][2] + m.m[1][0] * m.m[0][2] * m.m[2][1] +
+//        m.m[2][0] * m.m[0][1] * m.m[1][2] - m.m[2][0] * m.m[0][2] * m.m[1][1];
+//
+//    det = m.m[0][0] * result.m[0][0] + m.m[0][1] * result.m[1][0] +
+//        m.m[0][2] * result.m[2][0] + m.m[0][3] * result.m[3][0];
+//
+//    if (det == 0.0f) {
+//        return Matrix4x4{}; // ゼロ行列返しておく
+//    }
+//
+//    det = 1.0f / det;
+//
+//    for (i = 0; i < 4; i++) {
+//        for (int j = 0; j < 4; j++) {
+//            result.m[i][j] *= det;
+//        }
+//    }
+//
+//    return result;
+//}
+//
+//Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio,
+//    float nearClip, float farClip) {
+//    Matrix4x4 result = {};
+//
+//    float f = 1.0f / std::tan(fovY / 2.0f);
+//
+//    result.m[0][0] = f / aspectRatio;
+//    result.m[1][1] = f;
+//    result.m[2][2] = farClip / (farClip - nearClip);
+//    result.m[2][3] = 1.0f;
+//    result.m[3][2] = -(nearClip * farClip) / (farClip - nearClip);
+//    return result;
+//}
+//
+//Matrix4x4 MakeOrthographicMatrix(float left, float top, float right,
+//    float bottom, float nearClip, float farClip) {
+//    Matrix4x4 m = {};
+//
+//    m.m[0][0] = 2.0f / (right - left);
+//    m.m[1][1] = 2.0f / (top - bottom);
+//    m.m[2][2] = 1.0f / (farClip - nearClip);
+//    m.m[3][0] = -(right + left) / (right - left);
+//    m.m[3][1] = -(top + bottom) / (top - bottom);
+//    m.m[3][2] = -nearClip / (farClip - nearClip);
+//    m.m[3][3] = 1.0f;
+//
+//    return m;
+//}
+//
+//Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height,
+//    float minDepth, float maxDepth) {
+//    Matrix4x4 m = {};
+//
+//    m.m[0][0] = width / 2.0f;
+//    m.m[1][1] = -height / 2.0f;
+//    m.m[2][2] = maxDepth - minDepth;
+//    m.m[3][0] = left + width / 2.0f;
+//    m.m[3][1] = top + height / 2.0f;
+//    m.m[3][2] = minDepth;
+//    m.m[3][3] = 1.0f;
+//
+//    return m;
+//}
+//
+//Vector3 Normalize(const Vector3& v) {
+//    float length = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+//    if (length == 0.0f) {
+//        return { 0.0f, 0.0f, 0.0f };
+//    }
+//    return { v.x / length, v.y / length, v.z / length };
+//}
 
 #pragma endregion
 
@@ -840,6 +831,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     spriteCommon->Initialize(dxCommon);
 #pragma endregion
 
+    sprite = new Sprite();
+    sprite->Initialize(spriteCommon);
+
+
  
 
     // 各種ポインタ取得（DirectXCommon 経由）
@@ -1094,7 +1089,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         reinterpret_cast<void**>(&materialData));
     materialData->color = { 1.0f, 1.0f, 1.0f, 1.0f };
     materialData->enableLighting = 1;
-    materialData->uvTransform = MakeIdentity4x4();
+    materialData->uvTransform = MatrixMath::MakeIdentity4x4();
 
     // ------- WVP -------
     ID3D12Resource* wvpResource =
@@ -1102,7 +1097,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     TransformationMatrix* wvpData = nullptr;
     wvpResource->Map(0, nullptr,
         reinterpret_cast<void**>(&wvpData));
-    Matrix4x4 identity = MakeIdentity4x4();
+    Matrix4x4 identity = MatrixMath::MakeIdentity4x4();
     wvpData->WVP = identity;
     wvpData->World = identity;
 
@@ -1171,6 +1166,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     //transformationMatrixDataSprite->WVP = identity;
     //transformationMatrixDataSprite->World = identity;
 
+    
+
     // ------- ライト -------
     ID3D12Resource* directionalLightResource =
         CreateBufferResource(device, sizeof(DirectionalLight));
@@ -1179,7 +1176,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         0, nullptr,
         reinterpret_cast<void**>(&directionalLightData));
     directionalLightData->color = { 1.0f, 1.0f, 1.0f, 1.0f };
-    directionalLightData->direction = Normalize({ 0.0f, -1.0f, 0.0f });
+    directionalLightData->direction = MatrixMath::Normalize({ 0.0f, -1.0f, 0.0f });
     directionalLightData->intensity = 1.0f;
 
     // ------- ビューポート / シザー -------
@@ -1259,9 +1256,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
         ImGui::Begin("Material / Transform");
         ImGui::SliderFloat3("Scale", &transform.scale.x, 0.1f, 5.0f);
-        ImGui::SliderAngle("RotateX", &transform.rotate.x, -180.0f, 180.0f);
-        ImGui::SliderAngle("RotateY", &transform.rotate.y, -180.0f, 180.0f);
-        ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);
+        ImGui::SliderFloat3("RotateX", &transform.rotate.x, -180.0f, 180.0f);
+        /*ImGui::SliderAngle("RotateY", &transform.rotate.y, -180.0f, 180.0f);
+        ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);*/
         ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
 
         ImGui::Text("useMonstarBall");
@@ -1273,37 +1270,37 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         ImGui::SliderFloat("Light Z", &directionalLightData->direction.z, -10.0f, 10.0f);
 
         ImGui::Text("UV Transform (Sprite)");
-        ImGui::DragFloat2("UV Translate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
+     /*   ImGui::DragFloat2("UV Translate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
         ImGui::DragFloat2("UV Scale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
-        ImGui::SliderAngle("UV Rotate", &uvTransformSprite.rotate.z);
+        ImGui::SliderAngle("UV Rotate", &uvTransformSprite.rotate.z);*/
         ImGui::End();
 
         directionalLightData->direction =
-            Normalize(directionalLightData->direction);
+            MatrixMath::Normalize(directionalLightData->direction);
 
         // --- 行列計算 ---
         waveTime += 0.05f;
 
         Matrix4x4 worldMatrix =
-            MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
+            MatrixMath::MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
 
         Matrix4x4 cameraMatrix =
-            MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
+            MatrixMath::MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 
-        Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+        Matrix4x4 viewMatrix = MatrixMath::Inverse(cameraMatrix);
 
-        Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(
+        Matrix4x4 projectionMatrix = MatrixMath::MakePerspectiveFovMatrix(
             0.45f,
             float(WinApp::kClientWidth) / float(WinApp::kClientHeight),
             0.1f, 100.0f);
 
         Matrix4x4 worldViewProjectionMatrix =
-            Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+            MatrixMath::Multiply(worldMatrix, MatrixMath::Multiply(viewMatrix, projectionMatrix));
 
         wvpData->WVP = worldViewProjectionMatrix;
         wvpData->World = worldMatrix;
 
-        Matrix4x4 worldMatrixSprite =
+       /* Matrix4x4 worldMatrixSprite =
             MakeAffineMatrix(transformSprite.scale, transformSprite.rotate, transformSprite.translate);
 
         Matrix4x4 viewMatrixSprite = MakeIdentity4x4();
@@ -1327,7 +1324,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         uvTransformMatrix = Multiply(
             uvTransformMatrix,
             MakeTranslateMatrix(uvTransformSprite.translate));
-        materialDataSprite->uvTransform = uvTransformMatrix;
+        materialDataSprite->uvTransform = uvTransformMatrix;*/
+
+        sprite->Update();
 
         // ImGui コマンドを確定
         ImGui::Render();
@@ -1363,19 +1362,25 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         commandList->DrawInstanced(
             UINT(modelData.vertices.size()), 1, 0, 0);
 
-        // --- スプライト描画 ---
-        commandList->IASetIndexBuffer(&indexBufferViewSprite);
-        commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
+        //// --- スプライト描画 ---
+        //commandList->IASetIndexBuffer(&indexBufferViewSprite);
+        //commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
 
-        commandList->SetGraphicsRootConstantBufferView(
-            0, materialResourceSprite->GetGPUVirtualAddress());
-        commandList->SetGraphicsRootConstantBufferView(
-            1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
+        //commandList->SetGraphicsRootConstantBufferView(
+        //    0, materialResourceSprite->GetGPUVirtualAddress());
+        //commandList->SetGraphicsRootConstantBufferView(
+        //    1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 
-        commandList->SetGraphicsRootDescriptorTable(
-            2, textureSrvHandleGPU);   // uvChecker を使う
+        //commandList->SetGraphicsRootDescriptorTable(
+        //    2, textureSrvHandleGPU);   // uvChecker を使う
 
-        commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+        //commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+
+        sprite->Draw();
+
+        spriteCommon->PreDraw();
+
+
 
         // --- ImGui 描画 ---
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
@@ -1415,10 +1420,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     mipImages2.Release();
     intermediateResource2->Release();
 
-    vertexResourceSprite->Release();
+   /* vertexResourceSprite->Release();
     transformationMatrixResourceSprite->Release();
     materialResourceSprite->Release();
-    indexResourceSprite->Release();
+    indexResourceSprite->Release();*/
 
     directionalLightResource->Release();
 

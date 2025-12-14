@@ -61,6 +61,7 @@ namespace MatrixMath {
 	//6.単位行列の作成
 	Matrix4x4 MakeIdentity4x4();
 
+	Vector3 Normalize(const Vector3& v);
 	
 	
 };

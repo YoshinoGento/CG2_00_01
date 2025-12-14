@@ -357,8 +357,18 @@ void DirectXCommon::InitializeDXCCompiler() {
 }
 
 void DirectXCommon::InitializeImGui() {
-    // ここには元の main.cpp にあった ImGui の初期化処理を
-    // そのまま移植してくれば OK（今は空でもビルドは通る）
+    //IMGUI_CHECKVERSION();
+    //ImGui::CreateContext();
+    //ImGui::StyleColorsClassic();
+
+    //ImGui_ImplWin32_Init(winApp->GetHwnd());
+    //ImGui_ImplDX12_Init(
+    //    device,
+    //    2,                                      // バックバッファ数
+    //    DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,       // RTV フォーマット
+    //    srvDescriptorHeap,
+    //    srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+    //    srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 }
 
 void DirectXCommon::InitializeFence() {
