@@ -14,13 +14,13 @@ void Sprite::Initialize(SpriteCommon* spriteCommon) {
 
 
 
-	vertexResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(vertexData_) * 4);
+	vertexResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(VertexData) * 6);
 
 	indexResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(uint32_t) * 6);
 
 	vertexBufferView_.BufferLocation = vertexResource_->GetGPUVirtualAddress();
-	vertexBufferView_.SizeInBytes = sizeof(vertexData_) * 4;
-	vertexBufferView_.StrideInBytes = sizeof(vertexData_);
+	vertexBufferView_.SizeInBytes = sizeof(VertexData) * 6;
+	vertexBufferView_.StrideInBytes = sizeof(VertexData);
 
 	indexBufferView_.BufferLocation = indexResource_->GetGPUVirtualAddress();
 	indexBufferView_.SizeInBytes = sizeof(uint32_t) * 6;
@@ -31,7 +31,8 @@ void Sprite::Initialize(SpriteCommon* spriteCommon) {
 	indexResource_->Map(0, nullptr, (void**)&indexData_);
 
 
-	materialResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(Material));
+	materialResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(Vector4));
+	//materialResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(Material));
 	materialResource_->Map(0, nullptr, (void**)&materialData_);
 
 	// マテリアルデータの初期化を書き込む
@@ -42,7 +43,8 @@ void Sprite::Initialize(SpriteCommon* spriteCommon) {
 
 
 	// 座標変更行列リソースを作る
-	transformationMatrixResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(TransformationMatrix));
+	//transformationMatrixResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(TransformationMatrix));
+	transformationMatrixResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(Matrix4x4));
 	transformationMatrixResource_.Get()->Map(0, nullptr,reinterpret_cast<void**> (&transformationMatrixData_));
 
 	// 単位行列を書き込んでおく
@@ -54,6 +56,26 @@ void Sprite::Initialize(SpriteCommon* spriteCommon) {
 
 void Sprite::Update() {
 	// スプライトの更新処理をここに記述
+	vertexData_[0].position = { 0.0f, 360.0f, 0.0f, 1.0f }; // 左下
+	vertexData_[0].texcoord = { 0.0f, 1.0f };
+			  
+	vertexData_[1].position = { 0.0f, 0.0f, 0.0f, 1.0f }; // 左上
+	vertexData_[1].texcoord = { 0.0f, 0.0f };
+			  
+	vertexData_[2].position = { 640.0f, 360.0f, 0.0f, 1.0f }; // 右下
+	vertexData_[2].texcoord = { 1.0f, 1.0f };
+			  
+	vertexData_[3].position = { 640.0f, 0.0f, 0.0f, 1.0f };
+	vertexData_[3].texcoord = { 1.0f, 0.0f };
+
+	indexData_[0] = 0;
+	indexData_[1] = 1;
+	indexData_[2] = 2;
+	indexData_[3] = 1;
+	indexData_[4] = 3;
+	indexData_[5] = 2;
+
+	Transform transform_ = {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
 
 	// 頂点データを書き込む
 	Matrix4x4 worldMatrix = MatrixMath::MakeAffineMatrix(transform_.scale,transform_.rotate,transform_.translate);
@@ -81,7 +103,7 @@ void Sprite::Update() {
 		MatrixMath::MakeTranslateMatrix(uvTransform.translate));
 	materialData_->uvTransform = uvTransformMatrix;
 
-	transformationMatrixData_->WVP = MatrixMath::Multiply(worldMatrix, MatrixMath::Multiply(viewMatrix, projectionMatrix));
+	//transformationMatrixData_->WVP = MatrixMath::Multiply(worldMatrix, MatrixMath::Multiply(viewMatrix, projectionMatrix));
 
 
 }
@@ -90,8 +112,8 @@ void Sprite::Draw() {
 
 	ID3D12GraphicsCommandList* commandList = spriteCommon_->GetDxCommon()->GetCommandList();
 
-	commandList->IASetIndexBuffer(&indexBufferView_);
 	commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
+	commandList->IASetIndexBuffer(&indexBufferView_);
 
 	commandList->SetGraphicsRootConstantBufferView(
 		0, materialResource_.Get()->GetGPUVirtualAddress());

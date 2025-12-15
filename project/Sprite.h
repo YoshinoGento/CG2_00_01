@@ -18,7 +18,7 @@ private:
 	struct VertexData {
 		Vector4 position; // 位置
 		Vector4 texcoord; // テクスチャ座標
-		Vector3 normal;   // 法線
+		//Vector3 normal;   // 法線
 	};
 
     // マテリアルデータ
@@ -35,7 +35,7 @@ private:
         Matrix4x4 World;
     };
 
-	Transform transform_;
+	
 
     Transform uvTransform{
         {1.0f, 1.0f, 1.0f},
