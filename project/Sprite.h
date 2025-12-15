@@ -11,6 +11,18 @@ public:
 
 	void Draw();
 
+	// getter/setter
+	const Vector2& GetPosition() const { return position_; }
+	void SetPosition(const Vector2& position) { this->position_ = position; }
+
+    // 回転
+	float GetRotation() const { return rotation_; }
+	void SetRotation(float rotation) { this->rotation_ = rotation; }
+
+    // カラー
+	const Vector4& GetColor() const { return materialData_->color; }
+	void SetColor(const Vector4& color_) { materialData_->color = color_; }
+
 private:
 	SpriteCommon * spriteCommon_; // メンバー変数を追加  
 
@@ -35,13 +47,13 @@ private:
         Matrix4x4 World;
     };
 
-	
-
     Transform uvTransform{
         {1.0f, 1.0f, 1.0f},
         {0.0f, 0.0f, 0.0f},
         {0.0f, 0.0f, 0.0f}
     };
+
+	Vector2 position_ = { 0.0f, 0.0f };
 
 	// バッファリソース
        // ▼ 頂点バッファ（VertexBuffer）の GPU リソース
@@ -73,5 +85,11 @@ private:
 	TransformationMatrix* transformationMatrixData_ = nullptr;
 
     DirectXCommon* dxCommon_ = nullptr;
+
+
+    // 回転
+	float rotation_ = 0.0f;
+
+ 
 
 };

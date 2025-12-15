@@ -1235,6 +1235,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
         srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
+    //色の変化変化
+    Vector4 color = sprite->GetColor();
+    Vector2 position = sprite->GetPosition();
+    //float rotationSprit = sprite->GetRotation();
+    float rotation = sprite->GetRotation();
+    //Vector2 pos = sprite->GetPosition();
+
     // ===============================
     //  メインループ
     // ===============================
@@ -1260,6 +1267,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         /*ImGui::SliderAngle("RotateY", &transform.rotate.y, -180.0f, 180.0f);
         ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);*/
         ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
+        ImGui::SliderFloat4("color", &color.x, -5.0f, 5.0f);
 
         ImGui::Text("useMonstarBall");
         ImGui::Checkbox("useMonstarBall", &useMonstarBall);
@@ -1269,10 +1277,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         ImGui::SliderFloat("Light Y", &directionalLightData->direction.y, -10.0f, 10.0f);
         ImGui::SliderFloat("Light Z", &directionalLightData->direction.z, -10.0f, 10.0f);
 
+
+
         ImGui::Text("UV Transform (Sprite)");
-     /*   ImGui::DragFloat2("UV Translate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
-        ImGui::DragFloat2("UV Scale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
-        ImGui::SliderAngle("UV Rotate", &uvTransformSprite.rotate.z);*/
+        ImGui::DragFloat2("UV Translate", &position.x, 0.01f, -10.0f, 10.0f);
+        ImGui::DragFloat("Sprite Rotation", &rotation, 0.01f, -3.14f, 3.14f);
+        sprite->SetRotation(rotation);
+
+        //ImGui::DragFloat2("UV Scale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
         ImGui::End();
 
         directionalLightData->direction =
@@ -1327,6 +1339,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         materialDataSprite->uvTransform = uvTransformMatrix;*/
 
         sprite->Update();
+
+        // 現在の座標を変数で受ける
+	
+ 
+
+        // 変更を反映する
+		sprite->SetPosition(position);
+
+        // Sprit回転
+        // 角度を変化させるテスト
+	
+		sprite->SetRotation(rotation);
+		
+		sprite->SetColor(color);
 
         // ImGui コマンドを確定
         ImGui::Render();
