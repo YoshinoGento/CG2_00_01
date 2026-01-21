@@ -1045,7 +1045,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		// ソフトウェアアダプタでなければ採用!
 		if (!(adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
 			// 採用したアダプタの情報をログに出力wstringの方なので注意
-			Log(logStream, ConvertString(std::format(L"Use Adapater:{}\n",
+			Log(logStream, ConvertString(std::format(L"Use Adapter:{}\n",
 				adapterDesc.Description)));
 			break;
 		}
@@ -1244,7 +1244,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	// RootParameter作成。複数設定できるので配列。今回は結果１つだけなので長さ１の配列
 	// PixelShaderのMaterialとVertexShaderのTransform
-	D3D12_ROOT_PARAMETER rootParameters[4] = {};
+	D3D12_ROOT_PARAMETER rootParameters[5] = {};
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
 	rootParameters[0].ShaderVisibility =
 		D3D12_SHADER_VISIBILITY_PIXEL;               // PixelShaderで使う
@@ -1511,7 +1511,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	graphicsPipelineStateDesc.PS = {
 		pixelShaderBlob->GetBufferPointer(),
 		pixelShaderBlob->GetBufferSize() };                      // PixelShader
-	graphicsPipelineStateDesc.BlendState = blendDesc;           // BlensState
+	graphicsPipelineStateDesc.BlendState = blendDesc;           // BlendsState
 	graphicsPipelineStateDesc.RasterizerState = rasterizerDesc; // RasterizerState
 
 	// DepthStencillStateの設定
@@ -1563,6 +1563,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	VertexData* vertexData = nullptr;
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData)); //書き込むためのアドレスを取得
 	std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData) * modelData.vertices.size()); //頂点データをコピー
+
+
+	// -----------------------------------------------------------------------
+	// 球体の作成処理 
+	// -----------------------------------------------------------------------
+	const int kSubdivision = 16; // 分割数
+	const float kRadius = 2.0f;  // 半径
+	const uint32_t kSphereVertexCount = kSubdivision * kSubdivision * 6; // 頂点数
+
+	// 1. データを入れる容器を作る
+	std::vector<VertexData> sphereVertices(kSphereVertexCount);
+
+	// 2. 作った関数を呼び出して、球の頂点データを作ってもらう
+	GenerateSphereVertices(sphereVertices.data(), kSubdivision, kRadius);
+
+	// 3. GPU用のバッファ(お皿)を作る
+	ID3D12Resource* sphereVertexResource = CreateBufferResource(device, sizeof(VertexData) * kSphereVertexCount);
+
+	// 4. バッファビュー(お皿の情報)を作る
+	D3D12_VERTEX_BUFFER_VIEW sphereVBV{};
+	sphereVBV.BufferLocation = sphereVertexResource->GetGPUVirtualAddress();
+	sphereVBV.SizeInBytes = sizeof(VertexData) * kSphereVertexCount;
+	sphereVBV.StrideInBytes = sizeof(VertexData);
+
+	// 5. 作ったデータをGPUに送る
+	VertexData* sphereDataMap = nullptr;
+	sphereVertexResource->Map(0, nullptr, reinterpret_cast<void**>(&sphereDataMap));
+	std::memcpy(sphereDataMap, sphereVertices.data(), sizeof(VertexData) * kSphereVertexCount);
+	sphereVertexResource->Unmap(0, nullptr);
+	// -----------------------------------------------------------------------
+	//  球体の作成処理 (ここまで)
+	// -----------------------------------------------------------------------
 
 
 	//--------------------------
@@ -1744,6 +1776,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		Normalize({ 0.0f, -1.0f, 0.0f });     // 真上から下方向
 	directionalLightData->intensity = 1.0f; // 標準の明るさ
 
+	// ---------------------------------------------------------
+	// ▼▼▼ 追加：カメラ座標送信用リソース (ここに追加！) ▼▼▼
+	// ---------------------------------------------------------
+	// GPUに送るための構造体
+	struct CameraForGPU {
+		Vector3 worldPosition;
+	};
+	// リソース(お皿)を作る
+	ID3D12Resource* cameraResource = CreateBufferResource(device, sizeof(CameraForGPU));
+	// データを書き込むためのポインタ
+	CameraForGPU* cameraData = nullptr;
+	cameraResource->Map(0, nullptr, reinterpret_cast<void**>(&cameraData));
+
+	// 初期値を入れておく
+	cameraData->worldPosition = { 0.0f, 0.0f, 0.0f };
+	// ---------------------------------------------------------
+
 	//--------------------------
 	// その他リソース
 	//--------------------------
@@ -1774,7 +1823,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
 	// カメラトランスフォーム
 	Transform cameraTransform{
-		{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.933f, 2.268f, -0.600f} };
+		{1.0f, 1.0f, 1.0f},
+		{0.2f, 0.0f, 0.0f},      // 少し下を向く（X回転）
+		{0.0f, 2.0f, -10.0f}     // 位置：少し上、手前に引く
+	};
 	// UVTransform用の変数を用意
 	Transform uvTransformSprite{
 		{1.0f, 1.0f, 1.0f},
@@ -1797,7 +1849,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{0.0f, 0.0f, 0.0f}   // translate
 	};
 
+	// ---------------------------------------------------------
+	// ▼▼▼ 追加：球体専用の変数とリソース ▼▼▼
+	// ---------------------------------------------------------
+	// 1. 球体の位置・回転・大きさ (初期位置をXに2.0ずらす)
+	Transform sphereTransform{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f} };
 
+	// 2. 球体用のWVPリソース (モデル用とは別のお皿を用意する)
+	ID3D12Resource* sphereWvpResource = CreateBufferResource(device, sizeof(TransformationMatrix));
+	TransformationMatrix* sphereWvpData = nullptr;
+	sphereWvpResource->Map(0, nullptr, reinterpret_cast<void**>(&sphereWvpData));
+	// 初期化
+	sphereWvpData->WVP = MakeIdentity4x4();
+	sphereWvpData->World = MakeIdentity4x4();
+	// ---------------------------------------------------------
 
 	// Textureの切り替え
 	bool useMonstarBall = true;
@@ -1845,35 +1910,35 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::
 				ShowDemoWindow(); // ImGuiの始まりの場所-----------------------------
 
-			ImGui::Begin("Materialcolor");
-			ImGui::SliderFloat3("translate", &transform.translate.x, 0.1f, 5.0f);
-			ImGui::SliderFloat3("Scale", &transform.scale.x, 0.1f, 5.0f);
-			ImGui::SliderAngle("RotateX", &transform.rotate.x, -180.0f, 180.0f);
-			ImGui::SliderAngle("RotateY", &transform.rotate.y, -180.0f, 180.0f);
-			ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);
-			ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
+			//ImGui::Begin("Materialcolor");
+			//ImGui::SliderFloat3("translate", &transform.translate.x, 0.1f, 5.0f);
+			//ImGui::SliderFloat3("Scale", &transform.scale.x, 0.1f, 5.0f);
+			//ImGui::SliderAngle("RotateX", &transform.rotate.x, -180.0f, 180.0f);
+			//ImGui::SliderAngle("RotateY", &transform.rotate.y, -180.0f, 180.0f);
+			//ImGui::SliderAngle("RotateZ", &transform.rotate.z, -180.0f, 180.0f);
+			//ImGui::SliderFloat3("Translate", &transform.translate.x, -5.0f, 5.0f);
 
-			/*ImGui::ColorEdit4("Color", &(*materialData).x);*/
-			ImGui::Text("useMonstarBall");
-			ImGui::Checkbox("useMonstarBall", &useMonstarBall);
-			ImGui::Text("LIgthng");
-			ImGui::SliderFloat("x", &directionalLightData->direction.x, -10.0f,
-				10.0f);
-			ImGui::SliderFloat("y", &directionalLightData->direction.y, -10.0f,
-				10.0f);
-			ImGui::SliderFloat("z", &directionalLightData->direction.z, -10.0f,
-				10.0f);
-			ImGui::Text("UVTransform");
-			ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f,
-				-10.0f, 10.0f);
-			ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f,
-				10.0f);
-			ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
+			///*ImGui::ColorEdit4("Color", &(*materialData).x);*/
+			//ImGui::Text("useMonstarBall");
+			//ImGui::Checkbox("useMonstarBall", &useMonstarBall);
+			//ImGui::Text("LIgthng");
+			//ImGui::SliderFloat("x", &directionalLightData->direction.x, -10.0f,
+			//	10.0f);
+			//ImGui::SliderFloat("y", &directionalLightData->direction.y, -10.0f,
+			//	10.0f);
+			//ImGui::SliderFloat("z", &directionalLightData->direction.z, -10.0f,
+			//	10.0f);
+			//ImGui::Text("UVTransform");
+			//ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f,
+			//	-10.0f, 10.0f);
+			//ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f,
+			//	10.0f);
+			//ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
 
-			ImGui::ColorEdit4("Color", &materialData->color.x);
+			//ImGui::ColorEdit4("Color", &materialData->color.x);
 
 
-			
+
 			/*  ImGui::ColorEdit4("Color", &blendDesc.RenderTarget->BlendOp);*/
 			  // 修正: ImGui::ColorEdit4 の引数に適切な型を渡すために、D3D12_BLEND_OP を一時的に float[4] に変換します。
 
@@ -2046,7 +2111,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
-			// マテリアルCbufferの場所を設定05_03変更
+			// マテリアルBufferの場所を設定05_03変更
 			commandList->SetGraphicsRootConstantBufferView(
 				0, materialResource
 				->GetGPUVirtualAddress()); // ここでmaterialResource使え
@@ -2057,7 +2122,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				//instancing用のDataを読むためにStructuredBufferのSRVを設定する
 			commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
 
-			// 平行光源用のCbufferの場所を設定05_03
+			// 平行光源用のBufferの場所を設定05_03
 			commandList->SetGraphicsRootConstantBufferView(
 				3, directionalLightResource->GetGPUVirtualAddress());
 
@@ -2082,7 +2147,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 
-			// UvChecker // マテリアルCbufferの場所を設定05_03変更これ書くとUvChackerがちゃんとする
+			// UvChecker // マテリアルBufferの場所を設定05_03変更これ書くとUvCheckerがちゃんとする
 			commandList->SetGraphicsRootConstantBufferView(
 				0, materialResourceSprite
 				->GetGPUVirtualAddress()); // ここでmaterialResource使え
@@ -2094,16 +2159,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 
-			// IBVを設定
+				// IBVを設定
 			commandList->IASetIndexBuffer(&indexBufferViewSprite);
 
 			// spriteの描画04_00
-			commandList->IASetVertexBuffers(0, 1, & vertexBufferView);
+			//commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 			// 描画
 
 
 			//描画
-			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
+			//commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
+
+			//  1. カメラ座標を毎フレーム更新 (ここに追加！) 
+			cameraData->worldPosition = cameraTransform.translate;
+
+			// -----------------------------------------------------
+			//  球の描画コマンド (ここからコピー) 
+			// -----------------------------------------------------
+			// 1. 球の頂点データをGPUにセットする
+			commandList->IASetVertexBuffers(0, 1, &sphereVBV);
+
+			// 2. マテリアルや変換行列は、とりあえずさっきの続き（そのまま）を使う
+			// ※もし位置を変えたい場合は、ここでwvpDataなどを書き換える必要がありますが、
+			//   まずは表示確認のため、今の設定（中心座標など）で描画します。
+
+			// 3. 球を描画！ (頂点の数は kSphereVertexCount 個)
+			commandList->DrawInstanced(kSphereVertexCount, 1, 0, 0);
+			// -----------------------------------------------------
+			//  球の描画コマンド (ここまで) 
 
 
 
@@ -2223,7 +2306,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	instancingResource->Unmap(0, nullptr);
 	instancingResource->Release();
 
-
+	sphereVertexResource->Release();
 
 
 
