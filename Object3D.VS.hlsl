@@ -7,7 +7,6 @@ struct TransformationMatrix
 };
 ConstantBuffer<TransformationMatrix> gTransformationMatrix : register(b0);
 
-
 struct VertexShaderInput
 {
     float32_t4 position : POSITION0;
@@ -18,12 +17,17 @@ struct VertexShaderInput
 VertexShaderOutput main(VertexShaderInput input)
 {
     VertexShaderOutput output;
-    output.position = mul(input.position,gTransformationMatrix.WVP);
+    // 座標変換 (WVP)
+    output.position = mul(input.position, gTransformationMatrix.WVP);
+    
+    // UV座標
     output.texcoord = input.texcoord;
+    
+    // 法線の変換 (World行列のみを使う)
     output.normal = normalize(mul(input.normal, (float32_t3x3) gTransformationMatrix.World));
+    
+    // ★追加: ワールド座標の計算 (World行列を掛ける)
+    output.worldPosition = mul(input.position, gTransformationMatrix.World).xyz;
+
     return output;
 }
-
-
-
-

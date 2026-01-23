@@ -243,3 +243,11 @@ Matrix4x4 MatrixMath::MakeIdentity4x4() {
 	return result;
 }
 
+Vector3 MatrixMath::Normalize(const Vector3& v) {
+	float length = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+	if (length != 0.0f) {
+		return { v.x / length, v.y / length, v.z / length };
+	}
+	return v;
+}
+
