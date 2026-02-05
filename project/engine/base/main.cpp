@@ -21,8 +21,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // --- テクスチャ読み込み（ここで一括管理！） ---
     // LoadTextureはテクスチャハンドル（番号）を返す
-    uint32_t textureHandleMonster = spriteCommon->LoadTexture("Resources/monsterBall.png");
-    uint32_t textureHandleTitle = spriteCommon->LoadTexture("Resources/title.png");
+    uint32_t textureHandleMonster = spriteCommon->LoadTexture("Resources/uvChecker.png");
+    uint32_t textureHandleTitle = spriteCommon->LoadTexture("Resources/uvChecker.png");
 
     // --- スプライト生成 ---
     // 1つ目：モンスターボール（そのまま表示）

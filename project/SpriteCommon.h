@@ -25,7 +25,7 @@ public:
     D3D12_GPU_DESCRIPTOR_HANDLE GetSrvHandleGPU(uint32_t textureIndex);
 
     // 指定番号のテクスチャ情報（幅・高さなど）を取得
-    const D3D12_RESOURCE_DESC& GetTextureResourceDesc(uint32_t textureIndex);
+    D3D12_RESOURCE_DESC GetTextureResourceDesc(uint32_t textureIndex);
 
 
 private:

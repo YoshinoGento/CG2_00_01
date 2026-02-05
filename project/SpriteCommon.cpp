@@ -82,7 +82,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE SpriteCommon::GetSrvHandleGPU(uint32_t textureIndex)
     return dxCommon_->GetSRVGPUDescriptorHandle(textureIndex);
 }
 
-const D3D12_RESOURCE_DESC& SpriteCommon::GetTextureResourceDesc(uint32_t textureIndex) {
+D3D12_RESOURCE_DESC SpriteCommon::GetTextureResourceDesc(uint32_t textureIndex) {
     assert(textureIndex < textureResources_.size());
     return textureResources_[textureIndex]->GetDesc();
 }
@@ -148,9 +148,11 @@ void SpriteCommon::CreateRootSignature() {
 void SpriteCommon::CreateGraphicsPipelineState() {
     ID3D12Device* device = dxCommon_->GetDevice();
 
-    Microsoft::WRL::ComPtr<IDxcBlob> vertexShaderBlob = dxCommon_->CompileShader(L"Resources/shaders/Sprite.VS.hlsl", L"vs_6_0");
+    // ★ シェーダーのコンパイル (Sprite2D用)
+    Microsoft::WRL::ComPtr<IDxcBlob> vertexShaderBlob = dxCommon_->CompileShader(L"resources/shader/Sprite2D.VS.hlsl", L"vs_6_0");
     assert(vertexShaderBlob != nullptr);
-    Microsoft::WRL::ComPtr<IDxcBlob> pixelShaderBlob = dxCommon_->CompileShader(L"Resources/shaders/Sprite.PS.hlsl", L"ps_6_0");
+
+    Microsoft::WRL::ComPtr<IDxcBlob> pixelShaderBlob = dxCommon_->CompileShader(L"resources/shader/Sprite2D.PS.hlsl", L"ps_6_0");
     assert(pixelShaderBlob != nullptr);
 
     // InputLayout
@@ -194,7 +196,10 @@ void SpriteCommon::CreateGraphicsPipelineState() {
     // DepthStencilState
     D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};
     depthStencilDesc.DepthEnable = false;
+    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+    depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 
+    // PSO生成
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
     psoDesc.pRootSignature = rootSignature_.Get();
     psoDesc.InputLayout = inputLayoutDesc;
@@ -205,7 +210,7 @@ void SpriteCommon::CreateGraphicsPipelineState() {
     psoDesc.DepthStencilState = depthStencilDesc;
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.SampleDesc.Count = 1;
     psoDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
