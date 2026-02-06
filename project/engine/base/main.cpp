@@ -1,69 +1,94 @@
-#include <Windows.h>
 #include "WinApp.h"
 #include "DirectXCommon.h"
-#include "Input.h"
 #include "SpriteCommon.h"
 #include "Sprite.h"
+#include "Object3dCommon.h" // ★追加
+#include "Object3d.h"       // ★追加
+#include "Input.h"
+#include <memory>
 
-// ImGuiなど...
-
+// Windowsアプリのエントリーポイント
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
-    WinApp* winApp = new WinApp();
+
+    // ========================================================================
+    // 1. 基盤システムの初期化
+    // ========================================================================
+
+    std::unique_ptr<WinApp> winApp = std::make_unique<WinApp>();
     winApp->Initialize();
-    DirectXCommon* dxCommon = new DirectXCommon();
-    dxCommon->Initialize(winApp);
-    Input* input = new Input();
-    input->Initialize(winApp);
 
-    // --- SpriteCommon 初期化 ---
-    SpriteCommon* spriteCommon = new SpriteCommon();
-    spriteCommon->Initialize(dxCommon);
+    std::unique_ptr<DirectXCommon> dxCommon = std::make_unique<DirectXCommon>();
+    dxCommon->Initialize(winApp.get());
 
-    // --- テクスチャ読み込み（ここで一括管理！） ---
-    // LoadTextureはテクスチャハンドル（番号）を返す
-    uint32_t textureHandleMonster = spriteCommon->LoadTexture("Resources/uvChecker.png");
-    uint32_t textureHandleTitle = spriteCommon->LoadTexture("Resources/uvChecker.png");
+    std::unique_ptr<Input> input = std::make_unique<Input>();
+    input->Initialize(winApp.get());
 
-    // --- スプライト生成 ---
-    // 1つ目：モンスターボール（そのまま表示）
-    Sprite* sprite1 = new Sprite();
-    sprite1->Initialize(spriteCommon, textureHandleMonster); // ハンドルを指定して初期化
-    sprite1->SetPosition({ 300.0f, 360.0f }); // 座標指定
+    std::unique_ptr<SpriteCommon> spriteCommon = std::make_unique<SpriteCommon>();
+    spriteCommon->Initialize(dxCommon.get());
 
-    // 2つ目：タイトル画像（一部を切り取り表示）
-    Sprite* sprite2 = new Sprite();
-    sprite2->Initialize(spriteCommon, textureHandleTitle);
-    sprite2->SetPosition({ 800.0f, 360.0f });
-    sprite2->SetTextureRect({ 0.0f, 0.0f }, { 200.0f, 100.0f }); // 左上から200x100だけ切り取る
-    sprite2->SetAnchorPoint({ 0.5f, 0.5f }); // 中心を原点にする
+    // ★ 3Dオブジェクト共通部の初期化
+    std::unique_ptr<Object3dCommon> object3dCommon = std::make_unique<Object3dCommon>();
+    object3dCommon->Initialize(dxCommon.get());
+
+    // ========================================================================
+    // 2. リソース（テクスチャ）の読み込み
+    // ========================================================================
+
+    uint32_t textureHandle = spriteCommon->LoadTexture("Resources/uvChecker.png");
+
+    // ========================================================================
+    // 3. オブジェクトの生成
+    // ========================================================================
+
+    // スプライト生成
+    std::unique_ptr<Sprite> sprite = std::make_unique<Sprite>();
+    sprite->Initialize(spriteCommon.get(), textureHandle);
+    sprite->SetPosition({ 640.0f, 360.0f });
+
+    // ★ 3Dオブジェクト生成
+    std::unique_ptr<Object3d> object3d = std::make_unique<Object3d>();
+    // 1. 初期化（共通部だけ渡す）
+    object3d->Initialize(object3dCommon.get());
+
+    // 2. モデルをセット（これを忘れると描画されません）
+    object3d->SetModel("Triangle");
+
+    // 3. テクスチャをセット（必要な場合）
+    object3d->SetTexture(textureHandle);
+
+    // ========================================================================
+    // 4. メインループ
+    // ========================================================================
 
     while (true) {
-        if (winApp->ProcessMessage()) break;
+        if (winApp->ProcessMessage()) {
+            break;
+        }
+
+        // --- 更新処理 (Update) ---
         input->Update();
-        if (input->PushKey(DIK_ESCAPE)) break;
 
-        // --- 更新 ---
-        sprite1->SetRotation(sprite1->GetRotation() + 0.02f); // クルクル回してみる
-        sprite1->Update();
+        // 3Dオブジェクトの更新 (回転させてみる)
+        object3d->SetRotation({ 0.0f, object3d->GetRotation().y + 0.01f, 0.0f });
+        object3d->Update();
 
-        sprite2->Update();
+        // スプライトの更新
+        sprite->Update();
 
-        // --- 描画 ---
+        // --- 描画処理 (Draw) ---
         dxCommon->PreDraw();
-        spriteCommon->PreDraw(); // 共通設定ON
 
-        sprite1->Draw();
-        sprite2->Draw();
+        // 1. スプライト描画
+        spriteCommon->PreDraw();
+        sprite->Draw();
+
+        // 2. ★ 3Dオブジェクト描画
+        // 共通設定をセットしてから、個別のDrawを呼ぶ
+        object3dCommon->CommonDrawSettings();
+        object3d->Draw();
 
         dxCommon->PostDraw();
     }
-
-    delete sprite1;
-    delete sprite2;
-    delete spriteCommon;
-    delete input;
-    delete dxCommon;
-    delete winApp;
 
     return 0;
 }
