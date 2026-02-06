@@ -1,5 +1,5 @@
 #include "Object3dCommon.h"
-#include "Model.h" // ここでModel.hをインクルード
+#include "Model.h"
 #include "Logger.h"
 #include <cassert>
 
@@ -18,28 +18,34 @@ void Object3dCommon::CommonDrawSettings() {
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
-// ★追加: モデル読み込み
+// モデル読み込み
 void Object3dCommon::LoadModel(const std::string& filename) {
     // 重複読み込み防止
     if (models_.contains(filename)) {
         return;
     }
 
-    // モデル生成と初期化
+    // モデル生成
     std::unique_ptr<Model> model = std::make_unique<Model>();
-    model->Initialize(this);
+
+    // ★ここを修正！
+    // 以前: model->Initialize(this); 
+    // 現在: 第2引数にフォルダ名、第3引数にファイル名を渡します
+    model->Initialize(this, "Resources", filename);
 
     // マップに登録
     models_[filename] = std::move(model);
 }
 
-// ★追加: モデル取得
 Model* Object3dCommon::GetModel(const std::string& filename) {
     if (models_.contains(filename)) {
         return models_[filename].get();
     }
     return nullptr;
 }
+
+// ... 以下、CreateRootSignature と CreateGraphicsPipelineState は変更なし ...
+// (長いので省略しますが、下のコードブロックには含めておきます)
 
 void Object3dCommon::CreateRootSignature() {
     HRESULT hr;

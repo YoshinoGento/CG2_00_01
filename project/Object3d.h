@@ -1,11 +1,11 @@
 #pragma once
 #include "Object3dCommon.h"
-#include "Model.h" // Modelの定義が必要
+#include "Model.h"
 #include "Matrix.h"
 
 class Object3d {
 public:
-    // 初期化 (共通部を受け取る)
+    // 初期化
     void Initialize(Object3dCommon* object3dCommon);
 
     // 更新
@@ -14,7 +14,7 @@ public:
     // 描画
     void Draw();
 
-    // ★追加: モデルセット
+    // モデルセット
     void SetModel(const std::string& filename);
 
     // ゲッター・セッター
@@ -22,18 +22,21 @@ public:
     const Vector3& GetRotation() const { return transform_.rotate; }
     const Vector3& GetScale() const { return transform_.scale; }
 
+    // ★追加: 現在の色を取得する関数
+    const Vector4& GetColor() const { return materialData_->color; }
+
     void SetPosition(const Vector3& position) { transform_.translate = position; }
     void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
     void SetScale(const Vector3& scale) { transform_.scale = scale; }
+
+    // ★追加: 色をセットする関数 (ここでアルファ値を設定できます)
+    void SetColor(const Vector4& color) { materialData_->color = color; }
 
     void SetTexture(uint32_t textureHandle) { textureHandle_ = textureHandle; }
 
 private:
     Object3dCommon* object3dCommon_ = nullptr;
-
-    // ★追加: モデルデータへのポインタ
     Model* model_ = nullptr;
-
     uint32_t textureHandle_ = 0;
 
     struct Material {
@@ -56,7 +59,6 @@ private:
 
     Transform transform_ = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
 
-    // バッファリソース
     Microsoft::WRL::ComPtr<ID3D12Resource> materialResource_;
     Material* materialData_ = nullptr;
 

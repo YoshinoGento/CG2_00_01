@@ -2,8 +2,8 @@
 #include "DirectXCommon.h"
 #include "SpriteCommon.h"
 #include "Sprite.h"
-#include "Object3dCommon.h" // ★追加
-#include "Object3d.h"       // ★追加
+#include "Object3dCommon.h"
+#include "Object3d.h"
 #include "Input.h"
 #include <memory>
 
@@ -26,15 +26,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     std::unique_ptr<SpriteCommon> spriteCommon = std::make_unique<SpriteCommon>();
     spriteCommon->Initialize(dxCommon.get());
 
-    // ★ 3Dオブジェクト共通部の初期化
+    // 3Dオブジェクト共通部の初期化
     std::unique_ptr<Object3dCommon> object3dCommon = std::make_unique<Object3dCommon>();
     object3dCommon->Initialize(dxCommon.get());
 
     // ========================================================================
-    // 2. リソース（テクスチャ）の読み込み
+    // 2. リソース（テクスチャ・モデル）の読み込み
     // ========================================================================
 
     uint32_t textureHandle = spriteCommon->LoadTexture("Resources/uvChecker.png");
+
+    // モデル読み込み
+    object3dCommon->LoadModel("plane.obj");
 
     // ========================================================================
     // 3. オブジェクトの生成
@@ -45,16 +48,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     sprite->Initialize(spriteCommon.get(), textureHandle);
     sprite->SetPosition({ 640.0f, 360.0f });
 
-    // ★ 3Dオブジェクト生成
+    // 3Dオブジェクト生成
     std::unique_ptr<Object3d> object3d = std::make_unique<Object3d>();
-    // 1. 初期化（共通部だけ渡す）
     object3d->Initialize(object3dCommon.get());
-
-    // 2. モデルをセット（これを忘れると描画されません）
-    object3d->SetModel("Triangle");
-
-    // 3. テクスチャをセット（必要な場合）
+    object3d->SetModel("plane.obj");
     object3d->SetTexture(textureHandle);
+
+    object3d->SetScale({ 1.0f, 1.0f, 1.0f });
+
+    // ★ 修正1: 遠ざける (Z = 2.0f -> 10.0f くらいにしてみる)
+    object3d->SetPosition({ 0.0f, 0.0f, 10.0f });
+
+    // ★ 修正2: アルファ値を上げて透明度を下げる (不透明にする)
+    // RGBA = (赤, 緑, 青, アルファ)
+    // アルファ値: 0.0(透明) ～ 1.0(不透明)
+    // 「透明度を下げる」ということは「不透明にする」ということなので、1.0f に設定します。
+    // もし半透明にしたい場合は 0.5f などにしてください。
+    object3d->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 
     // ========================================================================
     // 4. メインループ
@@ -68,8 +78,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         // --- 更新処理 (Update) ---
         input->Update();
 
-        // 3Dオブジェクトの更新 (回転させてみる)
-        object3d->SetRotation({ 0.0f, object3d->GetRotation().y + 0.01f, 0.0f });
+        // 3Dオブジェクトの更新 (回転)
+        object3d->SetRotation({ 0.0f, object3d->GetRotation().y + 0.03f, 0.0f });
         object3d->Update();
 
         // スプライトの更新
@@ -82,8 +92,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         spriteCommon->PreDraw();
         sprite->Draw();
 
-        // 2. ★ 3Dオブジェクト描画
-        // 共通設定をセットしてから、個別のDrawを呼ぶ
+        // 2. 3Dオブジェクト描画
         object3dCommon->CommonDrawSettings();
         object3d->Draw();
 
