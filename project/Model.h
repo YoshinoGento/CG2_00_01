@@ -1,34 +1,43 @@
 #pragma once
-#include "Object3dCommon.h"
-#include "Matrix.h" // Vector4などの定義が必要
+#include "DirectXCommon.h" // DirectXCommonを使えるようにする
+#include "Matrix.h"
 #include <string>
 #include <vector>
+#include <wrl.h>
+#include <d3d12.h>
+
+class ModelCommon; // 前方宣言
 
 class Model {
 public:
-    // 初期化 (ディレクトリパスとファイル名を受け取るように変更)
-    void Initialize(Object3dCommon* object3dCommon, const std::string& directoryPath, const std::string& filename);
+    // 初期化: Object3dCommon ではなく ModelCommon を受け取るように変更
+    void Initialize(ModelCommon* modelCommon, const std::string& directoryPath, const std::string& filename);
 
-    // 描画
-    void Draw(Object3dCommon* object3dCommon);
+    // 描画: 描画には DirectXCommon さえあればOK
+    void Draw(DirectXCommon* dxCommon);
+
+    const std::string& GetTextureFilePath() const { return materialData_.textureFilePath; }
 
 private:
-    // OBJファイル読み込み関数
     void LoadObjFile(const std::string& directoryPath, const std::string& filename);
+    void LoadMaterialTemplateFile(const std::string& directoryPath, const std::string& filename);
 
-    Object3dCommon* object3dCommon_ = nullptr;
+    // ModelCommonへのポインタを持つ
+    ModelCommon* modelCommon_ = nullptr;
 
-    // 頂点データ構造体
     struct VertexData {
         Vector4 position;
         Vector2 texcoord;
         Vector3 normal;
     };
 
-    // バッファリソース
+    struct MaterialData {
+        std::string textureFilePath;
+    };
+
     Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource_;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView_{};
-
-    // 頂点データ（読み込んだデータをここに貯める）
     std::vector<VertexData> vertices_;
+
+    MaterialData materialData_;
 };

@@ -1,5 +1,4 @@
 #include "Object3dCommon.h"
-#include "Model.h"
 #include "Logger.h"
 #include <cassert>
 
@@ -18,34 +17,8 @@ void Object3dCommon::CommonDrawSettings() {
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
-// モデル読み込み
-void Object3dCommon::LoadModel(const std::string& filename) {
-    // 重複読み込み防止
-    if (models_.contains(filename)) {
-        return;
-    }
-
-    // モデル生成
-    std::unique_ptr<Model> model = std::make_unique<Model>();
-
-    // ★ここを修正！
-    // 以前: model->Initialize(this); 
-    // 現在: 第2引数にフォルダ名、第3引数にファイル名を渡します
-    model->Initialize(this, "Resources", filename);
-
-    // マップに登録
-    models_[filename] = std::move(model);
-}
-
-Model* Object3dCommon::GetModel(const std::string& filename) {
-    if (models_.contains(filename)) {
-        return models_[filename].get();
-    }
-    return nullptr;
-}
-
-// ... 以下、CreateRootSignature と CreateGraphicsPipelineState は変更なし ...
-// (長いので省略しますが、下のコードブロックには含めておきます)
+// ★重要: ここにあった LoadModel や GetModel の実装はすべて削除しました！
+// それらは ModelCommon.cpp に移動済みです。
 
 void Object3dCommon::CreateRootSignature() {
     HRESULT hr;
@@ -54,23 +27,27 @@ void Object3dCommon::CreateRootSignature() {
     // ルートパラメータ作成
     D3D12_ROOT_PARAMETER rootParameters[4] = {};
 
+    // 0: Material
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[0].Descriptor.ShaderRegister = 0; // b0
+    rootParameters[0].Descriptor.ShaderRegister = 0;
     rootParameters[0].Descriptor.RegisterSpace = 0;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+    // 1: Transform
     rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[1].Descriptor.ShaderRegister = 0; // b0
+    rootParameters[1].Descriptor.ShaderRegister = 0;
     rootParameters[1].Descriptor.RegisterSpace = 0;
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+    // 2: Light
     rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[2].Descriptor.ShaderRegister = 1; // b1
+    rootParameters[2].Descriptor.ShaderRegister = 1;
     rootParameters[2].Descriptor.RegisterSpace = 0;
     rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+    // 3: Texture
     D3D12_DESCRIPTOR_RANGE descriptorRange[1] = {};
-    descriptorRange[0].BaseShaderRegister = 0; // t0
+    descriptorRange[0].BaseShaderRegister = 0;
     descriptorRange[0].NumDescriptors = 1;
     descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -80,6 +57,7 @@ void Object3dCommon::CreateRootSignature() {
     rootParameters[3].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);
     rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+    // サンプラー
     D3D12_STATIC_SAMPLER_DESC staticSamplers[1] = {};
     staticSamplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
     staticSamplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;

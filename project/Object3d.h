@@ -1,35 +1,25 @@
 #pragma once
 #include "Object3dCommon.h"
-#include "Model.h"
+#include "Model.h" 
 #include "Matrix.h"
 
 class Object3d {
 public:
-    // 初期化
     void Initialize(Object3dCommon* object3dCommon);
-
-    // 更新
     void Update();
-
-    // 描画
     void Draw();
 
-    // モデルセット
-    void SetModel(const std::string& filename);
+    // ★変更: 文字列ではなく Modelのポインタを直接セットする
+    void SetModel(Model* model);
 
-    // ゲッター・セッター
     const Vector3& GetPosition() const { return transform_.translate; }
     const Vector3& GetRotation() const { return transform_.rotate; }
     const Vector3& GetScale() const { return transform_.scale; }
-
-    // ★追加: 現在の色を取得する関数
     const Vector4& GetColor() const { return materialData_->color; }
 
     void SetPosition(const Vector3& position) { transform_.translate = position; }
     void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
     void SetScale(const Vector3& scale) { transform_.scale = scale; }
-
-    // ★追加: 色をセットする関数 (ここでアルファ値を設定できます)
     void SetColor(const Vector4& color) { materialData_->color = color; }
 
     void SetTexture(uint32_t textureHandle) { textureHandle_ = textureHandle; }
