@@ -1,5 +1,6 @@
 #include "WinApp.h"
 #include "externals/imgui/imgui.h"
+#include "Audio.h"
 #pragma comment(lib, "winmm.lib")
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd,
@@ -114,6 +115,7 @@ void WinApp::Finalize() {
 	CloseWindow(hwnd);
 	CoUninitialize();
 }
+
 
 bool WinApp::ProcessMessage() {
 	MSG msg{};

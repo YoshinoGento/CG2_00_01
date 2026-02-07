@@ -5,7 +5,7 @@
 #include <array>
 #include <d3d12.h>
 #include <dxgi1_6.h>
-#include <dxcapi.h>
+#include <dxcapi.h> // シェーダーコンパイラ用
 #include <wrl.h>
 #include <string>
 #include <chrono>
@@ -29,46 +29,55 @@ public:
     ID3D12Device* GetDevice() const { return device_.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() const { return commandList_.Get(); }
 
-    // ★★★ 復活：テクスチャ読み込み関数 ★★★
+    // ★追加: SRVの空き番号を確保する関数
+    uint32_t AllocateSRVIndex();
+
+    // テクスチャ読み込み関数
     DirectX::ScratchImage LoadTexture(const std::string& filePath);
+
+    // ★追加: シェーダーコンパイル関数
+    Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const std::wstring& profile);
 
     // ===== ヘルパー関数 =====
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeInBytes);
+
+    // テクスチャリソースの作成
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
+    // テクスチャデータの転送
     Microsoft::WRL::ComPtr<ID3D12Resource> UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
-    Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const std::wstring& profile);
+
+    // デスクリプタヒープ生成関数
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT numDescriptors, bool shaderVisible);
+
+    // 最大SRV数
+    static const uint32_t kMaxSRVCount = 256;
 
 private:
     void InitializeFixFPS();
+    void UpdateFixFPS();
+
     void InitializeDevice();
     void InitializeCommand();
     void InitializeSwapChain(WinApp* winApp);
-    void InitializeDescriptorHeaps();
     void InitializeRenderTargetView();
-    void InitializeDepthBuffer();
     void InitializeDepthStencilView();
-    void InitializeViewport();
-    void InitializeScissorRect();
-    void InitializeDXCCompiler();
-    void InitializeImGui();
     void InitializeFence();
+
+    // ★追加: DXCコンパイラの初期化
+    void InitializeDXCCompiler();
 
     WinApp* winApp_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12Device> device_;
     Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory_;
 
-    // コマンドキュー（これがないとGPUが動きません）
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue_;
-
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator_;
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList_;
 
-    // スワップチェーン & バックバッファ
     Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain_;
     std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> backBuffers_;
 
-    // RTV / DSV
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap_;
     UINT rtvDescriptorSize_ = 0;
 
@@ -80,16 +89,13 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap_;
     UINT srvDescriptorSize_ = 0;
 
-    // フェンス
-    Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
-    UINT64 fenceVal_ = 0;
-    HANDLE fenceEvent_ = nullptr;
+    // 現在使用しているSRVインデックス
+    uint32_t currentSRVIndex_ = 0;
 
-    // ビューポート / シザー
-    D3D12_VIEWPORT viewport_{};
-    D3D12_RECT     scissorRect_{};
+    // FPS固定用変数
+    std::chrono::steady_clock::time_point reference_;
 
-    // DXC
+    // ★追加: DXC関連
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
     Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
     Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;

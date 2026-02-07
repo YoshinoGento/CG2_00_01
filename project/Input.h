@@ -33,7 +33,7 @@ public:
 	/// </summary>
 	/// <param name="keyNumber">キー番号</param>
 	/// <returns>トリガーか</returns>
-	bool TriggeerKey(BYTE keyNumber); 
+	bool TriggerKey(BYTE keyNumber); 
 
 private:
 	//キーボードデバイス

@@ -58,7 +58,7 @@ bool Input::PushKey(BYTE keyNumber) {
     return false;
 }
 
-bool Input::TriggeerKey(BYTE keyNumber) {
+bool Input::TriggerKey(BYTE keyNumber) {
 
     //指定キーをおしていればtrueを返す
     if (key[keyNumber] && !keyPre[keyNumber]) {
