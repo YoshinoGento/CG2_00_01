@@ -2,9 +2,12 @@
 #include "Logger.h"
 #include <cassert>
 
-void Object3dCommon::Initialize(DirectXCommon* dxCommon) {
+// ★修正: SrvManagerを受け取る
+void Object3dCommon::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
     assert(dxCommon);
+    assert(srvManager);
     dxCommon_ = dxCommon;
+    srvManager_ = srvManager;
 
     CreateRootSignature();
     CreateGraphicsPipelineState();
@@ -15,10 +18,12 @@ void Object3dCommon::CommonDrawSettings() {
     commandList->SetGraphicsRootSignature(rootSignature_.Get());
     commandList->SetPipelineState(pipelineState_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-}
 
-// ★重要: ここにあった LoadModel や GetModel の実装はすべて削除しました！
-// それらは ModelCommon.cpp に移動済みです。
+    // ★削除: ここでの SetDescriptorHeaps は不要です！
+    // main.cpp で設定した SrvManager のヒープを使います。
+    // ID3D12DescriptorHeap* ppHeaps[] = { srvManager_->GetSrvDescriptorHeap() };
+    // commandList->SetDescriptorHeaps(1, ppHeaps);
+}
 
 void Object3dCommon::CreateRootSignature() {
     HRESULT hr;
@@ -45,7 +50,7 @@ void Object3dCommon::CreateRootSignature() {
     rootParameters[2].Descriptor.RegisterSpace = 0;
     rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 3: Texture
+    // 3: Texture (DescriptorTable)
     D3D12_DESCRIPTOR_RANGE descriptorRange[1] = {};
     descriptorRange[0].BaseShaderRegister = 0;
     descriptorRange[0].NumDescriptors = 1;
@@ -57,7 +62,6 @@ void Object3dCommon::CreateRootSignature() {
     rootParameters[3].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);
     rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // サンプラー
     D3D12_STATIC_SAMPLER_DESC staticSamplers[1] = {};
     staticSamplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
     staticSamplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;

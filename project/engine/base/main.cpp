@@ -9,9 +9,9 @@
 #include "Input.h"
 #include "Audio.h"
 #include "Camera.h"
+#include "SrvManager.h"
 #include <memory>
 
-// ImGuiのヘッダー
 #include "externals/imgui/imgui.h"
 #include "externals/imgui/imgui_impl_dx12.h"
 #include "externals/imgui/imgui_impl_win32.h"
@@ -24,6 +24,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	std::unique_ptr<DirectXCommon> dxCommon = std::make_unique<DirectXCommon>();
 	dxCommon->Initialize(winApp.get());
 
+	std::unique_ptr<SrvManager> srvManager = std::make_unique<SrvManager>();
+	srvManager->Initialize(dxCommon.get());
+
 	std::unique_ptr<Input> input = std::make_unique<Input>();
 	input->Initialize(winApp.get());
 
@@ -31,61 +34,50 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	audio->Initialize();
 
 	std::unique_ptr<SpriteCommon> spriteCommon = std::make_unique<SpriteCommon>();
-	spriteCommon->Initialize(dxCommon.get());
+	spriteCommon->Initialize(dxCommon.get(), srvManager.get());
 
 	std::unique_ptr<Object3dCommon> object3dCommon = std::make_unique<Object3dCommon>();
-	object3dCommon->Initialize(dxCommon.get());
+	object3dCommon->Initialize(dxCommon.get(), srvManager.get());
 
 	std::unique_ptr<ModelManager> modelManager = std::make_unique<ModelManager>();
-	modelManager->Initialize(dxCommon.get());
+	modelManager->Initialize(dxCommon.get(), srvManager.get());
 
-	// ========================================================================
-	// ★★★ ImGuiの初期化 (ここを追加！) ★★★
-	// ========================================================================
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGui::StyleColorsDark();
 	ImGui_ImplWin32_Init(winApp->GetHwnd());
 
-	// ImGuiが使用するSRVヒープの場所を確保する
-	// (SpriteCommonなどで使っている AllocateSRVIndex 関数を利用)
-	uint32_t imguiSrvIndex = dxCommon->AllocateSRVIndex();
-
+	uint32_t imguiSrvIndex = srvManager->Allocate();
 	ImGui_ImplDX12_Init(
 		dxCommon->GetDevice(),
-		2, // バックバッファ数 (通常は2)
-		DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, // 画面フォーマット (SRGBで設定)
-		dxCommon->GetSrvHeap(),
-		dxCommon->GetSRVCPUDescriptorHandle(imguiSrvIndex),
-		dxCommon->GetSRVGPUDescriptorHandle(imguiSrvIndex)
+		2,
+		DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+		srvManager->GetSrvDescriptorHeap(),
+		srvManager->GetCPUDescriptorHandle(imguiSrvIndex),
+		srvManager->GetGPUDescriptorHandle(imguiSrvIndex)
 	);
 
-	// ========================================================================
-
-	// カメラの生成
 	std::unique_ptr<Camera> camera = std::make_unique<Camera>();
 	Vector3 cameraTranslate = { 0.0f, 2.0f, -10.0f };
 	Vector3 cameraRotate = { 0.1f, 0.0f, 0.0f };
 	camera->SetTranslate(cameraTranslate);
 	camera->SetRotate(cameraRotate);
 
-	// リソース読み込み
-	std::string modelFilename1 = "multiMaterial.obj";
-	modelManager->LoadModel(modelFilename1);
+	// モデル読み込み
+	std::string modelFile1 = "axis.obj";
+	std::string modelFile2 = "plane.obj";
+	modelManager->LoadModel(modelFile1);
+	modelManager->LoadModel(modelFile2);
 
-	std::string modelFilename2 = "axis.obj";
-	modelManager->LoadModel(modelFilename2);
-
-	Model* model1 = modelManager->GetModel(modelFilename1);
-	Model* model2 = modelManager->GetModel(modelFilename2);
+	Model* model1 = modelManager->GetModel(modelFile1);
+	Model* model2 = modelManager->GetModel(modelFile2);
 
 	if (model1) model1->LoadTextures(spriteCommon.get());
 	if (model2) model2->LoadTextures(spriteCommon.get());
 
-	// オブジェクト生成
+	uint32_t uvCheckerHandle = spriteCommon->LoadTexture("Resources/uvChecker.png");
 	std::unique_ptr<Sprite> sprite = std::make_unique<Sprite>();
-	uint32_t spriteTex = spriteCommon->LoadTexture("Resources/uvChecker.png");
-	sprite->Initialize(spriteCommon.get(), spriteTex);
+	sprite->Initialize(spriteCommon.get(), uvCheckerHandle);
 	sprite->SetPosition({ 640.0f, 360.0f });
 
 	std::unique_ptr<Object3d> object3d1 = std::make_unique<Object3d>();
@@ -100,30 +92,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	object3d2->SetScale({ 1.0f, 1.0f, 1.0f });
 	object3d2->SetPosition({ 2.0f, 0.0f, 0.0f });
 
+	// ★ BGM再生
+	// Resourcesフォルダに bgm.wav を置いてください
+	uint32_t bgmHandle = audio->LoadWave("bgm.wav");
+	audio->PlayWave(bgmHandle, true, 0.1f); // ループ再生(true), 音量(0.1)
+
 	while (true) {
 		if (winApp->ProcessMessage()) {
 			break;
 		}
 
-		// ImGuiフレーム開始
 		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
 		input->Update();
 
-		// ImGuiのウィンドウ作成とカメラ操作
-		ImGui::Begin("Camera Controller");
-		ImGui::DragFloat3("Translation", &cameraTranslate.x, 0.1f);
-		ImGui::DragFloat3("Rotation", &cameraRotate.x, 0.01f);
+		// ★ キー操作でカメラ移動
+		float kCameraSpeed = 0.1f;
+		if (input->PushKey(DIK_LEFT)) { cameraTranslate.x -= kCameraSpeed; }
+		if (input->PushKey(DIK_RIGHT)) { cameraTranslate.x += kCameraSpeed; }
+		if (input->PushKey(DIK_UP)) { cameraTranslate.z += kCameraSpeed; }
+		if (input->PushKey(DIK_DOWN)) { cameraTranslate.z -= kCameraSpeed; }
+
+		ImGui::Begin("Camera Debug");
+		ImGui::DragFloat3("Translate", &cameraTranslate.x, 0.1f);
+		ImGui::DragFloat3("Rotate", &cameraRotate.x, 0.01f);
 		ImGui::End();
 
-		// カメラに値を反映
 		camera->SetTranslate(cameraTranslate);
 		camera->SetRotate(cameraRotate);
 		camera->Update();
 
-		// オブジェクトの更新
 		object3d1->SetRotation({ 0.0f, object3d1->GetRotation().y + 0.03f, 0.0f });
 		object3d1->Update(camera.get());
 
@@ -132,30 +132,26 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		sprite->Update();
 
-		// 描画開始
 		dxCommon->PreDraw();
 
-		// スプライト描画
+		srvManager->PreDraw();
+
 		spriteCommon->PreDraw();
 		sprite->Draw();
 
-		// 3D描画
 		object3dCommon->CommonDrawSettings();
 		object3d1->Draw();
 		object3d2->Draw();
 
-		// ImGuiの描画
 		ImGui::Render();
 		ID3D12GraphicsCommandList* commandList = dxCommon->GetCommandList();
-		ID3D12DescriptorHeap* ppHeaps[] = { dxCommon->GetSrvHeap() };
+		ID3D12DescriptorHeap* ppHeaps[] = { srvManager->GetSrvDescriptorHeap() };
 		commandList->SetDescriptorHeaps(1, ppHeaps);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
 
-		// 描画終了
 		dxCommon->PostDraw();
 	}
 
-	// ★★★ ImGuiの終了処理 (ここも追加！) ★★★
 	ImGui_ImplDX12_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();

@@ -5,7 +5,7 @@
 #include <array>
 #include <d3d12.h>
 #include <dxgi1_6.h>
-#include <dxcapi.h> // シェーダーコンパイラ用
+#include <dxcapi.h>
 #include <wrl.h>
 #include <string>
 #include <chrono>
@@ -14,42 +14,42 @@
 
 class DirectXCommon {
 public:
-    // 初期化 / 描画前後
+    // Initialize / Pre-draw / Post-draw
     void Initialize(WinApp* winApp);
     void PreDraw();
     void PostDraw();
 
-    // SRV ハンドル取得
+    // Get SRV Handle
     D3D12_CPU_DESCRIPTOR_HANDLE GetSRVCPUDescriptorHandle(uint32_t index) const;
     D3D12_GPU_DESCRIPTOR_HANDLE GetSRVGPUDescriptorHandle(uint32_t index) const;
 
-    // SRVヒープの取得
+    // Get SRV Heap
     ID3D12DescriptorHeap* GetSrvHeap() const { return srvDescriptorHeap_.Get(); }
 
     ID3D12Device* GetDevice() const { return device_.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() const { return commandList_.Get(); }
 
-    // ★追加: SRVの空き番号を確保する関数
+    // Allocate SRV index
     uint32_t AllocateSRVIndex();
 
-    // テクスチャ読み込み関数
+    // Load Texture
     DirectX::ScratchImage LoadTexture(const std::string& filePath);
 
-    // ★追加: シェーダーコンパイル関数
+    // Compile Shader
     Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const std::wstring& profile);
 
-    // ===== ヘルパー関数 =====
+    // Helper functions
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeInBytes);
 
-    // テクスチャリソースの作成
+    // Create texture resource
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
-    // テクスチャデータの転送
+    // Upload texture data
     Microsoft::WRL::ComPtr<ID3D12Resource> UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
 
-    // デスクリプタヒープ生成関数
+    // Create Descriptor Heap
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT numDescriptors, bool shaderVisible);
 
-    // 最大SRV数
+    // Max SRV count
     static const uint32_t kMaxSRVCount = 256;
 
 private:
@@ -63,7 +63,7 @@ private:
     void InitializeDepthStencilView();
     void InitializeFence();
 
-    // ★追加: DXCコンパイラの初期化
+    // Initialize DXC
     void InitializeDXCCompiler();
 
     WinApp* winApp_ = nullptr;
@@ -85,17 +85,17 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> depthBuffer_;
     UINT dsvDescriptorSize_ = 0;
 
-    // SRV 用ヒープ
+    // SRV Heap
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap_;
     UINT srvDescriptorSize_ = 0;
 
-    // 現在使用しているSRVインデックス
+    // Current SRV Index
     uint32_t currentSRVIndex_ = 0;
 
-    // FPS固定用変数
+    // For FPS fixing
     std::chrono::steady_clock::time_point reference_;
 
-    // ★追加: DXC関連
+    // DXC components
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
     Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
     Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;

@@ -1,5 +1,5 @@
 #include "DirectXCommon.h"
-#include "Logger.h" // ログ出力用
+#include "Logger.h"
 
 #include <cassert>
 #include <vector>
@@ -12,7 +12,7 @@
 
 using namespace Microsoft::WRL;
 
-// 文字列変換ヘルパー (std::string -> std::wstring)
+// String conversion helper (std::string -> std::wstring)
 std::wstring ConvertString(const std::string& str) {
     if (str.empty()) {
         return std::wstring();
@@ -26,8 +26,7 @@ std::wstring ConvertString(const std::string& str) {
     return result;
 }
 
-// ★追加: 逆変換ヘルパー (std::wstring -> std::string) ログ出力用
-// これを使うことで C4244 警告を回避します
+// String conversion helper (std::wstring -> std::string) for Logger
 std::string ConvertString(const std::wstring& str) {
     if (str.empty()) {
         return std::string();
@@ -52,7 +51,7 @@ void DirectXCommon::Initialize(WinApp* winApp) {
     InitializeRenderTargetView();
     InitializeDepthStencilView();
     InitializeFence();
-    InitializeDXCCompiler(); // ★追加: DXC初期化
+    InitializeDXCCompiler();
 }
 
 void DirectXCommon::InitializeDevice() {
@@ -99,7 +98,6 @@ void DirectXCommon::InitializeCommand() {
     hr = device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator_.Get(), nullptr, IID_PPV_ARGS(&commandList_));
     assert(SUCCEEDED(hr));
 
-    // ★修正: 一時変数を経由してアドレスを取得
     D3D12_COMMAND_QUEUE_DESC queueDesc{};
     hr = device_->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue_));
     assert(SUCCEEDED(hr));
@@ -153,10 +151,9 @@ void DirectXCommon::InitializeDepthStencilView() {
 }
 
 void DirectXCommon::InitializeFence() {
-    // 必要ならここに実装
+    // Implement if needed
 }
 
-// ★追加: DXCコンパイラの初期化
 void DirectXCommon::InitializeDXCCompiler() {
     HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxcUtils_));
     assert(SUCCEEDED(hr));
@@ -166,10 +163,7 @@ void DirectXCommon::InitializeDXCCompiler() {
     assert(SUCCEEDED(hr));
 }
 
-// ★追加: シェーダーコンパイル関数
 Microsoft::WRL::ComPtr<IDxcBlob> DirectXCommon::CompileShader(const std::wstring& filePath, const std::wstring& profile) {
-    // 1. hlslファイルを読む
-    // ★ここを修正: ConvertStringを使って安全にログ出力
     Logger::Log("Compiling Shader: " + ConvertString(filePath));
 
     ComPtr<IDxcBlobEncoding> shaderSource = nullptr;
@@ -181,7 +175,6 @@ Microsoft::WRL::ComPtr<IDxcBlob> DirectXCommon::CompileShader(const std::wstring
     shaderSourceBuffer.Size = shaderSource->GetBufferSize();
     shaderSourceBuffer.Encoding = DXC_CP_UTF8;
 
-    // 2. コンパイルオプション
     LPCWSTR arguments[] = {
         filePath.c_str(),
         L"-E", L"main",
@@ -191,7 +184,6 @@ Microsoft::WRL::ComPtr<IDxcBlob> DirectXCommon::CompileShader(const std::wstring
         L"-Zpr",
     };
 
-    // 3. コンパイル
     ComPtr<IDxcResult> shaderResult = nullptr;
     hr = dxcCompiler_->Compile(
         &shaderSourceBuffer,
@@ -202,7 +194,6 @@ Microsoft::WRL::ComPtr<IDxcBlob> DirectXCommon::CompileShader(const std::wstring
     );
     assert(SUCCEEDED(hr));
 
-    // 4. エラー確認
     ComPtr<IDxcBlobUtf8> shaderError = nullptr;
     shaderResult->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&shaderError), nullptr);
     if (shaderError != nullptr && shaderError->GetStringLength() != 0) {
@@ -210,7 +201,6 @@ Microsoft::WRL::ComPtr<IDxcBlob> DirectXCommon::CompileShader(const std::wstring
         assert(false);
     }
 
-    // 5. バイナリ取得
     ComPtr<IDxcBlob> shaderBlob = nullptr;
     hr = shaderResult->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shaderBlob), nullptr);
     assert(SUCCEEDED(hr));
@@ -392,6 +382,8 @@ Microsoft::WRL::ComPtr<ID3D12Resource> DirectXCommon::CreateTextureResource(cons
     return resource;
 }
 
+// ★修正: コマンドを即時実行して待機するように変更
+// これにより、戻り値の intermediateResource が関数終了後に破棄されても、GPU側でのコピーが完了しているので安全になります。
 Microsoft::WRL::ComPtr<ID3D12Resource> DirectXCommon::UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages) {
     std::vector<D3D12_SUBRESOURCE_DATA> subresources;
     DirectX::PrepareUpload(device_.Get(), mipImages.GetImages(), mipImages.GetImageCount(), mipImages.GetMetadata(), subresources);
@@ -408,6 +400,30 @@ Microsoft::WRL::ComPtr<ID3D12Resource> DirectXCommon::UploadTextureData(ID3D12Re
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_GENERIC_READ;
     commandList_->ResourceBarrier(1, &barrier);
+
+    // ★追加: コマンドリストを閉じて実行し、GPUの完了を待つ
+    // これをしないと、intermediateResource がこの関数を抜けた瞬間に削除され、GPUが読み込もうとしたときにクラッシュします。
+    HRESULT hr = commandList_->Close();
+    assert(SUCCEEDED(hr));
+
+    ID3D12CommandList* commandLists[] = { commandList_.Get() };
+    commandQueue_->ExecuteCommandLists(1, commandLists);
+
+    // フェンスで待機
+    ComPtr<ID3D12Fence> fence;
+    device_->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+    commandQueue_->Signal(fence.Get(), 1);
+
+    if (fence->GetCompletedValue() != 1) {
+        HANDLE event = CreateEvent(nullptr, false, false, nullptr);
+        fence->SetEventOnCompletion(1, event);
+        WaitForSingleObject(event, INFINITE);
+        CloseHandle(event);
+    }
+
+    // 次のコマンドのためにリストをリセットしておく
+    commandAllocator_->Reset();
+    commandList_->Reset(commandAllocator_.Get(), nullptr);
 
     return intermediateResource;
 }

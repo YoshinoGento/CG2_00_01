@@ -2,26 +2,28 @@
 #include "Model.h"
 #include <cassert>
 
-void ModelManager::Initialize(DirectXCommon* dxCommon) {
-	assert(dxCommon);
-	dxCommon_ = dxCommon;
+// ★修正: SrvManagerを受け取る
+void ModelManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
+    assert(dxCommon);
+    assert(srvManager);
+    dxCommon_ = dxCommon;
+    srvManager_ = srvManager;
 }
 
 void ModelManager::LoadModel(const std::string& filename) {
-	if (models_.contains(filename)) {
-		return;
-	}
+    if (models_.contains(filename)) {
+        return;
+    }
 
-	std::unique_ptr<Model> model = std::make_unique<Model>();
-	// ModelManager (this) を渡す
-	model->Initialize(this, "Resources", filename);
+    std::unique_ptr<Model> model = std::make_unique<Model>();
+    model->Initialize(this, "Resources", filename);
 
-	models_[filename] = std::move(model);
+    models_[filename] = std::move(model);
 }
 
 Model* ModelManager::GetModel(const std::string& filename) {
-	if (models_.contains(filename)) {
-		return models_[filename].get();
-	}
-	return nullptr;
+    if (models_.contains(filename)) {
+        return models_[filename].get();
+    }
+    return nullptr;
 }
