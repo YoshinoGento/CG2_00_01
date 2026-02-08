@@ -10,6 +10,7 @@
 #include "Audio.h"
 #include "Camera.h"
 #include "SrvManager.h"
+#include "ParticleManager.h" 
 #include <memory>
 
 #include "externals/imgui/imgui.h"
@@ -42,73 +43,82 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	std::unique_ptr<ModelManager> modelManager = std::make_unique<ModelManager>();
 	modelManager->Initialize(dxCommon.get(), srvManager.get());
 
+	std::unique_ptr<ParticleManager> particleManager = std::make_unique<ParticleManager>();
+	particleManager->Initialize(dxCommon.get(), srvManager.get());
+
+	// ImGuiの初期化
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGui::StyleColorsDark();
 	ImGui_ImplWin32_Init(winApp->GetHwnd());
 
-	uint32_t imguiSrvIndex = srvManager->Allocate();
+	// ImGui用のSRV(描画用メモリ)を1つ確保
+	uint32_t imGuiSrvIndex = srvManager->Allocate();
+
 	ImGui_ImplDX12_Init(
 		dxCommon->GetDevice(),
-		2,
-		DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+		2, // backBuffersの数
+		DXGI_FORMAT_R8G8B8A8_UNORM,
 		srvManager->GetSrvDescriptorHeap(),
-		srvManager->GetCPUDescriptorHandle(imguiSrvIndex),
-		srvManager->GetGPUDescriptorHandle(imguiSrvIndex)
+		srvManager->GetCPUDescriptorHandle(imGuiSrvIndex),
+		srvManager->GetGPUDescriptorHandle(imGuiSrvIndex)
 	);
 
-	std::unique_ptr<Camera> camera = std::make_unique<Camera>();
-	Vector3 cameraTranslate = { 0.0f, 2.0f, -10.0f };
-	Vector3 cameraRotate = { 0.1f, 0.0f, 0.0f };
-	camera->SetTranslate(cameraTranslate);
-	camera->SetRotate(cameraRotate);
 
-	// モデル読み込み
-	std::string modelFile1 = "axis.obj";
-	std::string modelFile2 = "plane.obj";
-	modelManager->LoadModel(modelFile1);
-	modelManager->LoadModel(modelFile2);
+	// --- リソース読み込み ---
+	// テクスチャ
+	// "Resources/particle.png" が無ければ "texture.png" など適当なものを入れてください
+	uint32_t particleTextureHandle = spriteCommon->LoadTexture("uvChecker.png");
+	particleManager->CreateParticleGroup("TestGroup", particleTextureHandle);
 
-	Model* model1 = modelManager->GetModel(modelFile1);
-	Model* model2 = modelManager->GetModel(modelFile2);
+	uint32_t textureHandle = spriteCommon->LoadTexture("uvChecker.png");
 
-	if (model1) model1->LoadTextures(spriteCommon.get());
-	if (model2) model2->LoadTextures(spriteCommon.get());
-
-	uint32_t uvCheckerHandle = spriteCommon->LoadTexture("Resources/uvChecker.png");
+	// スプライト
 	std::unique_ptr<Sprite> sprite = std::make_unique<Sprite>();
-	sprite->Initialize(spriteCommon.get(), uvCheckerHandle);
-	sprite->SetPosition({ 640.0f, 360.0f });
+	sprite->Initialize(spriteCommon.get(), textureHandle);
+	sprite->SetPosition({ 10, 10 });
 
+	// 3Dモデル
+	// "Resources/cube.obj" が無ければ作成してください
+	modelManager->LoadModel("plane.obj");
+	Model* model = modelManager->GetModel("plane.obj");
+
+	
 	std::unique_ptr<Object3d> object3d1 = std::make_unique<Object3d>();
 	object3d1->Initialize(object3dCommon.get());
-	object3d1->SetModel(model1);
-	object3d1->SetScale({ 1.0f, 1.0f, 1.0f });
+	object3d1->SetModel(model);
 	object3d1->SetPosition({ -2.0f, 0.0f, 0.0f });
 
 	std::unique_ptr<Object3d> object3d2 = std::make_unique<Object3d>();
 	object3d2->Initialize(object3dCommon.get());
-	object3d2->SetModel(model2);
-	object3d2->SetScale({ 1.0f, 1.0f, 1.0f });
+	object3d2->SetModel(model);
 	object3d2->SetPosition({ 2.0f, 0.0f, 0.0f });
 
-	// ★ BGM再生
-	// Resourcesフォルダに bgm.wav を置いてください
-	uint32_t bgmHandle = audio->LoadWave("bgm.wav");
-	audio->PlayWave(bgmHandle, true, 0.1f); // ループ再生(true), 音量(0.1)
+	// カメラ
+	std::unique_ptr<Camera> camera = std::make_unique<Camera>();
+	Vector3 cameraTranslate = { 0.0f, 2.0f, -10.0f };
+	Vector3 cameraRotate = { 0.2f, 0.0f, 0.0f };
+	camera->SetTranslate(cameraTranslate);
+	camera->SetRotate(cameraRotate);
+
 
 	while (true) {
 		if (winApp->ProcessMessage()) {
 			break;
 		}
 
+		// --- 更新処理 ---
+		input->Update();
+
 		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
-		input->Update();
+		if (input->TriggerKey(DIK_SPACE)) {
+			particleManager->Emit("TestGroup", { 0.0f, 0.0f, 0.0f }, 10);
+		}
 
-		// ★ キー操作でカメラ移動
+		// カメラ移動
 		float kCameraSpeed = 0.1f;
 		if (input->PushKey(DIK_LEFT)) { cameraTranslate.x -= kCameraSpeed; }
 		if (input->PushKey(DIK_RIGHT)) { cameraTranslate.x += kCameraSpeed; }
@@ -118,6 +128,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		ImGui::Begin("Camera Debug");
 		ImGui::DragFloat3("Translate", &cameraTranslate.x, 0.1f);
 		ImGui::DragFloat3("Rotate", &cameraRotate.x, 0.01f);
+		if (ImGui::Button("Emit Particle")) {
+			particleManager->Emit("TestGroup", { 0.0f, 0.0f, 0.0f }, 10);
+		}
 		ImGui::End();
 
 		camera->SetTranslate(cameraTranslate);
@@ -132,31 +145,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		sprite->Update();
 
-		dxCommon->PreDraw();
+		particleManager->Update(camera.get());
 
+
+		// --- 描画処理 ---
+		dxCommon->PreDraw();
 		srvManager->PreDraw();
 
-		spriteCommon->PreDraw();
-		sprite->Draw();
-
+		// 1. 3Dオブジェクト描画
 		object3dCommon->CommonDrawSettings();
 		object3d1->Draw();
 		object3d2->Draw();
 
+		// 2. パーティクル描画 (パーティクル用の設定に切り替わる)
+		particleManager->Draw();
+
+		// 3. スプライト描画
+		// ★ここが抜けていました！スプライト用の設定（PSO/RootSignature）に戻す必要があります
+		spriteCommon->PreDraw();
+		sprite->Draw();
+
+		// ImGui描画
 		ImGui::Render();
-		ID3D12GraphicsCommandList* commandList = dxCommon->GetCommandList();
-		ID3D12DescriptorHeap* ppHeaps[] = { srvManager->GetSrvDescriptorHeap() };
-		commandList->SetDescriptorHeaps(1, ppHeaps);
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), dxCommon->GetCommandList());
 
 		dxCommon->PostDraw();
 	}
 
+	// ImGuiの終了処理
 	ImGui_ImplDX12_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 
-	audio->Finalize();
-
+	winApp->Finalize();
 	return 0;
 }

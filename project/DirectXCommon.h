@@ -35,24 +35,21 @@ public:
     // Load Texture
     DirectX::ScratchImage LoadTexture(const std::string& filePath);
 
+    // ★追加: SpriteCommonなどで使われているテクスチャ生成関数
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
+    void UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
+
     // Compile Shader
     Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const std::wstring& profile);
 
-    // Helper functions
+    // Create Buffer Resource
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeInBytes);
 
-    // Create texture resource
-    Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
-    // Upload texture data
-    Microsoft::WRL::ComPtr<ID3D12Resource> UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
-
     // Create Descriptor Heap
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT numDescriptors, bool shaderVisible);
-
-    // Max SRV count
-    static const uint32_t kMaxSRVCount = 256;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, UINT numDescriptors, bool shaderVisible);
 
 private:
+    // 固定FPS
     void InitializeFixFPS();
     void UpdateFixFPS();
 
@@ -89,14 +86,16 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap_;
     UINT srvDescriptorSize_ = 0;
 
-    // Current SRV Index
-    uint32_t currentSRVIndex_ = 0;
+    // Fence
+    Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
+    uint64_t fenceValue_ = 0;
+    HANDLE fenceEvent_;
 
-    // For FPS fixing
-    std::chrono::steady_clock::time_point reference_;
-
-    // DXC components
+    // DXC
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
     Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
     Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;
+
+    // FPS制御
+    std::chrono::steady_clock::time_point reference_;
 };
