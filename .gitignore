@@ -16,6 +16,11 @@
 # Mono auto generated filesmono_crash.*
 
 # Build results
+x64/
+x86/
+Debug/
+Release/
+Releases/
 generated/
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -315,3 +320,5 @@ DirectXGame/imgui.ini
 
 # DirectXTex Compiled Shaders
 **/DirectXTex/Shaders/Compiled/
+
+logs/
