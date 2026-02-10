@@ -40,6 +40,12 @@
     <Filter Include="ソース ファイル\application">
       <UniqueIdentifier>{22f1cb47-f204-4718-b0e3-ff1b71e3f63f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="リソース ファイル\Resources">
+      <UniqueIdentifier>{b1b01ead-a50b-431e-aab4-09931dab71f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="リソース ファイル\Resources\shader">
+      <UniqueIdentifier>{7fbf45cd-5280-4ea0-9a22-2fcb57e13c2a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="externals\imgui\imgui.cpp">
@@ -116,10 +122,18 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Resources\shader\Object3D.VS.hlsl" />
-    <FxCompile Include="Resources\shader\Object3D.PS.hlsl" />
-    <FxCompile Include="Sprite2D.VS.hlsl" />
-    <FxCompile Include="Sprite2D.PS.hlsl" />
+    <FxCompile Include="Resources\shader\Object3D.PS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Resources\shader\Object3D.VS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Sprite2D.PS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Sprite2D.VS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="externals\imgui\imconfig.h">
@@ -205,12 +219,22 @@
     <Text Include="externals\imgui\LICENSE.txt">
       <Filter>imgui</Filter>
     </Text>
-    <Text Include="Particle.PS.hlsl" />
-    <Text Include="Particle.VS.hlsl" />
-    <Text Include="Particle.hlsli" />
+    <Text Include="Particle.hlsli">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </Text>
+    <Text Include="Particle.PS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </Text>
+    <Text Include="Particle.VS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\shader\Object3d.hlsli" />
-    <None Include="Sprite2D.hlsli" />
+    <None Include="Resources\shader\Object3d.hlsli">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </None>
+    <None Include="Sprite2D.hlsli">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </None>
   </ItemGroup>
 </Project>
