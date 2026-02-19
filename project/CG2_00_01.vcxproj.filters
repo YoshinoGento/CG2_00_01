@@ -128,10 +128,10 @@
     <FxCompile Include="Resources\shader\Object3D.VS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </FxCompile>
-    <FxCompile Include="Sprite2D.PS.hlsl">
+    <FxCompile Include="Resources\shader\Sprite2D.PS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </FxCompile>
-    <FxCompile Include="Sprite2D.VS.hlsl">
+    <FxCompile Include="Resources\shader\Sprite2D.VS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </FxCompile>
   </ItemGroup>
@@ -219,13 +219,10 @@
     <Text Include="externals\imgui\LICENSE.txt">
       <Filter>imgui</Filter>
     </Text>
-    <Text Include="Particle.hlsli">
+    <Text Include="Resources\shader\Particle.PS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </Text>
-    <Text Include="Particle.PS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
-    </Text>
-    <Text Include="Particle.VS.hlsl">
+    <Text Include="Resources\shader\Particle.VS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </Text>
   </ItemGroup>
@@ -233,7 +230,10 @@
     <None Include="Resources\shader\Object3d.hlsli">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </None>
-    <None Include="Sprite2D.hlsli">
+    <None Include="Resources\shader\Particle.hlsli">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </None>
+    <None Include="Resources\shader\Sprite2D.hlsli">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </None>
   </ItemGroup>

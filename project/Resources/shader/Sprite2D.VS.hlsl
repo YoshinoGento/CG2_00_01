@@ -6,10 +6,9 @@ struct TransformationMatrix
     float32_t4x4 World;
 };
 
-// ★修正: Sprite.cpp の SetGraphicsRootConstantBufferView(1, ...) に合わせるため
-// register(b0) ではなく register(b1) にします。
-// b0 は Material 用に使われています。
-ConstantBuffer<TransformationMatrix> gTransformationMatrix : register(b1);
+// ★修正: ここを register(b1) から register(b0) に戻します。
+// SpriteCommon.cpp の設定（ShaderRegister = 0）と一致させるためです。
+ConstantBuffer<TransformationMatrix> gTransformationMatrix : register(b0);
 
 struct VertexShaderInput
 {
