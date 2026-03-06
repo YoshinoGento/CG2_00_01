@@ -2,17 +2,22 @@
 
 struct TransformationMatrix
 {
-    float32_t4x4 WVP;
-    float32_t4x4 World;
+    float4x4 WVP;
+    float4x4 World;
 };
 
-ConstantBuffer<TransformationMatrix> gTransformationMatrix : register(b0);
+// --- 古いシェーダーモデルでも動く cbuffer の書き方に変更 ---
+cbuffer cbTransformationMatrix : register(b0)
+{
+    TransformationMatrix gTransformationMatrix;
+};
+// --------------------------------------------------------
 
 struct VertexShaderInput
 {
-    float32_t4 position : POSITION0;
-    float32_t2 texcoord : TEXCOORD0;
-    float32_t3 normal : NORMAL0;
+    float4 position : POSITION0;
+    float2 texcoord : TEXCOORD0;
+    float3 normal : NORMAL0;
 };
 
 VertexShaderOutput main(VertexShaderInput input)
@@ -26,8 +31,7 @@ VertexShaderOutput main(VertexShaderInput input)
     output.texcoord = input.texcoord;
     
     // 法線の変換
-    // World行列を使って法線も回転させる（平行移動成分は無視するため 3x3 にキャスト）
-    output.normal = normalize(mul(input.normal, (float32_t3x3) gTransformationMatrix.World));
+    output.normal = normalize(mul(input.normal, (float3x3) gTransformationMatrix.World));
     
     return output;
 }

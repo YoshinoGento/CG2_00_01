@@ -2,27 +2,36 @@
 
 struct Material
 {
-    float32_t4 color;
-    int32_t enableLighting;
-    float32_t4x4 uvTransform;
+    float4 color;
+    int enableLighting;
+    float4x4 uvTransform;
 };
 
 struct DirectionalLight
 {
-    float32_t4 color; // ライトの色
-    float32_t3 direction; // ライトの向き
+    float4 color; // ライトの色
+    float3 direction; // ライトの向き
     float intensity; // 輝度
 };
 
-// レジスタ設定 (Object3d.cppの設定と合わせる)
-ConstantBuffer<Material> gMaterial : register(b0);
-ConstantBuffer<DirectionalLight> gDirectionalLight : register(b1);
-Texture2D<float32_t4> gTexture : register(t0);
+// --- 古いシェーダーモデルでも動く cbuffer の書き方に変更 ---
+cbuffer cbMaterial : register(b0)
+{
+    Material gMaterial;
+};
+
+cbuffer cbDirectionalLight : register(b1)
+{
+    DirectionalLight gDirectionalLight;
+};
+// --------------------------------------------------------
+
+Texture2D<float4> gTexture : register(t0);
 SamplerState gSampler : register(s0);
 
 struct PixelShaderOutput
 {
-    float32_t4 color : SV_TARGET0;
+    float4 color : SV_TARGET0;
 };
 
 PixelShaderOutput main(VertexShaderOutput input)
@@ -30,10 +39,10 @@ PixelShaderOutput main(VertexShaderOutput input)
     PixelShaderOutput output;
     
     // UV変換
-    float4 transformedUV = mul(float32_t4(input.texcoord, 0.0f, 1.0f), gMaterial.uvTransform);
+    float4 transformedUV = mul(float4(input.texcoord, 0.0f, 1.0f), gMaterial.uvTransform);
     
     // テクスチャサンプリング
-    float32_t4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
+    float4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
     
     // ライティングの計算
     if (gMaterial.enableLighting != 0)
@@ -49,7 +58,6 @@ PixelShaderOutput main(VertexShaderOutput input)
         float cos = pow(NdotL * 0.5f + 0.5f, 2.0f);
         
         // 最終的な色の計算
-        // マテリアル色 × テクスチャ色 × ライト色 × 明るさ(cos) × 輝度
         output.color = gMaterial.color * textureColor * gDirectionalLight.color * cos * gDirectionalLight.intensity;
     }
     else

@@ -5,6 +5,7 @@
 #include <d3dcompiler.h>
 #include <cassert>
 #include <random>
+#include <cmath>
 
 #pragma comment(lib, "d3dcompiler.lib")
 
@@ -178,20 +179,36 @@ void ParticleManager::Emit(const std::string& name, const Vector3& position, uin
 
     std::random_device seed_gen;
     std::mt19937_64 engine(seed_gen());
-    std::uniform_real_distribution<float> distPos(-1.0f, 1.0f);
-    std::uniform_real_distribution<float> distVel(-0.1f, 0.1f);
+
+    // 円形（円盤）分布にするための乱数
+    std::uniform_real_distribution<float> distAngle(0.0f, 2.0f * 3.14159265358979323846f);
+    std::uniform_real_distribution<float> distRadius(0.0f, 1.0f); // 0..1 をサンプリング（後で sqrt）
+    std::uniform_real_distribution<float> distVel(0.02f, 0.2f);   // 速度の大きさ
+    std::uniform_real_distribution<float> distZ(-0.05f, 0.05f);   // Z方向のばらつき
     std::uniform_real_distribution<float> distColor(0.5f, 1.0f);
+
+    // エミット半径（必要に応じて調整）
+    const float emitRadius = 1.0f;
 
     for (uint32_t i = 0; i < count; ++i) {
         Particle p;
-        p.position = position;
-        // ランダムに少し散らす
-        p.position.x += distPos(engine);
-        p.position.y += distPos(engine);
-        p.position.z += distPos(engine);
+        // 角度と半径をサンプリングして円盤内に配置
+        float angle = distAngle(engine);
+        // 一様な面積分布にするために r = sqrt(u) を使う
+        float r = std::sqrt(distRadius(engine)) * emitRadius;
+        float cx = std::cos(angle);
+        float cy = std::sin(angle);
 
-        p.velocity = { distVel(engine), distVel(engine), distVel(engine) };
-        p.acceleration = { 0.0f, 0.0f, 0.0f }; // 重力なし
+        p.position = position;
+        p.position.x += cx * r;
+        p.position.y += cy * r;
+        p.position.z += distZ(engine);
+
+        // 速度は外向きにする（角度ベース）＋少しZ成分を与える
+        float speed = distVel(engine);
+        p.velocity = { cx * speed, cy * speed, distZ(engine) };
+
+        p.acceleration = { 0.0f, 0.0f, 0.0f }; // 必要なら重力等を設定
 
         p.color = { distColor(engine), distColor(engine), distColor(engine), 1.0f };
         p.lifeTime = 2.0f; // 2秒
@@ -330,17 +347,16 @@ void ParticleManager::CreateGraphicsPipelineState() {
 }
 
 void ParticleManager::CreateModel() {
-    // 矩形の頂点データ
-    // インデックスバッファ不要の頂点6つ版
+    // 矩形の頂点データ（フルクアッド、UV を矩形に修正）
     VertexData vertices6[] = {
         // 三角形1
-        {{ -0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }}, // 左下
-        {{  0.0f,  0.5f, 0.0f, 1.0f }, { 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }}, // 上
-        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }}, // 右下
+        {{ -0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }}, // 左下 (0,1)
+        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }}, // 左上 (0,0)
+        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }}, // 右下 (1,1)
         // 三角形2
-        {{  0.0f,  0.5f, 0.0f, 1.0f }, { 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }}, // 上
-        {{  0.5f,  0.5f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }}, // 右上
-        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }}, // 右下
+        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }}, // 左上 (0,0)
+        {{  0.5f,  0.5f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }}, // 右上 (1,0)
+        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }}, // 右下 (1,1)
     };
 
     vertexResource_ = dxCommon_->CreateBufferResource(sizeof(VertexData) * 6);

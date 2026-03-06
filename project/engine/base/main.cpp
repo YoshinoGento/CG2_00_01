@@ -12,6 +12,7 @@
 #include "SrvManager.h"
 #include "ParticleManager.h" 
 #include <memory>
+#include <assert.h>
 
 #include "externals/imgui/imgui.h"
 #include "externals/imgui/imgui_impl_dx12.h"
@@ -46,28 +47,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	std::unique_ptr<ParticleManager> particleManager = std::make_unique<ParticleManager>();
 	particleManager->Initialize(dxCommon.get(), srvManager.get());
 
-	// ImGuiの初期化
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGui::StyleColorsDark();
-	ImGui_ImplWin32_Init(winApp->GetHwnd());
-
-	// ImGui用のSRV(描画用メモリ)を1つ確保
-	uint32_t imGuiSrvIndex = srvManager->Allocate();
-
-	ImGui_ImplDX12_Init(
-		dxCommon->GetDevice(),
-		2, // backBuffersの数
-		DXGI_FORMAT_R8G8B8A8_UNORM,
-		srvManager->GetSrvDescriptorHeap(),
-		srvManager->GetCPUDescriptorHandle(imGuiSrvIndex),
-		srvManager->GetGPUDescriptorHandle(imGuiSrvIndex)
-	);
+	// ⚠️ 以前ここにあった ImGui の初期化は、下（画像読み込みの後）に移動しました！
 
 
 	// --- リソース読み込み ---
-	// テクスチャ
-	// "Resources/particle.png" が無ければ "texture.png" など適当なものを入れてください
 	uint32_t particleTextureHandle = spriteCommon->LoadTexture("uvChecker.png");
 	particleManager->CreateParticleGroup("TestGroup", particleTextureHandle);
 
@@ -79,11 +62,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	sprite->SetPosition({ 10, 10 });
 
 	// 3Dモデル
-	// "Resources/cube.obj" が無ければ作成してください
 	modelManager->LoadModel("plane.obj");
 	Model* model = modelManager->GetModel("plane.obj");
 
-	
+	if (model) {
+		model->LoadTextures(spriteCommon.get());
+		const std::string& modelTexPath = model->GetTextureFilePath();
+		if (!modelTexPath.empty()) {
+			uint32_t modelTexHandle = spriteCommon->LoadTexture(modelTexPath);
+		}
+	}
+
 	std::unique_ptr<Object3d> object3d1 = std::make_unique<Object3d>();
 	object3d1->Initialize(object3dCommon.get());
 	object3d1->SetModel(model);
@@ -102,32 +91,64 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	camera->SetRotate(cameraRotate);
 
 
+	// ==========================================================
+	// ★ 【重要】ImGuiの初期化をここ（ループの直前）に移動！
+	// ==========================================================
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui::StyleColorsDark();
+
+	if (!ImGui_ImplWin32_Init(winApp->GetHwnd())) {
+		assert(false && "ImGui Win32の初期化に失敗しました");
+	}
+
+	uint32_t imGuiSrvIndex = srvManager->Allocate();
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = srvManager->GetCPUDescriptorHandle(imGuiSrvIndex);
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = srvManager->GetGPUDescriptorHandle(imGuiSrvIndex);
+
+	if (!ImGui_ImplDX12_Init(
+		dxCommon->GetDevice(),
+		2, // backBuffersの数
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		srvManager->GetSrvDescriptorHeap(), // 最新のマンションの住所を渡す！
+		cpuHandle,
+		gpuHandle
+	)) {
+		assert(false && "ImGui DX12の初期化に失敗しました。");
+	}
+
+	// 🚨【最重要の追加】フォントデータが作られないエラー（TexIsBuilt）をこれで防ぎます！
+	ImGui::GetIO().Fonts->Build();
+	ImGui_ImplDX12_CreateDeviceObjects();
+	// ==========================================================
+
+
+	// --- メインループ ---
 	while (true) {
 		if (winApp->ProcessMessage()) {
 			break;
 		}
 
-		// --- 更新処理 ---
 		input->Update();
 
-		ImGui_ImplDX12_NewFrame();
-		ImGui_ImplWin32_NewFrame();
-		ImGui::NewFrame();
-
+		// スペースキーでパーティクル発生
 		if (input->TriggerKey(DIK_SPACE)) {
 			particleManager->Emit("TestGroup", { 0.0f, 0.0f, 0.0f }, 10);
 		}
 
-		// カメラ移動
-		float kCameraSpeed = 0.1f;
-		if (input->PushKey(DIK_LEFT)) { cameraTranslate.x -= kCameraSpeed; }
-		if (input->PushKey(DIK_RIGHT)) { cameraTranslate.x += kCameraSpeed; }
-		if (input->PushKey(DIK_UP)) { cameraTranslate.z += kCameraSpeed; }
-		if (input->PushKey(DIK_DOWN)) { cameraTranslate.z -= kCameraSpeed; }
+		// ImGuiフレーム開始
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
 
-		ImGui::Begin("Camera Debug");
-		ImGui::DragFloat3("Translate", &cameraTranslate.x, 0.1f);
-		ImGui::DragFloat3("Rotate", &cameraRotate.x, 0.01f);
+		// デバッグUIの表示
+		ImGui::Begin("Debug Window");
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::DragFloat3("Camera Pos", &cameraTranslate.x, 0.1f);
+		if (ImGui::Button("Reset Camera")) {
+			cameraTranslate = { 0.0f, 2.0f, -10.0f };
+		}
+		// ImGuiのボタンでパーティクル発生
 		if (ImGui::Button("Emit Particle")) {
 			particleManager->Emit("TestGroup", { 0.0f, 0.0f, 0.0f }, 10);
 		}
@@ -144,35 +165,32 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		object3d2->Update(camera.get());
 
 		sprite->Update();
-
 		particleManager->Update(camera.get());
-
 
 		// --- 描画処理 ---
 		dxCommon->PreDraw();
 		srvManager->PreDraw();
 
-		// 1. 3Dオブジェクト描画
+		// 1. 3D描画
 		object3dCommon->CommonDrawSettings();
 		object3d1->Draw();
 		object3d2->Draw();
 
-		// 2. パーティクル描画 (パーティクル用の設定に切り替わる)
+		// 2. パーティクル描画
 		particleManager->Draw();
 
 		// 3. スプライト描画
-		// ★ここが抜けていました！スプライト用の設定（PSO/RootSignature）に戻す必要があります
 		spriteCommon->PreDraw();
 		sprite->Draw();
 
-		// ImGui描画
+		// 4. ImGui描画
 		ImGui::Render();
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), dxCommon->GetCommandList());
 
 		dxCommon->PostDraw();
 	}
 
-	// ImGuiの終了処理
+	// 終了処理
 	ImGui_ImplDX12_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
