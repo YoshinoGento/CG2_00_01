@@ -2,18 +2,21 @@
 
 struct TransformationMatrix
 {
-    float32_t4x4 WVP;
-    float32_t4x4 World;
+    float4x4 WVP;
+    float4x4 World;
 };
 
-// ★修正: ここを register(b1) から register(b0) に戻します。
-// SpriteCommon.cpp の設定（ShaderRegister = 0）と一致させるためです。
-ConstantBuffer<TransformationMatrix> gTransformationMatrix : register(b0);
+// --- 古いシェーダーモデルでも動く cbuffer の書き方に変更 ---
+cbuffer cbTransformationMatrix : register(b0)
+{
+    TransformationMatrix gTransformationMatrix;
+};
+// --------------------------------------------------------
 
 struct VertexShaderInput
 {
-    float32_t4 position : POSITION0;
-    float32_t2 texcoord : TEXCOORD0;
+    float4 position : POSITION0;
+    float2 texcoord : TEXCOORD0;
 };
 
 VertexShaderOutput main(VertexShaderInput input)
