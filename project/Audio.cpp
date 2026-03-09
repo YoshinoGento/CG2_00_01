@@ -1,140 +1,174 @@
+#define NOMINMAX // Windows.hのmin/maxマクロと標準関数の衝突を防ぐ
 #include "Audio.h"
+#include <Windows.h>
 #include <cassert>
-#include <fstream>
+#include <algorithm>
 
+// Media Foundation 関連のヘッダー
+#include <mfapi.h>
+#include <mfidl.h>
+#include <mfreadwrite.h>
+
+// ライブラリのリンク指定
 #pragma comment(lib, "xaudio2.lib")
+#pragma comment(lib, "mfplat.lib")
+#pragma comment(lib, "mfreadwrite.lib")
+#pragma comment(lib, "mfuuid.lib")
 
+/**
+ * システムの初期化
+ */
 void Audio::Initialize() {
-	HRESULT result;
+	// 1. XAudio2エンジンの作成
+	HRESULT hr = XAudio2Create(&xAudio2_, 0, XAUDIO2_DEFAULT_PROCESSOR);
+	assert(SUCCEEDED(hr));
 
-	// XAudio2エンジンのインスタンスを生成
-	result = XAudio2Create(&xAudio2_, 0, XAUDIO2_DEFAULT_PROCESSOR);
-	assert(SUCCEEDED(result));
+	// 2. マスターボイス（PCのスピーカー出力先）の作成
+	hr = xAudio2_->CreateMasteringVoice(&masterVoice_);
+	assert(SUCCEEDED(hr));
 
-	// マスターボイスを生成
-	result = xAudio2_->CreateMasteringVoice(&masterVoice_);
-	assert(SUCCEEDED(result));
+	// 3. Media Foundationの初期化（圧縮音源のデコードに必要）
+	hr = MFStartup(MF_VERSION, MFSTARTUP_NOSOCKET);
+	assert(SUCCEEDED(hr));
 }
 
+/**
+ * 終了処理
+ */
 void Audio::Finalize() {
-	// XAudio2はComPtrで管理しているので自動解放されるが、
-	// MasterVoiceは明示的にDestroyする場合もある（今回はデストラクタ任せでもOK）
-	if (masterVoice_) {
-		masterVoice_->DestroyVoice();
-		masterVoice_ = nullptr;
+	// 全ての再生機（SourceVoice）を安全に破棄
+	for (auto& pair : soundDatas_) {
+		if (pair.second.pSourceVoice) {
+			pair.second.pSourceVoice->DestroyVoice();
+		}
 	}
-	xAudio2_.Reset();
 	soundDatas_.clear();
+	xAudio2_.Reset();
+
+	// Media Foundationの終了
+	MFShutdown();
 }
 
-uint32_t Audio::LoadWave(const std::string& filename) {
-	// ファイルオープン
-	std::ifstream file("Resources/" + filename, std::ios_base::binary);
-	assert(file.is_open());
+/**
+ * 音声ファイルの読み込み（Media Foundation を使用して PCM に変換）
+ */
+uint32_t Audio::LoadAudio(const std::string& filename) {
+	// ファイルパスをワイド文字列（wstring）に変換
+	std::wstring wfilename(filename.begin(), filename.end());
 
-	// .wavファイル読み込み処理
-	struct ChunkHeader {
-		char id[4];   // チャンクID ("RIFF", "fmt ", "data" 等)
-		int32_t size; // チャンクサイズ
-	};
-	struct RiffHeader {
-		ChunkHeader chunk; // "RIFF"
-		char type[4];      // "WAVE"
-	};
-	struct FormatChunk {
-		ChunkHeader chunk; // "fmt "
-		WAVEFORMATEX fmt;  // 波形フォーマット
-	};
+	// 1. ソースリーダーの作成（ファイルを開く）
+	Microsoft::WRL::ComPtr<IMFSourceReader> pSourceReader;
+	HRESULT hr = MFCreateSourceReaderFromURL(wfilename.c_str(), nullptr, &pSourceReader);
+	assert(SUCCEEDED(hr) && "音声ファイルが開けません。パスを確認してください。");
 
-	// 1. RIFFチャンクの読み込み
-	RiffHeader riff;
-	file.read((char*)&riff, sizeof(riff));
-	// ファイル先頭が "RIFF" で、タイプが "WAVE" かチェック
-	if (strncmp(riff.chunk.id, "RIFF", 4) != 0 || strncmp(riff.type, "WAVE", 4) != 0) {
-		assert(false); // ワイル形式が不正
+	// 2. メディアタイプの選択（音声ストリームのみを使う）
+	hr = pSourceReader->SetStreamSelection((uint32_t)MF_SOURCE_READER_ALL_STREAMS, false);
+	hr = pSourceReader->SetStreamSelection((uint32_t)MF_SOURCE_READER_FIRST_AUDIO_STREAM, true);
+
+	// 3. 出力形式を非圧縮PCM（生の音データ）に設定
+	Microsoft::WRL::ComPtr<IMFMediaType> pPartialType;
+	MFCreateMediaType(&pPartialType);
+	pPartialType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+	pPartialType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+	hr = pSourceReader->SetCurrentMediaType((uint32_t)MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, pPartialType.Get());
+
+	// 4. 音情報の詳細（サンプリングレート等）を手動で取得
+	// ※MFCreateWaveFormatExFromMediaType がエラーになる環境があるため、直接属性から抜き取ります
+	Microsoft::WRL::ComPtr<IMFMediaType> pOutputType;
+	hr = pSourceReader->GetCurrentMediaType((uint32_t)MF_SOURCE_READER_FIRST_AUDIO_STREAM, &pOutputType);
+
+	WAVEFORMATEX wfex = {};
+	GUID subType;
+	pOutputType->GetGUID(MF_MT_SUBTYPE, &subType);
+	pOutputType->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, (UINT32*)&wfex.nChannels);
+	pOutputType->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, (UINT32*)&wfex.nSamplesPerSec);
+	pOutputType->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, (UINT32*)&wfex.wBitsPerSample);
+	wfex.wFormatTag = WAVE_FORMAT_PCM;
+	wfex.nBlockAlign = wfex.nChannels * wfex.wBitsPerSample / 8;
+	wfex.nAvgBytesPerSec = wfex.nSamplesPerSec * wfex.nBlockAlign;
+
+	// 5. データを最後まで読み込んでバッファ（std::vector）に溜める
+	std::vector<byte> audioData;
+	while (true) {
+		Microsoft::WRL::ComPtr<IMFSample> pSample;
+		DWORD dwFlags = 0;
+		hr = pSourceReader->ReadSample((uint32_t)MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, nullptr, &dwFlags, nullptr, &pSample);
+
+		if (dwFlags & MF_SOURCE_READERF_ENDOFSTREAM) break; // ファイル終了
+		if (pSample == nullptr) continue;
+
+		// サンプルデータをメモリにコピー
+		Microsoft::WRL::ComPtr<IMFMediaBuffer> pBuffer;
+		pSample->ConvertToContiguousBuffer(&pBuffer);
+
+		byte* pAudioBuffer = nullptr;
+		DWORD cbCurrentLength = 0;
+		pBuffer->Lock(&pAudioBuffer, nullptr, &cbCurrentLength);
+
+		size_t oldSize = audioData.size();
+		audioData.resize(oldSize + cbCurrentLength);
+		std::memcpy(&audioData[oldSize], pAudioBuffer, cbCurrentLength);
+
+		pBuffer->Unlock();
 	}
 
-	// 2. チャンクを巡回して "fmt " と "data" を探す
-	FormatChunk format = {};
-	std::vector<BYTE> pBuffer;
-	unsigned int bufferSize = 0;
-
-	while (!file.eof()) {
-		ChunkHeader header;
-		file.read((char*)&header, sizeof(header));
-		if (file.eof()) break;
-
-		// "fmt " チャンクならフォーマットを読み込む
-		if (strncmp(header.id, "fmt ", 4) == 0) {
-			// チャンクサイズ分だけ読み込むが、WAVEFORMATEX構造体のサイズまで
-			// (PCMなら16バイトや18バイトなど可変だが、WAVEFORMATEXで受け取る)
-			// ここでは簡易的に読み込む
-			assert(header.size <= sizeof(format.fmt));
-			file.read((char*)&format.fmt, header.size);
-		}
-		// "data" チャンクなら波形データを読み込む
-		else if (strncmp(header.id, "data", 4) == 0) {
-			bufferSize = header.size;
-			pBuffer.resize(bufferSize);
-			file.read((char*)pBuffer.data(), bufferSize);
-			// データ読み込み終わったらループを抜けても良いが、念のため最後まで
-			break;
-		} else {
-			// 未知のチャンクはスキップ
-			file.seekg(header.size, std::ios_base::cur);
-		}
-	}
-	file.close();
-
-	// サウンドデータを登録
-	SoundData soundData = {};
-	soundData.wfex = format.fmt;
-	soundData.pBuffer = std::move(pBuffer);
-	soundData.bufferSize = bufferSize;
-
-	// ハンドルを発行して保存
-	uint32_t handle = nextHandle_;
-	soundDatas_[handle] = soundData;
-	nextHandle_++;
+	// 6. 管理マップにデータを保存
+	uint32_t handle = nextHandle_++;
+	SoundData data = {};
+	data.wfex = wfex;
+	data.pBuffer = std::move(audioData);
+	data.bufferSize = (uint32_t)data.pBuffer.size();
+	data.pSourceVoice = nullptr; // 再生するまでボイスは作らない
+	soundDatas_[handle] = std::move(data);
 
 	return handle;
 }
 
-void Audio::PlayWave(uint32_t soundHandle, bool loop, float volume) {
-	HRESULT result;
+/**
+ * 音声の再生
+ */
+void Audio::PlayWave(uint32_t handle, bool loop) {
+	auto it = soundDatas_.find(handle);
+	if (it == soundDatas_.end()) return;
 
-	// データが存在するか確認
-	if (soundDatas_.find(soundHandle) == soundDatas_.end()) {
-		assert(false); // ハンドルが無効
-		return;
+	SoundData& soundData = it->second;
+
+	// 再生中ならリセット
+	if (soundData.pSourceVoice) {
+		soundData.pSourceVoice->Stop();
+		soundData.pSourceVoice->FlushSourceBuffers();
+		soundData.pSourceVoice->DestroyVoice();
+		soundData.pSourceVoice = nullptr;
 	}
 
-	SoundData& soundData = soundDatas_[soundHandle];
+	// 再生機の作成
+	HRESULT hr = xAudio2_->CreateSourceVoice(&soundData.pSourceVoice, &soundData.wfex);
+	assert(SUCCEEDED(hr));
 
-	// ソースボイスの生成
-	IXAudio2SourceVoice* pSourceVoice = nullptr;
-	result = xAudio2_->CreateSourceVoice(&pSourceVoice, &soundData.wfex);
-	assert(SUCCEEDED(result));
-
-	// バッファの設定
+	// バッファ設定
 	XAUDIO2_BUFFER buffer = {};
 	buffer.pAudioData = soundData.pBuffer.data();
 	buffer.AudioBytes = soundData.bufferSize;
 	buffer.Flags = XAUDIO2_END_OF_STREAM;
-
-	// ループ設定
 	if (loop) {
 		buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
 	}
 
-	// 波形データの送信
-	result = pSourceVoice->SubmitSourceBuffer(&buffer);
-	assert(SUCCEEDED(result));
+	// 再生開始！
+	hr = soundData.pSourceVoice->SubmitSourceBuffer(&buffer);
+	assert(SUCCEEDED(hr));
+	hr = soundData.pSourceVoice->Start();
+	assert(SUCCEEDED(hr));
+}
 
-	// ボリューム設定
-	pSourceVoice->SetVolume(volume);
+/**
+ * 音声の停止
+ */
+void Audio::StopWave(uint32_t handle) {
+	auto it = soundDatas_.find(handle);
+	if (it == soundDatas_.end()) return;
 
-	// 再生開始
-	result = pSourceVoice->Start();
-	assert(SUCCEEDED(result));
+	if (it->second.pSourceVoice) {
+		it->second.pSourceVoice->Stop();
+	}
 }
