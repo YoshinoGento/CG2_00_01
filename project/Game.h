@@ -1,78 +1,47 @@
 #pragma once
-#include "WinApp.h"
-#include "DirectXCommon.h"
-#include "SpriteCommon.h"
-#include "Sprite.h"
-#include "Object3dCommon.h"
-#include "Object3d.h"
-#include "ModelManager.h"
-#include "Model.h"
-#include "Input.h"
-#include "Audio.h" 
-#include "ImGuiManager.h"
-#include "ParticleManager.h"
-#include "Camera.h"
-#include <memory>
-#include <vector>
-#include <string>
+#include "Framework.h"
+#include "Matrix.h" // Vector2等を使うため
+
+// --- 前方宣言（ぜんぽうぜんげん） ---
+// ヘッダーファイル内では「こういう名前のクラスがある」と伝えるだけに留めます。
+// これによりビルド速度が上がり、エラーの主な原因である「循環参照」も防げます。
+class Sprite;
+class Object3d;
+class Camera;
+class Model;
 
 /**
- * ゲーム全体の管理クラス
- * WinMainから呼び出され、初期化から終了までの全処理を担当します。
+ * Gameクラス
+ * Framework（骨組み）を継承して、このゲーム固有の処理を書く「アプリ層」のメインクラスです。
  */
-class Game {
+class Game : public Framework {
 public:
-	// --- 基本メソッド ---
+	// ★重要：コンストラクタとデストラクタは宣言のみ。実体は .cpp に書きます。
+	// これが Camera や Model の「認識できない型」エラーを消す最大のポイントです。
+	Game();
+	~Game() override;
 
-	// 初期化
-	void Initialize();
-
-	// 終了処理
-	void Finalize();
-
-	// 更新
-	void Update();
-
-	// 描画
-	void Draw();
-
-	// 終了リクエスト（ウィンドウが閉じられたか）の確認
-	bool IsEndRequest() const { return isEndRequest_; }
+	// 親クラス Framework の仮想関数を上書き（override）して、中身を作ります。
+	void Initialize() override;
+	void Finalize() override;
+	void Update() override;
+	void Draw() override;
 
 private:
-	// --- システム・基盤コンポーネント ---
-	std::unique_ptr<WinApp> winApp_;
-	std::unique_ptr<DirectXCommon> dxCommon_;
-	std::unique_ptr<SrvManager> srvManager_;
-	std::unique_ptr<Input> input_;
-	std::unique_ptr<Audio> audio_;
-
-	// --- 描画系マネージャ ---
-	std::unique_ptr<SpriteCommon> spriteCommon_;
-	std::unique_ptr<Object3dCommon> object3dCommon_;
-	std::unique_ptr<ModelManager> modelManager_;
-	std::unique_ptr<ParticleManager> particleManager_;
-
-	// --- ゲームオブジェクト・リソース ---
+	// --- このゲーム固有のリソース ---
+	// スマートポインタ（unique_ptr）で管理し、メモリ漏れを自動で防ぎます。
 	std::unique_ptr<Sprite> sprite_;
 	std::unique_ptr<Object3d> object3d_;
 	std::unique_ptr<Camera> camera_;
 
-	// オーディオ関連
-	uint32_t soundHandles_[2];
-	int currentBgmIndex_ = 0;
+	// --- 音楽管理用 ---
+	// 配列を {0} で初期化することで C26495 の警告を防ぎます。
+	uint32_t bgmHandles_[2] = { 0, 0 };
+	int currentBgmIndex_ = 0; // 0: WAV, 1: MP3
 	bool isBgmLoop_ = true;
 
-	// スプライト関連
-	uint32_t texMonsterHandle_ = 0;
-	uint32_t texWhiteHandle_ = 0;
-	Vector2 spritePos_ = { 640.0f, 360.0f };
-
-	// 描画優先度・パーティクル設定
-	bool spriteOnTopVsParticle_ = true;
-	int modelPriority_ = 0; // 0: Sprite Front, 1: Model Front
-	int selectedParticleType_ = 0;
-
-	// 内部フラグ
-	bool isEndRequest_ = false;
+	// --- デバッグ操作用パラメータ ---
+	Vector2 spritePos_ = { 640.0f, 360.0f }; // スプライトの初期位置
+	bool spriteOnTopVsParticle_ = true;      // スプライトをパーティクルより上に描くか
+	int modelPriority_ = 0;                  // 0: Spriteが前, 1: Modelが前
 };
