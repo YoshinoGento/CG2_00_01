@@ -1,39 +1,20 @@
 #include "Game.h"
+#include <Windows.h>
 
 /**
- * WinMain
- * アプリケーションのエントリーポイントです。
- * ここでは Game クラスの生成とメインループの実行のみを行います。
+ * WinMain: Windowsアプリの入り口
+ * 注釈（_In_など）を付けることで警告C28251を解消します。
  */
-int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
+int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd) {
+    // 未使用引数の警告避け
+    (void)hInstance; (void)hPrevInstance; (void)lpCmdLine; (void)nShowCmd;
 
-	// 1. ゲームクラスのインスタンスを生成
-	// すべてのマネージャやリソースはこの中で管理されます
-	std::unique_ptr<Game> game = std::make_unique<Game>();
+    // 1. ゲーム（アプリ層）をエンジン（Framework層）のポインタで作成
+    // これにより「Frameworkとして実行するが、中身はGame」というポリモーフィズムを実現
+    std::unique_ptr<Framework> game = std::make_unique<Game>();
 
-	// 2. 初期化処理
-	// ウィンドウ作成、DirectX、オーディオ、各種マネージャのセットアップが行われます
-	game->Initialize();
+    // 2. 実行（この1行で初期化・ループ・終了まで完結）
+    game->Run();
 
-	// --- 3. メインループ ---
-	// ウィンドウが閉じられるまで処理を繰り返します
-	while (true) {
-
-		// 更新処理（メッセージ処理、入力、ゲームロジック、ImGuiの計算）
-		game->Update();
-
-		// ゲーム側から終了リクエスト（ウィンドウの×ボタンなど）があればループを抜ける
-		if (game->IsEndRequest()) {
-			break;
-		}
-
-		// 描画処理（GPUへのコマンド発行、画面の入れ替え）
-		game->Draw();
-	}
-
-	// 4. 終了処理
-	// メモリの解放や各システムのシャットダウンを行います
-	game->Finalize();
-
-	return 0;
+    return 0;
 }

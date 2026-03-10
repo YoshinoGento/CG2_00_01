@@ -1,54 +1,49 @@
 #include "Game.h"
 
+// --- ここで必要なクラスの中身（ヘッダー）をすべて読み込む ---
+// これを忘れると「不完全な型」というエラーになります。
+// ここで読み込むことで、コンパイラは各クラスの「サイズ」や「壊し方」を理解できます。
+#include "Sprite.h"
+#include "Object3d.h"
+#include "Model.h"
+#include "Camera.h"
+#include "Audio.h"
+#include "Input.h"
+#include "ImGuiManager.h"
+#include "ModelManager.h"
+#include "ParticleManager.h"
+
+// キーボードのキーの名前（DIK_SPACE など）を使えるようにします。
+#include <dinput.h>
+
 /**
- * 初期化：ゲーム開始時に一度だけ呼ばれる
+ * ★ここがエラー解消の核心です。
+ * 全てのヘッダーを読み込んだ「後」で default 定義をすることで、
+ * unique_ptr が Camera や Model を安全に扱えるようになります。
+ */
+Game::Game() = default;
+Game::~Game() = default;
+
+/**
+ * 初期化：ゲーム開始時に一度だけ呼ばれる準備処理
  */
 void Game::Initialize() {
-	// 1. システム基盤の初期化
-	winApp_ = std::make_unique<WinApp>();
-	winApp_->Initialize();
+	// 1. まず親クラス(Framework)の初期化を呼び、DirectX基盤等を整えます。
+	Framework::Initialize();
 
-	dxCommon_ = std::make_unique<DirectXCommon>();
-	dxCommon_->Initialize(winApp_.get());
+	// 2. 音声ファイルをメモリに読み込む（Media Foundation対応済み）
+	bgmHandles_[0] = audio_->LoadAudio("Resources/bgm.wav");
+	bgmHandles_[1] = audio_->LoadAudio("Resources/Player.mp3");
 
-	srvManager_ = std::make_unique<SrvManager>();
-	srvManager_->Initialize(dxCommon_.get());
+	// 3. テクスチャ（画像）の読み込み
+	uint32_t monsterTex = spriteCommon_->LoadTexture("Resources/monsterBall.png");
+	uint32_t whiteTex = spriteCommon_->LoadTexture("Resources/white.png");
 
-	input_ = std::make_unique<Input>();
-	input_->Initialize(winApp_.get());
-
-	audio_ = std::make_unique<Audio>();
-	audio_->Initialize();
-
-	// 2. 描画マネージャの初期化
-	spriteCommon_ = std::make_unique<SpriteCommon>();
-	spriteCommon_->Initialize(dxCommon_.get(), srvManager_.get());
-
-	object3dCommon_ = std::make_unique<Object3dCommon>();
-	object3dCommon_->Initialize(dxCommon_.get(), srvManager_.get());
-
-	modelManager_ = std::make_unique<ModelManager>();
-	modelManager_->Initialize(dxCommon_.get(), srvManager_.get());
-
-	particleManager_ = std::make_unique<ParticleManager>();
-	particleManager_->Initialize(dxCommon_.get(), srvManager_.get());
-
-	// ImGuiの初期化
-	ImGuiManager::GetInstance()->Initialize(winApp_.get(), dxCommon_.get(), srvManager_.get());
-
-	// 3. リソースのロード
-	// BGM (WAVとMP3)
-	soundHandles_[0] = audio_->LoadAudio("Resources/bgm.wav");
-	soundHandles_[1] = audio_->LoadAudio("Resources/Player.mp3");
-
-	// テクスチャ
-	texMonsterHandle_ = spriteCommon_->LoadTexture("Resources/monsterBall.png");
-	texWhiteHandle_ = spriteCommon_->LoadTexture("Resources/white.png");
-
-	// 4. ゲームオブジェクトの生成
+	// 4. 各種オブジェクトの作成とセットアップ
 	sprite_ = std::make_unique<Sprite>();
-	sprite_->Initialize(spriteCommon_.get(), texMonsterHandle_);
+	sprite_->Initialize(spriteCommon_.get(), monsterTex);
 
+	// 3Dモデル（Resourcesフォルダ内のplane.obj）
 	modelManager_->LoadModel("plane.obj");
 	Model* model = modelManager_->GetModel("plane.obj");
 	if (model) { model->LoadTextures(spriteCommon_.get()); }
@@ -57,132 +52,125 @@ void Game::Initialize() {
 	object3d_->Initialize(object3dCommon_.get());
 	object3d_->SetModel(model);
 
+	// パーティクルの受け皿（グループ）を作成
+	particleManager_->CreateParticleGroup("Spark", whiteTex);
+
+	// カメラの作成
 	camera_ = std::make_unique<Camera>();
 
-	// 最初の曲を再生開始
-	audio_->PlayWave(soundHandles_[currentBgmIndex_], isBgmLoop_);
+	// 最初の一曲を自動再生
+	audio_->PlayWave(bgmHandles_[currentBgmIndex_], isBgmLoop_);
 }
 
 /**
- * 更新：毎フレーム呼ばれる
+ * 更新：毎フレームの計算や入力を受け付ける処理
  */
 void Game::Update() {
-	// メッセージ処理（ウィンドウが閉じられたら終了リクエストを出す）
-	if (winApp_->ProcessMessage()) {
-		isEndRequest_ = true;
-		return;
-	}
+	// 1. フレームワークの基本処理（メッセージ処理、入力更新）
+	Framework::Update();
 
-	// 入力情報の更新
-	input_->Update();
-
-	// スペースキーで現在の曲をリスタート
+	// 2. スペースキーが押されたら現在選択中のBGMを再生（デバッグ用）
 	if (input_->TriggerKey(DIK_SPACE)) {
-		audio_->PlayWave(soundHandles_[currentBgmIndex_], isBgmLoop_);
+		audio_->PlayWave(bgmHandles_[currentBgmIndex_], isBgmLoop_);
 	}
 
-	// ImGuiの受付開始
+	// --- 3. ImGuiによるデバッグ操作画面の定義開始 ---
 	ImGuiManager::GetInstance()->Begin();
 
 #ifdef USE_IMGUI
-	// 背景透過
+	// 背景を透過させてゲーム画面を見えるようにする
 	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
 	// A. 音楽プレイヤー設定
 	ImGui::Begin("Audio Selector");
-	const char* bgmNames[] = { "Original (WAV)", "Player (MP3)" };
-	ImGui::Combo("Select Track", &currentBgmIndex_, bgmNames, IM_ARRAYSIZE(bgmNames));
-	ImGui::Checkbox("Loop", &isBgmLoop_);
-	if (ImGui::Button("Play BGM")) { audio_->PlayWave(soundHandles_[currentBgmIndex_], isBgmLoop_); }
+	const char* names[] = { "Original (WAV)", "Player (MP3)" };
+	if (ImGui::Combo("Select Track", &currentBgmIndex_, names, 2)) {
+		// 変更があった際、ここでも自動再生させるなどの処理が書けます
+	}
+	ImGui::Checkbox("Loop Playback", &isBgmLoop_);
+	if (ImGui::Button("Play Selected", ImVec2(120, 30))) {
+		audio_->PlayWave(bgmHandles_[currentBgmIndex_], isBgmLoop_);
+	}
 	ImGui::SameLine();
-	if (ImGui::Button("Stop BGM")) { audio_->StopWave(soundHandles_[currentBgmIndex_]); }
+	if (ImGui::Button("Stop BGM", ImVec2(120, 30))) {
+		audio_->StopWave(bgmHandles_[currentBgmIndex_]);
+	}
 	ImGui::End();
 
-	// B. 描画順の設定
-	ImGui::Begin("Priority Settings");
-	ImGui::Text("[ Layer: Model vs Sprite ]");
-	ImGui::RadioButton("Sprite Front", &modelPriority_, 0);
-	ImGui::SameLine();
+	// B. 描画の優先順位（レイヤー）設定
+	ImGui::Begin("Layer Controls");
+	ImGui::Text("[ Sprite vs OBJ Model ]");
+	ImGui::RadioButton("Sprite Front", &modelPriority_, 0); ImGui::SameLine();
 	ImGui::RadioButton("Model Front", &modelPriority_, 1);
 	ImGui::Separator();
-	ImGui::Text("[ Layer: Sprite vs Particle ]");
-	if (ImGui::RadioButton("Sprite on Top", spriteOnTopVsParticle_ == true)) { spriteOnTopVsParticle_ = true; }
-	ImGui::SameLine();
-	if (ImGui::RadioButton("Particle on Top", spriteOnTopVsParticle_ == false)) { spriteOnTopVsParticle_ = false; }
+	ImGui::Checkbox("Sprite Over Particles", &spriteOnTopVsParticle_);
 	ImGui::End();
 
-	// C. 操作エディタ
-	ImGui::Begin("Game Editor");
-	if (ImGui::CollapsingHeader("Sprite Pos", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat2("Pos", &spritePos_.x, 0.0f, 1280.0f, "%.1f");
-	}
-	if (ImGui::CollapsingHeader("Particles")) {
-		if (ImGui::Button("Emit (Spark)")) {
-			particleManager_->Emit("Spark", { 0, 0, 0 }, 10);
-		}
+	// C. 各種パラメータ操作
+	ImGui::Begin("Object Editor");
+	ImGui::SliderFloat2("Sprite Pos", &spritePos_.x, 0.0f, 1280.0f);
+	if (ImGui::Button("Emit 10 Particles")) {
+		particleManager_->Emit("Spark", { 0,0,0 }, 10);
 	}
 	ImGui::End();
-
-	ImGui::ShowDemoWindow();
 #endif
 
-	// オブジェクトの更新
+	// 4. オブジェクトの動きを反映
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
 
 	camera_->Update();
 
-	object3d_->SetRotation({ 0.0f, object3d_->GetRotation().y + 0.02f, 0.0f });
+	// 板ポリ（3D）をくるくる回す
+	object3d_->SetRotation({ 0, object3d_->GetRotation().y + 0.02f, 0 });
 	object3d_->Update(camera_.get());
 
-	// パーティクルグループがない場合は作る（初回のみ）
-	particleManager_->CreateParticleGroup("Spark", texWhiteHandle_);
 	particleManager_->Update(camera_.get());
 
-	// ImGuiの受付終了
+	// ImGuiの定義終了
 	ImGuiManager::GetInstance()->End();
 }
 
 /**
- * 描画：毎フレーム呼ばれる
+ * 描画：最終的な絵を画面に出力する処理
  */
 void Game::Draw() {
-	// 描画前処理
+	// 描画の準備
 	dxCommon_->PreDraw();
 	srvManager_->PreDraw();
 
-	// フラグに応じた描画順序の入れ替えロジック
+	// 【描画のルール】プログラムで「後から」命令したものが手前に重なります。
+
 	if (modelPriority_ == 1) {
-		// --- モデルが一番手前 ---
+		// --- パターン：モデルを一番手前にする場合 ---
 		spriteCommon_->PreDraw();
 		sprite_->Draw();
 		object3dCommon_->CommonDrawSettings();
 		object3d_->Draw();
 	} else {
-		// --- スプライトがモデルより手前 ---
+		// --- パターン：スプライトをモデルより手前にする場合 ---
 		object3dCommon_->CommonDrawSettings();
 		object3d_->Draw();
 		spriteCommon_->PreDraw();
 		sprite_->Draw();
 	}
 
-	// パーティクルの描画（最前面の設定の場合）
+	// パーティクルの描画（最前面の設定の場合のみ描画）
 	if (!spriteOnTopVsParticle_) {
 		particleManager_->Draw();
 	}
 
-	// ImGuiの描画（常に最前面）
+	// UI描画（常に最前面）
 	ImGuiManager::GetInstance()->Draw();
 
-	// 描画後処理（画面を切り替えて表示）
+	// 描画終了
 	dxCommon_->PostDraw();
 }
 
 /**
- * 終了処理：ゲームが終わるとき一度だけ呼ばれる
+ * 終了処理：ゲームが終わる際の後片付け
  */
 void Game::Finalize() {
-	ImGuiManager::GetInstance()->Finalize();
-	audio_->Finalize();
-	winApp_->Finalize();
+	// 最後に親クラス(Framework)の共通終了処理を呼んでシステムを閉じます。
+	Framework::Finalize();
 }
