@@ -1,6 +1,4 @@
 #include "Framework.h"
-
-// --- ここですべてのヘッダーを読み込むことで unique_ptr が正常に動くようにする ---
 #include "WinApp.h"
 #include "DirectXCommon.h"
 #include "Input.h"
@@ -12,28 +10,46 @@
 #include "ModelManager.h"
 #include "ParticleManager.h"
 
-/**
- * コンストラクタとデストラクタの実装
- * ここですべての型情報が揃っているため、安全に生成・破棄ができます。
- */
-Framework::Framework() = default;
-Framework::~Framework() = default;
+// 静的変数の実体を定義（最初は空っぽ）
+Framework* Framework::instance = nullptr;
 
 /**
- * ゲームの実行順序を制御
+ * どこからでも自分自身を取得できる関数
  */
-void Framework::Run() {
-	Initialize(); // 1. 準備
-
-	while (true) {
-		Update(); // 2. 更新
-		if (IsEndRequest()) break;
-		Draw();   // 3. 描画
-	}
-
-	Finalize();   // 4. 後片付け
+Framework* Framework::GetInstance() {
+	return instance;
 }
 
+/**
+ * コンストラクタ（生成時）
+ */
+Framework::Framework() {
+	// 自分が作られたとき、その場所（this）を instance に保存する
+	instance = this;
+}
+
+Framework::~Framework() {
+	instance = nullptr;
+}
+
+/**
+ * メインループの制御
+ */
+void Framework::Run() {
+	Initialize(); // 準備
+
+	while (true) {
+		Update(); // 更新
+		if (IsEndRequest()) break;
+		Draw();   // 描画
+	}
+
+	Finalize(); // 終了
+}
+
+/**
+ * エンジンとしての基本初期化
+ */
 void Framework::Initialize() {
 	winApp_ = std::make_unique<WinApp>();
 	winApp_->Initialize();
@@ -62,7 +78,7 @@ void Framework::Initialize() {
 	particleManager_ = std::make_unique<ParticleManager>();
 	particleManager_->Initialize(dxCommon_.get(), srvManager_.get());
 
-	// ImGuiのセットアップ
+	// ImGuiの準備
 	ImGuiManager::GetInstance()->Initialize(winApp_.get(), dxCommon_.get(), srvManager_.get());
 }
 

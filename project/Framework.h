@@ -1,7 +1,7 @@
 #pragma once
 #include <memory>
 
-// --- 前方宣言（ビルドを速くするための「名前だけの登録」） ---
+// 前方宣言：ビルドを速くし、お互いに読み込み合ってエラーになるのを防ぎます
 class WinApp;
 class DirectXCommon;
 class Input;
@@ -14,37 +14,42 @@ class ParticleManager;
 
 /**
  * Frameworkクラス
- * ゲームの実行手順（初期化・ループ・終了）を管理する基底クラスです。
+ * エンジンの心臓部です。DirectXの初期化やメインループを管理します。
+ * どこからでもエンジンにアクセスできるように「シングルトン」という仕組みを導入しています。
  */
 class Framework {
 public:
-	// コンストラクタ
 	Framework();
-
-	// デストラクタ（仮想関数）
-	// unique_ptrのエラーを避けるため、実装（中身）は .cpp で書きます。
 	virtual ~Framework();
 
-	// ゲームのメイン処理を実行する関数
+	// ★シングルトン：
+	// ゲーム内のどこからでも「Framework::GetInstance()」と書くだけで、このエンジンの機能を使えるようになります。
+	static Framework* GetInstance();
+
+	// ゲームの実行（初期化 -> ループ -> 終了）
 	void Run();
 
-	// 基本的な初期化
+	// 各フェーズの関数（仮想関数なので、MyGameなどで上書きできます）
 	virtual void Initialize();
-
-	// 終了処理
 	virtual void Finalize();
-
-	// 更新
 	virtual void Update();
+	virtual void Draw() = 0; // 描画はアプリ側（MyGame）で実装します
 
-	// 描画（各ゲームで実装する純粋仮想関数）
-	virtual void Draw() = 0;
-
-	// 終了リクエストの確認
+	// 終了リクエストが来ているか
 	virtual bool IsEndRequest() { return endRequest_; }
 
+	// --- ゲッター（部品を貸し出す窓口） ---
+	Audio* GetAudio() const { return audio_.get(); }
+	Input* GetInput() const { return input_.get(); }
+	SpriteCommon* GetSpriteCommon() const { return spriteCommon_.get(); }
+	Object3dCommon* GetObject3dCommon() const { return object3dCommon_.get(); }
+	ModelManager* GetModelManager() const { return modelManager_.get(); }
+	ParticleManager* GetParticleManager() const { return particleManager_.get(); }
+	DirectXCommon* GetDxCommon() const { return dxCommon_.get(); }
+	SrvManager* GetSrvManager() const { return srvManager_.get(); }
+
 protected:
-	// マネージャ群（スマートポインタで安全に管理）
+	// 各種マネージャ（スマートポインタで安全に管理）
 	std::unique_ptr<WinApp> winApp_;
 	std::unique_ptr<DirectXCommon> dxCommon_;
 	std::unique_ptr<SrvManager> srvManager_;
@@ -56,6 +61,9 @@ protected:
 	std::unique_ptr<ModelManager> modelManager_;
 	std::unique_ptr<ParticleManager> particleManager_;
 
-	// 終了フラグ
 	bool endRequest_ = false;
+
+private:
+	// 唯一のインスタンスを指すためのポインタ
+	static Framework* instance;
 };

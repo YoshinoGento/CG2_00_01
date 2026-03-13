@@ -159,7 +159,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AbstractSceneFactory.cpp" />
     <ClCompile Include="Audio.cpp" />
+    <ClCompile Include="BaseScene.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DirectXCommon.cpp" />
     <ClCompile Include="engine\base\main.cpp">
@@ -169,6 +171,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\math\Matrix.cpp" />
     <ClCompile Include="Framework.cpp" />
     <ClCompile Include="Game.cpp" />
+    <ClCompile Include="GamePlayScene.cpp" />
     <ClCompile Include="hoge.cpp" />
     <ClCompile Include="ImGuiManager.cpp" />
     <ClCompile Include="Input.cpp" />
@@ -178,9 +181,12 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Object3d.cpp" />
     <ClCompile Include="Object3dCommon.cpp" />
     <ClCompile Include="ParticleManager.cpp" />
+    <ClCompile Include="SceneFactory.cpp" />
+    <ClCompile Include="SceneManager.cpp" />
     <ClCompile Include="Sprite.cpp" />
     <ClCompile Include="SpriteCommon.cpp" />
     <ClCompile Include="SrvManager.cpp" />
+    <ClCompile Include="TitleScene.cpp" />
     <ClCompile Include="WinApp.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -217,7 +223,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <FxCompile Include="Resources\shader\Sprite2D.VS.hlsl" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AbstractSceneFactory.h" />
     <ClInclude Include="Audio.h" />
+    <ClInclude Include="BaseScene.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="DirectXCommon.h" />
     <ClInclude Include="engine\math\Matrix.h" />
@@ -225,6 +233,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\math\Transform.h" />
     <ClInclude Include="Framework.h" />
     <ClInclude Include="Game.h" />
+    <ClInclude Include="GamePlayScene.h" />
     <ClInclude Include="hoge.h" />
     <ClInclude Include="ImGuiManager.h" />
     <ClInclude Include="Input.h" />
@@ -234,9 +243,12 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Object3d.h" />
     <ClInclude Include="Object3dCommon.h" />
     <ClInclude Include="ParticleManager.h" />
+    <ClInclude Include="SceneFactory.h" />
+    <ClInclude Include="SceneManager.h" />
     <ClInclude Include="Sprite.h" />
     <ClInclude Include="SpriteCommon.h" />
     <ClInclude Include="SrvManager.h" />
+    <ClInclude Include="TitleScene.h" />
     <ClInclude Include="WinApp.h" />
   </ItemGroup>
   <ItemGroup>
