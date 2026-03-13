@@ -2,19 +2,18 @@
 #include <Windows.h>
 
 /**
- * WinMain: Windowsアプリの入り口
- * 注釈（_In_など）を付けることで警告C28251を解消します。
+ * WinMain: プログラムが最初に動き出す場所
  */
-int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd) {
-    // 未使用引数の警告避け
-    (void)hInstance; (void)hPrevInstance; (void)lpCmdLine; (void)nShowCmd;
+int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
-    // 1. ゲーム（アプリ層）をエンジン（Framework層）のポインタで作成
-    // これにより「Frameworkとして実行するが、中身はGame」というポリモーフィズムを実現
-    std::unique_ptr<Framework> game = std::make_unique<Game>();
+	// 1. ゲーム本体（Gameクラス）を作成します。
+	// Framework（エンジン層）のポインタで持つことで、共通の Run() 関数を呼び出せるようにしています。
+	std::unique_ptr<Framework> game = std::make_unique<Game>();
 
-    // 2. 実行（この1行で初期化・ループ・終了まで完結）
-    game->Run();
+	// 2. ゲームを実行します。
+	// この1行の中で「初期化 → ループ（更新・描画） → 終了処理」が自動的に行われます。
+	game->Run();
 
-    return 0;
+	// 3. プログラムを正常終了します。
+	return 0;
 }

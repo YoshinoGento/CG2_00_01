@@ -1,37 +1,66 @@
 #pragma once
 #include "DirectXCommon.h"
+#include <d3d12.h>
+#include <wrl.h>
+#include <cstdint>
 
+/**
+ * SrvManagerクラス
+ * テクスチャなどの「画像データ」をGPUがどこから読み込めばいいかを管理する窓口です。
+ * 専門用語で SRV (Shader Resource View) の管理を行います。
+ */
 class SrvManager {
 public:
-    // 初期化
-    void Initialize(DirectXCommon* dxCommon);
+	// 最大で管理できる画像の数（512枚まで）
+	static const uint32_t kMaxSRVCount = 512;
 
-    // 空き番号を確保する
-    uint32_t Allocate();
+	/// <summary>
+	/// 初期化
+	/// </summary>
+	/// <param name="dxCommon">DirectX基盤のポインタ</param>
+	void Initialize(DirectXCommon* dxCommon);
 
-    // デスクリプタハンドル取得
-    D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle(uint32_t index);
-    D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(uint32_t index);
+	/// <summary>
+	/// 描画前の準備（コマンドリストに「画像の棚」をセットする）
+	/// </summary>
+	void PreDraw();
 
-    // テクスチャ用SRV生成関数
-    void CreateSRVforTexture2D(uint32_t srvIndex, ID3D12Resource* pResource, DXGI_FORMAT Format, UINT MipLevels);
+	/// <summary>
+	/// 新しい画像用の場所（空き番号）を確保して、その番号を返す
+	/// </summary>
+	/// <returns>確保した場所の番号（インデックス）</returns>
+	uint32_t Allocate();
 
-    // 描画前処理 (Heapをコマンドリストにセット)
-    void PreDraw();
+	/// <summary>
+	/// 指定した番号の場所に、テクスチャ(2D画像)の情報を書き込む
+	/// </summary>
+	/// <param name="srvIndex">Allocateで確保した番号</param>
+	/// <param name="pResource">画像データ本体のリソース</param>
+	/// <param name="Format">画像の形式（DXGI_FORMAT）</param>
+	/// <param name="MipLevels">画像の詳細度（ミップマップ数）</param>
+	void CreateSRVforTexture2D(uint32_t srvIndex, ID3D12Resource* pResource, DXGI_FORMAT Format, UINT MipLevels);
 
-    // ゲッター
-    ID3D12DescriptorHeap* GetSrvDescriptorHeap() const { return descriptorHeap_.Get(); }
+	// --- ゲッター群 ---
 
-    // 最大テクスチャ数
-    static const uint32_t kMaxSRVCount = 512;
+	// 画像の棚（ディスクリプタヒープ）本体を取得
+	ID3D12DescriptorHeap* GetSrvDescriptorHeap() const { return descriptorHeap_.Get(); }
+
+	// 指定した番号の「CPU側」のハンドル（設定するときに使う住所）を取得
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle(uint32_t index) const;
+
+	// 指定した番号の「GPU側」のハンドル（描画命令を出すときに使う住所）を取得
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(uint32_t index) const;
 
 private:
-    DirectXCommon* dxCommon_ = nullptr;
+	DirectXCommon* dxCommon_ = nullptr;
 
-    // SRV用デスクリプタヒープ
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descriptorHeap_;
-    // 1つあたりのサイズ
-    uint32_t descriptorSize_ ;
-    // 次に使うインデックス
-    uint32_t useIndex_ = 0;
+	// 画像の場所をまとめた「棚（ヒープ）」
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descriptorHeap_;
+
+	// 棚の1区画あたりのサイズ（GPUごとに異なるため実行時に取得します）
+	// ★警告C26495の修正：宣言時に 0 で初期化します。
+	uint32_t descriptorSize_ = 0;
+
+	// 次に使う空き場所の番号（0から順番に埋めていきます）
+	uint32_t useIndex_ = 0;
 };
