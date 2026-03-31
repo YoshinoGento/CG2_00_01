@@ -13,7 +13,8 @@ class Camera;
 
 /**
  * GamePlaySceneクラス
- * 以前の使いやすいImGui機能をすべて復元した、デバッグ特化型のプレイシーンです。
+ * デバッグ機能を備えたプレイシーンです。
+ * スナップ機能を削除し、自由な移動が可能な状態に修正しました。
  */
 class GamePlayScene : public BaseScene {
 public:
@@ -55,8 +56,7 @@ private:
 
 	// --- 編集設定 ---
 	int selectedTarget_ = 1; // 1:Sprite, 2:Object3D, 3:Particle
-	bool isSnap_ = true;
-	float snapStep_ = 32.0f;
+	// ★スナップ関連の変数を削除しました
 
 	// --- オーディオ ---
 	uint32_t soundHandles_[2] = { 0, 0 };
