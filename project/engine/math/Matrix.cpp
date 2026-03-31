@@ -1,12 +1,133 @@
-
 #include "Matrix.h"
-#include "math.h"
 #include <cmath>
+#include <algorithm>
 
+/**
+ * 単位行列の作成
+ * 数値でいう「1」に相当する、何もしない行列です。
+ */
+Matrix4x4 MatrixMath::MakeIdentity4x4() {
+	Matrix4x4 result = {};
+	for (int i = 0; i < 4; ++i) result.m[i][i] = 1.0f;
+	return result;
+}
 
-//1.透視投影行列
+/**
+ * 拡大縮小行列
+ */
+Matrix4x4 MatrixMath::MakeScaleMatrix(const Vector3& scale) {
+	Matrix4x4 result = MakeIdentity4x4();
+	result.m[0][0] = scale.x;
+	result.m[1][1] = scale.y;
+	result.m[2][2] = scale.z;
+	return result;
+}
+
+/**
+ * X軸回転行列
+ */
+Matrix4x4 MatrixMath::MakeRotateXMatrix(float radian) {
+	Matrix4x4 result = MakeIdentity4x4();
+	result.m[1][1] = std::cos(radian);
+	result.m[1][2] = std::sin(radian);
+	result.m[2][1] = -std::sin(radian);
+	result.m[2][2] = std::cos(radian);
+	return result;
+}
+
+/**
+ * Y軸回転行列
+ */
+Matrix4x4 MatrixMath::MakeRotateYMatrix(float radian) {
+	Matrix4x4 result = MakeIdentity4x4();
+	result.m[0][0] = std::cos(radian);
+	result.m[0][2] = -std::sin(radian);
+	result.m[2][0] = std::sin(radian);
+	result.m[2][2] = std::cos(radian);
+	return result;
+}
+
+/**
+ * Z軸回転行列
+ */
+Matrix4x4 MatrixMath::MakeRotateZMatrix(float radian) {
+	Matrix4x4 result = MakeIdentity4x4();
+	result.m[0][0] = std::cos(radian);
+	result.m[0][1] = std::sin(radian);
+	result.m[1][0] = -std::sin(radian);
+	result.m[1][1] = std::cos(radian);
+	return result;
+}
+
+/**
+ * 平行移動行列
+ */
+Matrix4x4 MatrixMath::MakeTranslateMatrix(const Vector3& translate) {
+	Matrix4x4 result = MakeIdentity4x4();
+	result.m[3][0] = translate.x;
+	result.m[3][1] = translate.y;
+	result.m[3][2] = translate.z;
+	return result;
+}
+
+/**
+ * アフィン変換行列
+ * スケール・回転・移動をこの順番で合成します。
+ */
+Matrix4x4 MatrixMath::MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate) {
+	Matrix4x4 matScale = MakeScaleMatrix(scale);
+	Matrix4x4 matRot = Multiply(MakeRotateXMatrix(rotate.x), Multiply(MakeRotateYMatrix(rotate.y), MakeRotateZMatrix(rotate.z)));
+	Matrix4x4 matTrans = MakeTranslateMatrix(translate);
+	return Multiply(matScale, Multiply(matRot, matTrans));
+}
+
+/**
+ * 行列の積
+ */
+Matrix4x4 MatrixMath::Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
+	Matrix4x4 result;
+	for (int i = 0; i < 4; ++i) {
+		for (int j = 0; j < 4; ++j) {
+			result.m[i][j] = 0;
+			for (int k = 0; k < 4; ++k) {
+				result.m[i][j] += m1.m[i][k] * m2.m[k][j];
+			}
+		}
+	}
+	return result;
+}
+
+/**
+ * 逆行列 (ガウス・ジョルダン法)
+ */
+Matrix4x4 MatrixMath::Inverse(const Matrix4x4& m) {
+	Matrix4x4 res = MakeIdentity4x4();
+	float a[4][4];
+	for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) a[i][j] = m.m[i][j];
+
+	for (int i = 0; i < 4; i++) {
+		int pivot = i;
+		for (int j = i + 1; j < 4; j++) if (std::abs(a[j][i]) > std::abs(a[pivot][i])) pivot = j;
+		std::swap(a[i], a[pivot]);
+		std::swap(res.m[i], res.m[pivot]);
+
+		float div = a[i][i];
+		for (int j = 0; j < 4; j++) { a[i][j] /= div; res.m[i][j] /= div; }
+		for (int j = 0; j < 4; j++) {
+			if (i != j) {
+				float mul = a[j][i];
+				for (int k = 0; k < 4; k++) { a[j][k] -= a[i][k] * mul; res.m[j][k] -= res.m[i][k] * mul; }
+			}
+		}
+	}
+	return res;
+}
+
+/**
+ * 透視投影行列 (3D描画用)
+ */
 Matrix4x4 MatrixMath::MakePerspectiveFovMatrix(float fovY, float aspectRatio, float nearClip, float farClip) {
-	float cot = (1.0f / tanf(fovY / 2.0f));
+	float cot = (1.0f / std::tan(fovY / 2.0f));
 	Matrix4x4 result = {};
 	result.m[0][0] = 1.0f / aspectRatio * cot;
 	result.m[1][1] = cot;
@@ -16,7 +137,9 @@ Matrix4x4 MatrixMath::MakePerspectiveFovMatrix(float fovY, float aspectRatio, fl
 	return result;
 }
 
-//2.正射影行列
+/**
+ * 正射影行列 (2D描画用)
+ */
 Matrix4x4 MatrixMath::MakeOrthographicMatrix(float left, float top, float right, float bottom, float nearClip, float farClip) {
 	Matrix4x4 result = {};
 	result.m[0][0] = 2.0f / (right - left);
@@ -26,229 +149,69 @@ Matrix4x4 MatrixMath::MakeOrthographicMatrix(float left, float top, float right,
 	result.m[3][1] = (top + bottom) / (bottom - top);
 	result.m[3][2] = nearClip / (nearClip - farClip);
 	result.m[3][3] = 1.0f;
-
 	return result;
 }
 
-//3.ビューポート変換行列
+/**
+ * ビューポート行列
+ */
 Matrix4x4 MatrixMath::MakeViewportMatrix(float left, float top, float width, float height, float minDepth, float maxDepth) {
-	Matrix4x4 result = {};
+	Matrix4x4 result = MakeIdentity4x4();
 	result.m[0][0] = width / 2.0f;
 	result.m[1][1] = -height / 2.0f;
 	result.m[2][2] = maxDepth - minDepth;
 	result.m[3][0] = left + (width / 2.0f);
 	result.m[3][1] = top + (height / 2.0f);
 	result.m[3][2] = minDepth;
-	result.m[3][3] = 1.0f;
-	return result;
-
-}
-
-//拡大縮小行列
-Matrix4x4 MatrixMath::MakeScaleMatrix(const Vector3& scale) {
-
-	Matrix4x4 result = { {
-	   {scale.x, 0,  0,  0},  // 横の大きさ（x方向）
-	   {0,  scale.y, 0,  0},  // 縦の大きさ（y方向）
-	   {0,  0,  scale.z, 0},  // 奥行きの大きさ（z方向）
-	   {0,  0,  0,  1}        // おまじない（そのままでOK）
-   } };
-
 	return result;
 }
 
-//X軸回転行列
-Matrix4x4 MatrixMath::MakeRotateXMatrix(float radian) {
-	Matrix4x4 result = { {
-
-		{1.0f,0.0f,0.0f,0.0f},
-		{0.0f,std::cos(radian),std::sin(radian),0.0f},
-		{0.0f,-std::sin(radian),std::cos(radian),0.0f},
-		{0.0f,0.0f,0.0f,1.0f}
-	} };
-
-	return result;
-}
-
-//Y軸回転行列
-Matrix4x4 MatrixMath::MakeRotateYMatrix(float radian) {
-	Matrix4x4 result = { {
-
-		{std::cos(radian),0.0f,-std::sin(radian),0.0f},
-		{0.0f,1.0f,0.0f,0.0f},
-		{std::sin(radian),0.0f,std::cos(radian),0.0f},
-		{0.0f,0.0f,0.0f,1.0f}
-	} };
-	return result;
-}
-
-//Z軸回転行列
-Matrix4x4 MatrixMath::MakeRotateZMatrix(float radian) {
-	Matrix4x4 result = { {
-
-		{ std::cos(radian),std::sin(radian),0.0f,0.0f},
-		{-std::sin(radian),std::cos(radian),0.0f,0.0f},
-		{0.0f,0.0f,1.0f,0.0f},
-		{0.0f,0.0f,0.0f,1.0f}
-	} };
-	return result;
-}
-
-//平行移動行列
-Matrix4x4 MatrixMath::MakeTranslateMatrix(const Vector3& translate) {
-
-	Matrix4x4 result = { {
-		{1, 0, 0, 0},  // x方向にtranslateだけ動かす
-		{0, 1, 0, 0},  // y方向にtranslateだけ動かす
-		{0, 0, 1, 0},  // z方向にtranslateだけ動かす
-		{translate.x, translate.y, translate.z, 1}    // この行は変えない（特別な意味）
-	} };
-
-	return result;
-}
-
-//積
-Matrix4x4 MatrixMath::Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
-
-	Matrix4x4 result;
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			result.m[i][j] = 0;  // 初期化
-			for (int k = 0; k < 4; ++k) {
-				result.m[i][j] += m1.m[i][k] * m2.m[k][j];
-			}
-		}
-	}
-
-	return result;
-}
-
-//アフィン行列
-Matrix4x4 MatrixMath::MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate) {
-	Matrix4x4 result;
-
-
-
-	//回転行列を生成する
-	Matrix4x4 rotateXMatrix = MakeRotateXMatrix(rotate.x);
-	Matrix4x4 rotateYMatrix = MakeRotateYMatrix(rotate.y);
-	Matrix4x4 rotateZMatrix = MakeRotateZMatrix(rotate.z);
-
-	Matrix4x4 rotateMatrix = Multiply(rotateXMatrix, Multiply(rotateYMatrix, rotateZMatrix));
-
-
-	result = {
-		scale.x * rotateMatrix.m[0][0],scale.x * rotateMatrix.m[0][1],scale.x * rotateMatrix.m[0][2],0.0f,
-		scale.y * rotateMatrix.m[1][0],scale.y * rotateMatrix.m[1][1],scale.y * rotateMatrix.m[1][2],0.0f,
-		scale.z * rotateMatrix.m[2][0],scale.z * rotateMatrix.m[2][1],scale.z * rotateMatrix.m[2][2],0.0f,
-		translate.x,translate.y,translate.z,1.0f
-	};
-
-	return result;
-}
-
-//クロス積
-Vector3 MatrixMath::Cross(const Vector3& v1, const Vector3& v2) {
-	Vector3 result{
-		(v1.y * v2.z) - (v1.z * v2.y),
-		(v1.z * v2.x) - (v1.x * v2.z),
-		(v1.x * v2.y) - (v1.y * v2.x)
-	};
-	return Vector3();
-}
-
-
-//逆行列
-Matrix4x4 MatrixMath::Inverse(const Matrix4x4& m) {
-
-	float aug[4][8] = {};
-	for (int row = 0; row < 4; row++) {
-		for (int col = 0; col < 4; col++) {
-			aug[row][col] = m.m[row][col];
-		}
-	}
-	//単位行列を右に追加する
-	aug[0][4] = 1.0f;
-	aug[1][5] = 1.0f;
-	aug[2][6] = 1.0f;
-	aug[3][7] = 1.0f;
-
-	for (int i = 0; i < 4; i++) {
-		//ピボットが0の場合下の行と入れ替える
-		if (aug[i][i] == 0.0f) {
-			for (int j = i + 1; j < 4; j++) {
-				if (aug[j][i] != 0.0f) {
-					//行を交換する
-					for (int k = 0; k < 8; k++) {//列
-						float copyNum = aug[i][k];//元々ある上の行を代入
-						aug[i][k] = aug[j][k];//上の行
-						aug[j][k] = copyNum;//下の行
-					}
-					break;
-				}
-			}
-		}
-
-
-		//ピボットを1のする
-		float pivot = aug[i][i];
-		for (int k = 0; k < 8; k++) {
-			aug[i][k] /= pivot;
-		}
-
-		//i列目のピボット以外を0にする
-		for (int j = 0; j < 4; j++) {
-			if (j != i) {
-				float factor = aug[j][i];
-				for (int k = 0; k < 8; k++) {
-					aug[j][k] -= factor * aug[i][k];
-				}
-			}
-		}
-	}
-	Matrix4x4 result = {};
-	for (int row = 0; row < 4; row++) {
-		for (int col = 0; col < 4; col++) {
-			result.m[row][col] = aug[row][col + 4];
-		}
-	}
-
-	return result;
-}
-
-//座標変換
+/**
+ * 座標変換
+ */
 Vector3 MatrixMath::Transform(const Vector3& vector, const Matrix4x4& matrix) {
 	Vector3 result;
-	result.x = vector.x * matrix.m[0][0] + vector.y * matrix.m[1][0] + vector.z * matrix.m[2][0] + 1.0f * matrix.m[3][0];
-	result.y = vector.x * matrix.m[0][1] + vector.y * matrix.m[1][1] + vector.z * matrix.m[2][1] + 1.0f * matrix.m[3][1];
-	result.z = vector.x * matrix.m[0][2] + vector.y * matrix.m[1][2] + vector.z * matrix.m[2][2] + 1.0f * matrix.m[3][2];
-
-	float w = vector.x * matrix.m[0][3] + vector.y * matrix.m[1][3] + vector.z * matrix.m[2][3] + 1.0f * matrix.m[3][3];
-
-	result.x /= w;
-	result.y /= w;
-	result.z /= w;
-
-
-	return result;
-}
-//単位行列
-Matrix4x4 MatrixMath::MakeIdentity4x4() {
-	Matrix4x4 result;
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			result.m[i][j] = (i == j) ? 1.0f : 0.0f;
-		}
-	}
+	result.x = vector.x * matrix.m[0][0] + vector.y * matrix.m[1][0] + vector.z * matrix.m[2][0] + matrix.m[3][0];
+	result.y = vector.x * matrix.m[0][1] + vector.y * matrix.m[1][1] + vector.z * matrix.m[2][1] + matrix.m[3][1];
+	result.z = vector.x * matrix.m[0][2] + vector.y * matrix.m[1][2] + vector.z * matrix.m[2][2] + matrix.m[3][2];
+	float w = vector.x * matrix.m[0][3] + vector.y * matrix.m[1][3] + vector.z * matrix.m[2][3] + matrix.m[3][3];
+	result.x /= w; result.y /= w; result.z /= w;
 	return result;
 }
 
+/**
+ * ベクトルの長さ
+ */
+float MatrixMath::Length(const Vector3& v) { return std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z); }
+float MatrixMath::Length(const Vector2& v) { return std::sqrt(v.x * v.x + v.y * v.y); }
 
+/**
+ * 正規化
+ */
 Vector3 MatrixMath::Normalize(const Vector3& v) {
+	float len = Length(v);
+	if (len == 0.0f) return v;
+	return v / len;
+}
 
-	float length = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-	if (length == 0.0f) {
-		return { 0.0f, 0.0f, 0.0f };
-	}
-	return { v.x / length, v.y / length, v.z / length };
+Vector2 MatrixMath::Normalize(const Vector2& v) {
+	float len = Length(v);
+	if (len == 0.0f) return v;
+	return v / len;
+}
+
+/**
+ * 内積
+ */
+float MatrixMath::Dot(const Vector3& v1, const Vector3& v2) { return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z; }
+
+/**
+ * 外積 (修正済)
+ */
+Vector3 MatrixMath::Cross(const Vector3& v1, const Vector3& v2) {
+	return {
+		v1.y * v2.z - v1.z * v2.y,
+		v1.z * v2.x - v1.x * v2.z,
+		v1.x * v2.y - v1.y * v2.x
+	};
 }
