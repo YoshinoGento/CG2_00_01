@@ -6,15 +6,17 @@
 #include <cstdint>
 #include "Matrix.h"
 
-// 前方宣言
 class Framework;
 class Sprite;
 class Object3d;
 class Camera;
 class Model;
 
+/**
+ * GamePlaySceneクラス
+ */
 class GamePlayScene : public BaseScene {
-	friend class Game; // Gameクラスからアクセスを許可
+	friend class Game;
 
 public:
 	GamePlayScene();
@@ -27,6 +29,8 @@ public:
 
 	void CreateSphere(float radius);
 
+	int cullMode_ = 2; // ★ImGuiから操作される変数
+
 private:
 	void AddLog(const std::string& message);
 	void HandleKeyboardMovement();
@@ -38,25 +42,37 @@ private:
 	std::unique_ptr<Object3d> object3d_;
 	std::unique_ptr<Camera> camera_;
 
+	Vector3 cameraPos_ = { 0.0f, 5.0f, -15.0f };
+	Vector3 cameraRot_ = { 0.3f, 0.0f, 0.0f };
+
 	std::unique_ptr<Model> sphereModel_;
 	std::unique_ptr<Object3d> sphereObj_;
+	std::unique_ptr<Model> terrainModel_;
+	std::unique_ptr<Object3d> terrainObj_;
 
-	std::vector<std::string> textureNames_ = {
-		"monsterBall.png", "uvChecker.png", "choju8_0008.png",
-		"IMG_0264.jpg", "仏顔.jpg", "魚パン.png"
-	};
 	std::vector<uint32_t> textureHandles_;
 
-	// --- エディタで操作する変数 ---
+	// --- 表示フラグ ---
+	bool showTerrain_ = true;
+	bool showSphere_ = true;
+	bool showPlane_ = true;
+	bool showSprite_ = true;
+	bool showParticles_ = true;
+
+	// --- エディタ操作用変数 ---
 	Vector2 spritePos_ = { 640.0f, 360.0f };
 	Vector3 objectPos_ = { 0.0f, 0.0f, 0.0f };
-	Vector3 objectRot_ = { 0.0f, 0.0f, 0.0f }; // ★追加：回転
+	Vector3 objectRot_ = { 0.0f, 0.0f, 0.0f };
 
 	float sphereRadius_ = 1.0f;
 	Vector3 spherePos_ = { 0.0f, 0.0f, 10.0f };
 
 	int selectedTarget_ = 1;
-	int modelPriority_ = 0; // ★追加：描画順序（0:3D->2D, 1:2D->3D）
+	int modelPriority_ = 0;
+
+	Vector3 lightDirection_ = { 0.0f, -1.0f, 1.0f };
+	Vector3 lightColor_ = { 1.0f, 1.0f, 1.0f };
+	float lightIntensity_ = 1.0f;
 
 	uint32_t soundHandles_[2] = { 0, 0 };
 	int currentBgmIndex_ = 0;

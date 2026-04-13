@@ -1,6 +1,6 @@
 #include "Object3d.hlsli"
 
-// 定数バッファの登録
+// 定数バッファのバインド
 cbuffer cbMaterial : register(b0)
 {
     Material gMaterial;
@@ -31,10 +31,10 @@ PixelShaderOutput main(VertexShaderOutput input)
     if (gMaterial.enableLighting != 0)
     {
         // --- 準備 ---
-        float3 N = normalize(input.normal); // 法線
-        float3 L = normalize(-gDirectionalLight.direction); // ライトへの方向
-        float3 V = normalize(gCamera.worldPosition - input.worldPosition); // 視線方向
-        float3 H = normalize(L + V); // ハーフベクトル
+        float3 N = normalize(input.normal); // 面の向き
+        float3 L = normalize(-gDirectionalLight.direction); // 光の向き (逆向きにする)
+        float3 V = normalize(gCamera.worldPosition - input.worldPosition); // 視線の向き
+        float3 H = normalize(L + V); // ハーフベクトル (LとVの中間)
         
         // --- 拡散反射 (Half-Lambert) ---
         float NdotL = dot(N, L);
@@ -42,11 +42,11 @@ PixelShaderOutput main(VertexShaderOutput input)
         float3 diffuse = gMaterial.color.rgb * textureColor.rgb * gDirectionalLight.color.rgb * cos * gDirectionalLight.intensity;
         
         // --- 鏡面反射 (Blinn-Phong) ---
-        // 法線とハーフベクトルの角度が近いほど光る
-        float specularPower = pow(saturate(dot(N, H)), gMaterial.shininess);
-        float3 specular = gDirectionalLight.color.rgb * gDirectionalLight.intensity * specularPower;
+        // 法線NとハーフベクトルHが一致するほど光る
+        float specularFactor = pow(saturate(dot(N, H)), gMaterial.shininess);
+        float3 specular = gDirectionalLight.color.rgb * gDirectionalLight.intensity * specularFactor;
         
-        // 最終合成（鏡面反射はテクスチャ色に依存せず、ライトの色で光るのが一般的）
+        // 合計 (鏡面反射はハイライトなのでテクスチャの色を掛けない)
         output.color.rgb = diffuse + specular;
         output.color.a = gMaterial.color.a * textureColor.a;
     }

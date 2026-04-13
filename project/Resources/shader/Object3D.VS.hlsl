@@ -22,15 +22,15 @@ VertexShaderOutput main(VertexShaderInput input)
 {
     VertexShaderOutput output;
     
-    // WVP行列で座標変換
+    // 座標変換 (スクリーン空間)
     output.position = mul(input.position, gTransformationMatrix.WVP);
     
-    // ★追加: ワールド行列で座標変換（ピクセルシェーダーでの反射計算用）
+    // ★追加：座標変換 (ワールド空間) - ピクセルシェーダーでの反射計算に使用
     output.worldPosition = mul(input.position, gTransformationMatrix.World).xyz;
     
     output.texcoord = input.texcoord;
     
-    // 法線の変換（回転のみ適用）
+    // 法線の変換（ワールド行列の回転成分を適用）
     output.normal = normalize(mul(input.normal, (float3x3) gTransformationMatrix.World));
     
     return output;

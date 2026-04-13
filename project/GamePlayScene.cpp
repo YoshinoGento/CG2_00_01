@@ -14,8 +14,6 @@
 #include "Game.h"
 #include "PrimitiveGenerator.h"
 #include <dinput.h>
-#include <cmath>
-#include <algorithm>
 
 GamePlayScene::GamePlayScene() = default;
 GamePlayScene::~GamePlayScene() = default;
@@ -25,29 +23,85 @@ void GamePlayScene::Initialize() {
 	AddLog("Scene: GamePlay Initialized.");
 
 	textureHandles_.clear();
-	for (const auto& name : textureNames_) {
+	std::vector<std::string> textureNames = { "monsterBall.png", "uvChecker.png", "choju8_0008.png" };
+	for (const auto& name : textureNames) {
 		textureHandles_.push_back(framework_->GetSpriteCommon()->LoadTexture("Resources/" + name));
 	}
 
-	soundHandles_[0] = framework_->GetAudio()->LoadAudio("Resources/bgm.wav");
-	soundHandles_[1] = framework_->GetAudio()->LoadAudio("Resources/Player.mp3");
+	camera_ = std::make_unique<Camera>();
+
+	std::string terrainPath = "terrain/terrain.obj";
+	framework_->GetModelManager()->LoadModel(terrainPath);
+	Model* tModel = framework_->GetModelManager()->GetModel(terrainPath);
+	if (tModel) { tModel->LoadTextures(framework_->GetSpriteCommon()); }
+
+	terrainObj_ = std::make_unique<Object3d>();
+	terrainObj_->Initialize(framework_->GetObject3dCommon());
+	terrainObj_->SetModel(tModel);
+	terrainObj_->SetPosition({ 0.0f, -2.0f, 0.0f });
+	terrainObj_->SetScale({ 2.0f, 2.0f, 2.0f });
 
 	framework_->GetModelManager()->LoadModel("plane.obj");
-	Model* model = framework_->GetModelManager()->GetModel("plane.obj");
-	if (model) { model->LoadTextures(framework_->GetSpriteCommon()); }
+	Model* planeModel = framework_->GetModelManager()->GetModel("plane.obj");
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize(framework_->GetObject3dCommon());
-	object3d_->SetModel(model);
+	object3d_->SetModel(planeModel);
 
 	sprite_ = std::make_unique<Sprite>();
 	sprite_->Initialize(framework_->GetSpriteCommon(), textureHandles_[0]);
 
-	camera_ = std::make_unique<Camera>();
 	framework_->GetParticleManager()->CreateParticleGroup("Spark", textureHandles_[2]);
 
 	CreateSphere(sphereRadius_);
 }
+
+void GamePlayScene::Update() {
+	HandleKeyboardMovement();
+
+	// カメラの反映
+	camera_->SetTranslate(cameraPos_);
+	camera_->SetRotate(cameraRot_);
+	camera_->Update();
+
+	sprite_->SetPosition(spritePos_);
+	sprite_->Update();
+
+	// --- 各オブジェクトに ImGui の設定を反映させる ---
+
+	// 地面の更新
+	if (terrainObj_) {
+		terrainObj_->SetCullMode(cullMode_); // ★ここ：カリングを反映
+		terrainObj_->SetLightDirection(lightDirection_);
+		terrainObj_->SetLightColor({ lightColor_.x, lightColor_.y, lightColor_.z, 1.0f });
+		terrainObj_->SetLightIntensity(lightIntensity_);
+		terrainObj_->Update(camera_.get());
+	}
+
+	// 球体の更新
+	if (sphereObj_) {
+		sphereObj_->SetCullMode(cullMode_); // ★ここ：カリングを反映
+		sphereObj_->SetPosition(spherePos_);
+		sphereObj_->SetRotation(objectRot_);
+		sphereObj_->SetLightDirection(lightDirection_);
+		sphereObj_->SetLightColor({ lightColor_.x, lightColor_.y, lightColor_.z, 1.0f });
+		sphereObj_->SetLightIntensity(lightIntensity_);
+		sphereObj_->Update(camera_.get());
+	}
+
+	// 平面の更新
+	if (object3d_) {
+		object3d_->SetCullMode(cullMode_); // ★ここ：カリングを反映
+		object3d_->SetPosition(objectPos_);
+		object3d_->SetLightDirection(lightDirection_);
+		object3d_->SetLightColor({ lightColor_.x, lightColor_.y, lightColor_.z, 1.0f });
+		object3d_->SetLightIntensity(lightIntensity_);
+		object3d_->Update(camera_.get());
+	}
+
+	framework_->GetParticleManager()->Update(camera_.get());
+}
+
 
 void GamePlayScene::CreateSphere(float radius) {
 	sphereModel_ = PrimitiveGenerator::CreateSphere(framework_->GetModelManager(), radius, 32);
@@ -57,76 +111,51 @@ void GamePlayScene::CreateSphere(float radius) {
 	}
 	sphereObj_->SetModel(sphereModel_.get());
 	sphereObj_->SetTexture(textureHandles_[1]);
+	sphereObj_->SetShininess(40.0f);
 }
 
-void GamePlayScene::Finalize() {}
+void GamePlayScene::Draw() {
+	auto objCommon = framework_->GetObject3dCommon();
+	auto spriteCommon = framework_->GetSpriteCommon();
 
-void GamePlayScene::Update() {
-	HandleKeyboardMovement();
-
-	if (!ImGui::GetIO().WantCaptureMouse) {
-		Vector2 m = Game::GetMousePosInViewport();
-		if (ImGui::IsMouseDown(0)) {
-			if (selectedTarget_ == 1) spritePos_ = m;
-			else if (selectedTarget_ == 4) {
-				spherePos_.x = (m.x - 640.0f) / 50.0f;
-				spherePos_.y = -(m.y - 360.0f) / 50.0f;
-			}
-		}
+	if (modelPriority_ == 0) { // 3D -> 2D
+		objCommon->CommonDrawSettings();
+		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
+		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
+		if (showPlane_ && object3d_)    object3d_->Draw();
+		spriteCommon->PreDraw();
+		if (showSprite_) sprite_->Draw();
+	} else { // 2D -> 3D
+		spriteCommon->PreDraw();
+		if (showSprite_) sprite_->Draw();
+		objCommon->CommonDrawSettings();
+		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
+		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
+		if (showPlane_ && object3d_)    object3d_->Draw();
 	}
-
-	sprite_->SetPosition(spritePos_);
-	sprite_->Update();
-	camera_->Update();
-
-	object3d_->SetPosition(objectPos_);
-	object3d_->Update(camera_.get());
-
-	if (sphereObj_) {
-		sphereObj_->SetPosition(spherePos_);
-		sphereObj_->SetRotation(objectRot_); // ★ImGuiからの回転を適用
-		sphereObj_->Update(camera_.get());
-	}
-
-	framework_->GetParticleManager()->Update(camera_.get());
+	if (showParticles_) framework_->GetParticleManager()->Draw();
 }
 
 void GamePlayScene::HandleKeyboardMovement() {
 	if (selectedTarget_ == 0 || ImGui::GetIO().WantCaptureKeyboard) return;
-	float val = framework_->GetInput()->PushKey(DIK_LSHIFT) ? 10.0f : 1.0f;
-	Vector2 d = { 0, 0 };
-	if (framework_->GetInput()->PushKey(DIK_UP))    d.y -= val;
-	if (framework_->GetInput()->PushKey(DIK_DOWN))  d.y += val;
-	if (framework_->GetInput()->PushKey(DIK_LEFT))  d.x -= val;
-	if (framework_->GetInput()->PushKey(DIK_RIGHT)) d.x += val;
+	Input* input = framework_->GetInput();
+	float speed = input->PushKey(DIK_LSHIFT) ? 5.0f : 0.5f;
+	Vector3 move = { 0, 0, 0 };
+	if (input->PushKey(DIK_UP))    move.y += speed;
+	if (input->PushKey(DIK_DOWN))  move.y -= speed;
+	if (input->PushKey(DIK_LEFT))  move.x -= speed;
+	if (input->PushKey(DIK_RIGHT)) move.x += speed;
 
-	if (selectedTarget_ == 1) {
-		spritePos_.x += d.x; spritePos_.y += d.y;
-	} else if (selectedTarget_ == 4) {
-		spherePos_.x += d.x * 0.1f; spherePos_.y -= d.y * 0.1f;
+	switch (selectedTarget_) {
+	case 1: spritePos_.x += move.x; spritePos_.y -= move.y; break;
+	case 2: objectPos_.x += move.x * 0.1f; objectPos_.y += move.y * 0.1f; break;
+	case 4: spherePos_.x += move.x * 0.1f; spherePos_.y += move.y * 0.1f; break;
 	}
-}
-
-void GamePlayScene::Draw() {
-	// ★modelPriority_ に基づいて描画順を切り替える
-	if (modelPriority_ == 0) {
-		// 3D -> 2D (スプライトが手前)
-		framework_->GetObject3dCommon()->CommonDrawSettings();
-		if (sphereObj_) sphereObj_->Draw();
-		framework_->GetSpriteCommon()->PreDraw();
-		sprite_->Draw();
-	} else {
-		// 2D -> 3D (球体が手前)
-		framework_->GetSpriteCommon()->PreDraw();
-		sprite_->Draw();
-		framework_->GetObject3dCommon()->CommonDrawSettings();
-		if (sphereObj_) sphereObj_->Draw();
-	}
-
-	framework_->GetParticleManager()->Draw();
 }
 
 void GamePlayScene::AddLog(const std::string& message) {
 	debugLogs_.push_back(message);
 	if (debugLogs_.size() > 50) debugLogs_.erase(debugLogs_.begin());
 }
+
+void GamePlayScene::Finalize() {}

@@ -1,12 +1,13 @@
 #pragma once
 #include "AbstractSceneFactory.h"
+#include <memory> // ★必須
+#include <string>
 
 /**
  * SceneFactoryクラス
- * アプリケーション固有の具体的なシーンを作る工場です。
  */
 class SceneFactory : public AbstractSceneFactory {
 public:
-	// 名前を元に実際のクラス（TitleSceneなど）を生成します
-	BaseScene* CreateScene(const std::string& sceneName) override;
+	// ★親クラスに合わせて戻り値を std::unique_ptr<BaseScene> に変更
+	std::unique_ptr<BaseScene> CreateScene(const std::string& sceneName) override;
 };

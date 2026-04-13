@@ -6,6 +6,7 @@
 
 /**
  * SrvManagerクラス
+ * テクスチャ（SRV）の管理を行うクラスです。
  */
 class SrvManager {
 public:
