@@ -8,20 +8,38 @@
 #include <d3d12.h>
 
 class ModelManager;
-class SpriteCommon; // テクスチャ読み込み用
+class SpriteCommon;
 
 class Model {
 public:
-	// 初期化
+	// ★修正: 構造体の定義を最初（public）に移動
+	// 鏡面反射の実装や PrimitiveGenerator での初期化に合わせ、メンバの順序を
+	// 「座標 (Vector4) -> 法線 (Vector3) -> UV (Vector2)」の順に入れ替えました。
+	struct VertexData {
+		Vector4 position;
+		Vector3 normal;
+		Vector2 texcoord;
+	};
+
+	// ★修正: メッシュデータの定義も public へ
+	struct Mesh {
+		uint32_t start; // 開始頂点番号
+		uint32_t count; // 頂点数
+		std::string materialName; // このメッシュが使うマテリアル名
+	};
+
+	// ファイルから初期化
 	void Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename);
 
-	// ★追加: マテリアルに設定されたテクスチャを一括読み込みする関数
+	// ★追加: メモリ上のデータから初期化（プリミティブ生成用）
+	void InitializeWithData(ModelManager* modelManager, const std::vector<VertexData>& vertices, const std::vector<uint32_t>& indices);
+
+	// マテリアルに設定されたテクスチャを一括読み込み
 	void LoadTextures(SpriteCommon* spriteCommon);
 
 	// 描画
 	void Draw(DirectXCommon* dxCommon);
 
-	// 特定のマテリアルのテクスチャパスを取得（代表として先頭のものなどを返す運用も可だが、基本はLoadTexturesにお任せ）
 	const std::string& GetTextureFilePath() const { return materialData_.textureFilePath; }
 
 private:
@@ -30,36 +48,27 @@ private:
 
 	ModelManager* modelManager_ = nullptr;
 
-	struct VertexData {
-		Vector4 position;
-		Vector2 texcoord;
-		Vector3 normal;
-	};
+	// 頂点バッファ関連
+	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource_;
+	D3D12_VERTEX_BUFFER_VIEW vertexBufferView_{};
+	std::vector<VertexData> vertices_;
 
-	// ★追加: マテリアルデータ（テクスチャパス ＋ ハンドル）
+	// ★追加: インデックスバッファ関連（球体などの描画に使用）
+	Microsoft::WRL::ComPtr<ID3D12Resource> indexResource_;
+	D3D12_INDEX_BUFFER_VIEW indexBufferView_{};
+	UINT indexCount_ = 0;
+
+	// マテリアルデータ
 	struct ModelMaterialData {
 		std::string textureFilePath;
 		uint32_t textureHandle = 0;
 	};
 
-	// ★追加: メッシュデータ（頂点の範囲と使用するマテリアル名）
-	struct Mesh {
-		uint32_t start; // 開始頂点番号
-		uint32_t count; // 頂点数
-		std::string materialName; // このメッシュが使うマテリアル名
-	};
-
-	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource_;
-	D3D12_VERTEX_BUFFER_VIEW vertexBufferView_{};
-	std::vector<VertexData> vertices_;
-
-	// 互換性のため残す（単一マテリアル用）
 	struct MaterialData {
 		std::string textureFilePath;
 	};
 	MaterialData materialData_;
 
-	// ★追加: 複数のマテリアルとメッシュを管理するコンテナ
 	std::map<std::string, ModelMaterialData> modelMaterials_;
 	std::vector<Mesh> meshes_;
 };
