@@ -102,6 +102,13 @@ void Game::Update() {
 			// ★回転の設定（objectRot_ が必要）
 			// &playScene->objectRot_.x を float* として渡します
 			ImGui::DragFloat3("Rotation", &playScene->objectRot_.x, 0.01f);
+
+			if (playScene->sphereObj_) {
+				float shiny = playScene->sphereObj_->GetShininess();
+				if (ImGui::SliderFloat("Shininess", &shiny, 1.0f, 200.0f)) {
+					playScene->sphereObj_->SetShininess(shiny);
+				}
+			}
 		}
 
 		if (ImGui::CollapsingHeader("Particle")) {

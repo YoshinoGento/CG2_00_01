@@ -1,30 +1,18 @@
 #include "Object3d.hlsli"
 
-struct Material
-{
-    float4 color;
-    int enableLighting;
-    float4x4 uvTransform;
-};
-
-struct DirectionalLight
-{
-    float4 color; // ライトの色
-    float3 direction; // ライトの向き
-    float intensity; // 輝度
-};
-
-// --- 古いシェーダーモデルでも動く cbuffer の書き方に変更 ---
+// 定数バッファの登録
 cbuffer cbMaterial : register(b0)
 {
     Material gMaterial;
 };
-
 cbuffer cbDirectionalLight : register(b1)
 {
     DirectionalLight gDirectionalLight;
 };
-// --------------------------------------------------------
+cbuffer cbCamera : register(b2)
+{
+    Camera gCamera;
+}; // ★追加
 
 Texture2D<float4> gTexture : register(t0);
 SamplerState gSampler : register(s0);
@@ -38,31 +26,32 @@ PixelShaderOutput main(VertexShaderOutput input)
 {
     PixelShaderOutput output;
     
-    // UV変換
-    float4 transformedUV = mul(float4(input.texcoord, 0.0f, 1.0f), gMaterial.uvTransform);
+    float4 textureColor = gTexture.Sample(gSampler, input.texcoord);
     
-    // テクスチャサンプリング
-    float4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
-    
-    // ライティングの計算
     if (gMaterial.enableLighting != 0)
     {
-        // --- Half-Lambert (ハーフランバート) ---
-        // 法線とライト方向の内積（cosθ）を計算
-        // ライトの向きは「降り注ぐ方向」なので反転させる(-1倍)
-        float NdotL = dot(normalize(input.normal), -gDirectionalLight.direction);
+        // --- 準備 ---
+        float3 N = normalize(input.normal); // 法線
+        float3 L = normalize(-gDirectionalLight.direction); // ライトへの方向
+        float3 V = normalize(gCamera.worldPosition - input.worldPosition); // 視線方向
+        float3 H = normalize(L + V); // ハーフベクトル
         
-        // 通常のLambertは 0.0 ~ 1.0 だが、
-        // Half-Lambertは 0.5 ~ 1.0 の範囲に圧縮してから2乗する
-        // これにより、光の当たらない部分も少し明るくなり、柔らかい印象になる
+        // --- 拡散反射 (Half-Lambert) ---
+        float NdotL = dot(N, L);
         float cos = pow(NdotL * 0.5f + 0.5f, 2.0f);
+        float3 diffuse = gMaterial.color.rgb * textureColor.rgb * gDirectionalLight.color.rgb * cos * gDirectionalLight.intensity;
         
-        // 最終的な色の計算
-        output.color = gMaterial.color * textureColor * gDirectionalLight.color * cos * gDirectionalLight.intensity;
+        // --- 鏡面反射 (Blinn-Phong) ---
+        // 法線とハーフベクトルの角度が近いほど光る
+        float specularPower = pow(saturate(dot(N, H)), gMaterial.shininess);
+        float3 specular = gDirectionalLight.color.rgb * gDirectionalLight.intensity * specularPower;
+        
+        // 最終合成（鏡面反射はテクスチャ色に依存せず、ライトの色で光るのが一般的）
+        output.color.rgb = diffuse + specular;
+        output.color.a = gMaterial.color.a * textureColor.a;
     }
     else
     {
-        // ライティング無効時（そのままの色）
         output.color = gMaterial.color * textureColor;
     }
     

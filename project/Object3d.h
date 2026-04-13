@@ -2,30 +2,23 @@
 #include "Object3dCommon.h"
 #include "Model.h" 
 #include "Matrix.h"
-#include "Camera.h" // ★Cameraをインクルード
+#include "Camera.h"
 
 class Object3d {
 public:
 	void Initialize(Object3dCommon* object3dCommon);
-
-	// ★変更: カメラを受け取るように変更
 	void Update(Camera* camera);
-
 	void Draw();
-
 	void SetModel(Model* model);
-
-	const Vector3& GetPosition() const { return transform_.translate; }
-	const Vector3& GetRotation() const { return transform_.rotate; }
-	const Vector3& GetScale() const { return transform_.scale; }
-	const Vector4& GetColor() const { return materialData_->color; }
 
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
 	void SetScale(const Vector3& scale) { transform_.scale = scale; }
-	void SetColor(const Vector4& color) { materialData_->color = color; }
-
 	void SetTexture(uint32_t textureHandle) { textureHandle_ = textureHandle; }
+
+	// ★追加: 鏡面反射の強さを設定
+	void SetShininess(float shininess) { materialData_->shininess = shininess; }
+	float GetShininess() const { return materialData_->shininess; }
 
 private:
 	Object3dCommon* object3dCommon_ = nullptr;
@@ -35,7 +28,8 @@ private:
 	struct Material {
 		Vector4 color;
 		int32_t enableLighting;
-		float padding[3];
+		float shininess; // ★追加
+		float padding[2]; // パディング調整
 		Matrix4x4 uvTransform;
 	};
 
@@ -50,14 +44,21 @@ private:
 		float intensity;
 	};
 
+	// ★追加: GPUに送るカメラ用構造体
+	struct CameraForGPU {
+		Vector3 worldPosition;
+	};
+
 	Transform transform_ = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource_;
 	Material* materialData_ = nullptr;
-
 	Microsoft::WRL::ComPtr<ID3D12Resource> transformationMatrixResource_;
 	TransformationMatrix* transformationMatrixData_ = nullptr;
-
 	Microsoft::WRL::ComPtr<ID3D12Resource> directionalLightResource_;
 	DirectionalLight* directionalLightData_ = nullptr;
+
+	// ★追加: カメラリソース
+	Microsoft::WRL::ComPtr<ID3D12Resource> cameraResource_;
+	CameraForGPU* cameraData_ = nullptr;
 };
