@@ -1,9 +1,11 @@
 #include "TitleScene.h"
-#include "GamePlayScene.h"
 #include "SceneManager.h"
 #include "Framework.h"
 #include "Input.h"
 #include "ImGuiManager.h"
+
+// ★削除: GamePlayScene.h をインクルードする必要はありません
+// 文字列だけで遷移できるため、このファイルは他のシーンの中身を知らなくて済みます
 
 void TitleScene::Initialize() {}
 void TitleScene::Finalize() {}
@@ -11,20 +13,22 @@ void TitleScene::Finalize() {}
 void TitleScene::Update() {
 	Input* input = Framework::GetInstance()->GetInput();
 
-	// シーン遷移の判定
+	// 1. キー入力による遷移
 	if (input->TriggerKey(DIK_RETURN)) {
-		SceneManager::GetInstance()->SetNextScene(new GamePlayScene());
+		// ★修正: new ではなく名前を指定して ChangeScene を呼ぶ
+		SceneManager::GetInstance()->ChangeScene("GAMEPLAY");
 		return;
 	}
 
-	// ★修正：ImGuiManager::Begin/End は Game.cpp が行うので、ここでは中身だけ書く
 #ifdef USE_IMGUI
+	// 2. ImGuiボタンによる遷移
 	ImGui::Begin("TITLE SCREEN");
 	ImGui::SetWindowPos({ 540, 300 }, ImGuiCond_Once);
 	ImGui::Text("PRESS ENTER TO START");
 
 	if (ImGui::Button("START GAME", ImVec2(200, 50))) {
-		SceneManager::GetInstance()->SetNextScene(new GamePlayScene());
+		// ★修正: ここも同様に名前指定
+		SceneManager::GetInstance()->ChangeScene("GAMEPLAY");
 	}
 	ImGui::End();
 #endif

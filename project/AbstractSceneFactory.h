@@ -1,19 +1,16 @@
 #pragma once
 #include <string>
+#include <memory> // ★必須：unique_ptr を使うために必要
 #include "BaseScene.h"
 
 /**
- * AbstractSceneFactoryクラス（インターフェース）
- * 「シーンを作る工場」のルールを定めたクラスです。
+ * AbstractSceneFactory
+ * シーン生成工場の抽象インターフェース
  */
 class AbstractSceneFactory {
 public:
 	virtual ~AbstractSceneFactory() = default;
 
-	/**
-	 * シーンを生成する
-	 * @param sceneName 生成したいシーンの名前
-	 * @return 作成されたシーンのインスタンス（ポインタ）
-	 */
-	virtual BaseScene* CreateScene(const std::string& sceneName) = 0;
+	// ★戻り値を unique_ptr に統一
+	virtual std::unique_ptr<BaseScene> CreateScene(const std::string& sceneName) = 0;
 };

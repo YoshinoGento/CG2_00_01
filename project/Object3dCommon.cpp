@@ -3,25 +3,21 @@
 #include <cassert>
 
 void Object3dCommon::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
-    assert(dxCommon);
-    assert(srvManager);
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
     CreateRootSignature();
-    CreateGraphicsPipelineState();
+    CreateGraphicsPipelineStates(); // PSOを3つ作る
 }
 
 void Object3dCommon::CommonDrawSettings() {
     ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
     commandList->SetGraphicsRootSignature(rootSignature_.Get());
-    commandList->SetPipelineState(pipelineState_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
-
 void Object3dCommon::CreateRootSignature() {
     ID3D12Device* device = dxCommon_->GetDevice();
 
-    // ルートパラメータを 5 つに増やします
+    // ルートパラメータを 5 つに拡張 (Material, Transform, Light, Camera, Texture)
     D3D12_ROOT_PARAMETER rootParameters[5] = {};
 
     // 0: Material (b0) - Pixel
@@ -39,18 +35,20 @@ void Object3dCommon::CreateRootSignature() {
     rootParameters[2].Descriptor.ShaderRegister = 1;
     rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 3: Camera (b2) - Pixel ★追加
+    // 3: Camera (b2) - Pixel ★鏡面反射に必須
     rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[3].Descriptor.ShaderRegister = 2;
     rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 4: Texture (t0) - Pixel
-    D3D12_DESCRIPTOR_RANGE range[1] = {};
-    range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    range[0].NumDescriptors = 1;
-    range[0].BaseShaderRegister = 0;
+    // 4: Texture (t0)
+    D3D12_DESCRIPTOR_RANGE descriptorRange[1] = {};
+    descriptorRange[0].BaseShaderRegister = 0;
+    descriptorRange[0].NumDescriptors = 1;
+    descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
     rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    rootParameters[4].DescriptorTable.pDescriptorRanges = range;
+    rootParameters[4].DescriptorTable.pDescriptorRanges = descriptorRange;
     rootParameters[4].DescriptorTable.NumDescriptorRanges = 1;
     rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
@@ -73,7 +71,7 @@ void Object3dCommon::CreateRootSignature() {
     device->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&rootSignature_));
 }
 
-void Object3dCommon::CreateGraphicsPipelineState() {
+void Object3dCommon::CreateGraphicsPipelineStates() {
     ID3D12Device* device = dxCommon_->GetDevice();
     auto vs = dxCommon_->CompileShader(L"Resources/shader/Object3D.VS.hlsl", L"vs_6_0");
     auto ps = dxCommon_->CompileShader(L"Resources/shader/Object3D.PS.hlsl", L"ps_6_0");
@@ -90,8 +88,6 @@ void Object3dCommon::CreateGraphicsPipelineState() {
     psoDesc.VS = { vs->GetBufferPointer(), vs->GetBufferSize() };
     psoDesc.PS = { ps->GetBufferPointer(), ps->GetBufferSize() };
     psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
     psoDesc.DepthStencilState.DepthEnable = true;
     psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
     psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
@@ -102,5 +98,12 @@ void Object3dCommon::CreateGraphicsPipelineState() {
     psoDesc.SampleDesc.Count = 1;
     psoDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
 
-    device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineState_));
+    // --- 3パターンのカリング設定でPSOを生成 ---
+    D3D12_CULL_MODE cullModes[] = { D3D12_CULL_MODE_NONE, D3D12_CULL_MODE_FRONT, D3D12_CULL_MODE_BACK };
+
+    for (int i = 0; i < 3; ++i) {
+        psoDesc.RasterizerState.CullMode = cullModes[i];
+        psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+        device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineStates_[i]));
+    }
 }
