@@ -6,12 +6,10 @@ struct TransformationMatrix
     float4x4 World;
 };
 
-// --- 古いシェーダーモデルでも動く cbuffer の書き方に変更 ---
 cbuffer cbTransformationMatrix : register(b0)
 {
     TransformationMatrix gTransformationMatrix;
 };
-// --------------------------------------------------------
 
 struct VertexShaderInput
 {
@@ -24,13 +22,15 @@ VertexShaderOutput main(VertexShaderInput input)
 {
     VertexShaderOutput output;
     
-    // 座標変換
+    // WVP行列で座標変換
     output.position = mul(input.position, gTransformationMatrix.WVP);
     
-    // テクスチャ座標
+    // ★追加: ワールド行列で座標変換（ピクセルシェーダーでの反射計算用）
+    output.worldPosition = mul(input.position, gTransformationMatrix.World).xyz;
+    
     output.texcoord = input.texcoord;
     
-    // 法線の変換
+    // 法線の変換（回転のみ適用）
     output.normal = normalize(mul(input.normal, (float3x3) gTransformationMatrix.World));
     
     return output;
