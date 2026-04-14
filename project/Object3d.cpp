@@ -27,6 +27,17 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 
 	cameraResource_ = dxCommon->CreateBufferResource(sizeof(CameraForGPU));
 	cameraResource_->Map(0, nullptr, (void**)&cameraData_);
+
+	spotLightResource_ = dxCommon->CreateBufferResource(sizeof(SpotLightData));
+	spotLightResource_->Map(0, nullptr, (void**)&spotLightData_);
+	spotLightData_->color = { 1.0f, 1.0f, 1.0f, 1.0f };
+	spotLightData_->position = { 0.0f, 4.0f, 0.0f };
+	spotLightData_->intensity = 0.0f;
+	spotLightData_->direction = { 0.0f, -1.0f, 0.0f };
+	spotLightData_->distance = 10.0f;
+	spotLightData_->decay = 1.0f;
+	spotLightData_->cosAngle = std::cos(0.5f);
+	spotLightData_->cosFalloffStart = std::cos(0.3f);
 }
 
 void Object3d::Update(Camera* camera) {
@@ -50,7 +61,6 @@ void Object3d::Draw() {
 	if (!model_) return;
 	ID3D12GraphicsCommandList* commandList = object3dCommon_->GetDxCommon()->GetCommandList();
 
-	// ★カリング設定に応じて PSO を切り替える
 	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_));
 
 	commandList->SetGraphicsRootConstantBufferView(0, materialResource_->GetGPUVirtualAddress());
@@ -58,13 +68,15 @@ void Object3d::Draw() {
 	commandList->SetGraphicsRootConstantBufferView(2, directionalLightResource_->GetGPUVirtualAddress());
 	commandList->SetGraphicsRootConstantBufferView(3, cameraResource_->GetGPUVirtualAddress());
 
+	// ★重要：スポットライトは [4] 番
+	commandList->SetGraphicsRootConstantBufferView(4, spotLightResource_->GetGPUVirtualAddress());
+
+	// ★重要：テクスチャは [5] 番
 	SrvManager* srvManager = object3dCommon_->GetSrvManager();
 	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle = srvManager->GetGPUDescriptorHandle(textureHandle_);
-	commandList->SetGraphicsRootDescriptorTable(4, textureSrvHandle);
+	commandList->SetGraphicsRootDescriptorTable(5, textureSrvHandle);
 
 	model_->Draw(object3dCommon_->GetDxCommon());
 }
 
-void Object3d::SetModel(Model* model) {
-	model_ = model;
-}
+void Object3d::SetModel(Model* model) { model_ = model; }

@@ -29,8 +29,6 @@ public:
 
 	void CreateSphere(float radius);
 
-	int cullMode_ = 2; // ★ImGuiから操作される変数
-
 private:
 	void AddLog(const std::string& message);
 	void HandleKeyboardMovement();
@@ -69,17 +67,22 @@ private:
 
 	int selectedTarget_ = 1;
 	int modelPriority_ = 0;
+	int cullMode_ = 2;
 
+	// 平行光源設定
 	Vector3 lightDirection_ = { 0.0f, -1.0f, 1.0f };
 	Vector3 lightColor_ = { 1.0f, 1.0f, 1.0f };
 	float lightIntensity_ = 1.0f;
 
-	uint32_t soundHandles_[2] = { 0, 0 };
-	int currentBgmIndex_ = 0;
-	bool isBgmLoop_ = true;
-
-	float particleEmitPos_[3] = { 0.0f, 0.0f, 0.0f };
-	int particleEmitCount_ = 15;
+	// ★追加：スポットライト設定
+	Vector3 spotLightColor_ = { 1.0f, 1.0f, 1.0f };
+	Vector3 spotLightPos_ = { 0.0f, 4.0f, 10.0f };
+	float spotLightIntensity_ = 2.0f;
+	Vector3 spotLightDir_ = { 0.0f, -1.0f, 0.0f };
+	float spotLightDistance_ = 15.0f;
+	float spotLightDecay_ = 1.0f;
+	float spotLightAngle_ = 0.5f; // ラジアン
+	float spotLightFalloff_ = 0.1f; // ラジアン
 
 	std::vector<std::string> debugLogs_;
 };

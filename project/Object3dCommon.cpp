@@ -15,42 +15,43 @@ void Object3dCommon::CommonDrawSettings() {
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 void Object3dCommon::CreateRootSignature() {
-    ID3D12Device* device = dxCommon_->GetDevice();
+     ID3D12Device* device = dxCommon_->GetDevice();
 
-    // ルートパラメータを 5 つに拡張 (Material, Transform, Light, Camera, Texture)
-    D3D12_ROOT_PARAMETER rootParameters[5] = {};
+    // ★ルートパラメータを 6 つに拡張 (Material, Transform, Light, Camera, SpotLight, Texture)
+    D3D12_ROOT_PARAMETER rootParameters[6] = {};
 
-    // 0: Material (b0) - Pixel
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[0].Descriptor.ShaderRegister = 0;
+    rootParameters[0].Descriptor.ShaderRegister = 0; // b0 (Material)
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 1: Transform (b0) - Vertex
     rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[1].Descriptor.ShaderRegister = 0;
+    rootParameters[1].Descriptor.ShaderRegister = 0; // b0 (Transform)
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
-    // 2: Light (b1) - Pixel
     rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[2].Descriptor.ShaderRegister = 1;
+    rootParameters[2].Descriptor.ShaderRegister = 1; // b1 (Directional)
     rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 3: Camera (b2) - Pixel ★鏡面反射に必須
     rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[3].Descriptor.ShaderRegister = 2;
+    rootParameters[3].Descriptor.ShaderRegister = 2; // b2 (Camera)
     rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 4: Texture (t0)
+    // ★追加: 4番目に SpotLight (b3)
+    rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[4].Descriptor.ShaderRegister = 3; // b3 (SpotLight)
+    rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    // 5: Texture (t0)
     D3D12_DESCRIPTOR_RANGE descriptorRange[1] = {};
     descriptorRange[0].BaseShaderRegister = 0;
     descriptorRange[0].NumDescriptors = 1;
     descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    rootParameters[4].DescriptorTable.pDescriptorRanges = descriptorRange;
-    rootParameters[4].DescriptorTable.NumDescriptorRanges = 1;
-    rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    rootParameters[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[5].DescriptorTable.pDescriptorRanges = descriptorRange;
+    rootParameters[5].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);
+    rootParameters[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;

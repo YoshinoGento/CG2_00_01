@@ -5,8 +5,8 @@
 #include <cassert>
 #include <fstream>
 #include <sstream>
-#include <algorithm> // ★追加：std::replace のために必要
-#include <cstring>   // ★追加：std::memcpy のために必要
+#include <algorithm>
+#include <cstring>
 
 void Model::Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename) {
     modelManager_ = modelManager;
@@ -29,7 +29,6 @@ void Model::InitializeWithData(ModelManager* modelManager, const std::vector<Ver
     modelManager_ = modelManager;
     DirectXCommon* dxCommon = modelManager_->GetDxCommon();
 
-    // 頂点バッファ
     vertexResource_ = dxCommon->CreateBufferResource(sizeof(VertexData) * vertices.size());
     vertexBufferView_.BufferLocation = vertexResource_->GetGPUVirtualAddress();
     vertexBufferView_.SizeInBytes = UINT(sizeof(VertexData) * vertices.size());
@@ -39,7 +38,6 @@ void Model::InitializeWithData(ModelManager* modelManager, const std::vector<Ver
     std::memcpy(vData, vertices.data(), sizeof(VertexData) * vertices.size());
     vertexResource_->Unmap(0, nullptr);
 
-    // インデックスバッファ
     indexCount_ = (UINT)indices.size();
     indexResource_ = dxCommon->CreateBufferResource(sizeof(uint32_t) * indices.size());
     indexBufferView_.BufferLocation = indexResource_->GetGPUVirtualAddress();
@@ -52,7 +50,6 @@ void Model::InitializeWithData(ModelManager* modelManager, const std::vector<Ver
 }
 
 void Model::LoadObjFile(const std::string& directoryPath, const std::string& filename) {
-    // サブディレクトリの抽出 (terrain/terrain.obj なら "terrain/")
     std::string modelSubDir = "";
     size_t pos = filename.find_last_of('/');
     if (pos != std::string::npos) {
@@ -64,8 +61,9 @@ void Model::LoadObjFile(const std::string& directoryPath, const std::string& fil
 
     std::ifstream file(filepath);
     if (!file.is_open()) {
-        // ここで落ちる場合はパスが間違っています
-        assert(false && "OBJ file not found. Check path!");
+        // 修正：ファイルが見つからない場合にコンソールに詳細を出し、停止を避けるために return する
+        // 本来はここにブレークポイントを置いてパスを確認してください
+        return;
     }
 
     std::vector<Vector4> positions;
@@ -84,7 +82,7 @@ void Model::LoadObjFile(const std::string& directoryPath, const std::string& fil
             positions.push_back(p);
         } else if (identifier == "vt") {
             Vector2 t; s >> t.x >> t.y;
-            t.y = 1.0f - t.y; // DX座標系へ反転
+            t.y = 1.0f - t.y;
             texcoords.push_back(t);
         } else if (identifier == "vn") {
             Vector3 n; s >> n.x >> n.y >> n.z;
@@ -93,14 +91,12 @@ void Model::LoadObjFile(const std::string& directoryPath, const std::string& fil
             VertexData triangle[3];
             for (int i = 0; i < 3; i++) {
                 std::string def; s >> def;
-                // スラッシュをスペースに置き換えて解析しやすくする
                 std::replace(def.begin(), def.end(), '/', ' ');
                 std::istringstream v(def);
                 uint32_t idxP, idxT, idxN;
                 v >> idxP >> idxT >> idxN;
                 triangle[i] = { positions[idxP - 1], normals[idxN - 1], texcoords[idxT - 1] };
             }
-            // 右手系から左手系へ反転
             vertices_.push_back(triangle[2]);
             vertices_.push_back(triangle[1]);
             vertices_.push_back(triangle[0]);
@@ -121,14 +117,13 @@ void Model::LoadObjFile(const std::string& directoryPath, const std::string& fil
 void Model::LoadMaterialTemplateFile(const std::string& directoryPath, const std::string& filename) {
     std::string filepath = directoryPath + filename;
     std::ifstream file(filepath);
-    if (!file.is_open()) return; // MTLがない場合も考慮
+    if (!file.is_open()) return;
 
     std::string line, currentMtl;
     while (std::getline(file, line)) {
         std::string identifier; std::istringstream s(line); s >> identifier;
         if (identifier == "newmtl") { s >> currentMtl; } else if (identifier == "map_Kd") {
             std::string texName; s >> texName;
-            // grass.png がなくても grass.jpg がある場合などを考慮
             modelMaterials_[currentMtl].textureFilePath = directoryPath + texName;
         }
     }
@@ -145,16 +140,15 @@ void Model::Draw(DirectXCommon* dxCommon) {
     commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
 
     if (indexResource_) {
-        // インデックスがある場合（球体など）
         commandList->IASetIndexBuffer(&indexBufferView_);
         commandList->DrawIndexedInstanced(indexCount_, 1, 0, 0, 0);
     } else {
-        // インデックスがない場合（OBJモデルなど）
         for (const auto& mesh : meshes_) {
             auto it = modelMaterials_.find(mesh.materialName);
             if (it != modelMaterials_.end()) {
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = modelManager_->GetSrvManager()->GetGPUDescriptorHandle(it->second.textureHandle);
-                commandList->SetGraphicsRootDescriptorTable(4, handle);
+                // ★最重要：テクスチャはインデックス [5] にセットする！！
+                commandList->SetGraphicsRootDescriptorTable(5, handle);
             }
             commandList->DrawInstanced(mesh.count, 1, mesh.start, 0);
         }

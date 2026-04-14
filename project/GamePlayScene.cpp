@@ -59,7 +59,6 @@ void GamePlayScene::Initialize() {
 void GamePlayScene::Update() {
 	HandleKeyboardMovement();
 
-	// カメラの反映
 	camera_->SetTranslate(cameraPos_);
 	camera_->SetRotate(cameraRot_);
 	camera_->Update();
@@ -67,41 +66,40 @@ void GamePlayScene::Update() {
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
 
-	// --- 各オブジェクトに ImGui の設定を反映させる ---
+	// ★MatrixMath::Normalize を使用
+	Vector3 normSpotDir = MatrixMath::Normalize(spotLightDir_);
 
-	// 地面の更新
-	if (terrainObj_) {
-		terrainObj_->SetCullMode(cullMode_); // ★ここ：カリングを反映
-		terrainObj_->SetLightDirection(lightDirection_);
-		terrainObj_->SetLightColor({ lightColor_.x, lightColor_.y, lightColor_.z, 1.0f });
-		terrainObj_->SetLightIntensity(lightIntensity_);
-		terrainObj_->Update(camera_.get());
-	}
+	// ライト設定の反映
+	auto UpdateObjectLights = [&](Object3d* obj) {
+		if (!obj) return;
+		obj->SetCullMode(cullMode_);
+		obj->SetLightDirection(lightDirection_);
+		obj->SetLightColor({ lightColor_.x, lightColor_.y, lightColor_.z, 1.0f });
+		obj->SetLightIntensity(lightIntensity_);
 
-	// 球体の更新
+		obj->SetSpotLightColor({ spotLightColor_.x, spotLightColor_.y, spotLightColor_.z, 1.0f });
+		obj->SetSpotLightPosition(spotLightPos_);
+		obj->SetSpotLightDirection(normSpotDir);
+		obj->SetSpotLightDistance(spotLightDistance_);
+		obj->SetSpotLightIntensity(spotLightIntensity_);
+		obj->SetSpotLightDecay(spotLightDecay_);
+		obj->SetSpotLightAngle(spotLightAngle_);
+		obj->SetSpotLightFalloff(spotLightFalloff_);
+
+		obj->Update(camera_.get());
+		};
+
+	UpdateObjectLights(terrainObj_.get());
+	UpdateObjectLights(object3d_.get());
+
 	if (sphereObj_) {
-		sphereObj_->SetCullMode(cullMode_); // ★ここ：カリングを反映
 		sphereObj_->SetPosition(spherePos_);
 		sphereObj_->SetRotation(objectRot_);
-		sphereObj_->SetLightDirection(lightDirection_);
-		sphereObj_->SetLightColor({ lightColor_.x, lightColor_.y, lightColor_.z, 1.0f });
-		sphereObj_->SetLightIntensity(lightIntensity_);
-		sphereObj_->Update(camera_.get());
-	}
-
-	// 平面の更新
-	if (object3d_) {
-		object3d_->SetCullMode(cullMode_); // ★ここ：カリングを反映
-		object3d_->SetPosition(objectPos_);
-		object3d_->SetLightDirection(lightDirection_);
-		object3d_->SetLightColor({ lightColor_.x, lightColor_.y, lightColor_.z, 1.0f });
-		object3d_->SetLightIntensity(lightIntensity_);
-		object3d_->Update(camera_.get());
+		UpdateObjectLights(sphereObj_.get());
 	}
 
 	framework_->GetParticleManager()->Update(camera_.get());
 }
-
 
 void GamePlayScene::CreateSphere(float radius) {
 	sphereModel_ = PrimitiveGenerator::CreateSphere(framework_->GetModelManager(), radius, 32);
@@ -118,14 +116,14 @@ void GamePlayScene::Draw() {
 	auto objCommon = framework_->GetObject3dCommon();
 	auto spriteCommon = framework_->GetSpriteCommon();
 
-	if (modelPriority_ == 0) { // 3D -> 2D
+	if (modelPriority_ == 0) {
 		objCommon->CommonDrawSettings();
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		spriteCommon->PreDraw();
 		if (showSprite_) sprite_->Draw();
-	} else { // 2D -> 3D
+	} else {
 		spriteCommon->PreDraw();
 		if (showSprite_) sprite_->Draw();
 		objCommon->CommonDrawSettings();
