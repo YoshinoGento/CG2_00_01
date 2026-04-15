@@ -6,6 +6,7 @@
 #include <map>
 #include <wrl.h>
 #include <d3d12.h>
+#include <cstdint>
 
 // Assimpのヘッダー
 #include <assimp/Importer.hpp>
@@ -15,8 +16,19 @@
 class ModelManager;
 class SpriteCommon;
 
+/**
+ * Modelクラス
+ * glTF対応のため階層構造（Node）の保持機能を追加
+ */
 class Model {
 public:
+	// --- 追加：ノード構造体 ---
+	struct Node {
+		Matrix4x4 localMatrix;      // そのノード独自の変形行列
+		std::string name;           // ノード名
+		std::vector<Node> children; // 子供たち
+	};
+
 	struct VertexData {
 		Vector4 position;
 		Vector3 normal;
@@ -34,9 +46,15 @@ public:
 	void LoadTextures(SpriteCommon* spriteCommon);
 	void Draw(DirectXCommon* dxCommon);
 
+	// --- 追加：ルートノードの取得 ---
+	const Node& GetRootNode() const { return rootNode_; }
+
 private:
-	// Assimp を使った新しい読み込み関数
+	// Assimp を使った読み込み関数
 	void LoadModelFile(const std::string& directoryPath, const std::string& filename);
+
+	// --- 追加：ノードを再帰的に読み込む関数 ---
+	Node ReadNode(aiNode* node);
 
 	ModelManager* modelManager_ = nullptr;
 
@@ -47,7 +65,7 @@ private:
 	// インデックスバッファ
 	Microsoft::WRL::ComPtr<ID3D12Resource> indexResource_;
 	D3D12_INDEX_BUFFER_VIEW indexBufferView_{};
-	std::vector<uint32_t> indices_; // インデックスデータ
+	std::vector<uint32_t> indices_;
 	UINT indexCount_ = 0;
 
 	struct ModelMaterialData {
@@ -56,4 +74,7 @@ private:
 	};
 	std::map<std::string, ModelMaterialData> modelMaterials_;
 	std::vector<Mesh> meshes_;
+
+	// --- 追加：このモデルの根本（ルート）となるノード ---
+	Node rootNode_;
 };
