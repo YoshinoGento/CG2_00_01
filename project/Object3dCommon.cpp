@@ -6,7 +6,7 @@ void Object3dCommon::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager)
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
     CreateRootSignature();
-    CreateGraphicsPipelineStates(); // PSOを3つ作る
+    CreateGraphicsPipelineStates();
 }
 
 void Object3dCommon::CommonDrawSettings() {
@@ -14,34 +14,39 @@ void Object3dCommon::CommonDrawSettings() {
     commandList->SetGraphicsRootSignature(rootSignature_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
-void Object3dCommon::CreateRootSignature() {
-     ID3D12Device* device = dxCommon_->GetDevice();
 
-    // ★ルートパラメータを 6 つに拡張 (Material, Transform, Light, Camera, SpotLight, Texture)
+void Object3dCommon::CreateRootSignature() {
+    ID3D12Device* device = dxCommon_->GetDevice(); // ★ここで device を定義
+
+    // ルートパラメータを 6 つに拡張 (Material, Transform, Light, Camera, SpotLight, Texture)
     D3D12_ROOT_PARAMETER rootParameters[6] = {};
 
+    // 0: Material (b0)
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[0].Descriptor.ShaderRegister = 0; // b0 (Material)
+    rootParameters[0].Descriptor.ShaderRegister = 0;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+    // 1: Transform (b0) - Vertex
     rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[1].Descriptor.ShaderRegister = 0; // b0 (Transform)
+    rootParameters[1].Descriptor.ShaderRegister = 0;
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+    // 2: Directional Light (b1)
     rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[2].Descriptor.ShaderRegister = 1; // b1 (Directional)
+    rootParameters[2].Descriptor.ShaderRegister = 1;
     rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+    // 3: Camera (b2)
     rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[3].Descriptor.ShaderRegister = 2; // b2 (Camera)
+    rootParameters[3].Descriptor.ShaderRegister = 2;
     rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // ★追加: 4番目に SpotLight (b3)
+    // 4: Spot Light (b3) ★追加
     rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    rootParameters[4].Descriptor.ShaderRegister = 3; // b3 (SpotLight)
+    rootParameters[4].Descriptor.ShaderRegister = 3;
     rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 5: Texture (t0)
+    // 5: Texture (t0) ★テクスチャは 5 番へ
     D3D12_DESCRIPTOR_RANGE descriptorRange[1] = {};
     descriptorRange[0].BaseShaderRegister = 0;
     descriptorRange[0].NumDescriptors = 1;
@@ -50,7 +55,7 @@ void Object3dCommon::CreateRootSignature() {
 
     rootParameters[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[5].DescriptorTable.pDescriptorRanges = descriptorRange;
-    rootParameters[5].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);
+    rootParameters[5].DescriptorTable.NumDescriptorRanges = 1;
     rootParameters[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
@@ -68,12 +73,16 @@ void Object3dCommon::CreateRootSignature() {
     desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
     Microsoft::WRL::ComPtr<ID3DBlob> blob, error;
-    D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error);
+    HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error);
+    if (FAILED(hr)) {
+        OutputDebugStringA((char*)error->GetBufferPointer());
+        assert(false);
+    }
     device->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&rootSignature_));
 }
 
 void Object3dCommon::CreateGraphicsPipelineStates() {
-    ID3D12Device* device = dxCommon_->GetDevice();
+    ID3D12Device* device = dxCommon_->GetDevice(); // ★ここでも device を定義
     auto vs = dxCommon_->CompileShader(L"Resources/shader/Object3D.VS.hlsl", L"vs_6_0");
     auto ps = dxCommon_->CompileShader(L"Resources/shader/Object3D.PS.hlsl", L"ps_6_0");
 
@@ -99,9 +108,7 @@ void Object3dCommon::CreateGraphicsPipelineStates() {
     psoDesc.SampleDesc.Count = 1;
     psoDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
 
-    // --- 3パターンのカリング設定でPSOを生成 ---
     D3D12_CULL_MODE cullModes[] = { D3D12_CULL_MODE_NONE, D3D12_CULL_MODE_FRONT, D3D12_CULL_MODE_BACK };
-
     for (int i = 0; i < 3; ++i) {
         psoDesc.RasterizerState.CullMode = cullModes[i];
         psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
