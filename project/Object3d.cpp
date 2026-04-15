@@ -61,22 +61,29 @@ void Object3d::Draw() {
 	if (!model_) return;
 	ID3D12GraphicsCommandList* commandList = object3dCommon_->GetDxCommon()->GetCommandList();
 
+	// パイプラインをセット（カリング設定含む）
 	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_));
 
+	// 各定数バッファを RootSignature の Index に合わせてセット
+	// 0: Material (Pixel)
 	commandList->SetGraphicsRootConstantBufferView(0, materialResource_->GetGPUVirtualAddress());
+	// 1: Transform (Vertex)
 	commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResource_->GetGPUVirtualAddress());
+	// 2: Directional Light (Pixel)
 	commandList->SetGraphicsRootConstantBufferView(2, directionalLightResource_->GetGPUVirtualAddress());
+	// 3: Camera (Pixel)
 	commandList->SetGraphicsRootConstantBufferView(3, cameraResource_->GetGPUVirtualAddress());
 
-	// ★重要：スポットライトは [4] 番
+	// ★重要：4番はスポットライト (CBV)
 	commandList->SetGraphicsRootConstantBufferView(4, spotLightResource_->GetGPUVirtualAddress());
 
-	// ★重要：テクスチャは [5] 番
+	// ★重要：5番がテクスチャ (Descriptor Table)
+	// 地形（Terrain）の場合は Model::Draw 内で上書きされますが、念のためここでも正しい番号を指定します
 	SrvManager* srvManager = object3dCommon_->GetSrvManager();
 	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle = srvManager->GetGPUDescriptorHandle(textureHandle_);
 	commandList->SetGraphicsRootDescriptorTable(5, textureSrvHandle);
 
+	// モデルの描画実行
 	model_->Draw(object3dCommon_->GetDxCommon());
 }
-
 void Object3d::SetModel(Model* model) { model_ = model; }
