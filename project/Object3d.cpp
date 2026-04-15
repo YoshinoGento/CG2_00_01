@@ -41,6 +41,7 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 }
 
 void Object3d::Update(Camera* camera) {
+	// 1. オブジェクト自身の変形行列を作る
 	Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(transform_.scale);
 	Matrix4x4 rotateMatrix = MatrixMath::Multiply(MatrixMath::MakeRotateXMatrix(transform_.rotate.x),
 		MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
@@ -48,10 +49,19 @@ void Object3d::Update(Camera* camera) {
 	Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(transform_.translate);
 	Matrix4x4 worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
 
+	// 2. モデル内の階層構造（ノード）の行列を合成する (資料スライド 10)
+	// モデルが持つ RootNode の LocalMatrix を、オブジェクトの WorldMatrix に掛け合わせる
+	if (model_) {
+		const Model::Node& rootNode = model_->GetRootNode();
+		worldMatrix = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix);
+	}
+
+	// 3. 定数バッファへの書き込み
 	if (camera) {
 		transformationMatrixData_->WVP = MatrixMath::Multiply(worldMatrix, camera->GetViewProjectionMatrix());
 		cameraData_->worldPosition = camera->GetTranslate();
-	} else {
+	}
+	else {
 		transformationMatrixData_->WVP = worldMatrix;
 	}
 	transformationMatrixData_->World = worldMatrix;
