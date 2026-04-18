@@ -34,8 +34,13 @@ public:
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
 	void SetScale(const Vector3& scale) { transform_.scale = scale; }
 	void SetTexture(uint32_t textureHandle) { textureHandle_ = textureHandle; }
+	// ★追加：環境マップ用のテクスチャハンドルをセット
+	void SetEnvironmentMap(uint32_t handle) { environmentMapHandle_ = handle; }
+	// ★追加：反射強度のセット
+	void SetEnvironmentCoefficient(float coef) { materialData_->environmentCoefficient = coef; }
 	void SetCullMode(int cullMode) { cullMode_ = cullMode; }
 	void SetShininess(float shininess) { materialData_->shininess = shininess; }
+
 
 	// 平行光源の設定
 	void SetLightDirection(const Vector3& direction) { directionalLightData_->direction = direction; }
@@ -56,9 +61,16 @@ private:
 	Object3dCommon* object3dCommon_ = nullptr;
 	Model* model_ = nullptr;
 	uint32_t textureHandle_ = 0;
+	uint32_t environmentMapHandle_ = 0;
 	int cullMode_ = 2;
 
-	struct Material { Vector4 color; int32_t enableLighting; float shininess; float padding[2]; Matrix4x4 uvTransform; };
+	struct Material {
+		Vector4 color;
+		int32_t enableLighting; 
+		float shininess;
+		float environmentCoefficient;
+		float padding[2];
+		Matrix4x4 uvTransform; };
 	struct TransformationMatrix { Matrix4x4 WVP; Matrix4x4 World; };
 	struct DirectionalLight { Vector4 color; Vector3 direction; float intensity; };
 	struct CameraForGPU { Vector3 worldPosition; };

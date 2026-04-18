@@ -35,6 +35,7 @@ cbuffer cbSpotLight : register(b3)
 };
 
 Texture2D<float4> gTexture : register(t0); // Index 5
+TextureCube<float4> gEnvironmentTexture : register(t1); // ★追加
 SamplerState gSampler : register(s0);
 
 struct PixelShaderOutput
@@ -82,9 +83,20 @@ PixelShaderOutput main(VertexShaderOutput input)
     float3 H_spot = normalize(L_spot + V);
     float3 diffuse_spot = gMaterial.color.rgb * textureColor.rgb * gSpotLight.color.rgb * saturate(dot(N, L_spot)) * spotFactor;
     float3 specular_spot = gSpotLight.color.rgb * spotFactor * pow(saturate(dot(N, H_spot)), gMaterial.shininess);
+    
+     // --- 3. 環境マップ (★追加) ---
+    // カメラから点への入射ベクトルを法線で反射させる
+    float3 cameraToPosition = normalize(input.worldPosition - gCamera.worldPosition);
+    float3 reflectedVector = reflect(cameraToPosition, N);
+    // 反射した方向の景色をサンプリング
+    float3 environmentColor = gEnvironmentTexture.Sample(gSampler, reflectedVector).rgb;
 
-    // 合成
+
+    // 全てを合成
     output.color.rgb = diffuse_dir + specular_dir + diffuse_spot + specular_spot;
+    // 環境マップの色を係数に従って加算
+    output.color.rgb += environmentColor * gMaterial.environmentCoefficient;
+    
     output.color.a = gMaterial.color.a * textureColor.a;
 
     return output;
