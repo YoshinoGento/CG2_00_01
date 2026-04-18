@@ -24,9 +24,9 @@ class Model {
 public:
 	// --- 追加：ノード構造体 ---
 	struct Node {
-		Matrix4x4 localMatrix;      // そのノード独自の変形行列
-		std::string name;           // ノード名
-		std::vector<Node> children; // 子供たち
+		Matrix4x4 localMatrix;
+		std::string name;
+		std::vector<Node> children;
 	};
 
 	struct VertexData {
