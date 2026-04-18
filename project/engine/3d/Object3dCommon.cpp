@@ -16,69 +16,90 @@ void Object3dCommon::CommonDrawSettings() {
 }
 
 void Object3dCommon::CreateRootSignature() {
-    ID3D12Device* device = dxCommon_->GetDevice(); // ★ここで device を定義
+    ID3D12Device* device = dxCommon_->GetDevice();
 
-    // ルートパラメータを 6 つに拡張 (Material, Transform, Light, Camera, SpotLight, Texture)
-    D3D12_ROOT_PARAMETER rootParameters[6] = {};
+    // ★重要：パラメータを 7つ に増やします
+    // (0:Material, 1:Transform, 2:DirLight, 3:Camera, 4:SpotLight, 5:Texture, 6:EnvironmentMap)
+    D3D12_ROOT_PARAMETER rootParameters[7] = {};
 
-    // 0: Material (b0)
+    // 0: Material (Pixel)
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[0].Descriptor.ShaderRegister = 0;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 1: Transform (b0) - Vertex
+    // 1: TransformationMatrix (Vertex)
     rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[1].Descriptor.ShaderRegister = 0;
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
-    // 2: Directional Light (b1)
+    // 2: DirectionalLight (Pixel)
     rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[2].Descriptor.ShaderRegister = 1;
     rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 3: Camera (b2)
+    // 3: Camera (Pixel)
     rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[3].Descriptor.ShaderRegister = 2;
     rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 4: Spot Light (b3) ★追加
+    // 4: SpotLight (Pixel)
     rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[4].Descriptor.ShaderRegister = 3;
     rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    // 5: Texture (t0) ★テクスチャは 5 番へ
-    D3D12_DESCRIPTOR_RANGE descriptorRange[1] = {};
-    descriptorRange[0].BaseShaderRegister = 0;
-    descriptorRange[0].NumDescriptors = 1;
-    descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    // 5: Texture2D (register t0)
+    D3D12_DESCRIPTOR_RANGE descriptorRange0[1] = {};
+    descriptorRange0[0].BaseShaderRegister = 0; // t0
+    descriptorRange0[0].NumDescriptors = 1;
+    descriptorRange0[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    descriptorRange0[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
     rootParameters[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    rootParameters[5].DescriptorTable.pDescriptorRanges = descriptorRange;
+    rootParameters[5].DescriptorTable.pDescriptorRanges = descriptorRange0;
     rootParameters[5].DescriptorTable.NumDescriptorRanges = 1;
     rootParameters[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    D3D12_STATIC_SAMPLER_DESC sampler = {};
-    sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    // 6: TextureCube (register t1) ★環境マップ用に新設
+    D3D12_DESCRIPTOR_RANGE descriptorRange1[1] = {};
+    descriptorRange1[0].BaseShaderRegister = 1; // t1
+    descriptorRange1[0].NumDescriptors = 1;
+    descriptorRange1[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    descriptorRange1[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_SIGNATURE_DESC desc = {};
-    desc.pParameters = rootParameters;
-    desc.NumParameters = _countof(rootParameters);
-    desc.pStaticSamplers = &sampler;
-    desc.NumStaticSamplers = 1;
-    desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+    rootParameters[6].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[6].DescriptorTable.pDescriptorRanges = descriptorRange1;
+    rootParameters[6].DescriptorTable.NumDescriptorRanges = 1;
+    rootParameters[6].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    Microsoft::WRL::ComPtr<ID3DBlob> blob, error;
-    HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error);
+    // --- サンプラーの設定 (s0) ---
+    D3D12_STATIC_SAMPLER_DESC staticSamplers[1] = {};
+    staticSamplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    staticSamplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    staticSamplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    staticSamplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    staticSamplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    staticSamplers[0].MaxLOD = D3D12_FLOAT32_MAX;
+    staticSamplers[0].ShaderRegister = 0;
+    staticSamplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    // --- 署名の作成 ---
+    D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature = {};
+    descriptionRootSignature.pParameters = rootParameters;
+    descriptionRootSignature.NumParameters = _countof(rootParameters);
+    descriptionRootSignature.pStaticSamplers = staticSamplers;
+    descriptionRootSignature.NumStaticSamplers = _countof(staticSamplers);
+    descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    // シリアライズして作成
+    Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
+    Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
+    HRESULT hr = D3D12SerializeRootSignature(&descriptionRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
     if (FAILED(hr)) {
-        OutputDebugStringA((char*)error->GetBufferPointer());
+        OutputDebugStringA((char*)errorBlob->GetBufferPointer());
         assert(false);
     }
-    device->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&rootSignature_));
+    hr = device->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature_));
+    assert(SUCCEEDED(hr));
 }
 
 void Object3dCommon::CreateGraphicsPipelineStates() {
