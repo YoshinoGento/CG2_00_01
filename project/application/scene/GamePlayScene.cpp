@@ -14,6 +14,7 @@
 #include "Game.h"
 #include "PrimitiveGenerator.h"
 #include <dinput.h>
+#include "Skybox.h"
 
 GamePlayScene::GamePlayScene() = default;
 GamePlayScene::~GamePlayScene() = default;
@@ -53,6 +54,11 @@ void GamePlayScene::Initialize() {
 
 	framework_->GetParticleManager()->CreateParticleGroup("Spark", textureHandles_[2]);
 
+	// 1. スカイボックスの生成と初期化
+	skybox_ = std::make_unique<Skybox>();
+	// 提供された DDS ファイルのパスを指定
+	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), "Resources/rostock_laage_airport_4k.dds");
+
 	CreateSphere(sphereRadius_);
 }
 
@@ -65,6 +71,11 @@ void GamePlayScene::Update() {
 
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
+
+	// 2. カメラの最新の状態をスカイボックスに伝える
+	skybox_->Update(camera_.get());
+
+
 
 	// ★MatrixMath::Normalize を使用
 	Vector3 normSpotDir = MatrixMath::Normalize(spotLightDir_);
@@ -116,23 +127,39 @@ void GamePlayScene::Draw() {
 	auto objCommon = framework_->GetObject3dCommon();
 	auto spriteCommon = framework_->GetSpriteCommon();
 
+	// --- 1. 3Dオブジェクトの描画フェーズ ---
+	objCommon->CommonDrawSettings();
+
+	// 優先度 0: 3Dを先に描く（一般的）
 	if (modelPriority_ == 0) {
-		objCommon->CommonDrawSettings();
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
+
+		// ★スカイボックス：他の3Dが描かれた「後」に描画。
+		// すでにキャラや地形があるピクセルは、GPUが描画をスキップしてくれる（Early-Z）
+		if (skybox_) skybox_->Draw();
+
+		// --- 2. 2Dオブジェクト（UIなど）の描画フェーズ ---
 		spriteCommon->PreDraw();
 		if (showSprite_) sprite_->Draw();
-	} else {
-		spriteCommon->PreDraw();
-		if (showSprite_) sprite_->Draw();
-		objCommon->CommonDrawSettings();
-		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
-		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
-		if (showPlane_ && object3d_)    object3d_->Draw();
 	}
+	// 優先度 1: スプライトを背景より後ろに描きたい場合など
+	else {
+		spriteCommon->PreDraw();
+		if (showSprite_) sprite_->Draw();
+
+		objCommon->CommonDrawSettings();
+		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
+		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
+		if (showPlane_ && object3d_)    object3d_->Draw();
+
+		if (skybox_) skybox_->Draw();
+	}
+
 	if (showParticles_) framework_->GetParticleManager()->Draw();
 }
+
 
 void GamePlayScene::HandleKeyboardMovement() {
 	if (selectedTarget_ == 0 || ImGui::GetIO().WantCaptureKeyboard) return;

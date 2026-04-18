@@ -5,6 +5,7 @@
 #include <string>
 #include <cstdint>
 #include "Matrix.h"
+#include "Skybox.h"
 
 class Framework;
 class Sprite;
@@ -47,6 +48,7 @@ private:
 	std::unique_ptr<Object3d> sphereObj_;
 	std::unique_ptr<Model> terrainModel_;
 	std::unique_ptr<Object3d> terrainObj_;
+	std::unique_ptr<Skybox> skybox_; // スカイボックス本体
 
 	std::vector<uint32_t> textureHandles_;
 
@@ -85,4 +87,5 @@ private:
 	float spotLightFalloff_ = 0.1f; // ラジアン
 
 	std::vector<std::string> debugLogs_;
+
 };
