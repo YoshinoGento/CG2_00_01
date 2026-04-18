@@ -14,6 +14,7 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	materialData_->color = { 1.0f, 1.0f, 1.0f, 1.0f };
 	materialData_->enableLighting = 1;
 	materialData_->shininess = 40.0f;
+	materialData_->environmentCoefficient = 0.0f;
 	materialData_->uvTransform = MatrixMath::MakeIdentity4x4();
 
 	transformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
@@ -83,7 +84,6 @@ void Object3d::Draw() {
 	commandList->SetGraphicsRootConstantBufferView(2, directionalLightResource_->GetGPUVirtualAddress());
 	// 3: Camera (Pixel)
 	commandList->SetGraphicsRootConstantBufferView(3, cameraResource_->GetGPUVirtualAddress());
-
 	// ★重要：4番はスポットライト (CBV)
 	commandList->SetGraphicsRootConstantBufferView(4, spotLightResource_->GetGPUVirtualAddress());
 
@@ -92,6 +92,12 @@ void Object3d::Draw() {
 	SrvManager* srvManager = object3dCommon_->GetSrvManager();
 	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle = srvManager->GetGPUDescriptorHandle(textureHandle_);
 	commandList->SetGraphicsRootDescriptorTable(5, textureSrvHandle);
+
+	// ★追加：環境マップ用のテクスチャ (Descriptor Table)
+	D3D12_GPU_DESCRIPTOR_HANDLE environmentMapSrvHandle = srvManager->GetGPUDescriptorHandle(environmentMapHandle_);
+	commandList->SetGraphicsRootDescriptorTable(6, environmentMapSrvHandle);
+	// 環境マップ (t1) ★追加
+	commandList->SetGraphicsRootDescriptorTable(6, srvManager->GetGPUDescriptorHandle(environmentMapHandle_));
 
 	// モデルの描画実行
 	model_->Draw(object3dCommon_->GetDxCommon());

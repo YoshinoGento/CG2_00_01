@@ -10,7 +10,8 @@ struct Material
 {
     float4 color;
     int enableLighting;
-    float shininess; // ★追加：光沢の強さ
+    float shininess; 
+    float environmentCoefficient;
     float4x4 uvTransform;
 };
 
