@@ -19,6 +19,9 @@ public:
 	void Update(Camera* camera);
 	void Draw();
 
+	// ★追加：環境マップ（映り込み）として利用するために、テクスチャの番号を取得する関数
+	uint32_t GetSrvIndex() const { return srvIndex_; }
+
 private:
 	void CreateMesh(); // 資料スライド 11: 箱の作成
 	void LoadDDS(const std::string& filePath); // 資料スライド 9: DDSの読み込み

@@ -54,10 +54,10 @@ void GamePlayScene::Initialize() {
 
 	framework_->GetParticleManager()->CreateParticleGroup("Spark", textureHandles_[2]);
 
-	// 1. スカイボックスの生成と初期化
 	skybox_ = std::make_unique<Skybox>();
-	// 提供された DDS ファイルのパスを指定
 	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), "Resources/rostock_laage_airport_4k.dds");
+
+
 
 	CreateSphere(sphereRadius_);
 }
@@ -81,7 +81,7 @@ void GamePlayScene::Update() {
 	Vector3 normSpotDir = MatrixMath::Normalize(spotLightDir_);
 
 	// ライト設定の反映
-	auto UpdateObjectLights = [&](Object3d* obj) {
+	auto UpdateObjectLights = [&](Object3d* obj, float envCoef) {
 		if (!obj) return;
 		obj->SetCullMode(cullMode_);
 		obj->SetLightDirection(lightDirection_);
@@ -96,17 +96,23 @@ void GamePlayScene::Update() {
 		obj->SetSpotLightDecay(spotLightDecay_);
 		obj->SetSpotLightAngle(spotLightAngle_);
 		obj->SetSpotLightFalloff(spotLightFalloff_);
+		// ★映り込みの設定を追加
+		// スカイボックスが持っている SRV インデックスを渡す（Skybox クラスに Getter が必要です）
+		obj->SetEnvironmentMap(skybox_->GetSrvIndex());
+		// 反射の強さを 0.5 (50%) くらいにしてみる
+		obj->SetEnvironmentCoefficient(envCoef);
 
 		obj->Update(camera_.get());
 		};
 
-	UpdateObjectLights(terrainObj_.get());
-	UpdateObjectLights(object3d_.get());
+	UpdateObjectLights(terrainObj_.get(), 0.0f);
+	UpdateObjectLights(object3d_.get(), 0.0f);
+
 
 	if (sphereObj_) {
 		sphereObj_->SetPosition(spherePos_);
 		sphereObj_->SetRotation(objectRot_);
-		UpdateObjectLights(sphereObj_.get());
+		UpdateObjectLights(sphereObj_.get(), 0.5f);
 	}
 
 	framework_->GetParticleManager()->Update(camera_.get());
