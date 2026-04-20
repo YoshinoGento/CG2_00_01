@@ -15,6 +15,7 @@
 #include "PrimitiveGenerator.h"
 #include <dinput.h>
 #include "Skybox.h"
+#include <random>
 
 GamePlayScene::GamePlayScene() = default;
 GamePlayScene::~GamePlayScene() = default;
@@ -57,9 +58,39 @@ void GamePlayScene::Initialize() {
 	skybox_ = std::make_unique<Skybox>();
 	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), "Resources/rostock_laage_airport_4k.dds");
 
-
+	// circle2.png を読み込んでおく
+	uint32_t circle2Handle = framework_->GetSpriteCommon()->LoadTexture("Resources/circle2.png");
+	// パーティクルグループ "Spark" を作成
+	framework_->GetParticleManager()->CreateParticleGroup("Spark", circle2Handle);
 
 	CreateSphere(sphereRadius_);
+}
+
+// エフェクトを発生させる関数（GamePlaySceneのメンバ関数として作成）
+void GamePlayScene::EmitSpark(const Vector3& position) {
+	// 乱数生成器
+	std::random_device seed_gen;
+	std::mt19937 randomEngine(seed_gen());
+
+	// スライド8：ランダムな回転とスケール
+	std::uniform_real_distribution<float> distRotate(-3.141592f, 3.141592f);
+	std::uniform_real_distribution<float> distScale(0.8f, 1.5f);
+
+	// スライド8：発生個数を8個にする
+	for (int i = 0; i < 8; ++i) {
+		Particle& p = framework_->GetParticleManager()->AddParticle("Spark", position);
+
+		// スライド7：パーティクルのサイズを変える（Xを極端に小さくして針状にする）
+		p.transform.scale = { 0.05f, distScale(randomEngine), 1.0f };
+
+		// スライド8：Z軸をランダムに回転させて星型にする
+		p.transform.rotate = { 0.0f, 0.0f, distRotate(randomEngine) };
+
+		// 見た目の設定
+		p.color = { 1.0f, 1.0f, 0.6f, 1.0f }; // 黄白色の光
+		p.velocity = { 0.0f, 0.0f, 0.0f };    // 出現場所から動かさない
+		p.lifeTime = 0.2f;                    // 一瞬で消える
+	}
 }
 
 void GamePlayScene::Update() {
@@ -113,6 +144,11 @@ void GamePlayScene::Update() {
 		sphereObj_->SetPosition(spherePos_);
 		sphereObj_->SetRotation(objectRot_);
 		UpdateObjectLights(sphereObj_.get(), 0.5f);
+	}
+
+	// テスト：スペースキーを押したら火花が出るようにしてみる
+	if (framework_->GetInput()->TriggerKey(DIK_SPACE)) {
+		EmitSpark(spherePos_);
 	}
 
 	framework_->GetParticleManager()->Update(camera_.get());
