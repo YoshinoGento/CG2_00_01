@@ -1,32 +1,30 @@
 #include "Particle.hlsli"
 
-// 頂点入力 (Slot 0)
-struct VertexInput
+struct TransformationMatrix
+{
+    float4x4 WVP;
+    float4x4 World;
+    float4 color;
+};
+
+// インスタンシングデータを受け取る構造
+struct VertexShaderInput
 {
     float4 position : POSITION;
-    float2 texcoord : TEXCOORD0;
-    float3 normal : NORMAL0;
+    float2 texcoord : TEXCOORD;
+    float3 normal : NORMAL;
+    // インスタンシングバッファから受け取るデータ
+    float4x4 instanceWVP : WVP;
+    float4x4 instanceWorld : WORLD;
+    float4 instanceColor : COLOR;
 };
 
-// インスタンス入力 (Slot 1)
-struct InstanceInput
-{
-    float4x4 wvp : WVP;
-    float4x4 world : WORLD;
-    float4 color : COLOR;
-};
-
-VertexShaderOutput main(VertexInput input, InstanceInput instance)
+VertexShaderOutput main(VertexShaderInput input)
 {
     VertexShaderOutput output;
-    
-    // 座標変換 (インスタンスごとのWVP行列を使用)
-    // CPU側でBillboard計算済みのWorld行列を合成してWVPを作っている想定
-    output.position = mul(input.position, instance.wvp);
-    
+    // インスタンスごとの行列で変換
+    output.position = mul(input.position, input.instanceWVP);
     output.texcoord = input.texcoord;
-    output.normal = normalize(mul(input.normal, (float3x3) instance.world));
-    output.color = instance.color; // インスタンス色
-    
+    output.color = input.instanceColor;
     return output;
 }
