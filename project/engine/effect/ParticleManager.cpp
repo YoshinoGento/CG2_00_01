@@ -11,7 +11,7 @@
 
 using namespace Microsoft::WRL;
 
-// 頂点データの構造体
+// ★修正：エラー C2065 の解消。頂点データの構造体をここで定義します
 struct VertexData {
     Vector4 position;
     Vector2 texcoord;
@@ -24,59 +24,46 @@ void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
 
-    // 1. パイプラインステートの生成
     CreateRootSignature();
     CreateGraphicsPipelineState();
-
-    // 2. モデル（矩形ポリゴン）の生成
     CreateModel();
 
-    // 3. インスタンシング用リソースの生成
-    // GPUに送るための巨大なバッファを作る
     instancingResource_ = dxCommon_->CreateBufferResource(sizeof(InstancingData) * kMaxInstanceCount);
-
-    // マッピングしておく（書き込みっぱなしにする）
     instancingResource_->Map(0, nullptr, (void**)&instancingData_);
 
-    // SRVは不要（VBVとしてバインドするため）
     instancingBufferView_.BufferLocation = instancingResource_->GetGPUVirtualAddress();
     instancingBufferView_.SizeInBytes = sizeof(InstancingData) * kMaxInstanceCount;
     instancingBufferView_.StrideInBytes = sizeof(InstancingData);
 }
 
 void ParticleManager::Update(Camera* camera) {
-    assert(camera);
     camera_ = camera;
+    float deltaTime = 1.0f / 60.0f;
 
-    // 全グループのパーティクルを更新
     for (auto& groupPair : particleGroups_) {
-        ParticleGroup& group = groupPair.second;
-
-        // イテレータで走査（削除が入るため）
-        for (auto it = group.particles.begin(); it != group.particles.end();) {
+        for (auto it = groupPair.second.particles.begin(); it != groupPair.second.particles.end();) {
             Particle& p = *it;
+            p.currentTime += deltaTime;
 
-            // 寿命経過
-            p.currentTime += 1.0f / 60.0f; // 固定フレームレート仮定
-
-            // 寿命尽きたら削除
             if (p.currentTime >= p.lifeTime) {
-                it = group.particles.erase(it);
+                it = groupPair.second.particles.erase(it);
                 continue;
             }
 
-            // 移動
+            // 速度と加速度の計算
             p.velocity.x += p.acceleration.x;
             p.velocity.y += p.acceleration.y;
             p.velocity.z += p.acceleration.z;
+            p.transform.translate.x += p.velocity.x;
+            p.transform.translate.y += p.velocity.y;
+            p.transform.translate.z += p.velocity.z;
 
-            p.position.x += p.velocity.x;
-            p.position.y += p.velocity.y;
-            p.position.z += p.velocity.z;
-
-            // サイズ変更（線形補間）
+            // Emit 用のサイズ補間（AddParticleで直接scaleをいじらない場合のみ影響）
             float t = p.currentTime / p.lifeTime;
-            p.size = p.startSize * (1.0f - t) + p.endSize * t;
+            if (p.startSize != p.endSize) {
+                float s = p.startSize + (p.endSize - p.startSize) * t;
+                p.transform.scale = { s, s, s };
+            }
 
             // アルファフェードアウト
             p.color.w = 1.0f - t;
@@ -86,139 +73,105 @@ void ParticleManager::Update(Camera* camera) {
     }
 }
 
-void ParticleManager::Draw() {
-    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
+/**
+ * 新しい「AddParticle」
+ */
+Particle& ParticleManager::AddParticle(const std::string& name, const Vector3& position) {
+    auto it = particleGroups_.find(name);
+    assert(it != particleGroups_.end());
 
-    // ルートシグネチャ・PSOセット
+    it->second.particles.emplace_back();
+    Particle& p = it->second.particles.back();
+
+    p.transform.translate = position;
+    p.transform.rotate = { 0.0f, 0.0f, 0.0f };
+    p.transform.scale = { 1.0f, 1.0f, 1.0f };
+    p.velocity = { 0.0f, 0.0f, 0.0f };
+    p.acceleration = { 0.0f, 0.0f, 0.0f };
+    p.color = { 1.0f, 1.0f, 1.0f, 1.0f };
+    p.lifeTime = 1.0f;
+    p.currentTime = 0.0f;
+    p.startSize = 1.0f; // 同値にしておけばUpdateの補間を無視できる
+    p.endSize = 1.0f;
+
+    return p;
+}
+
+/**
+ * 従来の「Emit」
+ */
+void ParticleManager::Emit(const std::string& name, const Vector3& position, uint32_t count) {
+    std::random_device seed_gen;
+    std::mt19937 engine(seed_gen());
+    std::uniform_real_distribution<float> distPos(-0.5f, 0.5f);
+    std::uniform_real_distribution<float> distVel(-0.1f, 0.1f);
+
+    for (uint32_t i = 0; i < count; ++i) {
+        Particle& p = AddParticle(name, position);
+        p.transform.translate.x += distPos(engine);
+        p.transform.translate.y += distPos(engine);
+        p.transform.translate.z += distPos(engine);
+        p.velocity = { distVel(engine), distVel(engine), distVel(engine) };
+        p.lifeTime = 1.0f;
+        p.startSize = 1.0f;
+        p.endSize = 0.0f; // 消えていく設定
+    }
+}
+
+void ParticleManager::Draw() {
+    // ... 中略 ... 
+    // ※行列計算部分で、以下の順番で計算するのがコツです
+    // Matrix4x4 worldMatrix = Scale * Billboard * RotateZ * Translate;
+    // これにより、カメラを向きつつ画面上で回転させることができます（火花に必須）
+
+    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
     commandList->SetGraphicsRootSignature(rootSignature_.Get());
     commandList->SetPipelineState(pipelineState_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    // 共通の矩形頂点バッファをセット
     commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
-    // インスタンシングデータのバッファをスロット1にセット
     commandList->IASetVertexBuffers(1, 1, &instancingBufferView_);
 
-    // カメラ行列（ビルボード用）
     Matrix4x4 viewMatrix = camera_->GetViewMatrix();
-    Matrix4x4 projectionMatrix = camera_->GetProjectionMatrix();
     Matrix4x4 viewProjectionMatrix = camera_->GetViewProjectionMatrix();
 
-    // ビルボード回転行列の作成（カメラの逆回転）
-    // View行列の回転成分の逆行列を作ることで、カメラと同じ向き（＝カメラの方を向く）にする
+    // ビルボード行列の抽出
     Matrix4x4 billboardMatrix = MatrixMath::MakeIdentity4x4();
-    billboardMatrix.m[0][0] = viewMatrix.m[0][0];
-    billboardMatrix.m[0][1] = viewMatrix.m[1][0];
-    billboardMatrix.m[0][2] = viewMatrix.m[2][0];
-    billboardMatrix.m[1][0] = viewMatrix.m[0][1];
-    billboardMatrix.m[1][1] = viewMatrix.m[1][1];
-    billboardMatrix.m[1][2] = viewMatrix.m[2][1];
-    billboardMatrix.m[2][0] = viewMatrix.m[0][2];
-    billboardMatrix.m[2][1] = viewMatrix.m[1][2];
-    billboardMatrix.m[2][2] = viewMatrix.m[2][2];
+    billboardMatrix.m[0][0] = viewMatrix.m[0][0]; billboardMatrix.m[0][1] = viewMatrix.m[1][0]; billboardMatrix.m[0][2] = viewMatrix.m[2][0];
+    billboardMatrix.m[1][0] = viewMatrix.m[0][1]; billboardMatrix.m[1][1] = viewMatrix.m[1][1]; billboardMatrix.m[1][2] = viewMatrix.m[2][1];
+    billboardMatrix.m[2][0] = viewMatrix.m[0][2]; billboardMatrix.m[2][1] = viewMatrix.m[1][2]; billboardMatrix.m[2][2] = viewMatrix.m[2][2];
 
-    // グループごとに描画
     for (auto& groupPair : particleGroups_) {
-        ParticleGroup& group = groupPair.second;
-        size_t particleCount = group.particles.size();
+        uint32_t instanceIndex = 0;
+        for (const auto& p : groupPair.second.particles) {
+            if (instanceIndex >= kMaxInstanceCount) break;
 
-        if (particleCount == 0) continue;
+            Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(p.transform.scale);
+            Matrix4x4 rotateZMatrix = MatrixMath::MakeRotateZMatrix(p.transform.rotate.z);
+            Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(p.transform.translate);
 
-        // 上限キャップ
-        uint32_t drawCount = static_cast<uint32_t>(particleCount);
-        if (drawCount > kMaxInstanceCount) {
-            drawCount = kMaxInstanceCount;
+            // 合成：Scale * Billboard * RotateZ * Translate
+            Matrix4x4 worldMatrix = MatrixMath::Multiply(scaleMatrix,
+                MatrixMath::Multiply(billboardMatrix,
+                    MatrixMath::Multiply(rotateZMatrix, translateMatrix)));
+
+            instancingData_[instanceIndex].World = worldMatrix;
+            instancingData_[instanceIndex].WVP = MatrixMath::Multiply(worldMatrix, viewProjectionMatrix);
+            instancingData_[instanceIndex].color = p.color;
+            instanceIndex++;
         }
 
-        // インスタンシングデータを書き込む
-        uint32_t index = 0;
-        for (const auto& particle : group.particles) {
-            if (index >= drawCount) break;
-
-            // スケール
-            Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix({ particle.size, particle.size, particle.size });
-            // 平行移動
-            Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(particle.position);
-
-            // 行列合成: Scale * BillboardRotation * Translate
-            Matrix4x4 worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(billboardMatrix, translateMatrix));
-
-            // データセット
-            instancingData_[index].World = worldMatrix;
-            instancingData_[index].WVP = MatrixMath::Multiply(worldMatrix, viewProjectionMatrix);
-            instancingData_[index].color = particle.color;
-
-            index++;
-        }
-
-        // テクスチャセット
-        D3D12_GPU_DESCRIPTOR_HANDLE srvHandle = srvManager_->GetGPUDescriptorHandle(group.textureHandle);
-        commandList->SetGraphicsRootDescriptorTable(0, srvHandle);
-
-        // インスタンシング描画実行
-        // 引数: 頂点数, インスタンス数, 開始頂点, 開始インスタンス
-        // インデックスバッファを使用しない場合 (頂点数6)
-        commandList->DrawInstanced(6, drawCount, 0, 0);
+        if (instanceIndex == 0) continue;
+        commandList->SetGraphicsRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(groupPair.second.textureHandle));
+        commandList->DrawInstanced(6, instanceIndex, 0, 0);
     }
 }
 
 void ParticleManager::CreateParticleGroup(const std::string& name, uint32_t textureHandle) {
-    if (particleGroups_.contains(name)) {
-        return; // すでに登録済み
-    }
+    if (particleGroups_.contains(name)) return;
     ParticleGroup group;
     group.name = name;
     group.textureHandle = textureHandle;
     particleGroups_[name] = group;
-}
-
-void ParticleManager::Emit(const std::string& name, const Vector3& position, uint32_t count) {
-    if (!particleGroups_.contains(name)) return;
-
-    ParticleGroup& group = particleGroups_[name];
-
-    std::random_device seed_gen;
-    std::mt19937_64 engine(seed_gen());
-
-    // 円形（円盤）分布にするための乱数
-    std::uniform_real_distribution<float> distAngle(0.0f, 2.0f * 3.14159265358979323846f);
-    std::uniform_real_distribution<float> distRadius(0.0f, 1.0f); // 0..1 をサンプリング（後で sqrt）
-    std::uniform_real_distribution<float> distVel(0.02f, 0.2f);   // 速度の大きさ
-    std::uniform_real_distribution<float> distZ(-0.05f, 0.05f);   // Z方向のばらつき
-    std::uniform_real_distribution<float> distColor(0.5f, 1.0f);
-
-    // エミット半径（必要に応じて調整）
-    const float emitRadius = 1.0f;
-
-    for (uint32_t i = 0; i < count; ++i) {
-        Particle p;
-        // 角度と半径をサンプリングして円盤内に配置
-        float angle = distAngle(engine);
-        // 一様な面積分布にするために r = sqrt(u) を使う
-        float r = std::sqrt(distRadius(engine)) * emitRadius;
-        float cx = std::cos(angle);
-        float cy = std::sin(angle);
-
-        p.position = position;
-        p.position.x += cx * r;
-        p.position.y += cy * r;
-        p.position.z += distZ(engine);
-
-        // 速度は外向きにする（角度ベース）＋少しZ成分を与える
-        float speed = distVel(engine);
-        p.velocity = { cx * speed, cy * speed, distZ(engine) };
-
-        p.acceleration = { 0.0f, 0.0f, 0.0f }; // 必要なら重力等を設定
-
-        p.color = { distColor(engine), distColor(engine), distColor(engine), 1.0f };
-        p.lifeTime = 2.0f; // 2秒
-        p.currentTime = 0.0f;
-        p.startSize = 1.0f;
-        p.endSize = 0.0f;
-        p.size = p.startSize;
-
-        group.particles.push_back(p);
-    }
 }
 
 void ParticleManager::CreateRootSignature() {
@@ -304,15 +257,20 @@ void ParticleManager::CreateGraphicsPipelineState() {
         { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
     };
 
-    // ブレンドステート (加算合成)
+    // ブレンドステートの設定 (加算合成 / Additive Blending)
     D3D12_BLEND_DESC blendDesc{};
     blendDesc.RenderTarget[0].BlendEnable = TRUE;
+
+    // ★ここが重要：加算合成の正しい設定
+    // 最終色 = (ソース色 * ソースアルファ) + (デスティネーション色 * 1)
     blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-    blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE; // 加算
+    blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
     blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+
     blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
     blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
     blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+
     blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
     // ラスタライザステート
@@ -323,7 +281,8 @@ void ParticleManager::CreateGraphicsPipelineState() {
     // デプスステンシルステート
     D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};
     depthStencilDesc.DepthEnable = TRUE;
-    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO; // 深度書き込みしない
+    // ★重要：パーティクル同士で前後がおかしくならないよう、深度の書き込みは OFF にする
+    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 
     // PSO生成
