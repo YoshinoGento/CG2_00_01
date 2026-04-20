@@ -33,6 +33,7 @@ public:
 private:
 	void AddLog(const std::string& message);
 	void HandleKeyboardMovement();
+	void EmitSpark(const Vector3& position);
 
 private:
 	Framework* framework_ = nullptr;
@@ -66,6 +67,9 @@ private:
 
 	float sphereRadius_ = 1.0f;
 	Vector3 spherePos_ = { 0.0f, 0.0f, 10.0f };
+
+	// ★追加：スフィアの環境マップ反射強度（0.0〜1.0）
+	float sphereEnvCoef_ = 0.5f;
 
 	int selectedTarget_ = 1;
 	int modelPriority_ = 0;
