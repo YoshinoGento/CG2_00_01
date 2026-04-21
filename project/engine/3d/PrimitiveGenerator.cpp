@@ -1,5 +1,5 @@
-#include "PrimitiveGenerator.h"
-#include "Matrix.h"
+#include "3d/PrimitiveGenerator.h"
+#include "math/Matrix.h"
 #include <numbers>
 #include <cmath>
 

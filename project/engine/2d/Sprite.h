@@ -1,6 +1,6 @@
 #pragma once
-#include "SpriteCommon.h"
-#include "Matrix.h"
+#include "2d/SpriteCommon.h"
+#include "math/Matrix.h"
 
 class Sprite {
 public:
