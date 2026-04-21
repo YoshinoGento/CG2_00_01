@@ -1,7 +1,7 @@
-#include "Model.h"
-#include "ModelManager.h"
-#include "SrvManager.h"
-#include "SpriteCommon.h" 
+#include "3d/Model.h"
+#include "3d/ModelManager.h"
+#include "base/SrvManager.h"
+#include "2d/SpriteCommon.h" 
 #include <cassert>
 #include <filesystem>
 

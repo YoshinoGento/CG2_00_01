@@ -4,8 +4,8 @@
 #include <vector>
 #include <string>
 #include <cstdint>
-#include "Matrix.h"
-#include "Skybox.h"
+#include "math/Matrix.h"
+#include "3d/Skybox.h"
 
 class Framework;
 class Sprite;

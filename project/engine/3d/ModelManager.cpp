@@ -1,7 +1,7 @@
-#include "ModelManager.h"
-#include "Model.h"       // ★Modelを消去するために「正体」が必要
-#include "DirectXCommon.h"
-#include "SrvManager.h"
+#include "3d/ModelManager.h"
+#include "3d/Model.h"       // ★Modelを消去するために「正体」が必要
+#include "base/DirectXCommon.h"
+#include "base/SrvManager.h"
 #include <cassert>
 
 /**
