@@ -89,6 +89,12 @@ void Game::Update() {
 		// 既存の平行光源
 		if (ImGui::CollapsingHeader("Directional Light")) {
 			ImGui::DragFloat3("Direction", &playScene->lightDirection_.x, 0.01f, -1.0f, 1.0f);
+			// 正規化処理を追加
+			if (ImGui::DragFloat3("D-Light Direction", &playScene->lightDirection_.x, 0.01f, -1.0f, 1.0f)) {
+				if (MatrixMath::Length(playScene->lightDirection_) > 0.0f) {
+					playScene->lightDirection_ = MatrixMath::Normalize(playScene->lightDirection_);
+				}
+			}
 			ImGui::ColorEdit3("Color", &playScene->lightColor_.x);
 			ImGui::SliderFloat("Intensity", &playScene->lightIntensity_, 0.0f, 10.0f);
 		}
@@ -98,7 +104,12 @@ void Game::Update() {
 			ImGui::ColorEdit3("S-Light Color", &playScene->spotLightColor_.x);
 			ImGui::DragFloat3("S-Light Position", &playScene->spotLightPos_.x, 0.1f);
 			ImGui::SliderFloat("S-Light Intensity", &playScene->spotLightIntensity_, 0.0f, 20.0f);
-			ImGui::DragFloat3("S-Light Direction", &playScene->spotLightDir_.x, 0.01f, -1.0f, 1.0f);
+			// 正規化処理を追加
+			if (ImGui::DragFloat3("S-Light Direction", &playScene->spotLightDir_.x, 0.01f, -1.0f, 1.0f)) {
+				if (MatrixMath::Length(playScene->spotLightDir_) > 0.0f) {
+					playScene->spotLightDir_ = MatrixMath::Normalize(playScene->spotLightDir_);
+				}
+			}
 			ImGui::SliderFloat("S-Light Distance", &playScene->spotLightDistance_, 1.0f, 100.0f);
 			ImGui::SliderFloat("S-Light Decay", &playScene->spotLightDecay_, 0.1f, 10.0f);
 
