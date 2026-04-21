@@ -6,8 +6,8 @@
 #include <vector>
 #include <list>
 #include <map>
-#include "Matrix.h"
-#include "Transform.h"
+#include "math/Matrix.h"
+#include "math/Transform.h"
 
 // 前方宣言
 class DirectXCommon;

@@ -1,6 +1,6 @@
-#include "Skybox.h"
-#include "SrvManager.h"
-#include "Camera.h"
+#include "3d/Skybox.h"
+#include "base/SrvManager.h"
+#include "3d/Camera.h"
 #include <cassert>
 
 using namespace Microsoft::WRL;

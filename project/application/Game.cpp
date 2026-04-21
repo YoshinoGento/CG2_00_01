@@ -1,12 +1,12 @@
 #include "Game.h"
-#include "SceneManager.h"
-#include "SceneFactory.h"
-#include "DirectXCommon.h"
-#include "SrvManager.h"
-#include "ImGuiManager.h"
-#include "GamePlayScene.h" 
-#include "Audio.h"
-#include "Object3d.h"
+#include "scene/SceneManager.h"
+#include "scene/SceneFactory.h"
+#include "base/DirectXCommon.h"
+#include "base/SrvManager.h"
+#include "base/ImGuiManager.h"
+#include "scene/GamePlayScene.h" 
+#include "audio/Audio.h"
+#include "3d/Object3d.h"
 #include <cmath>
 
 Vector2 Game::mousePosInViewport_ = { 0, 0 };
