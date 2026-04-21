@@ -3,7 +3,7 @@
 #define DIRECTINPUT_VERSION 0x0800  // DirectInputのバージョン指定
 #include <dinput.h> //DirectInput
 #include <wrl.h>
-#include "WinApp.h"
+#include "base/WinApp.h"
 
 using namespace Microsoft::WRL;
 

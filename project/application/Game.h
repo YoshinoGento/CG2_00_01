@@ -1,6 +1,6 @@
 #pragma once
-#include "Framework.h"
-#include "Matrix.h"	
+#include "base/Framework.h"
+#include "math/Matrix.h"	
 #include <memory>
 
 class SceneFactory;

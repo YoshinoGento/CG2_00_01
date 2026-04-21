@@ -1,7 +1,7 @@
-#include "ParticleManager.h"
-#include "DirectXCommon.h"
-#include "SrvManager.h"
-#include "Camera.h"
+#include "effect/ParticleManager.h"
+#include "base/DirectXCommon.h"
+#include "base/SrvManager.h"
+#include "3d/Camera.h"
 #include <d3dcompiler.h>
 #include <cassert>
 #include <random>

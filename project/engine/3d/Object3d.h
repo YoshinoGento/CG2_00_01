@@ -1,8 +1,8 @@
 #pragma once
-#include "Object3dCommon.h"
-#include "Model.h" 
-#include "Matrix.h"
-#include "Camera.h"
+#include "3d/Object3dCommon.h"
+#include "3d/Model.h" 
+#include "math/Matrix.h"
+#include "3d/Camera.h"
 #include <wrl.h>
 #include <d3d12.h>
 

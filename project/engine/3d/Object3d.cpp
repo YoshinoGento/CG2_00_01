@@ -1,7 +1,7 @@
-#include "Object3d.h"
-#include "Object3dCommon.h"
-#include "SrvManager.h"
-#include "DirectXCommon.h"
+#include "3d/Object3d.h"
+#include "3d/Object3dCommon.h"
+#include "base/SrvManager.h"
+#include "base/DirectXCommon.h"
 #include <cassert>
 
 void Object3d::Initialize(Object3dCommon* object3dCommon) {

@@ -1,5 +1,5 @@
 #include "SpriteCommon.h"
-#include "Logger.h"
+#include "base/Logger.h"
 #include <cassert>
 
 // ★修正: SrvManagerを受け取る
