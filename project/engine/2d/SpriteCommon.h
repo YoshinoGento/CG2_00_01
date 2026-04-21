@@ -1,6 +1,6 @@
 #pragma once
-#include "DirectXCommon.h"
-#include "SrvManager.h" // ★追加
+#include "base/DirectXCommon.h"
+#include "base/SrvManager.h" // ★追加
 #include <string>
 #include <vector>
 #include <map>

@@ -1,6 +1,6 @@
 #pragma once
-#include "DirectXCommon.h" 
-#include "Matrix.h"
+#include "base/DirectXCommon.h" 
+#include "math/Matrix.h"
 #include <string>
 #include <vector>
 #include <map>
