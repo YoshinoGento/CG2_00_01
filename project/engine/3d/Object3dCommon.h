@@ -1,5 +1,5 @@
 #pragma once
-#include "DirectXCommon.h"
+#include "base/DirectXCommon.h"
 #include <wrl.h>
 #include <d3d12.h>
 #include <array>
