@@ -1,5 +1,5 @@
 #include "Object3dCommon.h"
-#include "Logger.h"
+#include "base/Logger.h"
 #include <cassert>
 
 void Object3dCommon::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {

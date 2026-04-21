@@ -1,5 +1,5 @@
-#include "PrimitiveGenerator.h"
-#include "Matrix.h"
+#include "3d/PrimitiveGenerator.h"
+#include "math/Matrix.h"
 #include <numbers>
 #include <cmath>
 
@@ -11,8 +11,7 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateBox(ModelManager* manager, cons
     float hy = size.y * 0.5f;
     float hz = size.z * 0.5f;
 
-    // 立方体の24頂点（各面4点ずつ：法線を分けるため）
-    // ★Model.h の定義に合わせて「position」を使用します
+    // 各面ごとに法線を分けるため、24頂点生成
     std::vector<Model::VertexData> vertices = {
         // 前 (Z-)
         {{-hx,  hy, -hz, 1.0f}, {0, 0, -1}, {0, 0}}, {{ hx,  hy, -hz, 1.0f}, {0, 0, -1}, {1, 0}},
@@ -66,7 +65,6 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateSphere(ModelManager* manager, f
             float z = radius * std::cos(phi) * std::sin(theta);
 
             Model::VertexData v;
-            // ★修正：v.pos ではなく v.position を使用
             v.position = { x, y, z, 1.0f };
             v.normal = MatrixMath::Normalize({ x, y, z });
             v.texcoord = { (float)lon / subdivisions, (float)lat / subdivisions };
@@ -94,12 +92,11 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateSphere(ModelManager* manager, f
 std::unique_ptr<Model> PrimitiveGenerator::CreatePlane(ModelManager* manager, float width, float height) {
     float hw = width * 0.5f;
     float hh = height * 0.5f;
-    // ★ここも position に合わせます
     std::vector<Model::VertexData> vertices = {
-        {{-hw, 0.0f,  hh, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}}, // 左上
-        {{ hw, 0.0f,  hh, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}}, // 右上
-        {{-hw, 0.0f, -hh, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}}, // 左下
-        {{ hw, 0.0f, -hh, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}}, // 右下
+        {{-hw, 0.0f,  hh, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{ hw, 0.0f,  hh, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{-hw, 0.0f, -hh, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{ hw, 0.0f, -hh, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
     };
     std::vector<uint32_t> indices = { 0, 1, 2, 1, 3, 2 };
     auto model = std::make_unique<Model>();
@@ -108,30 +105,91 @@ std::unique_ptr<Model> PrimitiveGenerator::CreatePlane(ModelManager* manager, fl
 }
 
 /**
- * 円の生成
+ * 円（塗りつぶし）の生成
  */
 std::unique_ptr<Model> PrimitiveGenerator::CreateCircle(ModelManager* manager, float radius, uint32_t segments) {
     std::vector<Model::VertexData> vertices;
     std::vector<uint32_t> indices;
 
-    // 中心点
     vertices.push_back({ {0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, -1.0f}, {0.5f, 0.5f} });
 
     const float pi = std::numbers::pi_v<float>;
     for (uint32_t i = 0; i <= segments; ++i) {
         float theta = 2.0f * pi * float(i) / float(segments);
         Model::VertexData v;
-        // ★修正：v.pos ではなく v.position を使用
         v.position = { radius * std::cos(theta), radius * std::sin(theta), 0.0f, 1.0f };
         v.normal = { 0.0f, 0.0f, -1.0f };
         v.texcoord = { (std::cos(theta) + 1.0f) * 0.5f, (std::sin(theta) + 1.0f) * 0.5f };
         vertices.push_back(v);
+    }
 
-        if (i > 0) {
-            indices.push_back(0);
-            indices.push_back(i);
-            indices.push_back(i + 1);
-        }
+    // ★インデックスの境界修正：最後の頂点が最初の頂点とつながるように
+    for (uint32_t i = 1; i <= segments; ++i) {
+        indices.push_back(0);
+        indices.push_back(i);
+        indices.push_back(i + 1);
+    }
+
+    auto model = std::make_unique<Model>();
+    model->InitializeWithData(manager, vertices, indices);
+    return model;
+}
+
+/**
+ * リング（円輪）の生成（スライド5対応）
+ */
+std::unique_ptr<Model> PrimitiveGenerator::CreateRing(ModelManager* manager, float innerRadius, float outerRadius, uint32_t segments) {
+    std::vector<Model::VertexData> vertices;
+    std::vector<uint32_t> indices;
+
+    const float pi = std::numbers::pi_v<float>;
+    for (uint32_t i = 0; i <= segments; ++i) {
+        float theta = 2.0f * pi * float(i) / float(segments);
+        float cosT = std::cos(theta);
+        float sinT = std::sin(theta);
+
+        // 外側
+        vertices.push_back({ {cosT * outerRadius, sinT * outerRadius, 0.0f, 1.0f}, {0,0,-1}, {(cosT + 1.0f) * 0.5f, (sinT + 1.0f) * 0.5f} });
+        // 内側
+        vertices.push_back({ {cosT * innerRadius, sinT * innerRadius, 0.0f, 1.0f}, {0,0,-1}, {(cosT * 0.5f + 0.5f), (sinT * 0.5f + 0.5f)} });
+    }
+
+    for (uint32_t i = 0; i < segments; ++i) {
+        uint32_t base = i * 2;
+        indices.push_back(base); indices.push_back(base + 1); indices.push_back(base + 2);
+        indices.push_back(base + 1); indices.push_back(base + 3); indices.push_back(base + 2);
+    }
+
+    auto model = std::make_unique<Model>();
+    model->InitializeWithData(manager, vertices, indices);
+    return model;
+}
+
+/**
+ * 円柱の生成（スライド5対応）
+ */
+std::unique_ptr<Model> PrimitiveGenerator::CreateCylinder(ModelManager* manager, float radius, float height, uint32_t segments) {
+    std::vector<Model::VertexData> vertices;
+    std::vector<uint32_t> indices;
+
+    const float pi = std::numbers::pi_v<float>;
+    float halfH = height * 0.5f;
+
+    for (uint32_t i = 0; i <= segments; ++i) {
+        float theta = 2.0f * pi * float(i) / float(segments);
+        float x = std::cos(theta);
+        float z = std::sin(theta);
+
+        // 上側の点
+        vertices.push_back({ {x * radius,  halfH, z * radius, 1.0f}, {x, 0, z}, {(float)i / segments, 0} });
+        // 下側の点
+        vertices.push_back({ {x * radius, -halfH, z * radius, 1.0f}, {x, 0, z}, {(float)i / segments, 1} });
+    }
+
+    for (uint32_t i = 0; i < segments; ++i) {
+        uint32_t base = i * 2;
+        indices.push_back(base); indices.push_back(base + 2); indices.push_back(base + 1);
+        indices.push_back(base + 1); indices.push_back(base + 2); indices.push_back(base + 3);
     }
 
     auto model = std::make_unique<Model>();
