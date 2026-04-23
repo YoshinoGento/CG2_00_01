@@ -15,36 +15,57 @@
 #include "3d/PrimitiveGenerator.h"
 #include <dinput.h>
 #include "3d/Skybox.h"
+#include "base/Logger.h" // 追加：外部ロガーツールのインクルード
 #include <random>
 
 GamePlayScene::GamePlayScene() = default;
 GamePlayScene::~GamePlayScene() = default;
 
+/**
+ * Initialize: シーン開始時に一度だけ呼ばれるセットアップ関数
+ */
 void GamePlayScene::Initialize() {
 	framework_ = Framework::GetInstance();
+
+	// ログ記録：UIと外部出力の両方に行われます
 	AddLog("Scene: GamePlay Initialized.");
 
+	// ---------------------------------------------------------
+	// 1. テクスチャ・リソースの読み込み
+	// ---------------------------------------------------------
 	textureHandles_.clear();
 	std::vector<std::string> textureNames = { "monsterBall.png", "uvChecker.png", "choju8_0008.png" };
 	for (const auto& name : textureNames) {
 		textureHandles_.push_back(framework_->GetSpriteCommon()->LoadTexture("Resources/" + name));
 	}
+	uint32_t circle2Handle = framework_->GetSpriteCommon()->LoadTexture("Resources/circle2.png");
 
+	// ---------------------------------------------------------
+	// 2. システム・環境の初期化
+	// ---------------------------------------------------------
 	camera_ = std::make_unique<Camera>();
+	skybox_ = std::make_unique<Skybox>();
+	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), "Resources/rostock_laage_airport_4k.dds");
 
+	// ---------------------------------------------------------
+	// 3. モデルデータのロード
+	// ---------------------------------------------------------
 	std::string terrainPath = "terrain/terrain.obj";
 	framework_->GetModelManager()->LoadModel(terrainPath);
 	Model* tModel = framework_->GetModelManager()->GetModel(terrainPath);
 	if (tModel) { tModel->LoadTextures(framework_->GetSpriteCommon()); }
 
+	framework_->GetModelManager()->LoadModel("plane.obj");
+	Model* planeModel = framework_->GetModelManager()->GetModel("plane.obj");
+
+	// ---------------------------------------------------------
+	// 4. 各種オブジェクトの実体生成
+	// ---------------------------------------------------------
 	terrainObj_ = std::make_unique<Object3d>();
 	terrainObj_->Initialize(framework_->GetObject3dCommon());
 	terrainObj_->SetModel(tModel);
 	terrainObj_->SetPosition({ 0.0f, -2.0f, 0.0f });
 	terrainObj_->SetScale({ 2.0f, 2.0f, 2.0f });
-
-	framework_->GetModelManager()->LoadModel("plane.obj");
-	Model* planeModel = framework_->GetModelManager()->GetModel("plane.obj");
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize(framework_->GetObject3dCommon());
@@ -53,43 +74,29 @@ void GamePlayScene::Initialize() {
 	sprite_ = std::make_unique<Sprite>();
 	sprite_->Initialize(framework_->GetSpriteCommon(), textureHandles_[0]);
 
-	framework_->GetParticleManager()->CreateParticleGroup("Spark", textureHandles_[2]);
-
-	skybox_ = std::make_unique<Skybox>();
-	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), "Resources/rostock_laage_airport_4k.dds");
-
-	// circle2.png を読み込んでおく
-	uint32_t circle2Handle = framework_->GetSpriteCommon()->LoadTexture("Resources/circle2.png");
-	// パーティクルグループ "Spark" を作成
-	framework_->GetParticleManager()->CreateParticleGroup("Spark", circle2Handle);
-
 	CreateSphere(sphereRadius_);
+
+	// ---------------------------------------------------------
+	// 5. パーティクルの設定
+	// ---------------------------------------------------------
+	framework_->GetParticleManager()->CreateParticleGroup("Spark", circle2Handle);
 }
 
-// エフェクトを発生させる関数（GamePlaySceneのメンバ関数として作成）
+// エフェクトを発生させる関数
 void GamePlayScene::EmitSpark(const Vector3& position) {
-	// 乱数生成器
 	std::random_device seed_gen;
 	std::mt19937 randomEngine(seed_gen());
 
-	// スライド8：ランダムな回転とスケール
 	std::uniform_real_distribution<float> distRotate(-3.141592f, 3.141592f);
 	std::uniform_real_distribution<float> distScale(0.8f, 1.5f);
 
-	// スライド8：発生個数を8個にする
 	for (int i = 0; i < 8; ++i) {
 		Particle& p = framework_->GetParticleManager()->AddParticle("Spark", position);
-
-		// スライド7：パーティクルのサイズを変える（Xを極端に小さくして針状にする）
 		p.transform.scale = { 0.05f, distScale(randomEngine), 1.0f };
-
-		// スライド8：Z軸をランダムに回転させて星型にする
 		p.transform.rotate = { 0.0f, 0.0f, distRotate(randomEngine) };
-
-		// 見た目の設定
-		p.color = { 1.0f, 1.0f, 0.6f, 1.0f }; // 黄白色の光
-		p.velocity = { 0.0f, 0.0f, 0.0f };    // 出現場所から動かさない
-		p.lifeTime = 0.2f;                    // 一瞬で消える
+		p.color = { 1.0f, 1.0f, 0.6f, 1.0f };
+		p.velocity = { 0.0f, 0.0f, 0.0f };
+		p.lifeTime = 0.2f;
 	}
 }
 
@@ -103,15 +110,10 @@ void GamePlayScene::Update() {
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
 
-	// 2. カメラの最新の状態をスカイボックスに伝える
 	skybox_->Update(camera_.get());
 
-
-
-	// ★MatrixMath::Normalize を使用
 	Vector3 normSpotDir = MatrixMath::Normalize(spotLightDir_);
 
-	// ライト設定の反映
 	auto UpdateObjectLights = [&](Object3d* obj, float envCoef) {
 		if (!obj) return;
 		obj->SetCullMode(cullMode_);
@@ -127,10 +129,8 @@ void GamePlayScene::Update() {
 		obj->SetSpotLightDecay(spotLightDecay_);
 		obj->SetSpotLightAngle(spotLightAngle_);
 		obj->SetSpotLightFalloff(spotLightFalloff_);
-		// ★映り込みの設定を追加
-		// スカイボックスが持っている SRV インデックスを渡す（Skybox クラスに Getter が必要です）
+
 		obj->SetEnvironmentMap(skybox_->GetSrvIndex());
-		// 反射の強さを 0.5 (50%) くらいにしてみる
 		obj->SetEnvironmentCoefficient(envCoef);
 
 		obj->Update(camera_.get());
@@ -139,14 +139,12 @@ void GamePlayScene::Update() {
 	UpdateObjectLights(terrainObj_.get(), 0.0f);
 	UpdateObjectLights(object3d_.get(), 0.0f);
 
-
 	if (sphereObj_) {
 		sphereObj_->SetPosition(spherePos_);
 		sphereObj_->SetRotation(objectRot_);
 		UpdateObjectLights(sphereObj_.get(), 0.5f);
 	}
 
-	// テスト：スペースキーを押したら火花が出るようにしてみる
 	if (framework_->GetInput()->TriggerKey(DIK_SPACE)) {
 		EmitSpark(spherePos_);
 	}
@@ -169,24 +167,17 @@ void GamePlayScene::Draw() {
 	auto objCommon = framework_->GetObject3dCommon();
 	auto spriteCommon = framework_->GetSpriteCommon();
 
-	// --- 1. 3Dオブジェクトの描画フェーズ ---
 	objCommon->CommonDrawSettings();
 
-	// 優先度 0: 3Dを先に描く（一般的）
 	if (modelPriority_ == 0) {
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
-
-		// ★スカイボックス：他の3Dが描かれた「後」に描画。
-		// すでにキャラや地形があるピクセルは、GPUが描画をスキップしてくれる（Early-Z）
 		if (skybox_) skybox_->Draw();
 
-		// --- 2. 2Dオブジェクト（UIなど）の描画フェーズ ---
 		spriteCommon->PreDraw();
 		if (showSprite_) sprite_->Draw();
 	}
-	// 優先度 1: スプライトを背景より後ろに描きたい場合など
 	else {
 		spriteCommon->PreDraw();
 		if (showSprite_) sprite_->Draw();
@@ -195,13 +186,11 @@ void GamePlayScene::Draw() {
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
-
 		if (skybox_) skybox_->Draw();
 	}
 
 	if (showParticles_) framework_->GetParticleManager()->Draw();
 }
-
 
 void GamePlayScene::HandleKeyboardMovement() {
 	if (selectedTarget_ == 0 || ImGui::GetIO().WantCaptureKeyboard) return;
@@ -220,9 +209,20 @@ void GamePlayScene::HandleKeyboardMovement() {
 	}
 }
 
+/**
+ * AddLog: デバッグログを記録する関数
+ */
 void GamePlayScene::AddLog(const std::string& message) {
+	// 1. 外部ロガーツールを使用して Visual Studio の出力ウィンドウへ出す
+	Logger::Log(message);
+
+	// 2. ゲーム内 UI 用のリストに追加
 	debugLogs_.push_back(message);
-	if (debugLogs_.size() > 50) debugLogs_.erase(debugLogs_.begin());
+
+	// 3. 履歴の制限
+	if (debugLogs_.size() > 50) {
+		debugLogs_.erase(debugLogs_.begin());
+	}
 }
 
 void GamePlayScene::Finalize() {}
