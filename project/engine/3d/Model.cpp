@@ -203,3 +203,24 @@ void Model::Draw(DirectXCommon* dxCommon) {
 		}
 	}
 }
+
+/**
+ * ★追加：インスタンシング描画
+ */
+void Model::Draw(ID3D12GraphicsCommandList* commandList, uint32_t instanceCount) {
+	// 頂点バッファとインデックスバッファをセット
+	commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
+	commandList->IASetIndexBuffer(&indexBufferView_);
+
+	if (meshes_.empty()) {
+		// メッシュ情報がない場合は全体をそのまま描画
+		commandList->DrawIndexedInstanced(indexCount_, instanceCount, 0, 0, 0);
+	}
+	else {
+		for (const auto& mesh : meshes_) {
+			// パーティクルシステム側でテクスチャを管理しているため、
+			// ここではメッシュごとのテクスチャ切り替えは行わず、指定された数だけ描画します。
+			commandList->DrawIndexedInstanced(mesh.count, instanceCount, mesh.start, 0, 0);
+		}
+	}
+}

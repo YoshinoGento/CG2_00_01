@@ -39,6 +39,7 @@ void GamePlayScene::Initialize() {
 		textureHandles_.push_back(framework_->GetSpriteCommon()->LoadTexture("Resources/" + name));
 	}
 	uint32_t circle2Handle = framework_->GetSpriteCommon()->LoadTexture("Resources/circle2.png");
+	uint32_t ringTexHandle = framework_->GetSpriteCommon()->LoadTexture("Resources/gradationLine.png");
 
 	// ---------------------------------------------------------
 	// 2. システム・環境の初期化
@@ -80,13 +81,12 @@ void GamePlayScene::Initialize() {
 	// 5. パーティクルの設定
 	// ---------------------------------------------------------
 	framework_->GetParticleManager()->CreateParticleGroup("Spark", circle2Handle);
+	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle, ringModel_.get());
 }
 
-// エフェクトを発生させる関数
 void GamePlayScene::EmitSpark(const Vector3& position) {
 	std::random_device seed_gen;
 	std::mt19937 randomEngine(seed_gen());
-
 	std::uniform_real_distribution<float> distRotate(-3.141592f, 3.141592f);
 	std::uniform_real_distribution<float> distScale(0.8f, 1.5f);
 
@@ -98,6 +98,14 @@ void GamePlayScene::EmitSpark(const Vector3& position) {
 		p.velocity = { 0.0f, 0.0f, 0.0f };
 		p.lifeTime = 0.2f;
 	}
+}
+
+void GamePlayScene::EmitRingEffect(const Vector3& position){
+	Particle& p = framework_->GetParticleManager()->AddParticle("RingEffect", position);
+	p.transform.scale = { 0.1f, 0.1f, 0.1f };
+	p.color = { 1.0f, 1.0f, 1.0f, 1.0f };
+	p.lifeTime = 0.5f;
+	p.velocity = { 0.0f, 0.05f, 0.0f };
 }
 
 void GamePlayScene::Update() {
@@ -146,7 +154,17 @@ void GamePlayScene::Update() {
 	}
 
 	if (framework_->GetInput()->TriggerKey(DIK_SPACE)) {
-		EmitSpark(spherePos_);
+		switch (activeParticleType_) {
+		case 0: EmitSpark(spherePos_); break;      // 単発：火花
+		case 1: EmitRingEffect(spherePos_); break; // 単発：リング
+		case 2: // 組み合わせ
+			EmitSpark(spherePos_);
+			EmitRingEffect(spherePos_);
+			break;
+		case 3: // ★新機能：一括放出（爆発）
+			framework_->GetParticleManager()->Emit("Spark", spherePos_, 20);
+			break;
+		}
 	}
 
 	framework_->GetParticleManager()->Update(camera_.get());
