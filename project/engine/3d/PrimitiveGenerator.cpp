@@ -2,6 +2,7 @@
 #include "math/Matrix.h"
 #include <numbers>
 #include <cmath>
+#include <algorithm>
 
 /**
  * 立方体の生成
@@ -11,7 +12,6 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateBox(ModelManager* manager, cons
     float hy = size.y * 0.5f;
     float hz = size.z * 0.5f;
 
-    // 各面ごとに法線を分けるため、24頂点生成
     std::vector<Model::VertexData> vertices = {
         // 前 (Z-)
         {{-hx,  hy, -hz, 1.0f}, {0, 0, -1}, {0, 0}}, {{ hx,  hy, -hz, 1.0f}, {0, 0, -1}, {1, 0}},
@@ -24,7 +24,7 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateBox(ModelManager* manager, cons
         {{-hx,  hy, -hz, 1.0f}, {0, 1,  0}, {0, 1}}, {{ hx,  hy, -hz, 1.0f}, {0, 1,  0}, {1, 1}},
         // 下 (Y-)
         {{-hx, -hy, -hz, 1.0f}, {0, -1, 0}, {0, 0}}, {{ hx, -hy, -hz, 1.0f}, {0, -1, 0}, {1, 0}},
-        {{-hx, -hy,  hz, 1.0f}, {0, -1, 0}, {0, 1}}, {{ hx, -hy,  hz, 1.0f}, {0, -1, 0}, {1, 1}},
+        {{-hx, -hy,  hz, 1.0f}, {0, -1, 0}, {0, 1}}, {{-hx, -hy,  hz, 1.0f}, {0, -1, 0}, {1, 1}},
         // 右 (X+)
         {{ hx,  hy, -hz, 1.0f}, {1, 0,  0}, {0, 0}}, {{ hx,  hy,  hz, 1.0f}, {1, 0,  0}, {1, 0}},
         {{ hx, -hy, -hz, 1.0f}, {1, 0,  0}, {0, 1}}, {{ hx,  hy,  hz, 1.0f}, {1, 0,  0}, {1, 1}},
@@ -123,7 +123,6 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateCircle(ModelManager* manager, f
         vertices.push_back(v);
     }
 
-    // ★インデックスの境界修正：最後の頂点が最初の頂点とつながるように
     for (uint32_t i = 1; i <= segments; ++i) {
         indices.push_back(0);
         indices.push_back(i);
@@ -136,28 +135,47 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateCircle(ModelManager* manager, f
 }
 
 /**
- * リング（円輪）の生成（スライド5対応）
+ * リング（円輪）の生成
  */
-std::unique_ptr<Model> PrimitiveGenerator::CreateRing(ModelManager* manager, float innerRadius, float outerRadius, uint32_t segments) {
+std::unique_ptr<Model> PrimitiveGenerator::CreateRing(ModelManager* manager, float innerRadius, float outerRadius, uint32_t segments, float startAngle, float endAngle) {
     std::vector<Model::VertexData> vertices;
     std::vector<uint32_t> indices;
 
-    const float pi = std::numbers::pi_v<float>;
+    float angleRange = endAngle - startAngle;
+
     for (uint32_t i = 0; i <= segments; ++i) {
-        float theta = 2.0f * pi * float(i) / float(segments);
+        // 角度を計算
+        float theta = startAngle + angleRange * (float(i) / float(segments));
         float cosT = std::cos(theta);
         float sinT = std::sin(theta);
 
-        // 外側
-        vertices.push_back({ {cosT * outerRadius, sinT * outerRadius, 0.0f, 1.0f}, {0,0,-1}, {(cosT + 1.0f) * 0.5f, (sinT + 1.0f) * 0.5f} });
-        // 内側
-        vertices.push_back({ {cosT * innerRadius, sinT * innerRadius, 0.0f, 1.0f}, {0,0,-1}, {(cosT * 0.5f + 0.5f), (sinT * 0.5f + 0.5f)} });
+        // ★王冠対策：円周に沿ったUV
+        float u = float(i) / float(segments);
+
+        // 外側の点 (V=0.0)
+        vertices.push_back({
+            {cosT * outerRadius, sinT * outerRadius, 0.0f, 1.0f},
+            {0.0f, 0.0f, -1.0f},
+            {u, 0.0f}
+            });
+        // 内側の点 (V=1.0)
+        vertices.push_back({
+            {cosT * innerRadius, sinT * innerRadius, 0.0f, 1.0f},
+            {0.0f, 0.0f, -1.0f},
+            {u, 1.0f}
+            });
     }
 
     for (uint32_t i = 0; i < segments; ++i) {
         uint32_t base = i * 2;
-        indices.push_back(base); indices.push_back(base + 1); indices.push_back(base + 2);
-        indices.push_back(base + 1); indices.push_back(base + 3); indices.push_back(base + 2);
+        // 時計回りに三角形を作成
+        indices.push_back(base);
+        indices.push_back(base + 1);
+        indices.push_back(base + 2);
+
+        indices.push_back(base + 1);
+        indices.push_back(base + 3);
+        indices.push_back(base + 2);
     }
 
     auto model = std::make_unique<Model>();
@@ -166,7 +184,7 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateRing(ModelManager* manager, flo
 }
 
 /**
- * 円柱の生成（スライド5対応）
+ * 円柱の生成
  */
 std::unique_ptr<Model> PrimitiveGenerator::CreateCylinder(ModelManager* manager, float radius, float height, uint32_t segments) {
     std::vector<Model::VertexData> vertices;
@@ -180,9 +198,7 @@ std::unique_ptr<Model> PrimitiveGenerator::CreateCylinder(ModelManager* manager,
         float x = std::cos(theta);
         float z = std::sin(theta);
 
-        // 上側の点
         vertices.push_back({ {x * radius,  halfH, z * radius, 1.0f}, {x, 0, z}, {(float)i / segments, 0} });
-        // 下側の点
         vertices.push_back({ {x * radius, -halfH, z * radius, 1.0f}, {x, 0, z}, {(float)i / segments, 1} });
     }
 

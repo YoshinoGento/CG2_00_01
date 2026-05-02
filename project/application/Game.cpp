@@ -7,6 +7,7 @@
 #include "scene/GamePlayScene.h" 
 #include "audio/Audio.h"
 #include "3d/Object3d.h"
+#include "effect/ParticleManager.h"
 #include <cmath>
 
 Vector2 Game::mousePosInViewport_ = { 0, 0 };
@@ -129,6 +130,19 @@ void Game::Update() {
 			ImGui::DragFloat3("Position", &playScene->spherePos_.x, 0.1f);
 			ImGui::DragFloat3("Rotation", &playScene->objectRot_.x, 0.01f);
 		}
+		ImGui::End();
+
+		ImGui::Begin("Effect Control");
+
+		ImGui::Text("Space Key: Emit");
+		// ★項目を4つに増やす
+		const char* pTypes[] = { "Spark (Manual)", "Ring (Model)", "Combined", "Explosion (Emit)" };
+		ImGui::Combo("Particle Mode", &playScene->activeParticleType_, pTypes, 4);
+
+		if (ImGui::Button("Clear All Particles")) {
+			Framework::GetInstance()->GetParticleManager()->ClearAll();
+		}
+
 		ImGui::End();
 	}
 

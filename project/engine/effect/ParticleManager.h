@@ -13,6 +13,7 @@
 class DirectXCommon;
 class SrvManager;
 class Camera;
+class Model;
 
 /**
  * Particle 構造体
@@ -39,6 +40,7 @@ struct ParticleGroup {
     std::string name;
     std::list<Particle> particles;
     uint32_t textureHandle;
+	Model* model = nullptr;
 };
 
 /**
@@ -52,7 +54,7 @@ public:
     void Draw();
 
     // グループ作成
-    void CreateParticleGroup(const std::string& name, uint32_t textureHandle);
+    void CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model = nullptr);
 
     // ★新機能：パーティクルを1つ追加して、その参照を返す
     // 火花など、1粒ずつのパラメータを細かく設定したい時用
@@ -61,6 +63,13 @@ public:
     // ★従来機能：指定した数だけランダムに放出する
     // 爆発や煙など、大量に出したい時用
     void Emit(const std::string& name, const Vector3& position, uint32_t count);
+
+    //全パーティクル削除
+    void ClearAll();
+private:
+    void CreateRootSignature();
+    void CreateGraphicsPipelineState();
+    void CreateModel();
 
 private:
     DirectXCommon* dxCommon_ = nullptr;
@@ -86,8 +95,4 @@ private:
     static const uint32_t kMaxInstanceCount = 1024;
     std::map<std::string, ParticleGroup> particleGroups_;
 
-private:
-    void CreateRootSignature();
-    void CreateGraphicsPipelineState();
-    void CreateModel();
 };

@@ -44,7 +44,10 @@ public:
 	void Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename);
 	void InitializeWithData(ModelManager* modelManager, const std::vector<VertexData>& vertices, const std::vector<uint32_t>& indices);
 	void LoadTextures(SpriteCommon* spriteCommon);
+	// 通常描画（1つだけ描画）
 	void Draw(DirectXCommon* dxCommon);
+	// インスタンシング描画（複数一括描画）
+	void Draw(ID3D12GraphicsCommandList* commandList, uint32_t instanceCount);
 
 	// --- 追加：ルートノードの取得 ---
 	const Node& GetRootNode() const { return rootNode_; }
