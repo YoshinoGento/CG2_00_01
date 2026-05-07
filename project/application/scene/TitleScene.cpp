@@ -1,8 +1,8 @@
 #include "TitleScene.h"
 #include "SceneManager.h"
-#include "Framework.h"
-#include "Input.h"
-#include "ImGuiManager.h"
+#include "base/Framework.h"
+#include "io/Input.h"
+#include "base/ImGuiManager.h"
 
 // ★削除: GamePlayScene.h をインクルードする必要はありません
 // 文字列だけで遷移できるため、このファイルは他のシーンの中身を知らなくて済みます

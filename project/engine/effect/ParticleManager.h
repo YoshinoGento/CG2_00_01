@@ -13,8 +13,9 @@
 class DirectXCommon;
 class SrvManager;
 class Camera;
+class Model;
 
-/**
+/*
  * Particle 構造体
  * 従来の size 変数も活かしつつ、Transform を持たせることで
  * 「p.transform.scale」という書き方と、従来の「Emit」の両方に対応させます。
@@ -30,6 +31,11 @@ struct Particle {
     // 従来の Emit 用のサイズ補間用変数
     float startSize = 1.0f;
     float endSize = 1.0f;
+
+    //UVスクロール用パラメータ
+    Vector2 uvScale = { 1.0f,1.0f };
+    Vector2 uvOffset = { 0.0f,0.0f };
+	Vector2 uvVelocity = { 0.0f,0.0f };
 };
 
 /**
@@ -39,6 +45,7 @@ struct ParticleGroup {
     std::string name;
     std::list<Particle> particles;
     uint32_t textureHandle;
+	Model* model = nullptr;
 };
 
 /**
@@ -52,7 +59,7 @@ public:
     void Draw();
 
     // グループ作成
-    void CreateParticleGroup(const std::string& name, uint32_t textureHandle);
+    void CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model = nullptr);
 
     // ★新機能：パーティクルを1つ追加して、その参照を返す
     // 火花など、1粒ずつのパラメータを細かく設定したい時用
@@ -61,6 +68,13 @@ public:
     // ★従来機能：指定した数だけランダムに放出する
     // 爆発や煙など、大量に出したい時用
     void Emit(const std::string& name, const Vector3& position, uint32_t count);
+
+    //全パーティクル削除
+    void ClearAll();
+private:
+    void CreateRootSignature();
+    void CreateGraphicsPipelineState();
+    void CreateModel();
 
 private:
     DirectXCommon* dxCommon_ = nullptr;
@@ -80,14 +94,11 @@ private:
         Matrix4x4 WVP;
         Matrix4x4 World;
         Vector4 color;
+		Vector4 uvTransform; // x,y:Scale、z,w:Offset
     };
     InstancingData* instancingData_ = nullptr;
 
     static const uint32_t kMaxInstanceCount = 1024;
     std::map<std::string, ParticleGroup> particleGroups_;
 
-private:
-    void CreateRootSignature();
-    void CreateGraphicsPipelineState();
-    void CreateModel();
 };

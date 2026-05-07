@@ -33,8 +33,9 @@ public:
 private:
 	void AddLog(const std::string& message);
 	void HandleKeyboardMovement();
-	void EmitSpark(const Vector3& position);
 
+	void EmitSpark(const Vector3& position);
+	void EmitRingEffect(const Vector3& position);
 private:
 	Framework* framework_ = nullptr;
 
@@ -49,7 +50,8 @@ private:
 	std::unique_ptr<Object3d> sphereObj_;
 	std::unique_ptr<Model> terrainModel_;
 	std::unique_ptr<Object3d> terrainObj_;
-	std::unique_ptr<Skybox> skybox_; // スカイボックス本体
+	std::unique_ptr<Model> ringModel_;
+	std::unique_ptr<Skybox> skybox_; 
 
 	std::vector<uint32_t> textureHandles_;
 
@@ -71,7 +73,8 @@ private:
 	// ★追加：スフィアの環境マップ反射強度（0.0〜1.0）
 	float sphereEnvCoef_ = 0.5f;
 
-	int selectedTarget_ = 1;
+	int selectedTarget_ = 4;
+	int activeParticleType_ = 0; // 0:Spark, 1:Ring, 2:Combined
 	int modelPriority_ = 0;
 	int cullMode_ = 2;
 

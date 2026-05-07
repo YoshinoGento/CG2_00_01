@@ -2,6 +2,7 @@
 #include "base/DirectXCommon.h"
 #include "base/SrvManager.h"
 #include "3d/Camera.h"
+#include "3d/Model.h"
 #include <d3dcompiler.h>
 #include <cassert>
 #include <random>
@@ -56,9 +57,18 @@ void ParticleManager::Update(Camera* camera) {
             p.transform.translate.y += p.velocity.y;
             p.transform.translate.z += p.velocity.z;
 
+			// UVスクロールのアニメーション
+			p.uvOffset.x += p.uvVelocity.x * deltaTime;
+			p.uvOffset.y += p.uvVelocity.y * deltaTime;
+
             float t = p.currentTime / p.lifeTime;
             // 寿命でアルファ値を減衰させる (PS側で色の強さに反映される)
             p.color.w = 1.0f - t;
+
+            // 寿命に応じてスケールを補間する（Ringの拡張アニメーションに必須）
+            float currentSize = p.startSize + (p.endSize - p.startSize) * t;
+			p.transform.scale = { currentSize,currentSize,currentSize };
+
 
             ++it;
         }
@@ -84,12 +94,26 @@ Particle& ParticleManager::AddParticle(const std::string& name, const Vector3& p
 void ParticleManager::Emit(const std::string& name, const Vector3& position, uint32_t count) {
     std::random_device seed_gen;
     std::mt19937 engine(seed_gen());
-    std::uniform_real_distribution<float> distPos(-0.5f, 0.5f);
+    std::uniform_real_distribution<float> distPos(-0.3f, 0.3f);
+    std::uniform_real_distribution<float> distVel(-0.1f, 0.1f);
+    std::uniform_real_distribution<float> distScale(0.1f, 0.4f);
+
     for (uint32_t i = 0; i < count; ++i) {
         Particle& p = AddParticle(name, position);
+        // ランダムなオフセットと速度を付与
         p.transform.translate.x += distPos(engine);
         p.transform.translate.y += distPos(engine);
         p.transform.translate.z += distPos(engine);
+
+        p.velocity = { distVel(engine), distVel(engine) + 0.1f, distVel(engine) };
+        p.transform.scale = { distScale(engine), distScale(engine), 1.0f };
+        p.lifeTime = 0.5f;
+        p.color = { 1.0f, 0.8f, 0.2f, 1.0f }; // 火の粉のような色
+    }
+}
+void ParticleManager::ClearAll() {
+    for (auto& pair : particleGroups_) {
+        pair.second.particles.clear();
     }
 }
 
@@ -110,34 +134,50 @@ void ParticleManager::Draw() {
     billboardMatrix.m[2][0] = viewMatrix.m[0][2]; billboardMatrix.m[2][1] = viewMatrix.m[1][2]; billboardMatrix.m[2][2] = viewMatrix.m[2][2];
 
     for (auto& groupPair : particleGroups_) {
+        ParticleGroup& group = groupPair.second;
         uint32_t instanceIndex = 0;
-        for (const auto& p : groupPair.second.particles) {
+        for (const auto& p : group.particles) {
             if (instanceIndex >= kMaxInstanceCount) break;
 
             Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(p.transform.scale);
             Matrix4x4 rotateZMatrix = MatrixMath::MakeRotateZMatrix(p.transform.rotate.z);
             Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(p.transform.translate);
 
-            Matrix4x4 worldMatrix = MatrixMath::Multiply(scaleMatrix,
-                MatrixMath::Multiply(rotateZMatrix,
-                    MatrixMath::Multiply(billboardMatrix, translateMatrix)));
+            Matrix4x4 worldMatrix;
+            if (group.model) {
+                // モデル指定時はそのままの回転（地面に水平など）
+                worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateZMatrix, translateMatrix));
+            }
+            else {
+                // 四角形スプライト時はビルボード
+                worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateZMatrix, MatrixMath::Multiply(billboardMatrix, translateMatrix)));
+            }
 
             instancingData_[instanceIndex].World = worldMatrix;
             instancingData_[instanceIndex].WVP = MatrixMath::Multiply(worldMatrix, viewProjectionMatrix);
             instancingData_[instanceIndex].color = p.color;
+			//UVスケールとオフセットをInstanceingDataに設定（xy: Scale、zw:Offset）
+			instancingData_[instanceIndex].uvTransform = { p.uvScale.x, p.uvScale.y, p.uvOffset.x, p.uvOffset.y };
             instanceIndex++;
         }
-
         if (instanceIndex == 0) continue;
-        commandList->SetGraphicsRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(groupPair.second.textureHandle));
-        commandList->DrawInstanced(6, instanceIndex, 0, 0);
+        commandList->SetGraphicsRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(group.textureHandle));
+
+        if (group.model) {
+            group.model->Draw(commandList, instanceIndex);
+        }
+        else {
+            commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
+            commandList->DrawInstanced(6, instanceIndex, 0, 0);
+        }
     }
 }
 
-void ParticleManager::CreateParticleGroup(const std::string& name, uint32_t textureHandle) {
+void ParticleManager::CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model) {
     ParticleGroup& group = particleGroups_[name];
     group.name = name;
     group.textureHandle = textureHandle;
+	group.model = model;
 }
 
 void ParticleManager::CreateRootSignature() {
@@ -155,8 +195,8 @@ void ParticleManager::CreateRootSignature() {
 
     D3D12_STATIC_SAMPLER_DESC staticSampler{};
     staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    staticSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    staticSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    staticSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;   // 横方向はループさせる
+    staticSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 縦方向（内側・外側）は端で止める
     staticSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     staticSampler.ShaderRegister = 0;
     staticSampler.MaxLOD = D3D12_FLOAT32_MAX;
@@ -191,9 +231,11 @@ void ParticleManager::CreateGraphicsPipelineState() {
         { "WORLD",    2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         { "WORLD",    3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+        // UVスクロール・スケール用のパラメータ (TEXCOORDの1番として送る)
+        { "TEXCOORD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
     };
 
-    // ★真相ポイント1：明示的なブレンド設定の代入
+    // 明示的なブレンド設定の代入
     D3D12_BLEND_DESC blendDesc{};
     blendDesc.AlphaToCoverageEnable = FALSE;
     blendDesc.IndependentBlendEnable = FALSE;
