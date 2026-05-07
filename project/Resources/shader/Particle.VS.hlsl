@@ -7,24 +7,32 @@ struct TransformationMatrix
     float4 color;
 };
 
-// インスタンシングデータを受け取る構造
 struct VertexShaderInput
 {
     float4 position : POSITION;
     float2 texcoord : TEXCOORD;
     float3 normal : NORMAL;
-    // インスタンシングバッファから受け取るデータ
     float4x4 instanceWVP : WVP;
     float4x4 instanceWorld : WORLD;
     float4 instanceColor : COLOR;
+    float4 uvTransform : TEXCOORD1;
+};
+
+struct VSOutput
+{
+    float4 pos : SV_POSITION;
+    float2 texcoord : TEXCOORD0;
+    float4 color : COLOR;
 };
 
 VertexShaderOutput main(VertexShaderInput input)
 {
     VertexShaderOutput output;
-    // インスタンスごとの行列で変換
+
     output.position = mul(input.position, input.instanceWVP);
-    output.texcoord = input.texcoord;
+    
+    output.texcoord = input.texcoord * input.uvTransform.xy + input.uvTransform.zw;
+    
     output.color = input.instanceColor;
     return output;
 }
