@@ -77,11 +77,15 @@ void GamePlayScene::Initialize() {
 
 	CreateSphere(sphereRadius_);
 
+	ringModel_ = PrimitiveGenerator::CreateRing(framework_->GetModelManager(), 0.8f, 1.0f, 32);
+
 	// ---------------------------------------------------------
 	// 5. パーティクルの設定
 	// ---------------------------------------------------------
 	framework_->GetParticleManager()->CreateParticleGroup("Spark", circle2Handle);
 	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle, ringModel_.get());
+
+
 }
 
 void GamePlayScene::EmitSpark(const Vector3& position) {
@@ -100,14 +104,25 @@ void GamePlayScene::EmitSpark(const Vector3& position) {
 	}
 }
 
-void GamePlayScene::EmitRingEffect(const Vector3& position){
+void GamePlayScene::EmitRingEffect(const Vector3& position) {
 	Particle& p = framework_->GetParticleManager()->AddParticle("RingEffect", position);
-	p.transform.scale = { 0.1f, 0.1f, 0.1f };
-	p.color = { 1.0f, 1.0f, 1.0f, 1.0f };
-	p.lifeTime = 0.5f;
-	p.velocity = { 0.0f, 0.05f, 0.0f };
-}
 
+	//地面を水平にする
+	p.transform.rotate = {std::numbers::pi_v<float> /2.0f, 0.0f, 0.0f};
+	p.velocity = { 0.0f,0.0f,0.0f };
+	p.color = { 1.0f, 1.0f, 1.0f, 0.8f };
+	p.lifeTime = 3.0f;
+
+	// Ringが徐々に広がる設定
+	p.startSize = 0.5f;
+	p.endSize = 3.0f;
+
+	// UVスクロールの設定（テクスチャが回転するように見える）
+	// 資料の「U方向にScaleすれば解像度が…」の対応
+	p.uvScale = { 2.0f, 1.0f };
+	// V方向にテクスチャーをスクロールさせる
+	p.uvVelocity = { 0.0f, -1.5f };
+}
 void GamePlayScene::Update() {
 	HandleKeyboardMovement();
 

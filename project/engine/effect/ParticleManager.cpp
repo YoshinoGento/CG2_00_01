@@ -57,9 +57,17 @@ void ParticleManager::Update(Camera* camera) {
             p.transform.translate.y += p.velocity.y;
             p.transform.translate.z += p.velocity.z;
 
+			// UVスクロールのアニメーション
+			p.uvOffset.x += p.uvVelocity.x * deltaTime;
+			p.uvOffset.y += p.uvVelocity.y * deltaTime;
+
             float t = p.currentTime / p.lifeTime;
             // 寿命でアルファ値を減衰させる (PS側で色の強さに反映される)
             p.color.w = 1.0f - t;
+
+            // 寿命に応じてスケールを補間する（Ringの拡張アニメーションに必須）
+            float currentSize = p.startSize + (p.endSize - p.startSize) * t;
+			p.transform.scale = { currentSize,currentSize,currentSize };
 
 
             ++it;
@@ -148,6 +156,8 @@ void ParticleManager::Draw() {
             instancingData_[instanceIndex].World = worldMatrix;
             instancingData_[instanceIndex].WVP = MatrixMath::Multiply(worldMatrix, viewProjectionMatrix);
             instancingData_[instanceIndex].color = p.color;
+			//UVスケールとオフセットをInstanceingDataに設定（xy: Scale、zw:Offset）
+			instancingData_[instanceIndex].uvTransform = { p.uvScale.x, p.uvScale.y, p.uvOffset.x, p.uvOffset.y };
             instanceIndex++;
         }
         if (instanceIndex == 0) continue;
@@ -221,9 +231,11 @@ void ParticleManager::CreateGraphicsPipelineState() {
         { "WORLD",    2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         { "WORLD",    3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+        // UVスクロール・スケール用のパラメータ (TEXCOORDの1番として送る)
+        { "TEXCOORD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
     };
 
-    // ★真相ポイント1：明示的なブレンド設定の代入
+    // 明示的なブレンド設定の代入
     D3D12_BLEND_DESC blendDesc{};
     blendDesc.AlphaToCoverageEnable = FALSE;
     blendDesc.IndependentBlendEnable = FALSE;
