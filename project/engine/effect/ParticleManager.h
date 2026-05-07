@@ -15,7 +15,7 @@ class SrvManager;
 class Camera;
 class Model;
 
-/**
+/*
  * Particle 構造体
  * 従来の size 変数も活かしつつ、Transform を持たせることで
  * 「p.transform.scale」という書き方と、従来の「Emit」の両方に対応させます。
@@ -31,6 +31,11 @@ struct Particle {
     // 従来の Emit 用のサイズ補間用変数
     float startSize = 1.0f;
     float endSize = 1.0f;
+
+    //UVスクロール用パラメータ
+    Vector2 uvScale = { 1.0f,1.0f };
+    Vector2 uvOffset = { 0.0f,0.0f };
+	Vector2 uvVelocity = { 0.0f,0.0f };
 };
 
 /**
@@ -89,6 +94,7 @@ private:
         Matrix4x4 WVP;
         Matrix4x4 World;
         Vector4 color;
+		Vector4 uvTransform; // x,y:Scale、z,w:Offset
     };
     InstancingData* instancingData_ = nullptr;
 
