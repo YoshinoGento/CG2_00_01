@@ -135,9 +135,9 @@ void Game::Update() {
 		ImGui::Begin("Effect Control");
 
 		ImGui::Text("Space Key: Emit");
-		// ★項目を4つに増やす
-		const char* pTypes[] = { "Spark (Manual)", "Ring (Model)", "Combined", "Explosion (Emit)" };
-		ImGui::Combo("Particle Mode", &playScene->activeParticleType_, pTypes, 4);
+		// ★Cylinder項目を追加し、要素数を5に変更
+		const char* pTypes[] = { "Spark (Manual)", "Ring (Model)", "Cylinder (Primitive)", "Combined", "Explosion (Emit)" };
+		ImGui::Combo("Particle Mode", &playScene->activeParticleType_, pTypes, 5);
 
 		if (ImGui::Button("Clear All Particles")) {
 			Framework::GetInstance()->GetParticleManager()->ClearAll();
