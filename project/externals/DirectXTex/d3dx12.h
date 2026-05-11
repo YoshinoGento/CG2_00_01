@@ -5436,7 +5436,8 @@ inline UINT CD3DX12FeatureSupport::MaxGPUVirtualAddressBitsPerResource() const n
 }
 
 // 1: Architecture
-// Combined with Architecture1
+// 
+// with Architecture1
 
 // 2: Feature Levels
 // Simply returns the highest supported feature level
