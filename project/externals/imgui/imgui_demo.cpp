@@ -2203,7 +2203,9 @@ static void DemoWindowWidgetsQueryingStatuses()
         bool hovered_delay_tooltip = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip); // = Normal + Stationary
 
         // Display the values of IsItemHovered() and other common item state functions.
-        // Note that the ImGuiHoveredFlags_XXX flags can be combined.
+        // Note that the ImGuiHoveredFlags_XXX flags can be 
+        // 
+        // .
         // Because BulletText is an item itself and that would affect the output of IsItemXXX functions,
         // we query every state in a single call to avoid storing them and to simplify the code.
         ImGui::BulletText(

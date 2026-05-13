@@ -33,5 +33,19 @@ public:
     );
 
     // 円柱（Cylinder）の生成
-    static std::unique_ptr<Model> CreateCylinder(ModelManager* manager, float radius, float height, uint32_t segments);
+    // topRadius / bottomRadius: 上面と下面の半径（違う値にすると円錐台になる）
+    // height: 円柱の高さ
+    // segments: 円周方向の分割数（多いほど滑らか）
+    // verticalDivisions: 高さ方向の分割数（頂点カラーグラデーション用、1なら上下2段のみ）
+    // startAngle / endAngle: 生成する角度範囲（ラジアン、デフォルトは全周2π）
+    static std::unique_ptr<Model> CreateCylinder(
+        ModelManager* manager,
+        float topRadius,
+        float bottomRadius,
+        float height,
+        uint32_t segments,
+        uint32_t verticalDivisions = 1,
+        float startAngle = 0.0f,
+        float endAngle = 2.0f * std::numbers::pi_v<float>
+    );
 };
