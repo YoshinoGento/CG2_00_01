@@ -24,6 +24,8 @@ public:
 	void Update() override;
 	void Draw() override;
 	void CreateSphere(float radius);
+	// Cylinderメッシュの再生成（パラメータ変更時に呼ぶ）
+	void RebuildCylinder();
 
 private:
 	void AddLog(const std::string& message);
@@ -71,6 +73,13 @@ private:
 	int activeParticleType_ = 0; // これを Game.cpp と同期
 	int cullMode_ = 2;
 	int modelPriority_ = 0;
+
+	// Cylinderパラメータ（ImGuiで操作可能）
+	float cylTopRadius_ = 1.0f;       // 上面の半径
+	float cylBottomRadius_ = 1.0f;    // 下面の半径
+	float cylHeight_ = 2.0f;          // 高さ
+	int cylSegments_ = 32;            // 円周方向の分割数
+	int cylVertDivisions_ = 4;        // 高さ方向の分割数
 
 	// ライト設定 (GamePlayScene.cpp で使用しているもの)
 	Vector3 lightDirection_ = { 0.0f, -1.0f, 1.0f };

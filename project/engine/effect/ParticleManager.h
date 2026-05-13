@@ -71,6 +71,11 @@ public:
 
     //全パーティクル削除
     void ClearAll();
+
+    // discardしきい値の設定（資料スライド10対応）
+    // この値以下のアルファ値を持つピクセルが棄却（discard）される
+    void SetAlphaReference(float value) { alphaReference_ = value; }
+    float GetAlphaReference() const { return alphaReference_; }
 private:
     void CreateRootSignature();
     void CreateGraphicsPipelineState();
@@ -97,6 +102,16 @@ private:
 		Vector4 uvTransform; // x,y:Scale、z,w:Offset
     };
     InstancingData* instancingData_ = nullptr;
+
+    // discardしきい値用の定数バッファ
+    // GPU側のピクセルシェーダーに渡すためのバッファ
+    struct MaterialData {
+        float alphaReference; // この値以下のα値はdiscardされる
+        float padding[3];     // CBufferは16バイトアラインメントが必要
+    };
+    Microsoft::WRL::ComPtr<ID3D12Resource> materialResource_;
+    MaterialData* materialData_ = nullptr;
+    float alphaReference_ = 0.0f; // CPU側の設定値
 
     static const uint32_t kMaxInstanceCount = 1024;
     std::map<std::string, ParticleGroup> particleGroups_;
