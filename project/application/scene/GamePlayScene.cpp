@@ -78,12 +78,20 @@ void GamePlayScene::Initialize() {
 	CreateSphere(sphereRadius_);
 
 	ringModel_ = PrimitiveGenerator::CreateRing(framework_->GetModelManager(), 0.8f, 1.0f, 32);
+	// 円柱：メンバ変数のパラメータで生成（ImGuiから変更可能）
+	cylinderModel_ = PrimitiveGenerator::CreateCylinder(
+		framework_->GetModelManager(),
+		cylTopRadius_ ,cylBottomRadius_, cylHeight_,
+		static_cast<uint32_t>(cylSegments_),
+		static_cast<uint32_t>(cylVertDivisions_));
+
 
 	// ---------------------------------------------------------
 	// 5. パーティクルの設定
 	// ---------------------------------------------------------
 	framework_->GetParticleManager()->CreateParticleGroup("Spark", circle2Handle);
 	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle, ringModel_.get());
+	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle, cylinderModel_.get());
 
 
 }
@@ -123,6 +131,22 @@ void GamePlayScene::EmitRingEffect(const Vector3& position) {
 	// V方向にテクスチャーをスクロールさせる
 	p.uvVelocity = { 0.0f, -1.5f };
 }
+// 機能：円柱エフェクトの放出関数
+void GamePlayScene::EmitCylinderEffect(const Vector3& position) {
+	Particle& p = framework_->GetParticleManager()->AddParticle("CylinderEffect", position);
+	p.transform.rotate = { 0.0f, 0.0f, 0.0f };
+	p.color = { 0.4f, 0.7f, 1.0f, 1.0f }; // 少し青みを強めに
+	p.lifeTime = 1.5f;
+	p.velocity = { 0.0f, 0.01f, 0.0f };
+	p.startSize = 0.5f;
+	p.endSize = 3.0f;
+
+	// 資料：V Flip (v = 1-v) と 横方向スクロール
+	p.uvScale = { 2.0f, -1.0f }; // U方向に2倍(解像度アップ)、V方向に反転
+	p.uvOffset = { 0.0f, 1.0f };
+	p.uvVelocity = { 1.5f, 0.0f }; // U方向にスクロール
+}
+
 void GamePlayScene::Update() {
 	HandleKeyboardMovement();
 
@@ -168,20 +192,21 @@ void GamePlayScene::Update() {
 		UpdateObjectLights(sphereObj_.get(), 0.5f);
 	}
 
+	// スペースキー入力時の分岐（activeParticleType_ は Game.cpp の ImGui から書き換わる）
 	if (framework_->GetInput()->TriggerKey(DIK_SPACE)) {
 		switch (activeParticleType_) {
-		case 0: EmitSpark(spherePos_); break;      // 単発：火花
-		case 1: EmitRingEffect(spherePos_); break; // 単発：リング
-		case 2: // 組み合わせ
-			EmitSpark(spherePos_);
+		case 0: EmitSpark(spherePos_); break;
+		case 1: EmitRingEffect(spherePos_); break;
+		case 2: EmitCylinderEffect(spherePos_); break; // ★Cylinder単体
+		case 3: // Combined
 			EmitRingEffect(spherePos_);
+			EmitCylinderEffect(spherePos_);
 			break;
-		case 3: // ★新機能：一括放出（爆発）
+		case 4: // Explosion
 			framework_->GetParticleManager()->Emit("Spark", spherePos_, 20);
 			break;
 		}
 	}
-
 	framework_->GetParticleManager()->Update(camera_.get());
 }
 
@@ -194,6 +219,24 @@ void GamePlayScene::CreateSphere(float radius) {
 	sphereObj_->SetModel(sphereModel_.get());
 	sphereObj_->SetTexture(textureHandles_[1]);
 	sphereObj_->SetShininess(40.0f);
+}
+
+/**
+ * RebuildCylinder: Cylinderメッシュの再生成
+ * ImGuiでパラメータを変更したときに呼ばれる
+ * 新しいメッシュを生成し、ParticleGroupのモデルポインタも更新する
+ */
+void GamePlayScene::RebuildCylinder() {
+	cylinderModel_ = PrimitiveGenerator::CreateCylinder(
+		framework_->GetModelManager(),
+		cylTopRadius_, cylBottomRadius_, cylHeight_,
+		static_cast<uint32_t>(cylSegments_),
+		static_cast<uint32_t>(cylVertDivisions_));
+	// ParticleGroupのモデルポインタも更新しないと古いメッシュを参照し続ける
+	framework_->GetParticleManager()->CreateParticleGroup(
+		"CylinderEffect",
+		framework_->GetSpriteCommon()->LoadTexture("Resources/gradationLine.png"),
+		cylinderModel_.get());
 }
 
 void GamePlayScene::Draw() {

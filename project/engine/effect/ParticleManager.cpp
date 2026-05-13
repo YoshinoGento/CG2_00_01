@@ -12,10 +12,12 @@
 
 using namespace Microsoft::WRL;
 
+// Model::VertexData と同じフィールド順にする（position → normal → texcoord）
+// ※ Input Layout のメモリ配置と一致させる必要がある
 struct VertexData {
     Vector4 position;
-    Vector2 texcoord;
     Vector3 normal;
+    Vector2 texcoord;
 };
 
 void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
@@ -34,6 +36,13 @@ void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager
     instancingBufferView_.BufferLocation = instancingResource_->GetGPUVirtualAddress();
     instancingBufferView_.SizeInBytes = sizeof(InstancingData) * kMaxInstanceCount;
     instancingBufferView_.StrideInBytes = sizeof(InstancingData);
+
+    // === discardしきい値用の定数バッファ（CBuffer）を作成 ===
+    // 資料スライド10: alphaReference をシェーダーに渡すためのバッファ
+    // GPU側の register(b0) にバインドされる
+    materialResource_ = dxCommon_->CreateBufferResource(sizeof(MaterialData));
+    materialResource_->Map(0, nullptr, (void**)&materialData_);
+    materialData_->alphaReference = 0.0f; // 初期値: 0（従来と同じ動作）
 }
 
 void ParticleManager::Update(Camera* camera) {
@@ -118,12 +127,19 @@ void ParticleManager::ClearAll() {
 }
 
 void ParticleManager::Draw() {
+    // CPU側の設定値をGPUバッファに反映
+    materialData_->alphaReference = alphaReference_;
+
     ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
     commandList->SetGraphicsRootSignature(rootSignature_.Get());
     commandList->SetPipelineState(pipelineState_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
     commandList->IASetVertexBuffers(1, 1, &instancingBufferView_);
+
+    // CBufferをシェーダーのregister(b0)にバインド
+    // Root Parameter Index 1 に対応（0番はテクスチャSRV）
+    commandList->SetGraphicsRootConstantBufferView(1, materialResource_->GetGPUVirtualAddress());
 
     Matrix4x4 viewMatrix = camera_->GetViewMatrix();
     Matrix4x4 viewProjectionMatrix = camera_->GetViewProjectionMatrix();
@@ -139,18 +155,26 @@ void ParticleManager::Draw() {
         for (const auto& p : group.particles) {
             if (instanceIndex >= kMaxInstanceCount) break;
 
-            Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(p.transform.scale);
-            Matrix4x4 rotateZMatrix = MatrixMath::MakeRotateZMatrix(p.transform.rotate.z);
-            Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(p.transform.translate);
-
+            // === ワールド行列の構築 ===
+            // MakeAffineMatrix は Scale * RotateXYZ * Translate を一括計算する
+            // これにより X/Y/Z 全軸の回転が正しく反映される
+            // （旧コードは rotateZ しか使っておらず、X/Y軸回転が無視されていた）
             Matrix4x4 worldMatrix;
             if (group.model) {
-                // モデル指定時はそのままの回転（地面に水平など）
-                worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateZMatrix, translateMatrix));
+                // モデル指定時（Ring, Cylinder等）: XYZ回転をそのまま使う
+                // ビルボードは不要（3Dモデルは常にワールド空間で回転させる）
+                worldMatrix = MatrixMath::MakeAffineMatrix(
+                    p.transform.scale, p.transform.rotate, p.transform.translate);
             }
             else {
-                // 四角形スプライト時はビルボード
-                worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateZMatrix, MatrixMath::Multiply(billboardMatrix, translateMatrix)));
+                // 四角形スプライト時: ビルボード + Z軸回転
+                // カメラの方を向く行列を使って常にカメラ正面に表示する
+                Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(p.transform.scale);
+                Matrix4x4 rotateZMatrix = MatrixMath::MakeRotateZMatrix(p.transform.rotate.z);
+                Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(p.transform.translate);
+                worldMatrix = MatrixMath::Multiply(scaleMatrix,
+                    MatrixMath::Multiply(rotateZMatrix,
+                        MatrixMath::Multiply(billboardMatrix, translateMatrix)));
             }
 
             instancingData_[instanceIndex].World = worldMatrix;
@@ -187,11 +211,22 @@ void ParticleManager::CreateRootSignature() {
     descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_PARAMETER rootParameters[1] = {};
+    // === Root Parameter の定義 ===
+    // [0] テクスチャ用のSRV（既存）
+    // [1] マテリアル定数バッファ用のCBV（新規追加 — alphaReferenceを渡す）
+    D3D12_ROOT_PARAMETER rootParameters[2] = {};
+
+    // Root Parameter 0: テクスチャ（ピクセルシェーダーの register(t0)）
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     rootParameters[0].DescriptorTable.pDescriptorRanges = &descriptorRange;
     rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+
+    // Root Parameter 1: マテリアルCBuffer（ピクセルシェーダーの register(b0)）
+    // alphaReference をシェーダーに渡すために追加
+    rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    rootParameters[1].Descriptor.ShaderRegister = 0; // register(b0)
 
     D3D12_STATIC_SAMPLER_DESC staticSampler{};
     staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -218,10 +253,13 @@ void ParticleManager::CreateGraphicsPipelineState() {
     ComPtr<IDxcBlob> vsBlob = dxCommon_->CompileShader(L"Resources/shader/Particle.VS.hlsl", L"vs_6_0");
     ComPtr<IDxcBlob> psBlob = dxCommon_->CompileShader(L"Resources/shader/Particle.PS.hlsl", L"ps_6_0");
 
+    // Input Layout のメモリ配置は Model::VertexData と同じ順序にする
+    // position(float4) → normal(float3) → texcoord(float2)
+    // ※ 以前は TEXCOORD と NORMAL が逆順で、3Dモデル(Cylinder等)のUVが壊れていた
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "WVP",      0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         { "WVP",      1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         { "WVP",      2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
@@ -288,13 +326,14 @@ void ParticleManager::CreateGraphicsPipelineState() {
 }
 
 void ParticleManager::CreateModel() {
+    // 頂点データも VertexData の新しいフィールド順（position, normal, texcoord）に合わせる
     VertexData vertices6[] = {
-        {{ -0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{  0.5f,  0.5f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }},
+        {{ -0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }},
+        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }},
+        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }},
+        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }},
+        {{  0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f }},
+        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }},
     };
     vertexResource_ = dxCommon_->CreateBufferResource(sizeof(VertexData) * 6);
     vertexBufferView_.BufferLocation = vertexResource_->GetGPUVirtualAddress();
