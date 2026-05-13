@@ -78,8 +78,12 @@ void GamePlayScene::Initialize() {
 	CreateSphere(sphereRadius_);
 
 	ringModel_ = PrimitiveGenerator::CreateRing(framework_->GetModelManager(), 0.8f, 1.0f, 32);
-	// 円柱：半径1.0, 高さ2.0, 分割32
-	cylinderModel_ = PrimitiveGenerator::CreateCylinder(framework_->GetModelManager(), 1.0f, 2.0f, 32);
+	// 円柱：メンバ変数のパラメータで生成（ImGuiから変更可能）
+	cylinderModel_ = PrimitiveGenerator::CreateCylinder(
+		framework_->GetModelManager(),
+		cylTopRadius_, cylBottomRadius_, cylHeight_,
+		static_cast<uint32_t>(cylSegments_),
+		static_cast<uint32_t>(cylVertDivisions_));
 
 
 	// ---------------------------------------------------------
@@ -215,6 +219,24 @@ void GamePlayScene::CreateSphere(float radius) {
 	sphereObj_->SetModel(sphereModel_.get());
 	sphereObj_->SetTexture(textureHandles_[1]);
 	sphereObj_->SetShininess(40.0f);
+}
+
+/**
+ * RebuildCylinder: Cylinderメッシュの再生成
+ * ImGuiでパラメータを変更したときに呼ばれる
+ * 新しいメッシュを生成し、ParticleGroupのモデルポインタも更新する
+ */
+void GamePlayScene::RebuildCylinder() {
+	cylinderModel_ = PrimitiveGenerator::CreateCylinder(
+		framework_->GetModelManager(),
+		cylTopRadius_, cylBottomRadius_, cylHeight_,
+		static_cast<uint32_t>(cylSegments_),
+		static_cast<uint32_t>(cylVertDivisions_));
+	// ParticleGroupのモデルポインタも更新しないと古いメッシュを参照し続ける
+	framework_->GetParticleManager()->CreateParticleGroup(
+		"CylinderEffect",
+		framework_->GetSpriteCommon()->LoadTexture("Resources/gradationLine.png"),
+		cylinderModel_.get());
 }
 
 void GamePlayScene::Draw() {

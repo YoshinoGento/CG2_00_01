@@ -130,15 +130,43 @@ void Game::Update() {
 			ImGui::DragFloat3("Position", &playScene->spherePos_.x, 0.1f);
 			ImGui::DragFloat3("Rotation", &playScene->objectRot_.x, 0.01f);
 		}
+
+		// === Cylinderパラメータ（資料「Cylinderの拡張」対応） ===
+		if (ImGui::CollapsingHeader("Cylinder (Effect)", ImGuiTreeNodeFlags_DefaultOpen)) {
+			bool changed = false;
+			// 上面の半径（0にすると円錐になる）
+			changed |= ImGui::SliderFloat("Top Radius", &playScene->cylTopRadius_, 0.0f, 5.0f);
+			// 下面の半径
+			changed |= ImGui::SliderFloat("Bottom Radius", &playScene->cylBottomRadius_, 0.0f, 5.0f);
+			// 高さ
+			changed |= ImGui::SliderFloat("Cyl Height", &playScene->cylHeight_, 0.1f, 10.0f);
+			// 円周方向の分割数
+			changed |= ImGui::SliderInt("Segments", &playScene->cylSegments_, 3, 64);
+			// 高さ方向の分割数（頂点カラーグラデーション用）
+			changed |= ImGui::SliderInt("Vert Divisions", &playScene->cylVertDivisions_, 1, 16);
+			// パラメータが変わったらメッシュを再生成
+			if (changed) {
+				playScene->RebuildCylinder();
+			}
+		}
 		ImGui::End();
 
 		ImGui::Begin("Effect Control");
 
 		ImGui::Text("Space Key: Emit");
-		// ★Cylinder項目を追加し、要素数を5に変更
 		const char* pTypes[] = { "Spark (Manual)", "Ring (Model)", "Cylinder (Primitive)", "Combined", "Explosion (Emit)" };
 		ImGui::Combo("Particle Mode", &playScene->activeParticleType_, pTypes, 5);
 
+		// === discard しきい値（資料スライド10対応） ===
+		// この値以下のアルファを持つピクセルが棄却される
+		// 0.0 = 完全透明のみ棄却（従来動作）
+		// 0.5 = 半透明以下を棄却（くっきりした輪郭になる）
+		static float alphaRef = 0.0f;
+		if (ImGui::SliderFloat("Alpha Discard", &alphaRef, 0.0f, 1.0f)) {
+			Framework::GetInstance()->GetParticleManager()->SetAlphaReference(alphaRef);
+		}
+
+		ImGui::Separator();
 		if (ImGui::Button("Clear All Particles")) {
 			Framework::GetInstance()->GetParticleManager()->ClearAll();
 		}
