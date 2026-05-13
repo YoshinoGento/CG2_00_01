@@ -12,10 +12,12 @@
 
 using namespace Microsoft::WRL;
 
+// Model::VertexData と同じフィールド順にする（position → normal → texcoord）
+// ※ Input Layout のメモリ配置と一致させる必要がある
 struct VertexData {
     Vector4 position;
-    Vector2 texcoord;
     Vector3 normal;
+    Vector2 texcoord;
 };
 
 void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
@@ -251,10 +253,13 @@ void ParticleManager::CreateGraphicsPipelineState() {
     ComPtr<IDxcBlob> vsBlob = dxCommon_->CompileShader(L"Resources/shader/Particle.VS.hlsl", L"vs_6_0");
     ComPtr<IDxcBlob> psBlob = dxCommon_->CompileShader(L"Resources/shader/Particle.PS.hlsl", L"ps_6_0");
 
+    // Input Layout のメモリ配置は Model::VertexData と同じ順序にする
+    // position(float4) → normal(float3) → texcoord(float2)
+    // ※ 以前は TEXCOORD と NORMAL が逆順で、3Dモデル(Cylinder等)のUVが壊れていた
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "WVP",      0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         { "WVP",      1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         { "WVP",      2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
@@ -321,13 +326,14 @@ void ParticleManager::CreateGraphicsPipelineState() {
 }
 
 void ParticleManager::CreateModel() {
+    // 頂点データも VertexData の新しいフィールド順（position, normal, texcoord）に合わせる
     VertexData vertices6[] = {
-        {{ -0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{  0.5f,  0.5f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }},
-        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }},
+        {{ -0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }},
+        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }},
+        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }},
+        {{ -0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }},
+        {{  0.5f,  0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f }},
+        {{  0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }},
     };
     vertexResource_ = dxCommon_->CreateBufferResource(sizeof(VertexData) * 6);
     vertexBufferView_.BufferLocation = vertexResource_->GetGPUVirtualAddress();
