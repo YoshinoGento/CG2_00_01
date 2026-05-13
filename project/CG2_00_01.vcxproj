@@ -236,6 +236,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application\scene\AbstractSceneFactory.h" />
+    <ClInclude Include="engine\3d\Animation.h" />
     <ClInclude Include="engine\audio\Audio.h" />
     <ClInclude Include="application\scene\BaseScene.h" />
     <ClInclude Include="engine\3d\Camera.h" />
