@@ -81,7 +81,7 @@ void GamePlayScene::Initialize() {
 	// 円柱：メンバ変数のパラメータで生成（ImGuiから変更可能）
 	cylinderModel_ = PrimitiveGenerator::CreateCylinder(
 		framework_->GetModelManager(),
-		cylTopRadius_, cylBottomRadius_, cylHeight_,
+		cylTopRadius_ ,cylBottomRadius_, cylHeight_,
 		static_cast<uint32_t>(cylSegments_),
 		static_cast<uint32_t>(cylVertDivisions_));
 

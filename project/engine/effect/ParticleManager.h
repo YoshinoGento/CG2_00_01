@@ -76,6 +76,13 @@ public:
     // この値以下のアルファ値を持つピクセルが棄却（discard）される
     void SetAlphaReference(float value) { alphaReference_ = value; }
     float GetAlphaReference() const { return alphaReference_; }
+
+    // 指定グループのパーティクル数を取得（常時表示判定に使用）
+    uint32_t GetParticleCount(const std::string& name) const {
+        auto it = particleGroups_.find(name);
+        if (it == particleGroups_.end()) return 0;
+        return static_cast<uint32_t>(it->second.particles.size());
+    }
 private:
     void CreateRootSignature();
     void CreateGraphicsPipelineState();
