@@ -58,6 +58,7 @@ private:
 
 	std::unique_ptr<Skybox> skybox_;
 	std::vector<uint32_t> textureHandles_;
+	uint32_t ringTexHandle_ = 0;
 
 	bool showTerrain_ = true;
 	bool showSphere_ = true;

@@ -39,7 +39,7 @@ void GamePlayScene::Initialize() {
 		textureHandles_.push_back(framework_->GetSpriteCommon()->LoadTexture("Resources/" + name));
 	}
 	uint32_t circle2Handle = framework_->GetSpriteCommon()->LoadTexture("Resources/circle2.png");
-	uint32_t ringTexHandle = framework_->GetSpriteCommon()->LoadTexture("Resources/gradationLine.png");
+	ringTexHandle_ = framework_->GetSpriteCommon()->LoadTexture("Resources/gradationLine.png");
 
 	// ---------------------------------------------------------
 	// 2. システム・環境の初期化
@@ -109,8 +109,8 @@ void GamePlayScene::Initialize() {
 	// 5. パーティクルの設定
 	// ---------------------------------------------------------
 	framework_->GetParticleManager()->CreateParticleGroup("Spark", circle2Handle);
-	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle, ringModel_.get());
-	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle, cylinderModel_.get());
+	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle_, ringModel_.get());
+	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
 
 }
@@ -255,7 +255,7 @@ void GamePlayScene::RebuildCylinder() {
 	// ParticleGroupのモデルポインタも更新しないと古いメッシュを参照し続ける
 	framework_->GetParticleManager()->CreateParticleGroup(
 		"CylinderEffect",
-		framework_->GetSpriteCommon()->LoadTexture("Resources/gradationLine.png"),
+		ringTexHandle_,
 		cylinderModel_.get());
 }
 
