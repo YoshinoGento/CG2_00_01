@@ -31,6 +31,11 @@ namespace MatrixMath {
 	Matrix4x4 Inverse(const Matrix4x4& m);
 	Matrix4x4 Transpose(const Matrix4x4& m);
 
+	// --- Quaternion演算 ---
+	Quaternion Slerp(const Quaternion& q0, const Quaternion& q1, float t);
+	Matrix4x4 MakeRotateMatrix(const Quaternion& quaternion);
+
+
 	// --- 3D描画用行列 ---
 	// 透視投影行列 (3Dカメラ用)
 	Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio, float nearClip, float farClip);
@@ -39,7 +44,7 @@ namespace MatrixMath {
 	// ビューポート行列 (画面座標変換用)
 	Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height, float minDepth, float maxDepth);
 
-	// ★カメラ用：指定した位置を向く行列
+	// カメラ用：指定した位置を向く行列
 	Matrix4x4 MakeLookAtMatrix(const Vector3& eye, const Vector3& target, const Vector3& up);
 
 	// --- ベクトル演算 (Vector3) ---
@@ -57,4 +62,8 @@ namespace MatrixMath {
 	// --- 便利な補間関数 ---
 	float Lerp(float start, float end, float t);         // 線形補間
 	Vector3 Lerp(const Vector3& start, const Vector3& end, float t);
+
+	Vector3 Slerp(const Vector3& v1, const Vector3& v2, float t); // Vector用（Lerpでも可）
+	Quaternion Slerp(const Quaternion& q1, const Quaternion& q2, float t);
+	Matrix4x4 MakeRotateMatrix(const Quaternion& q);
 }

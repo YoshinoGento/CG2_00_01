@@ -59,6 +59,14 @@ void GamePlayScene::Initialize() {
 	framework_->GetModelManager()->LoadModel("plane.obj");
 	Model* planeModel = framework_->GetModelManager()->GetModel("plane.obj");
 
+	// アニメーションモデルのロード
+	std::string animModelPath = "AnimatedCube/AnimatedCube.gltf";
+	framework_->GetModelManager()->LoadModel(animModelPath);
+	Model* animModel = framework_->GetModelManager()->GetModel(animModelPath);
+	if (animModel) {
+		animModel->LoadTextures(framework_->GetSpriteCommon());
+	}
+
 	// ---------------------------------------------------------
 	// 4. 各種オブジェクトの実体生成
 	// ---------------------------------------------------------
@@ -71,6 +79,17 @@ void GamePlayScene::Initialize() {
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize(framework_->GetObject3dCommon());
 	object3d_->SetModel(planeModel);
+
+	if (animModel) {
+		animObj_ = std::make_unique<Object3d>();
+		animObj_->Initialize(framework_->GetObject3dCommon());
+		animObj_->SetModel(animModel);
+		animObj_->SetPosition({ 5.0f, 0.0f, 0.0f });
+		animObj_->SetScale({ 1.0f, 1.0f, 1.0f });
+		// アニメーションを読み込んでセット
+		Animation anim = animModel->LoadAnimation("Resources/AnimatedCube", "AnimatedCube.gltf");
+		animObj_->SetAnimation(anim);
+	}
 
 	sprite_ = std::make_unique<Sprite>();
 	sprite_->Initialize(framework_->GetSpriteCommon(), textureHandles_[0]);
@@ -185,6 +204,7 @@ void GamePlayScene::Update() {
 
 	UpdateObjectLights(terrainObj_.get(), 0.0f);
 	UpdateObjectLights(object3d_.get(), 0.0f);
+	UpdateObjectLights(animObj_.get(), 0.5f);
 
 	if (sphereObj_) {
 		sphereObj_->SetPosition(spherePos_);
@@ -249,6 +269,7 @@ void GamePlayScene::Draw() {
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
+		if (showAnimModel_ && animObj_) animObj_->Draw();
 		if (skybox_) skybox_->Draw();
 
 		spriteCommon->PreDraw();
@@ -262,6 +283,7 @@ void GamePlayScene::Draw() {
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
+		if (showAnimModel_ && animObj_) animObj_->Draw();
 		if (skybox_) skybox_->Draw();
 	}
 

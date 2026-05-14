@@ -57,20 +57,32 @@ public:
 	void SetSpotLightAngle(float angleRad) { spotLightData_->cosAngle = std::cos(angleRad); }
 	void SetSpotLightFalloff(float angleRad) { spotLightData_->cosFalloffStart = std::cos(angleRad); }
 
+	// アニメーション用アクセサ
+	void SetAnimation(const Animation& animation) { animation_ = animation; }
+	float& GetAnimationTime() { return animationTime_; }
+	bool& GetIsAnimationPlaying() { return isAnimationPlaying_; }
+	float& GetAnimationSpeed() { return animationSpeed_; }
+	const Animation& GetAnimation() const { return animation_; }
+
 private:
 	Object3dCommon* object3dCommon_ = nullptr;
 	Model* model_ = nullptr;
 	uint32_t textureHandle_ = 0;
 	uint32_t environmentMapHandle_ = 0;
 	int cullMode_ = 2;
+	Animation animation_;
+	float animationTime_ = 0.0f;
+	bool isAnimationPlaying_ = true;
+	float animationSpeed_ = 1.0f;
 
 	struct Material {
 		Vector4 color;
-		int32_t enableLighting; 
+		int32_t enableLighting;
 		float shininess;
 		float environmentCoefficient;
 		float padding[2];
-		Matrix4x4 uvTransform; };
+		Matrix4x4 uvTransform;
+	};
 	struct TransformationMatrix { Matrix4x4 WVP; Matrix4x4 World; };
 	struct DirectionalLight { Vector4 color; Vector3 direction; float intensity; };
 	struct CameraForGPU { Vector3 worldPosition; };
