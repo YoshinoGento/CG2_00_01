@@ -66,7 +66,7 @@ void Game::Update() {
 
 	if (playScene) {
 		ImGui::Begin("Global Settings");
-		const char* targets[] = { "None", "Sprite", "Object3D", "Particle", "Sphere" };
+		static const char* targets[] = { "None", "Sprite", "Object3D", "Particle", "Sphere" };
 		ImGui::Combo("Edit Focus", &playScene->selectedTarget_, targets, 5);
 		ImGui::End();
 
@@ -77,7 +77,7 @@ void Game::Update() {
 		ImGui::Checkbox("Sprite (2D)", &playScene->showSprite_);
 		ImGui::Checkbox("Particles", &playScene->showParticles_);
 		ImGui::Separator();
-		const char* cullItems[] = { "None (両面)", "Front (前面削除)", "Back (背面削除)" };
+		static const char* cullItems[] = { "None (両面)", "Front (前面削除)", "Back (背面削除)" };
 		ImGui::Combo("Cull Mode", &playScene->cullMode_, cullItems, 3);
 		ImGui::End();
 
