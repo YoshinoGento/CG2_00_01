@@ -84,6 +84,39 @@ void Model::InitializeWithData(ModelManager* modelManager, const std::vector<Ver
 	}
 }
 
+Animation Model::LoadAnimation(const std::string& directoryPath, const std::string& filename) {
+	Assimp::Importer importer;
+	std::string filepath = directoryPath + "/" + filename;
+	const aiScene* scene = importer.ReadFile(filepath.c_str(), 0);
+	assert(scene && scene->mNumAnimations > 0);
+
+	aiAnimation* animAssimp = scene->mAnimations[0];
+	Animation animation;
+	animation.duration = (float)animAssimp->mDuration / (float)animAssimp->mTicksPerSecond;
+
+	for (uint32_t i = 0; i < animAssimp->mNumChannels; ++i) {
+		aiNodeAnim* nodeAnimAssimp = animAssimp->mChannels[i];
+		NodeAnimation& nodeAnim = animation.nodeAnimations[nodeAnimAssimp->mNodeName.C_Str()];
+
+		// Position (資料スライド 12)
+		for (uint32_t k = 0; k < nodeAnimAssimp->mNumPositionKeys; ++k) {
+			aiVectorKey& key = nodeAnimAssimp->mPositionKeys[k];
+			nodeAnim.translate.push_back({ (float)key.mTime / (float)animAssimp->mTicksPerSecond, {-key.mValue.x, key.mValue.y, key.mValue.z} });
+		}
+		// Rotation (右手->左手変換込み)
+		for (uint32_t k = 0; k < nodeAnimAssimp->mNumRotationKeys; ++k) {
+			aiQuatKey& key = nodeAnimAssimp->mRotationKeys[k];
+			nodeAnim.rotate.push_back({ (float)key.mTime / (float)animAssimp->mTicksPerSecond, {key.mValue.x, -key.mValue.y, -key.mValue.z, key.mValue.w} });
+		}
+		// Scale
+		for (uint32_t k = 0; k < nodeAnimAssimp->mNumScalingKeys; ++k) {
+			aiVectorKey& key = nodeAnimAssimp->mScalingKeys[k];
+			nodeAnim.scale.push_back({ (float)key.mTime / (float)animAssimp->mTicksPerSecond, {key.mValue.x, key.mValue.y, key.mValue.z} });
+		}
+	}
+	return animation;
+}
+
 void Model::LoadModelFile(const std::string& directoryPath, const std::string& filename) {
 	Assimp::Importer importer;
 	std::string filepath = directoryPath + "/" + filename;

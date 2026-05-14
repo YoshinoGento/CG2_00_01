@@ -256,4 +256,35 @@ namespace MatrixMath {
 			Lerp(start.z, end.z, t)
 		};
 	}
+
+	Quaternion Slerp(const Quaternion& q1, const Quaternion& q2, float t) {
+		float dot = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+		Quaternion targetQ2 = q2;
+		if (dot < 0.0f) {
+			dot = -dot;
+			targetQ2 = { -q2.x, -q2.y, -q2.z, -q2.w };
+		}
+		if (dot >= 1.0f - 1e-5f) {
+			return { Lerp(q1.x, targetQ2.x, t), Lerp(q1.y, targetQ2.y, t), Lerp(q1.z, targetQ2.z, t), Lerp(q1.w, targetQ2.w, t) };
+		}
+		float theta = std::acos(dot);
+		float sinTheta = std::sin(theta);
+		float weight1 = std::sin((1.0f - t) * theta) / sinTheta;
+		float weight2 = std::sin(t * theta) / sinTheta;
+		return { weight1 * q1.x + weight2 * targetQ2.x, weight1 * q1.y + weight2 * targetQ2.y, weight1 * q1.z + weight2 * targetQ2.z, weight1 * q1.w + weight2 * targetQ2.w };
+	}
+
+	Matrix4x4 MakeRotateMatrix(const Quaternion& q) {
+		Matrix4x4 result = MakeIdentity4x4();
+		result.m[0][0] = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+		result.m[0][1] = 2.0f * (q.x * q.y + q.w * q.z);
+		result.m[0][2] = 2.0f * (q.x * q.z - q.w * q.y);
+		result.m[1][0] = 2.0f * (q.x * q.y - q.w * q.z);
+		result.m[1][1] = 1.0f - 2.0f * (q.x * q.x + q.z * q.z);
+		result.m[1][2] = 2.0f * (q.y * q.z + q.w * q.x);
+		result.m[2][0] = 2.0f * (q.x * q.z + q.w * q.y);
+		result.m[2][1] = 2.0f * (q.y * q.z - q.w * q.x);
+		result.m[2][2] = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+		return result;
+	}
 }

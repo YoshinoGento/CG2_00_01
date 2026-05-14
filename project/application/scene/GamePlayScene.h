@@ -50,6 +50,8 @@ private:
 	std::unique_ptr<Model> terrainModel_;
 	std::unique_ptr<Object3d> terrainObj_;
 
+	std::unique_ptr<Object3d> animObj_;
+
 	// エフェクト用モデル
 	std::unique_ptr<Model> ringModel_;
 	std::unique_ptr<Model> cylinderModel_;
@@ -62,6 +64,7 @@ private:
 	bool showPlane_ = true;
 	bool showSprite_ = true;
 	bool showParticles_ = true;
+	bool showAnimModel_ = true;
 
 	Vector2 spritePos_ = { 640.0f, 360.0f };
 	Vector3 objectPos_ = { 0.0f, 0.0f, 0.0f };
