@@ -131,6 +131,18 @@ void Game::Update() {
 			ImGui::DragFloat3("Rotation", &playScene->objectRot_.x, 0.01f);
 		}
 
+		if (ImGui::CollapsingHeader("Animation Control", ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::Checkbox("Show Model", &playScene->showAnimModel_);
+			if (playScene->animObj_) {
+				ImGui::Checkbox("Play Animation", &playScene->animObj_->GetIsAnimationPlaying());
+				ImGui::SliderFloat("Speed", &playScene->animObj_->GetAnimationSpeed(), -5.0f, 5.0f);
+				float duration = playScene->animObj_->GetAnimation().duration;
+				if (duration > 0.0f) {
+					ImGui::SliderFloat("Time", &playScene->animObj_->GetAnimationTime(), 0.0f, duration);
+				}
+			}
+		}
+
 		// === Cylinderパラメータ（資料「Cylinderの拡張」対応） ===
 		if (ImGui::CollapsingHeader("Cylinder (Effect)", ImGuiTreeNodeFlags_DefaultOpen)) {
 			bool changed = false;
