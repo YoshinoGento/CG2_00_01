@@ -7,6 +7,7 @@
 #include <wrl.h>
 #include <d3d12.h>
 #include <cstdint>
+#include "3d/Animation.h"
 
 // Assimpのヘッダー
 #include <assimp/Importer.hpp>
@@ -51,6 +52,10 @@ public:
 
 	// --- 追加：ルートノードの取得 ---
 	const Node& GetRootNode() const { return rootNode_; }
+
+	// --- 追加：アニメーションの読み込み ---
+	Animation LoadAnimation(const std::string& directoryPath, const std::string& filename);
+
 
 private:
 	// Assimp を使った読み込み関数

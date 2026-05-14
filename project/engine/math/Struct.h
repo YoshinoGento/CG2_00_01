@@ -65,3 +65,15 @@ struct Sphere {
     Vector3 center; // 中心点
     float radius;   // 半径
 };
+
+/**
+ * Quaternion 構造体
+ * 3Dの回転を表現するために使用。ジンバルロックを防ぎます。
+ */
+struct Quaternion {
+    float x;
+    float y;
+    float z;
+    float w;
+};
+

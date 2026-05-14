@@ -44,6 +44,32 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 void Object3d::Update(Camera* camera) {
 	assert(camera);
 
+	if (isAnimationPlaying_) {
+		animationTime_ += (1.0f / 60.0f) * animationSpeed_;
+		animationTime_ = std::fmod(animationTime_, animation_.duration);
+		if (animationTime_ < 0.0f) {
+			animationTime_ += animation_.duration;
+		}
+	}
+
+	Matrix4x4 animLocalMatrix = MatrixMath::MakeIdentity4x4();
+	bool hasAnimation = false;
+
+	if (model_ && !animation_.nodeAnimations.empty()) {
+		auto it = animation_.nodeAnimations.find(model_->GetRootNode().name);
+		if (it != animation_.nodeAnimations.end()) {
+			NodeAnimation& rootAnim = it->second;
+			Vector3 translate = CalculateValue(rootAnim.translate, animationTime_);
+			Quaternion rotate = CalculateValue(rootAnim.rotate, animationTime_);
+			Vector3 scale = CalculateValue(rootAnim.scale, animationTime_);
+
+			animLocalMatrix = MatrixMath::Multiply(MatrixMath::MakeScaleMatrix(scale),
+				MatrixMath::Multiply(MatrixMath::MakeRotateMatrix(rotate),
+					MatrixMath::MakeTranslateMatrix(translate)));
+			hasAnimation = true;
+		}
+	}
+
 	// --- 1. オブジェクト自身の変形行列を作る ---
 	Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(transform_.scale);
 	Matrix4x4 rotateMatrix = MatrixMath::Multiply(MatrixMath::MakeRotateXMatrix(transform_.rotate.x),
@@ -54,8 +80,13 @@ void Object3d::Update(Camera* camera) {
 
 	// --- 2. モデル内の階層構造（ノード）の行列を合成する ---
 	if (model_) {
-		const Model::Node& rootNode = model_->GetRootNode();
-		worldMatrix = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix);
+		if (hasAnimation) {
+			worldMatrix = MatrixMath::Multiply(animLocalMatrix, worldMatrix);
+		}
+		else {
+			const Model::Node& rootNode = model_->GetRootNode();
+			worldMatrix = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix);
+		}
 	}
 
 	// --- 3. 定数バッファへの書き込み ---
@@ -97,3 +128,4 @@ void Object3d::Draw() {
 }
 
 void Object3d::SetModel(Model* model) { model_ = model; }
+
