@@ -3,6 +3,8 @@
 #include "3d/Model.h" 
 #include "math/Matrix.h"
 #include "3d/Camera.h"
+#include "3d/Skeleton.h"
+#include <optional>
 #include <wrl.h>
 #include <d3d12.h>
 
@@ -29,6 +31,10 @@ public:
 	void Update(Camera* camera);
 	void Draw();
 	void SetModel(Model* model);
+	void InitializeSkeleton();
+
+	std::optional<Skeleton>& GetSkeleton() { return skeleton_; }
+	const Matrix4x4& GetWorldMatrix() const { return worldMatrix_; }
 
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
@@ -74,6 +80,8 @@ private:
 	float animationTime_ = 0.0f;
 	bool isAnimationPlaying_ = true;
 	float animationSpeed_ = 1.0f;
+	std::optional<Skeleton> skeleton_;
+	Matrix4x4 worldMatrix_ = MatrixMath::MakeIdentity4x4();
 
 	struct Material {
 		Vector4 color;

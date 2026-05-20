@@ -44,30 +44,24 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 void Object3d::Update(Camera* camera) {
 	assert(camera);
 
-	if (isAnimationPlaying_) {
+	if (isAnimationPlaying_ && animation_.duration > 0.0f) {
 		animationTime_ += (1.0f / 60.0f) * animationSpeed_;
 		animationTime_ = std::fmod(animationTime_, animation_.duration);
 		if (animationTime_ < 0.0f) {
 			animationTime_ += animation_.duration;
 		}
+
+		// --- フェーズ1：アニメーションの適用 ---
+		// アニメーションの計算結果を各骨のTransformに適用する
+		if (skeleton_) {
+			SkeletonSystem::ApplyAnimation(*skeleton_, animation_, animationTime_);
+		}
 	}
 
-	Matrix4x4 animLocalMatrix = MatrixMath::MakeIdentity4x4();
-	bool hasAnimation = false;
-
-	if (model_ && !animation_.nodeAnimations.empty()) {
-		auto it = animation_.nodeAnimations.find(model_->GetRootNode().name);
-		if (it != animation_.nodeAnimations.end()) {
-			NodeAnimation& rootAnim = it->second;
-			Vector3 translate = CalculateValue(rootAnim.translate, animationTime_);
-			Quaternion rotate = CalculateValue(rootAnim.rotate, animationTime_);
-			Vector3 scale = CalculateValue(rootAnim.scale, animationTime_);
-
-			animLocalMatrix = MatrixMath::Multiply(MatrixMath::MakeScaleMatrix(scale),
-				MatrixMath::Multiply(MatrixMath::MakeRotateMatrix(rotate),
-					MatrixMath::MakeTranslateMatrix(translate)));
-			hasAnimation = true;
-		}
+	// --- フェーズ2：スケルトンの更新 ---
+	// ローカル行列からSkeletonSpace行列を一括計算する（階層の更新順序厳守）
+	if (skeleton_) {
+		SkeletonSystem::Update(*skeleton_);
 	}
 
 	// --- 1. オブジェクト自身の変形行列を作る ---
@@ -76,22 +70,23 @@ void Object3d::Update(Camera* camera) {
 		MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
 			MatrixMath::MakeRotateZMatrix(transform_.rotate.z)));
 	Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(transform_.translate);
-	Matrix4x4 worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
+	worldMatrix_ = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
 
 	// --- 2. モデル内の階層構造（ノード）の行列を合成する ---
 	if (model_) {
-		if (hasAnimation) {
-			worldMatrix = MatrixMath::Multiply(animLocalMatrix, worldMatrix);
+		if (skeleton_ && !animation_.nodeAnimations.empty()) {
+			// スキンメッシュ対応までは、暫定的にRoot骨の動きだけをオブジェクト全体に適用します
+			worldMatrix_ = MatrixMath::Multiply(skeleton_->joints[skeleton_->root].skeletonSpaceMatrix, worldMatrix_);
 		}
 		else {
 			const Model::Node& rootNode = model_->GetRootNode();
-			worldMatrix = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix);
+			worldMatrix_ = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix_);
 		}
 	}
 
 	// --- 3. 定数バッファへの書き込み ---
-	transformationMatrixData_->WVP = MatrixMath::Multiply(worldMatrix, camera->GetViewProjectionMatrix());
-	transformationMatrixData_->World = worldMatrix;
+	transformationMatrixData_->WVP = MatrixMath::Multiply(worldMatrix_, camera->GetViewProjectionMatrix());
+	transformationMatrixData_->World = worldMatrix_;
 
 	// カメラ座標の更新
 	cameraData_->worldPosition = camera->GetTranslate();
@@ -127,5 +122,15 @@ void Object3d::Draw() {
 	model_->Draw(object3dCommon_->GetDxCommon());
 }
 
-void Object3d::SetModel(Model* model) { model_ = model; }
+void Object3d::SetModel(Model* model) {
+	model_ = model;
+	if (model_) {
+		InitializeSkeleton();
+	}
+}
 
+void Object3d::InitializeSkeleton() {
+	if (model_) {
+		skeleton_ = SkeletonSystem::CreateSkeleton(model_->GetRootNode());
+	}
+}
