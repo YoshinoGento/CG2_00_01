@@ -2,6 +2,7 @@
 #include "base/Framework.h"
 #include "math/Matrix.h"	
 #include <memory>
+#include "effect/PostProcess.h"
 
 class SceneFactory;
 
@@ -31,4 +32,6 @@ private:
 
 	// 計算・補正されたマウス座標を保持
 	static Vector2 mousePosInViewport_;
+
+	std::unique_ptr<PostProcess> postProcess_;
 };

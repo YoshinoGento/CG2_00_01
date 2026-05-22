@@ -40,6 +40,9 @@ public:
     void UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
     Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const std::wstring& profile);
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeInBytes);
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateRenderTextureResource(uint32_t width, uint32_t height, DXGI_FORMAT format, const float* clearColor);
+    uint32_t AllocateRTV();
+    D3D12_CPU_DESCRIPTOR_HANDLE GetRTVHandle(uint32_t index) const;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, UINT numDescriptors, bool shaderVisible);
 
 private:
@@ -72,6 +75,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> renderTextureResource_;
     // RTVヒープ内での場所（0,1はモニター用、2はゲーム画面用）
     const UINT kRenderTextureRTVIndex = 2;
+    uint32_t nextRtvIndex_ = 3; // RTVの次の割り当てインデックス
 
     Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
     uint64_t fenceValue_ = 0;

@@ -24,6 +24,10 @@ void Game::Initialize() {
 		DXGI_FORMAT_R8G8B8A8_UNORM,
 		1
 	);
+
+	postProcess_ = std::make_unique<PostProcess>();
+	postProcess_->Initialize(dxCommon_.get(), srvManager_.get());
+
 	sceneFactory_ = std::make_unique<SceneFactory>();
 	SceneManager::GetInstance()->SetSceneFactory(sceneFactory_.get());
 	SceneManager::GetInstance()->ChangeScene("TITLE");
@@ -56,7 +60,8 @@ void Game::Update() {
 		mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * 1280.0f;
 		mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
 
-		ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(viewportSrvIndex_).ptr, displaySize);
+		// ポストプロセス後のテクスチャを表示する
+		ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(postProcess_->GetFinalSrvIndex()).ptr, displaySize);
 	}
 	ImGui::End();
 	ImGui::PopStyleVar();
@@ -184,6 +189,18 @@ void Game::Update() {
 		}
 
 		ImGui::End();
+
+		// ★ブルームエフェクトの設定UI
+		ImGui::Begin("Post Process (Bloom)");
+		auto& bloomParam = postProcess_->GetBloomParam();
+		bool changed = false;
+		changed |= ImGui::SliderFloat("Threshold", &bloomParam.threshold, 0.0f, 1.0f);
+		changed |= ImGui::SliderFloat("Intensity", &bloomParam.intensity, 0.0f, 5.0f);
+		changed |= ImGui::SliderFloat("Blur Radius", postProcess_->GetBlurSigma(), 1.0f, 6.0f);
+		if (changed) {
+			postProcess_->UpdateBlurWeights();
+		}
+		ImGui::End();
 	}
 
 	SceneManager::GetInstance()->Update();
@@ -193,7 +210,34 @@ void Game::Update() {
 void Game::Draw() {
 	dxCommon_->PreDraw();
 	srvManager_->PreDraw();
+	
+	// 通常のシーン描画 (renderTextureResource_ に書き込まれる)
 	SceneManager::GetInstance()->Draw();
+
+	// シーン描画が終わったので、元画像をSHADER_RESOURCEとして使えるようにバリアを張る
+	// (PostProcess::DrawがGENERIC_READに遷移するので、ここは不要。
+	//  PreDrawToSwapChainが RENDER_TARGET→GENERIC_READ を行うため、
+	//  PostProcess実行後にRENDER_TARGETに戻す必要がある)
+	
+	// ポストプロセスの適用
+	// PostProcess::Draw内でsrcResourceのバリア(RT→GENERIC_READ)を行う
+	postProcess_->Draw(
+		srvManager_->GetGPUDescriptorHandle(viewportSrvIndex_),
+		dxCommon_->GetRenderTextureResource()
+	);
+
+	// PostProcess後、srcResource(renderTextureResource_)はGENERIC_READ状態のまま。
+	// PreDrawToSwapChain は RENDER_TARGET→GENERIC_READ のバリアを張るので、
+	// その前にRENDER_TARGETに戻す必要がある
+	{
+		D3D12_RESOURCE_BARRIER b{};
+		b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		b.Transition.pResource = dxCommon_->GetRenderTextureResource();
+		b.Transition.StateBefore = D3D12_RESOURCE_STATE_GENERIC_READ;
+		b.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		dxCommon_->GetCommandList()->ResourceBarrier(1, &b);
+	}
+
 	dxCommon_->PreDrawToSwapChain();
 	ImGuiManager::GetInstance()->Draw();
 	dxCommon_->PostDraw();
