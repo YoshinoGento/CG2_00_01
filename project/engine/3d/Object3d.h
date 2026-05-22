@@ -8,6 +8,7 @@
 #include <wrl.h>
 #include <d3d12.h>
 
+
 /**
  * Object3dクラス
  * スポットライトの管理機能を追加
@@ -35,14 +36,16 @@ public:
 
 	std::optional<Skeleton>& GetSkeleton() { return skeleton_; }
 	const Matrix4x4& GetWorldMatrix() const { return worldMatrix_; }
+	// ルートノードのローカル行列を含まない、オブジェクト自身の純粋なアフィン変換行列を取得する（日本語コメント付き）
+	const Matrix4x4& GetObjectWorldMatrix() const { return objectWorldMatrix_; }
 
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
 	void SetScale(const Vector3& scale) { transform_.scale = scale; }
 	void SetTexture(uint32_t textureHandle) { textureHandle_ = textureHandle; }
-	// ★追加：環境マップ用のテクスチャハンドルをセット
+	// 環境マップ用のテクスチャハンドルをセット
 	void SetEnvironmentMap(uint32_t handle) { environmentMapHandle_ = handle; }
-	// ★追加：反射強度のセット
+	// 反射強度のセット
 	void SetEnvironmentCoefficient(float coef) { materialData_->environmentCoefficient = coef; }
 	void SetCullMode(int cullMode) { cullMode_ = cullMode; }
 	void SetShininess(float shininess) { materialData_->shininess = shininess; }
@@ -70,6 +73,7 @@ public:
 	float& GetAnimationSpeed() { return animationSpeed_; }
 	const Animation& GetAnimation() const { return animation_; }
 
+
 private:
 	Object3dCommon* object3dCommon_ = nullptr;
 	Model* model_ = nullptr;
@@ -82,6 +86,8 @@ private:
 	float animationSpeed_ = 1.0f;
 	std::optional<Skeleton> skeleton_;
 	Matrix4x4 worldMatrix_ = MatrixMath::MakeIdentity4x4();
+	// ：ルートノードのローカル行列を含まない、オブジェクト自身のワールド変換行列
+	Matrix4x4 objectWorldMatrix_ = MatrixMath::MakeIdentity4x4();
 
 	struct Material {
 		Vector4 color;
@@ -91,6 +97,14 @@ private:
 		float padding[2];
 		Matrix4x4 uvTransform;
 	};
+
+	// GPUに送るための頂点スキンデータ
+	struct VertexShaderSkinning
+	{
+		Vector4 weights;     //頂点シェイダー側でfloat4となる重み
+		int32_t boneIndices[4]; //頂点シェイダー側でint4となる骨のインデックス
+	};
+
 	struct TransformationMatrix { Matrix4x4 WVP; Matrix4x4 World; };
 	struct DirectionalLight { Vector4 color; Vector3 direction; float intensity; };
 	struct CameraForGPU { Vector3 worldPosition; };
@@ -106,7 +120,15 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> cameraResource_;
 	CameraForGPU* cameraData_ = nullptr;
 
-	// ★追加：スポットライト用
+	// スポットライト用
 	Microsoft::WRL::ComPtr<ID3D12Resource> spotLightResource_;
 	SpotLightData* spotLightData_ = nullptr;
+
+	public:
+		// 修正：構造体の定義より後ろのこの位置に配置することで、コンパイルが正常に通ります
+		Material* GetMaterialData() { return materialData_; }
+		TransformationMatrix* GetTransformationMatrixData() { return transformationMatrixData_; }
+
+		// アニメーションによる骨の上書きを制御するためのフラグ操作（オプション）
+		bool isBoneManualControl_ = false;
 };

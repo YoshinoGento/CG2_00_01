@@ -129,6 +129,15 @@
     <ClCompile Include="engine\3d\Skybox.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="engine\3d\LineDrawer.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\3d\Skeleton.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\3d\SkeletonDebugger.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\shader\Object3D.PS.hlsl">
@@ -237,6 +246,15 @@
     <ClInclude Include="engine\3d\Animation.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="engine\3d\LineDrawer.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\3d\Skeleton.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\3d\SkeletonDebugger.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Resources\shader\Particle.PS.hlsl">
@@ -257,5 +275,8 @@
       <Filter>リソース ファイル\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\Skybox.hlsli" />
+    <None Include="Resources\shader\Line.hlsli" />
+    <None Include="Resources\shader\LinePS.hlsl" />
+    <None Include="Resources\shader\LineVS.hlsl" />
   </ItemGroup>
 </Project>

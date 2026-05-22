@@ -1,7 +1,7 @@
 #include "3d/LineDrawer.h"
 #include "base/DirectXCommon.h"
 #include "base/Logger.h"
-#include "base/StringUtility.h"
+#include "base/Logger.h"
 #include <cassert>
 #include <d3dcompiler.h>
 
@@ -37,16 +37,20 @@ void LineDrawer::CreatePipeline() {
 
 	// シェーダーコンパイル
 	Microsoft::WRL::ComPtr<ID3DBlob> vsBlob;
-	hr = D3DCompileFromFile(L"Resources/shaders/LineVS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &vsBlob, &errorBlob);
+	hr = D3DCompileFromFile(L"Resources/shader/LineVS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &vsBlob, &errorBlob);
 	if (FAILED(hr)) {
-		Logger::Log(ConvertString(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize())));
+		if (errorBlob) {
+			Logger::Log(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize()));
+		}
 		assert(false);
 	}
 
 	Microsoft::WRL::ComPtr<ID3DBlob> psBlob;
-	hr = D3DCompileFromFile(L"Resources/shaders/LinePS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &psBlob, &errorBlob);
+	hr = D3DCompileFromFile(L"Resources/shader/LinePS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &psBlob, &errorBlob);
 	if (FAILED(hr)) {
-		Logger::Log(ConvertString(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize())));
+		if (errorBlob) {
+			Logger::Log(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize()));
+		}
 		assert(false);
 	}
 
@@ -65,7 +69,7 @@ void LineDrawer::CreatePipeline() {
 	Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
 	hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
 	if (FAILED(hr)) {
-		Logger::Log(ConvertString(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize())));
+		Logger::Log(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize()));
 		assert(false);
 	}
 
