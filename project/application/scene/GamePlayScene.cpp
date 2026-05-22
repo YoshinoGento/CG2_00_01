@@ -13,6 +13,7 @@
 #include "3d/Object3dCommon.h"
 #include "Game.h"
 #include "3d/PrimitiveGenerator.h"
+#include "3d/LineDrawer.h"
 #include <dinput.h>
 #include "3d/Skybox.h"
 #include "base/Logger.h" // 追加：外部ロガーツールのインクルード
@@ -48,6 +49,12 @@ void GamePlayScene::Initialize() {
 	skybox_ = std::make_unique<Skybox>();
 	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), "Resources/rostock_laage_airport_4k.dds");
 
+	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
+
+	skeletonDebugger_ = std::make_unique<SkeletonDebugger>();
+	skeletonDebugger_->Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager());
+	skeletonDebugger_->SetEnvironmentMap(skybox_->GetSrvIndex());
+
 	// ---------------------------------------------------------
 	// 3. モデルデータのロード
 	// ---------------------------------------------------------
@@ -59,12 +66,22 @@ void GamePlayScene::Initialize() {
 	framework_->GetModelManager()->LoadModel("plane.obj");
 	Model* planeModel = framework_->GetModelManager()->GetModel("plane.obj");
 
-	// アニメーションモデルのロード
-	std::string animModelPath = "AnimatedCube/AnimatedCube.gltf";
-	framework_->GetModelManager()->LoadModel(animModelPath);
-	Model* animModel = framework_->GetModelManager()->GetModel(animModelPath);
-	if (animModel) {
-		animModel->LoadTextures(framework_->GetSpriteCommon());
+	// アニメーションモデルのプリロード（配布データ3種と仮モデル1種）
+	std::vector<std::pair<std::string, std::string>> animModels = {
+		{ "AnimatedCube", "AnimatedCube.gltf" },
+		{ "simpleSkin", "simpleSkin.gltf" },
+		{ "human", "walk.gltf" },
+		{ "human", "sneakWalk.gltf" }
+	};
+
+	for (const auto& pair : animModels) {
+		std::string path = pair.first + "/" + pair.second;
+		framework_->GetModelManager()->LoadModel(path);
+		Model* m = framework_->GetModelManager()->GetModel(path);
+		if (m) {
+			// テクスチャをSpriteCommonにロードする
+			m->LoadTextures(framework_->GetSpriteCommon());
+		}
 	}
 
 	// ---------------------------------------------------------
@@ -75,21 +92,16 @@ void GamePlayScene::Initialize() {
 	terrainObj_->SetModel(tModel);
 	terrainObj_->SetPosition({ 0.0f, -2.0f, 0.0f });
 	terrainObj_->SetScale({ 2.0f, 2.0f, 2.0f });
+	terrainObj_->SetEnvironmentMap(skybox_->GetSrvIndex());
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize(framework_->GetObject3dCommon());
 	object3d_->SetModel(planeModel);
+	object3d_->SetEnvironmentMap(skybox_->GetSrvIndex());
 
-	if (animModel) {
-		animObj_ = std::make_unique<Object3d>();
-		animObj_->Initialize(framework_->GetObject3dCommon());
-		animObj_->SetModel(animModel);
-		animObj_->SetPosition({ 5.0f, 0.0f, 0.0f });
-		animObj_->SetScale({ 1.0f, 1.0f, 1.0f });
-		// アニメーションを読み込んでセット
-		Animation anim = animModel->LoadAnimation("Resources/AnimatedCube", "AnimatedCube.gltf");
-		animObj_->SetAnimation(anim);
-	}
+	// デフォルトで simpleSkin.gltf (配布データ) をアニメーション表示オブジェクトとしてロード
+	currentAnimModelIdx_ = 1;
+	ChangeAnimationModel(currentAnimModelIdx_);
 
 	sprite_ = std::make_unique<Sprite>();
 	sprite_->Initialize(framework_->GetSpriteCommon(), textureHandles_[0]);
@@ -265,6 +277,19 @@ void GamePlayScene::Draw() {
 
 	objCommon->CommonDrawSettings();
 
+	// === 地面のグリッド（格子線）の描画 ===
+	const float gridScale = 20.0f; // グリッドの広さ
+	const int divCount = 10;       // 分割数
+	const Vector4 gridColor = { 0.5f, 0.5f, 0.5f, 1.0f }; // グレー
+
+	for (int i = -divCount; i <= divCount; ++i) {
+		float f = (float)i / (float)divCount * gridScale;
+		// X軸に平行な線
+		LineDrawer::GetInstance()->DrawLine({ -gridScale, -2.0f, f }, { gridScale, -2.0f, f }, gridColor);
+		// Z軸に平行な線
+		LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
+	}
+
 	if (modelPriority_ == 0) {
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
@@ -272,8 +297,12 @@ void GamePlayScene::Draw() {
 		if (showAnimModel_ && animObj_) animObj_->Draw();
 		if (skybox_) skybox_->Draw();
 
-		spriteCommon->PreDraw();
-		if (showSprite_) sprite_->Draw();
+		if (showSkeleton_ && animObj_ && animObj_->GetSkeleton()) {
+			// 【修正】モデルルート行列の二重掛けを防ぐため、GetWorldMatrix() ではなくルートを含まない GetObjectWorldMatrix() を渡します
+			skeletonDebugger_->Draw(*animObj_->GetSkeleton(), animObj_->GetObjectWorldMatrix(), LineDrawer::GetInstance(), camera_.get());
+		}
+		// その直後に呼ばれる
+		LineDrawer::GetInstance()->Draw(camera_->GetViewProjectionMatrix());
 	}
 	else {
 		spriteCommon->PreDraw();
@@ -285,6 +314,12 @@ void GamePlayScene::Draw() {
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
 		if (skybox_) skybox_->Draw();
+
+		if (showSkeleton_ && animObj_ && animObj_->GetSkeleton()) {
+			// 【修正】モデルルート行列の二重掛けを防ぐため、GetWorldMatrix() ではなくルートを含まない GetObjectWorldMatrix() を渡します
+			skeletonDebugger_->Draw(*animObj_->GetSkeleton(), animObj_->GetObjectWorldMatrix(), LineDrawer::GetInstance(), camera_.get());
+		}
+		LineDrawer::GetInstance()->Draw(camera_->GetViewProjectionMatrix());
 	}
 
 	if (showParticles_) framework_->GetParticleManager()->Draw();
@@ -324,3 +359,52 @@ void GamePlayScene::AddLog(const std::string& message) {
 }
 
 void GamePlayScene::Finalize() {}
+
+/**
+ * ChangeAnimationModel: インデックスに応じて再生するアニメーションモデルを動的に切り替える
+ * 各モデル固有のサイズ（スケール）や初期位置の自動調整もここで行います
+ */
+void GamePlayScene::ChangeAnimationModel(int index) {
+	std::vector<std::pair<std::string, std::string>> animModels = {
+		{ "AnimatedCube", "AnimatedCube.gltf" },
+		{ "simpleSkin", "simpleSkin.gltf" },
+		{ "human", "walk.gltf" },
+		{ "human", "sneakWalk.gltf" }
+	};
+
+	if (index < 0 || index >= static_cast<int>(animModels.size())) return;
+
+	std::string path = animModels[index].first + "/" + animModels[index].second;
+	Model* animModel = framework_->GetModelManager()->GetModel(path);
+	if (animModel) {
+		if (!animObj_) {
+			animObj_ = std::make_unique<Object3d>();
+			animObj_->Initialize(framework_->GetObject3dCommon());
+		}
+		// オブジェクトにモデルをセット
+		animObj_->SetModel(animModel);
+		
+		// スケールと座標の調整 (モデルごとに適した表示サイズと位置へ自動的にアジャスト)
+		if (index == 0) { // AnimatedCube (仮キューブモデル)
+			animObj_->SetPosition({ 5.0f, 0.0f, 0.0f });
+			animObj_->SetScale({ 1.0f, 1.0f, 1.0f });
+		} else if (index == 1) { // simpleSkin (シンプルな関節スキン)
+			animObj_->SetPosition({ 0.0f, 0.0f, 0.0f });
+			animObj_->SetScale({ 0.5f, 0.5f, 0.5f }); // 画面に収まるように少し小さめにする
+		} else { // human (人間モデル)
+			animObj_->SetPosition({ 0.0f, -2.0f, 0.0f }); // 地面(Y=-2.0)にピッタリ乗るように設定
+			animObj_->SetScale({ 1.0f, 1.0f, 1.0f });
+		}
+		
+		// 環境マップ設定の引き継ぎ
+		animObj_->SetEnvironmentMap(skybox_->GetSrvIndex());
+		
+		// アニメーションデータをアセットフォルダから読み込んでオブジェクトにセット
+		Animation anim = animModel->LoadAnimation("Resources/" + animModels[index].first, animModels[index].second);
+		animObj_->SetAnimation(anim);
+		
+		// 再生制御パラメータの初期化
+		animObj_->GetAnimationTime() = 0.0f;
+		animObj_->GetIsAnimationPlaying() = true;
+	}
+}

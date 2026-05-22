@@ -1,5 +1,5 @@
 #include "WinApp.h"
-#include "Audio.h"
+#include "audio/Audio.h" // オーディオ再生機能を利用するため、正しいディレクトリパスのヘッダーをインクルード
 #pragma comment(lib, "winmm.lib")
 
 // ★ImGui用ウィンドウプロシージャの extern 宣言

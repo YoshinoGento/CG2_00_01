@@ -77,3 +77,13 @@ struct Quaternion {
     float w;
 };
 
+/**
+ * QuaternionTransform 構造体
+ * アニメーション時の各
+ のTransform情報などに使用。
+ */
+struct QuaternionTransform {
+    Vector3 scale;
+    Quaternion rotate;
+    Vector3 translate;
+};

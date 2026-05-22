@@ -262,7 +262,10 @@ void DirectXCommon::UploadTextureData(ID3D12Resource* texture, const DirectX::Sc
     ComPtr<ID3D12Resource> intermediate = CreateBufferResource(size);
     UpdateSubresources(commandList_.Get(), texture, intermediate.Get(), 0, 0, UINT(subresources.size()), subresources.data());
     D3D12_RESOURCE_BARRIER barrier{ D3D12_RESOURCE_BARRIER_TYPE_TRANSITION, D3D12_RESOURCE_BARRIER_FLAG_NONE };
-    barrier.Transition.pResource = texture; barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST; barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_GENERIC_READ;
+    barrier.Transition.pResource = texture; 
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST; 
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_GENERIC_READ;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     commandList_->ResourceBarrier(1, &barrier);
     PostDraw(); // 同期のために一旦実行
 }

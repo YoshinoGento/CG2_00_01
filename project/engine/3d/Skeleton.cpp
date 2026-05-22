@@ -7,11 +7,8 @@ int32_t SkeletonSystem::CreateJoint(const Model::Node& node, const std::optional
 	joint.localMatrix = node.localMatrix; // モデルファイルから読み込んだ初期行列
 	joint.skeletonSpaceMatrix = MatrixMath::MakeIdentity4x4();
 	
-	// transformを初期行列から抽出（今回は初期状態としてダミーで単位値を入れるか、行列から分解するかですが、
-	// アニメーションで上書きされる前提であれば以下の単位値でも動作します）
-	joint.transform.translate = { 0.0f, 0.0f, 0.0f };
-	joint.transform.rotate = { 0.0f, 0.0f, 0.0f, 1.0f };
-	joint.transform.scale = { 1.0f, 1.0f, 1.0f };
+	// 拡張されたモデルノードからトランスフォーム情報を引き継ぐ
+	joint.transform = node.transform;
 
 	joint.parent = parent;
 	joint.index = static_cast<int32_t>(joints.size());

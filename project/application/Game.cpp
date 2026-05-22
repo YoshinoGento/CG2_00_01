@@ -76,6 +76,8 @@ void Game::Update() {
 		ImGui::Checkbox("Plane", &playScene->showPlane_);
 		ImGui::Checkbox("Sprite (2D)", &playScene->showSprite_);
 		ImGui::Checkbox("Particles", &playScene->showParticles_);
+		ImGui::Checkbox("Animated Model", &playScene->showAnimModel_);
+		ImGui::Checkbox("Skeleton Debug", &playScene->showSkeleton_);
 		ImGui::Separator();
 		static const char* cullItems[] = { "None (両面)", "Front (前面削除)", "Back (背面削除)" };
 		ImGui::Combo("Cull Mode", &playScene->cullMode_, cullItems, 3);
@@ -100,7 +102,7 @@ void Game::Update() {
 			ImGui::SliderFloat("Intensity", &playScene->lightIntensity_, 0.0f, 10.0f);
 		}
 
-		// ★追加：スポットライト
+		// ★スポットライト
 		if (ImGui::CollapsingHeader("Spot Light", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::ColorEdit3("S-Light Color", &playScene->spotLightColor_.x);
 			ImGui::DragFloat3("S-Light Position", &playScene->spotLightPos_.x, 0.1f);
@@ -132,6 +134,11 @@ void Game::Update() {
 		}
 
 		if (ImGui::CollapsingHeader("Animation Control", ImGuiTreeNodeFlags_DefaultOpen)) {
+			// 配布データを含むアニメーションモデルの動的切り替えUI
+			static const char* animModelNames[] = { "AnimatedCube (仮)", "simpleSkin (配布データ)", "human/walk (配布データ)", "human/sneakWalk (配布データ)" };
+			if (ImGui::Combo("Model Select", &playScene->currentAnimModelIdx_, animModelNames, 4)) {
+				playScene->ChangeAnimationModel(playScene->currentAnimModelIdx_);
+			}
 			ImGui::Checkbox("Show Model", &playScene->showAnimModel_);
 			if (playScene->animObj_) {
 				ImGui::Checkbox("Play Animation", &playScene->animObj_->GetIsAnimationPlaying());
@@ -159,6 +166,46 @@ void Game::Update() {
 			// パラメータが変わったらメッシュを再生成
 			if (changed) {
 				playScene->RebuildCylinder();
+			}
+		}
+
+		if (playScene->animObj_ && playScene->animObj_->GetSkeleton()) {
+			if (ImGui::CollapsingHeader("Skeleton Bones Control", ImGuiTreeNodeFlags_DefaultOpen)) {
+				// 参照を変数として取得
+				auto& skeletonOpt = playScene->animObj_->GetSkeleton();
+				if (skeletonOpt.has_value()) {
+					Skeleton& skeleton = skeletonOpt.value();
+
+					// 1. ジョイント名の一覧を作ってコンボボックスにする
+					static int selectedJointIdx = 0;
+					std::vector<const char*> jointNames;
+					for (const auto& joint : skeleton.joints) {
+						jointNames.push_back(joint.name.c_str());
+					}
+
+					if (selectedJointIdx >= static_cast<int>(jointNames.size())) {
+						selectedJointIdx = 0;
+					}
+
+					ImGui::Combo("Target Joint", &selectedJointIdx, jointNames.data(), static_cast<int>(jointNames.size()));
+
+					ImGui::Separator();
+
+					// 2. 選択されたジョイントのトランスフォームを直接いじる
+					if (!skeleton.joints.empty()) {
+						Joint& activeJoint = skeleton.joints[selectedJointIdx];
+
+						ImGui::Text("Active: %s (Index: %d)", activeJoint.name.c_str(), activeJoint.index);
+						ImGui::DragFloat3("Bone Translate", &activeJoint.transform.translate.x, 0.05f);
+						ImGui::DragFloat3("Bone Scale", &activeJoint.transform.scale.x, 0.05f, 0.01f, 10.0f);
+
+						// 回転をクォータニオンへ安全に反映させるための補助UI
+						static Vector3 boneEulerDeg = { 0.0f, 0.0f, 0.0f };
+						if (ImGui::DragFloat3("Bone Rotate (Euler)", &boneEulerDeg.x, 0.5f)) {
+							// ここで必要に応じてオイラー角からクォータニオンを再構築して activeJoint.transform.rotate に代入します
+						}
+					}
+				}
 			}
 		}
 		ImGui::End();

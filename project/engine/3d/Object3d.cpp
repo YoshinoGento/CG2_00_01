@@ -52,14 +52,14 @@ void Object3d::Update(Camera* camera) {
 		}
 
 		// --- フェーズ1：アニメーションの適用 ---
-		// アニメーションの計算結果を各骨のTransformに適用する
-		if (skeleton_) {
+		// 手動コントロールフラグがオフのときのみアニメーションを骨に適用する
+		if (skeleton_ && !isBoneManualControl_) {
 			SkeletonSystem::ApplyAnimation(*skeleton_, animation_, animationTime_);
 		}
 	}
 
 	// --- フェーズ2：スケルトンの更新 ---
-	// ローカル行列からSkeletonSpace行列を一括計算する（階層の更新順序厳守）
+	// 手動で書き換えた骨のTransformに基づいて、行列階層を正しく再計算する
 	if (skeleton_) {
 		SkeletonSystem::Update(*skeleton_);
 	}
@@ -70,18 +70,14 @@ void Object3d::Update(Camera* camera) {
 		MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
 			MatrixMath::MakeRotateZMatrix(transform_.rotate.z)));
 	Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(transform_.translate);
-	worldMatrix_ = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
+	// ★修正：ルートノードのローカル行列を含まない、オブジェクト自身の変換行列を保持する
+	objectWorldMatrix_ = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
+	worldMatrix_ = objectWorldMatrix_;
 
 	// --- 2. モデル内の階層構造（ノード）の行列を合成する ---
-	if (model_) {
-		if (skeleton_ && !animation_.nodeAnimations.empty()) {
-			// スキンメッシュ対応までは、暫定的にRoot骨の動きだけをオブジェクト全体に適用します
-			worldMatrix_ = MatrixMath::Multiply(skeleton_->joints[skeleton_->root].skeletonSpaceMatrix, worldMatrix_);
-		}
-		else {
-			const Model::Node& rootNode = model_->GetRootNode();
-			worldMatrix_ = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix_);
-		}
+	if (model_ && skeleton_) {
+		const Model::Node &rootNode = model_->GetRootNode();
+		worldMatrix_ = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix_);
 	}
 
 	// --- 3. 定数バッファへの書き込み ---
@@ -91,7 +87,7 @@ void Object3d::Update(Camera* camera) {
 	// カメラ座標の更新
 	cameraData_->worldPosition = camera->GetTranslate();
 
-	// --- 4. スポットライトの更新 (★正規化の追加) ---
+	// --- 4. スポットライトの更新 (正規化の追加) ---
 	// ImGuiなどで方向が変更された場合、計算に使う前に必ず長さを 1 にします
 	// これを行わないと、シェーダー側で角度による減衰計算が破綻します
 	spotLightData_->direction = MatrixMath::Normalize(spotLightData_->direction);
@@ -100,6 +96,9 @@ void Object3d::Update(Camera* camera) {
 void Object3d::Draw() {
 	if (!model_) return;
 	ID3D12GraphicsCommandList* commandList = object3dCommon_->GetDxCommon()->GetCommandList();
+
+	// 3Dオブジェクト用のルートシグネチャを明示的にセットする
+	commandList->SetGraphicsRootSignature(object3dCommon_->GetRootSignature());
 
 	// パイプラインをセット
 	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_));
