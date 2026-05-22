@@ -83,8 +83,8 @@ void DirectXCommon::InitializeSwapChain(WinApp* winApp) {
 
 void DirectXCommon::InitializeRenderTargetView() {
     rtvDescriptorSize_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-    // スワップチェーン用2個 + ビューポート用1個 = 3個確保
-    rtvHeap_ = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 3, false);
+    // スワップチェーン用2個 + ビューポート用1個 + 追加エフェクト等用に多めに確保(64個)
+    rtvHeap_ = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, false);
     for (uint32_t i = 0; i < 2; ++i) {
         swapChain_->GetBuffer(i, IID_PPV_ARGS(&backBuffers_[i]));
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
@@ -281,6 +281,47 @@ ComPtr<ID3D12DescriptorHeap> DirectXCommon::CreateDescriptorHeap(D3D12_DESCRIPTO
     D3D12_DESCRIPTOR_HEAP_DESC desc{ type, numDescriptors, shaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE, 0 };
     ComPtr<ID3D12DescriptorHeap> heap; device_->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&heap));
     return heap;
+}
+
+uint32_t DirectXCommon::AllocateRTV() {
+    uint32_t index = nextRtvIndex_;
+    nextRtvIndex_++;
+    return index;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DirectXCommon::GetRTVHandle(uint32_t index) const {
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
+    handle.ptr += static_cast<size_t>(index) * rtvDescriptorSize_;
+    return handle;
+}
+
+Microsoft::WRL::ComPtr<ID3D12Resource> DirectXCommon::CreateRenderTextureResource(uint32_t width, uint32_t height, DXGI_FORMAT format, const float* clearColor) {
+    D3D12_RESOURCE_DESC desc{};
+    desc.Width = width;
+    desc.Height = height;
+    desc.MipLevels = 1;
+    desc.DepthOrArraySize = 1;
+    desc.Format = format;
+    desc.SampleDesc.Count = 1;
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+    D3D12_HEAP_PROPERTIES heapProps{ D3D12_HEAP_TYPE_DEFAULT };
+    D3D12_CLEAR_VALUE clearValue{};
+    clearValue.Format = format;
+    if (clearColor) {
+        clearValue.Color[0] = clearColor[0];
+        clearValue.Color[1] = clearColor[1];
+        clearValue.Color[2] = clearColor[2];
+        clearValue.Color[3] = clearColor[3];
+    } else {
+        clearValue.Color[0] = 0.0f; clearValue.Color[1] = 0.0f;
+        clearValue.Color[2] = 0.0f; clearValue.Color[3] = 1.0f;
+    }
+
+    ComPtr<ID3D12Resource> resource;
+    device_->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, &clearValue, IID_PPV_ARGS(&resource));
+    return resource;
 }
 
 // --- FPS制御 ---

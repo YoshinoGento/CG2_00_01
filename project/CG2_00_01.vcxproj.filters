@@ -129,6 +129,9 @@
     <ClCompile Include="engine\3d\Skybox.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="engine\effect\PostProcess.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\shader\Object3D.PS.hlsl">
@@ -145,6 +148,17 @@
     </FxCompile>
     <FxCompile Include="Resources\shader\Skybox.VS.hlsl" />
     <FxCompile Include="Resources\shader\Skybox.PS.hlsl" />
+    <FxCompile Include="Resources\shader\PostProcess.VS.hlsl" />
+    <FxCompile Include="Resources\shader\PostProcess.PS.hlsl" />
+    <FxCompile Include="Resources\shader\LuminanceExtraction.PS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Resources\shader\GaussianBlur.PS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Resources\shader\BloomComposite.PS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="engine\math\Struct.h">
@@ -235,6 +249,9 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Animation.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\effect\PostProcess.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

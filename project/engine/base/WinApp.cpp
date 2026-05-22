@@ -1,5 +1,5 @@
 #include "WinApp.h"
-#include "Audio.h"
+#include "audio/Audio.h"
 #pragma comment(lib, "winmm.lib")
 
 // ★ImGui用ウィンドウプロシージャの extern 宣言
