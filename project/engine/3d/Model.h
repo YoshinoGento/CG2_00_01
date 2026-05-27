@@ -25,6 +25,7 @@ class Model {
 public:
 	// --- 追加：ノード構造体 ---
 	struct Node {
+		QuaternionTransform transform; // Transform情報
 		Matrix4x4 localMatrix;
 		std::string name;
 		std::vector<Node> children;
@@ -41,6 +42,24 @@ public:
 		uint32_t count;
 		std::string materialName;
 	};
+
+	//　1頂点辺りに影響を与える骨の最大数
+	static const uint32_t kMaxBoneInfluence = 4;
+
+	//　1頂点ごとのスキンデータ
+	struct VertexSkinning
+	{
+		float weights[kMaxBoneInfluence];      // 骨の影響度
+		uint32_t boneIndices[kMaxBoneInfluence]; // 影響を受ける骨のインデックス
+	};
+
+	// モデルが保持する骨の情報
+	struct Bone
+	{
+		std::string name;         //　骨の名前（Node名と一致）
+		Matrix4x4 inverseBindMatrix; // Bind空間（初期姿勢）から骨空間への逆行列
+	};
+
 
 	void Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename);
 	void InitializeWithData(ModelManager* modelManager, const std::vector<VertexData>& vertices, const std::vector<uint32_t>& indices);

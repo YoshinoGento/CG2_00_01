@@ -186,16 +186,28 @@ void Model::LoadModelFile(const std::string& directoryPath, const std::string& f
 Model::Node Model::ReadNode(aiNode* node) {
 	Node result;
 
-	// ノードの変形行列を取得して変換 (資料スライド 9)
-	result.localMatrix = ConvertAiMatrix(node->mTransformation);
-
 	// 名前を取得
 	result.name = node->mName.C_Str();
+
+	// Assimpの行列からSRTを抽出
+	aiVector3D scale, translate;
+	aiQuaternion rotate;
+	node->mTransformation.Decompose(scale, rotate, translate);
+
+	// 右手系から左手系への変換を適用して代入
+	result.transform.scale = { scale.x, scale.y, scale.z };
+	result.transform.rotate = { rotate.x, -rotate.y, -rotate.z, rotate.w };
+	result.transform.translate = { -translate.x, translate.y, translate.z };
+
+	// 抽出したトランスフォームから localMatrix を再構築
+	result.localMatrix = MatrixMath::Multiply(MatrixMath::MakeScaleMatrix(result.transform.scale),
+		MatrixMath::Multiply(MatrixMath::MakeRotateMatrix(result.transform.rotate),
+			MatrixMath::MakeTranslateMatrix(result.transform.translate)));
 
 	// 子供の数だけメモリを確保
 	result.children.resize(node->mNumChildren);
 
-	// 子供たちに対しても同じ処理を呼び出す (再帰)
+	// 再帰処理
 	for (uint32_t i = 0; i < node->mNumChildren; ++i) {
 		result.children[i] = ReadNode(node->mChildren[i]);
 	}

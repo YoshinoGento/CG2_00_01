@@ -44,30 +44,24 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 void Object3d::Update(Camera* camera) {
 	assert(camera);
 
-	if (isAnimationPlaying_) {
+	if (isAnimationPlaying_ && animation_.duration > 0.0f) {
 		animationTime_ += (1.0f / 60.0f) * animationSpeed_;
 		animationTime_ = std::fmod(animationTime_, animation_.duration);
 		if (animationTime_ < 0.0f) {
 			animationTime_ += animation_.duration;
 		}
+
+		// --- フェーズ1：アニメーションの適用 ---
+		// 手動コントロールフラグがオフのときのみアニメーションを骨に適用する
+		if (skeleton_ && !isBoneManualControl_) {
+			SkeletonSystem::ApplyAnimation(*skeleton_, animation_, animationTime_);
+		}
 	}
 
-	Matrix4x4 animLocalMatrix = MatrixMath::MakeIdentity4x4();
-	bool hasAnimation = false;
-
-	if (model_ && !animation_.nodeAnimations.empty()) {
-		auto it = animation_.nodeAnimations.find(model_->GetRootNode().name);
-		if (it != animation_.nodeAnimations.end()) {
-			NodeAnimation& rootAnim = it->second;
-			Vector3 translate = CalculateValue(rootAnim.translate, animationTime_);
-			Quaternion rotate = CalculateValue(rootAnim.rotate, animationTime_);
-			Vector3 scale = CalculateValue(rootAnim.scale, animationTime_);
-
-			animLocalMatrix = MatrixMath::Multiply(MatrixMath::MakeScaleMatrix(scale),
-				MatrixMath::Multiply(MatrixMath::MakeRotateMatrix(rotate),
-					MatrixMath::MakeTranslateMatrix(translate)));
-			hasAnimation = true;
-		}
+	// --- フェーズ2：スケルトンの更新 ---
+	// 手動で書き換えた骨のTransformに基づいて、行列階層を正しく再計算する
+	if (skeleton_) {
+		SkeletonSystem::Update(*skeleton_);
 	}
 
 	// --- 1. オブジェクト自身の変形行列を作る ---
@@ -76,27 +70,24 @@ void Object3d::Update(Camera* camera) {
 		MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
 			MatrixMath::MakeRotateZMatrix(transform_.rotate.z)));
 	Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(transform_.translate);
-	Matrix4x4 worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
+	// ★修正：ルートノードのローカル行列を含まない、オブジェクト自身の変換行列を保持する
+	objectWorldMatrix_ = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
+	worldMatrix_ = objectWorldMatrix_;
 
 	// --- 2. モデル内の階層構造（ノード）の行列を合成する ---
-	if (model_) {
-		if (hasAnimation) {
-			worldMatrix = MatrixMath::Multiply(animLocalMatrix, worldMatrix);
-		}
-		else {
-			const Model::Node& rootNode = model_->GetRootNode();
-			worldMatrix = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix);
-		}
+	if (model_ && skeleton_) {
+		const Model::Node &rootNode = model_->GetRootNode();
+		worldMatrix_ = MatrixMath::Multiply(rootNode.localMatrix, worldMatrix_);
 	}
 
 	// --- 3. 定数バッファへの書き込み ---
-	transformationMatrixData_->WVP = MatrixMath::Multiply(worldMatrix, camera->GetViewProjectionMatrix());
-	transformationMatrixData_->World = worldMatrix;
+	transformationMatrixData_->WVP = MatrixMath::Multiply(worldMatrix_, camera->GetViewProjectionMatrix());
+	transformationMatrixData_->World = worldMatrix_;
 
 	// カメラ座標の更新
 	cameraData_->worldPosition = camera->GetTranslate();
 
-	// --- 4. スポットライトの更新 (★正規化の追加) ---
+	// --- 4. スポットライトの更新 (正規化の追加) ---
 	// ImGuiなどで方向が変更された場合、計算に使う前に必ず長さを 1 にします
 	// これを行わないと、シェーダー側で角度による減衰計算が破綻します
 	spotLightData_->direction = MatrixMath::Normalize(spotLightData_->direction);
@@ -105,6 +96,9 @@ void Object3d::Update(Camera* camera) {
 void Object3d::Draw() {
 	if (!model_) return;
 	ID3D12GraphicsCommandList* commandList = object3dCommon_->GetDxCommon()->GetCommandList();
+
+	// 3Dオブジェクト用のルートシグネチャを明示的にセットする
+	commandList->SetGraphicsRootSignature(object3dCommon_->GetRootSignature());
 
 	// パイプラインをセット
 	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_));
@@ -127,5 +121,15 @@ void Object3d::Draw() {
 	model_->Draw(object3dCommon_->GetDxCommon());
 }
 
-void Object3d::SetModel(Model* model) { model_ = model; }
+void Object3d::SetModel(Model* model) {
+	model_ = model;
+	if (model_) {
+		InitializeSkeleton();
+	}
+}
 
+void Object3d::InitializeSkeleton() {
+	if (model_) {
+		skeleton_ = SkeletonSystem::CreateSkeleton(model_->GetRootNode());
+	}
+}

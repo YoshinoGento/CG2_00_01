@@ -6,6 +6,7 @@
 #include <cstdint>
 #include "math/Matrix.h"
 #include "3d/Skybox.h"
+#include "3d/SkeletonDebugger.h"
 
 class Framework;
 class Sprite;
@@ -26,6 +27,8 @@ public:
 	void CreateSphere(float radius);
 	// Cylinderメッシュの再生成（パラメータ変更時に呼ぶ）
 	void RebuildCylinder();
+	// アニメーションモデルの動的切り替え（ImGuiからの呼び出し用）
+	void ChangeAnimationModel(int index);
 
 private:
 	void AddLog(const std::string& message);
@@ -60,12 +63,15 @@ private:
 	std::vector<uint32_t> textureHandles_;
 	uint32_t ringTexHandle_ = 0;
 
+	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
+
 	bool showTerrain_ = true;
 	bool showSphere_ = true;
 	bool showPlane_ = true;
 	bool showSprite_ = true;
 	bool showParticles_ = true;
 	bool showAnimModel_ = true;
+	bool showSkeleton_ = false;
 
 	Vector2 spritePos_ = { 640.0f, 360.0f };
 	Vector3 objectPos_ = { 0.0f, 0.0f, 0.0f };
@@ -75,6 +81,7 @@ private:
 
 	int selectedTarget_ = 4;
 	int activeParticleType_ = 0; // これを Game.cpp と同期
+	int currentAnimModelIdx_ = 1; // 現在のアニメーションモデルのインデックス（0: AnimatedCube, 1: simpleSkin, 2: human/walk, 3: human/sneakWalk）
 	int cullMode_ = 2;
 	int modelPriority_ = 0;
 
