@@ -22,28 +22,15 @@ public:
 	// 描画：スケルトンの各関節に球を配置し、親子間に線を引く
 	void Draw(const Skeleton& skeleton, const Matrix4x4& worldMatrix, LineDrawer* lineDrawer, Camera* camera);
 
-	// 環境マップのハンドルをセット（保持している全ての球オブジェクトに反映）
+	// 環境マップのハンドル（以前の互換性のために残すか空にする）
 	void SetEnvironmentMap(uint32_t handle) {
-		environmentMapHandle_ = handle;
-		for (auto& sphere : jointSpheres_) {
-			if (sphere) {
-				sphere->SetEnvironmentMap(handle);
-			}
-		}
+		// ワイヤーフレーム描画では環境マップを使用しないため何もしない
+		(void)handle;
 	}
 
 	void DrawImGui(Skeleton& skeleton);
 
 private:
-	Object3dCommon* object3dCommon_ = nullptr;
-	std::unique_ptr<Model> jointModel_;
-	
-	// 各ジョイントごとに固有の定数バッファを割り当てるため、個別のObject3dインスタンスを管理します
-	std::vector<std::unique_ptr<Object3d>> jointSpheres_;
-
-	// 環境マップのハンドルを保持（リサイズ時に割り当てるため）
-	uint32_t environmentMapHandle_ = 0;
-
 	int32_t selectedJointIndex_ = 0;
 };
 

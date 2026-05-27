@@ -31,6 +31,11 @@ public:
 	// 線を追加（毎フレーム呼び出し、Draw時にまとめて描画）
 	void DrawLine(const Vector3& start, const Vector3& end, const Vector4& color = { 1.0f, 1.0f, 1.0f, 1.0f });
 
+	// ワイヤーフレーム図形の描画ヘルパー
+	void DrawWireCube(const Vector3& center, float size, const Vector4& color = { 1.0f, 1.0f, 1.0f, 1.0f });
+	void DrawWireSphere(const Vector3& center, float radius, const Vector4& color = { 1.0f, 1.0f, 1.0f, 1.0f }, uint32_t segments = 12);
+	void DrawWireTriangle(const Vector3& p0, const Vector3& p1, const Vector3& p2, const Vector4& color = { 1.0f, 1.0f, 1.0f, 1.0f });
+
 	// 溜まった線を描画してクリア
 	void Draw(const Matrix4x4& viewProjectionMatrix);
 
@@ -45,7 +50,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
 
-	static const uint32_t MAX_VERTICES = 10000;
+	static const uint32_t MAX_VERTICES = 200000;
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource_;
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView_{};
 	LineVertex* vertexData_ = nullptr;
