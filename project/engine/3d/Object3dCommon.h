@@ -24,6 +24,8 @@ public:
 	DirectXCommon* GetDxCommon() const { return dxCommon_; }
 	SrvManager* GetSrvManager() const { return srvManager_; }
 
+	ID3D12RootSignature* GetRootSignature() const { return rootSignature_.Get(); }
+
 private:
 	void CreateRootSignature();
 	void CreateGraphicsPipelineStates(); // ★複数作成するように変更
