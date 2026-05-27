@@ -36,23 +36,8 @@ void LineDrawer::CreatePipeline() {
 	Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
 
 	// シェーダーコンパイル
-	Microsoft::WRL::ComPtr<ID3DBlob> vsBlob;
-	hr = D3DCompileFromFile(L"Resources/shader/LineVS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &vsBlob, &errorBlob);
-	if (FAILED(hr)) {
-		if (errorBlob) {
-			Logger::Log(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize()));
-		}
-		assert(false);
-	}
-
-	Microsoft::WRL::ComPtr<ID3DBlob> psBlob;
-	hr = D3DCompileFromFile(L"Resources/shader/LinePS.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &psBlob, &errorBlob);
-	if (FAILED(hr)) {
-		if (errorBlob) {
-			Logger::Log(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize()));
-		}
-		assert(false);
-	}
+	Microsoft::WRL::ComPtr<IDxcBlob> vsBlob = dxCommon_->CompileShader(L"Resources/shader/LineVS.hlsl", L"vs_6_0");
+	Microsoft::WRL::ComPtr<IDxcBlob> psBlob = dxCommon_->CompileShader(L"Resources/shader/LinePS.hlsl", L"ps_6_0");
 
 	// ルートシグネチャ作成
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{};
@@ -140,4 +125,66 @@ void LineDrawer::Draw(const Matrix4x4& viewProjectionMatrix) {
 
 	// 描画後はクリア
 	currentVertexCount_ = 0;
+}
+
+void LineDrawer::DrawWireCube(const Vector3& center, float size, const Vector4& color) {
+	float halfSize = size * 0.5f;
+	Vector3 v[8] = {
+		{center.x - halfSize, center.y - halfSize, center.z - halfSize},
+		{center.x + halfSize, center.y - halfSize, center.z - halfSize},
+		{center.x + halfSize, center.y + halfSize, center.z - halfSize},
+		{center.x - halfSize, center.y + halfSize, center.z - halfSize},
+		{center.x - halfSize, center.y - halfSize, center.z + halfSize},
+		{center.x + halfSize, center.y - halfSize, center.z + halfSize},
+		{center.x + halfSize, center.y + halfSize, center.z + halfSize},
+		{center.x - halfSize, center.y + halfSize, center.z + halfSize}
+	};
+	// Front face
+	DrawLine(v[0], v[1], color); DrawLine(v[1], v[2], color); DrawLine(v[2], v[3], color); DrawLine(v[3], v[0], color);
+	// Back face
+	DrawLine(v[4], v[5], color); DrawLine(v[5], v[6], color); DrawLine(v[6], v[7], color); DrawLine(v[7], v[4], color);
+	// Connecting edges
+	DrawLine(v[0], v[4], color); DrawLine(v[1], v[5], color); DrawLine(v[2], v[6], color); DrawLine(v[3], v[7], color);
+}
+
+void LineDrawer::DrawWireSphere(const Vector3& center, float radius, const Vector4& color, uint32_t segments) {
+	const float pi = 3.14159265358979323846f;
+
+	// 水平方向（緯度）のリング
+	for (uint32_t lat = 1; lat < segments; ++lat) {
+		float phi = pi * lat / segments;
+		float y = std::cos(phi);
+		float r = std::sin(phi);
+
+		for (uint32_t lon = 0; lon < segments; ++lon) {
+			float theta1 = 2.0f * pi * lon / segments;
+			float theta2 = 2.0f * pi * (lon + 1) / segments;
+
+			Vector3 p1 = { center.x + radius * r * std::cos(theta1), center.y + radius * y, center.z + radius * r * std::sin(theta1) };
+			Vector3 p2 = { center.x + radius * r * std::cos(theta2), center.y + radius * y, center.z + radius * r * std::sin(theta2) };
+			DrawLine(p1, p2, color);
+		}
+	}
+
+	// 垂直方向（経度）の半円
+	for (uint32_t lon = 0; lon < segments; ++lon) {
+		float theta = 2.0f * pi * lon / segments;
+		float cx = std::cos(theta);
+		float cz = std::sin(theta);
+
+		for (uint32_t lat = 0; lat < segments; ++lat) {
+			float phi1 = pi * lat / segments;
+			float phi2 = pi * (lat + 1) / segments;
+
+			Vector3 p1 = { center.x + radius * std::sin(phi1) * cx, center.y + radius * std::cos(phi1), center.z + radius * std::sin(phi1) * cz };
+			Vector3 p2 = { center.x + radius * std::sin(phi2) * cx, center.y + radius * std::cos(phi2), center.z + radius * std::sin(phi2) * cz };
+			DrawLine(p1, p2, color);
+		}
+	}
+}
+
+void LineDrawer::DrawWireTriangle(const Vector3& p0, const Vector3& p1, const Vector3& p2, const Vector4& color) {
+	DrawLine(p0, p1, color);
+	DrawLine(p1, p2, color);
+	DrawLine(p2, p0, color);
 }

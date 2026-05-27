@@ -3,33 +3,18 @@
 #include "math/Matrix.h"
 
 void SkeletonDebugger::Initialize(Object3dCommon* object3dCommon, ModelManager* modelManager) {
-	object3dCommon_ = object3dCommon;
-
-	// 関節表示用の球モデルを生成（白く描画するために小さめの球を準備）
-	jointModel_ = PrimitiveGenerator::CreateSphere(modelManager, 0.05f, 8);
+	// Object3d の代わりにワイヤーフレームを使うため、ここでは特に何もしません
+	(void)object3dCommon;
+	(void)modelManager;
 }
 
 void SkeletonDebugger::Draw(const Skeleton& skeleton, const Matrix4x4& worldMatrix, LineDrawer* lineDrawer, Camera* camera) {
-	if (!lineDrawer || !object3dCommon_ || !camera) return;
+	if (!lineDrawer || !camera) return;
 
-	// 関節の数に合わせてObject3dの動的配列をリサイズし、新しく追加された分を初期化する
-	if (jointSpheres_.size() < skeleton.joints.size()) {
-		size_t prevSize = jointSpheres_.size();
-		jointSpheres_.resize(skeleton.joints.size());
-		for (size_t i = prevSize; i < skeleton.joints.size(); ++i) {
-			jointSpheres_[i] = std::make_unique<Object3d>();
-			jointSpheres_[i]->Initialize(object3dCommon_);
-			jointSpheres_[i]->SetModel(jointModel_.get());
-			
-			// 白く自己発光（フラットな白色）に設定
-			jointSpheres_[i]->GetMaterialData()->enableLighting = 0;
-			jointSpheres_[i]->GetMaterialData()->color = { 1.0f, 1.0f, 1.0f, 1.0f };
-			
-			// 環境マップが事前に設定されていれば適用する
-			if (environmentMapHandle_ != 0) {
-				jointSpheres_[i]->SetEnvironmentMap(environmentMapHandle_);
-			}
-		}
+	// 選択中のジョイントインデックス（範囲外の場合は0）
+	int32_t activeJoint = selectedJointIndex_;
+	if (activeJoint < 0 || activeJoint >= static_cast<int32_t>(skeleton.joints.size())) {
+		activeJoint = -1;
 	}
 
 	// 各Jointの座標計算と描画処理
@@ -38,16 +23,15 @@ void SkeletonDebugger::Draw(const Skeleton& skeleton, const Matrix4x4& worldMatr
 		// Jointのスケルトン空間行列に、オブジェクト自体の純粋なトランスフォーム行列を掛け合わせる
 		Matrix4x4 jointWorldMatrix = MatrixMath::Multiply(joint.skeletonSpaceMatrix, worldMatrix);
 		
-		// 1. 関節（球）の描画
+		// 1. 関節（ワイヤーフレーム球）の描画
 		// 平行移動（Translate）要素を抽出して関節座標とする
 		Vector3 position = { jointWorldMatrix.m[3][0], jointWorldMatrix.m[3][1], jointWorldMatrix.m[3][2] };
 		
-		jointSpheres_[i]->SetPosition(position);
-		// Updateで内部の個別の定数バッファ(WVP)を再計算
-		jointSpheres_[i]->Update(camera);
+		// 選択中のジョイントは赤色、それ以外は白色で描画
+		Vector4 color = (i == static_cast<size_t>(activeJoint)) ? Vector4{1.0f, 0.0f, 0.0f, 1.0f} : Vector4{1.0f, 1.0f, 1.0f, 1.0f};
 		
-		// 個別のObject3dを用いて描画（定数バッファの上書き衝突を回避）
-		jointSpheres_[i]->Draw();
+		// 球体の半径は 0.05f 程度
+		lineDrawer->DrawWireSphere(position, 0.05f, color, 8);
 
 		// 2. 骨（線）の描画
 		// 親が存在する場合、親の関節位置から自分の関節位置に向けて線を引く
