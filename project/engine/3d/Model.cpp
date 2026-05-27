@@ -148,32 +148,50 @@ void Model::LoadModelFile(const std::string& directoryPath, const std::string& f
 	}
 
 	// 2. メッシュの解析
+	// 2. メッシュの解析
 	for (uint32_t i = 0; i < scene->mNumMeshes; ++i) {
 		aiMesh* mesh = scene->mMeshes[i];
+		assert(mesh->HasNormals()); // スライド3：法線情報の検証
+		assert(mesh->HasTextureCoords(0)); // スライド3：テクスチャ座標の検証
+
 		Mesh currentMesh{};
 		currentMesh.start = (uint32_t)indices_.size();
 		currentMesh.count = mesh->mNumFaces * 3;
+
 		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 		aiString matName;
 		material->Get(AI_MATKEY_NAME, matName);
 		currentMesh.materialName = matName.C_Str();
 
+		// --- 頂点の解析 (スライド3仕様) ---
+		// 重複させずに頂点データそのものを格納するため、あらかじめ頂点数分のメモリを確保
 		uint32_t vertexBase = (uint32_t)vertices_.size();
-		for (uint32_t v = 0; v < mesh->mNumVertices; ++v) {
+		vertices_.resize(vertexBase + mesh->mNumVertices);
+
+		for (uint32_t vertexIndex = 0; vertexIndex < mesh->mNumVertices; ++vertexIndex) {
 			VertexData vertex{};
-			vertex.position = { mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z, 1.0f };
-			vertex.normal = { mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z };
-			if (mesh->HasTextureCoords(0)) {
-				vertex.texcoord = { mesh->mTextureCoords[0][v].x, mesh->mTextureCoords[0][v].y };
-			}
-			vertex.position.x *= -1.0f;
-			vertex.normal.x *= -1.0f;
-			vertices_.push_back(vertex);
+			aiVector3D& position = mesh->mVertices[vertexIndex];
+			aiVector3D& normal = mesh->mNormals[vertexIndex];
+			aiVector3D& texcoord = mesh->mTextureCoords[0][vertexIndex];
+
+			// 右手系->左手系への変換（x軸反転）
+			vertex.position = { -position.x, position.y, position.z, 1.0f };
+			vertex.normal = { -normal.x, normal.y, normal.z };
+			vertex.texcoord = { texcoord.x, texcoord.y };
+
+			vertices_[vertexBase + vertexIndex] = vertex;
 		}
-		for (uint32_t f = 0; f < mesh->mNumFaces; ++f) {
-			aiFace& face = mesh->mFaces[f];
-			for (uint32_t idx = 0; idx < face.mNumIndices; ++idx) {
-				indices_.push_back(face.mIndices[idx] + vertexBase);
+
+		// --- インデックスの解析 (スライド4仕様) ---
+		// 各面（Face）が参照している頂点インデックス番号を取得して格納
+		for (uint32_t faceIndex = 0; faceIndex < mesh->mNumFaces; ++faceIndex) {
+			aiFace& face = mesh->mFaces[faceIndex];
+			assert(face.mNumIndices == 3); // 面が三角形であることの検証
+
+			for (uint32_t element = 0; element < face.mNumIndices; ++element) {
+				uint32_t vertexIndex = face.mIndices[element];
+				// 複数メッシュに対応するため、全体のオフセット(vertexBase)を加えて登録
+				indices_.push_back(vertexIndex + vertexBase);
 			}
 		}
 		meshes_.push_back(currentMesh);
