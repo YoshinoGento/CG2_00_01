@@ -54,7 +54,6 @@ namespace MatrixMath {
 	Vector3 Cross(const Vector3& v1, const Vector3& v2);   // 外積 (法線・回転軸計算)
 	Vector3 Transform(const Vector3& vector, const Matrix4x4& matrix); // 座標変換
 
-
 	// --- ベクトル演算 (Vector2) ---
 	float Length(const Vector2& v);
 	Vector2 Normalize(const Vector2& v);
