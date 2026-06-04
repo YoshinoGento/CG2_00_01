@@ -1,9 +1,13 @@
 #include "3d/Model.h"
 #include "3d/ModelManager.h"
+#include "3d/Skeleton.h"
 #include "base/SrvManager.h"
 #include "2d/SpriteCommon.h" 
+#include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <filesystem>
+#include <limits>
 
 /**
  * Assimpの行列(aiMatrix4x4)を独自の行列(Matrix4x4)に変換する
@@ -18,7 +22,33 @@ static Matrix4x4 ConvertAiMatrix(const aiMatrix4x4& aiMat) {
 	result.m[3][0] = aiMat.d1; result.m[3][1] = aiMat.d2; result.m[3][2] = aiMat.d3; result.m[3][3] = aiMat.d4;
 
 	// 資料の指示通りに転置(行列の向きを調整)
-	return MatrixMath::Transpose(result);
+	result = MatrixMath::Transpose(result);
+
+	Matrix4x4 flipX = MatrixMath::MakeIdentity4x4();
+	flipX.m[0][0] = -1.0f;
+	return MatrixMath::Multiply(flipX, MatrixMath::Multiply(result, flipX));
+}
+
+static bool IsFiniteMatrix(const Matrix4x4& matrix) {
+	for (int row = 0; row < 4; ++row) {
+		for (int column = 0; column < 4; ++column) {
+			if (!std::isfinite(matrix.m[row][column])) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+Model::SkinCluster::~SkinCluster() {
+	if (influenceResource && mappedInfluence) {
+		influenceResource->Unmap(0, nullptr);
+		mappedInfluence = nullptr;
+	}
+	if (paletteResource && mappedPalette) {
+		paletteResource->Unmap(0, nullptr);
+		mappedPalette = nullptr;
+	}
 }
 
 void Model::Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename) {
@@ -26,6 +56,7 @@ void Model::Initialize(ModelManager* modelManager, const std::string& directoryP
 	DirectXCommon* dxCommon = modelManager_->GetDxCommon();
 
 	LoadModelFile(directoryPath, filename);
+	CreateSkinCluster();
 
 	vertexResource_ = dxCommon->CreateBufferResource(sizeof(VertexData) * vertices_.size());
 	vertexBufferView_.BufferLocation = vertexResource_->GetGPUVirtualAddress();
@@ -182,6 +213,38 @@ void Model::LoadModelFile(const std::string& directoryPath, const std::string& f
 			vertices_[vertexBase + vertexIndex] = vertex;
 		}
 
+		for (uint32_t boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
+			const aiBone* bone = mesh->mBones[boneIndex];
+			if (!bone) {
+				continue;
+			}
+
+			const std::string boneName = bone->mName.C_Str();
+			JointWeightData& jointWeightData = skinClusterData_[boneName];
+			jointWeightData.inverseBindPoseMatrix = ConvertAiMatrix(bone->mOffsetMatrix);
+
+			for (uint32_t weightIndex = 0; weightIndex < bone->mNumWeights; ++weightIndex) {
+				const aiVertexWeight& weight = bone->mWeights[weightIndex];
+				const uint32_t localVertexIndex = weight.mVertexId;
+				if (localVertexIndex >= mesh->mNumVertices) {
+					OutputDebugStringA(("Skinning weight has invalid local vertex index. bone=" + boneName + "\n").c_str());
+					assert(false && "Assimp bone weight vertex index is out of range.");
+					continue;
+				}
+
+				const uint32_t globalVertexIndex = vertexBase + localVertexIndex;
+				if (globalVertexIndex >= vertices_.size()) {
+					OutputDebugStringA(("Skinning weight has invalid global vertex index. bone=" + boneName + "\n").c_str());
+					assert(false && "Converted bone weight vertex index is out of range.");
+					continue;
+				}
+
+				if (weight.mWeight > 0.0f && std::isfinite(weight.mWeight)) {
+					jointWeightData.vertexWeights.emplace_back(globalVertexIndex, weight.mWeight);
+				}
+			}
+		}
+
 		// --- インデックスの解析 (スライド4仕様) ---
 		// 各面（Face）が参照している頂点インデックス番号を取得して格納
 		for (uint32_t faceIndex = 0; faceIndex < mesh->mNumFaces; ++faceIndex) {
@@ -201,6 +264,157 @@ void Model::LoadModelFile(const std::string& directoryPath, const std::string& f
 /**
  * 再帰的にノードを解析する関数 (資料スライド 5)
  */
+void Model::CreateSkinCluster() {
+	if (skinClusterData_.empty() || vertices_.empty() || !modelManager_) {
+		return;
+	}
+
+	DirectXCommon* dxCommon = modelManager_->GetDxCommon();
+	SrvManager* srvManager = modelManager_->GetSrvManager();
+	assert(dxCommon);
+	assert(srvManager);
+
+	const Skeleton bindPoseSkeleton = SkeletonSystem::CreateSkeleton(rootNode_);
+	const size_t jointCount = bindPoseSkeleton.joints.size();
+	if (jointCount == 0) {
+		return;
+	}
+
+	for (const auto& [boneName, jointWeightData] : skinClusterData_) {
+		(void)jointWeightData;
+		if (bindPoseSkeleton.jointMap.find(boneName) == bindPoseSkeleton.jointMap.end()) {
+			OutputDebugStringA(("Skinning bone is not found in skeleton: " + boneName + "\n").c_str());
+		}
+	}
+
+	skinCluster_.jointNames.clear();
+	skinCluster_.inverseBindPoseMatrices.clear();
+	skinCluster_.jointNames.reserve(jointCount);
+	skinCluster_.inverseBindPoseMatrices.reserve(jointCount);
+
+	std::vector<std::vector<std::pair<int32_t, float>>> influences(vertices_.size());
+	for (const Joint& joint : bindPoseSkeleton.joints) {
+		skinCluster_.jointNames.push_back(joint.name);
+
+		auto it = skinClusterData_.find(joint.name);
+		if (it == skinClusterData_.end()) {
+			skinCluster_.inverseBindPoseMatrices.push_back(MatrixMath::MakeIdentity4x4());
+			continue;
+		}
+
+		skinCluster_.inverseBindPoseMatrices.push_back(it->second.inverseBindPoseMatrix);
+		for (const auto& [vertexIndex, weight] : it->second.vertexWeights) {
+			if (vertexIndex >= influences.size()) {
+				OutputDebugStringA(("Skinning vertex weight is out of range. joint=" + joint.name + "\n").c_str());
+				assert(false && "Skinning vertex weight index is out of range.");
+				continue;
+			}
+			influences[vertexIndex].emplace_back(joint.index, weight);
+		}
+	}
+
+	skinCluster_.influenceResource = dxCommon->CreateBufferResource(sizeof(VertexInfluence) * vertices_.size());
+	skinCluster_.influenceBufferView.BufferLocation = skinCluster_.influenceResource->GetGPUVirtualAddress();
+	skinCluster_.influenceBufferView.SizeInBytes = static_cast<UINT>(sizeof(VertexInfluence) * vertices_.size());
+	skinCluster_.influenceBufferView.StrideInBytes = sizeof(VertexInfluence);
+	HRESULT hr = skinCluster_.influenceResource->Map(0, nullptr, reinterpret_cast<void**>(&skinCluster_.mappedInfluence));
+	assert(SUCCEEDED(hr));
+
+	for (size_t vertexIndex = 0; vertexIndex < vertices_.size(); ++vertexIndex) {
+		VertexInfluence& influence = skinCluster_.mappedInfluence[vertexIndex];
+		for (uint32_t i = 0; i < kMaxBoneInfluence; ++i) {
+			influence.weights[i] = 0.0f;
+			influence.jointIndices[i] = 0;
+		}
+
+		auto& vertexInfluences = influences[vertexIndex];
+		std::sort(vertexInfluences.begin(), vertexInfluences.end(), [](const auto& lhs, const auto& rhs) {
+			return lhs.second > rhs.second;
+		});
+
+		const size_t influenceCount = std::min<size_t>(kMaxBoneInfluence, vertexInfluences.size());
+		float totalWeight = 0.0f;
+		for (size_t influenceIndex = 0; influenceIndex < influenceCount; ++influenceIndex) {
+			const int32_t jointIndex = vertexInfluences[influenceIndex].first;
+			const float weight = vertexInfluences[influenceIndex].second;
+			if (jointIndex < 0 || jointIndex >= static_cast<int32_t>(jointCount)) {
+				OutputDebugStringA("Skinning influence has invalid joint index.\n");
+				assert(false && "Skinning influence joint index is out of range.");
+				continue;
+			}
+
+			influence.weights[influenceIndex] = weight;
+			influence.jointIndices[influenceIndex] = jointIndex;
+			totalWeight += weight;
+		}
+
+		if (totalWeight > std::numeric_limits<float>::epsilon() && std::isfinite(totalWeight)) {
+			for (uint32_t influenceIndex = 0; influenceIndex < kMaxBoneInfluence; ++influenceIndex) {
+				influence.weights[influenceIndex] /= totalWeight;
+			}
+		} else {
+			influence.weights[0] = 1.0f;
+			influence.jointIndices[0] = bindPoseSkeleton.root >= 0 ? bindPoseSkeleton.root : 0;
+		}
+	}
+
+	skinCluster_.paletteResource = dxCommon->CreateBufferResource(sizeof(MatrixPalette) * jointCount);
+	hr = skinCluster_.paletteResource->Map(0, nullptr, reinterpret_cast<void**>(&skinCluster_.mappedPalette));
+	assert(SUCCEEDED(hr));
+
+	for (size_t jointIndex = 0; jointIndex < jointCount; ++jointIndex) {
+		skinCluster_.mappedPalette[jointIndex].skeletonSpaceMatrix = MatrixMath::MakeIdentity4x4();
+		skinCluster_.mappedPalette[jointIndex].skeletonSpaceInverseTransposeMatrix = MatrixMath::MakeIdentity4x4();
+	}
+
+	skinCluster_.paletteSrvHandle = srvManager->Allocate();
+	srvManager->CreateSRVforStructuredBuffer(
+		skinCluster_.paletteSrvHandle,
+		skinCluster_.paletteResource.Get(),
+		static_cast<UINT>(jointCount),
+		sizeof(MatrixPalette));
+
+	UpdateSkinCluster(bindPoseSkeleton);
+}
+
+void Model::UpdateSkinCluster(const Skeleton& skeleton) {
+	if (!HasSkinCluster()) {
+		return;
+	}
+
+	const size_t jointCount = skeleton.joints.size();
+	if (jointCount != skinCluster_.jointNames.size() || jointCount != skinCluster_.inverseBindPoseMatrices.size()) {
+		OutputDebugStringA("SkinCluster palette size does not match skeleton joint count.\n");
+		assert(false && "SkinCluster palette size mismatch.");
+		return;
+	}
+
+	if (!skinCluster_.mappedPalette) {
+		OutputDebugStringA("SkinCluster palette is not mapped.\n");
+		assert(false && "SkinCluster palette is not mapped.");
+		return;
+	}
+
+	for (size_t jointIndex = 0; jointIndex < jointCount; ++jointIndex) {
+		const Joint& joint = skeleton.joints[jointIndex];
+		if (skinCluster_.jointNames[jointIndex] != joint.name) {
+			OutputDebugStringA(("SkinCluster joint order mismatch: " + skinCluster_.jointNames[jointIndex] + " / " + joint.name + "\n").c_str());
+			assert(false && "SkinCluster joint order mismatch.");
+			continue;
+		}
+
+		Matrix4x4 skinningMatrix = MatrixMath::Multiply(skinCluster_.inverseBindPoseMatrices[jointIndex], joint.skeletonSpaceMatrix);
+		if (!IsFiniteMatrix(skinningMatrix)) {
+			OutputDebugStringA(("SkinCluster palette matrix has NaN or Inf. joint=" + joint.name + "\n").c_str());
+			assert(false && "SkinCluster palette matrix has NaN or Inf.");
+			skinningMatrix = MatrixMath::MakeIdentity4x4();
+		}
+
+		skinCluster_.mappedPalette[jointIndex].skeletonSpaceMatrix = skinningMatrix;
+		skinCluster_.mappedPalette[jointIndex].skeletonSpaceInverseTransposeMatrix = MatrixMath::Transpose(MatrixMath::Inverse(skinningMatrix));
+	}
+}
+
 Model::Node Model::ReadNode(aiNode* node) {
 	Node result;
 
@@ -249,7 +463,12 @@ void Model::LoadTextures(SpriteCommon* spriteCommon) {
  */
 void Model::Draw(DirectXCommon* dxCommon) {
 	ID3D12GraphicsCommandList* commandList = dxCommon->GetCommandList();
-	commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
+	if (HasSkinCluster()) {
+		D3D12_VERTEX_BUFFER_VIEW vertexBufferViews[] = { vertexBufferView_, skinCluster_.influenceBufferView };
+		commandList->IASetVertexBuffers(0, _countof(vertexBufferViews), vertexBufferViews);
+	} else {
+		commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
+	}
 	commandList->IASetIndexBuffer(&indexBufferView_);
 
 	if (meshes_.empty()) {
@@ -272,7 +491,12 @@ void Model::Draw(DirectXCommon* dxCommon) {
  */
 void Model::Draw(ID3D12GraphicsCommandList* commandList, uint32_t instanceCount) {
 	// 頂点バッファとインデックスバッファをセット
-	commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
+	if (HasSkinCluster()) {
+		D3D12_VERTEX_BUFFER_VIEW vertexBufferViews[] = { vertexBufferView_, skinCluster_.influenceBufferView };
+		commandList->IASetVertexBuffers(0, _countof(vertexBufferViews), vertexBufferViews);
+	} else {
+		commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
+	}
 	commandList->IASetIndexBuffer(&indexBufferView_);
 
 	if (meshes_.empty()) {

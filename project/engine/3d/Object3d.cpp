@@ -62,6 +62,9 @@ void Object3d::Update(Camera* camera) {
 	// 手動で書き換えた骨のTransformに基づいて、行列階層を正しく再計算する
 	if (skeleton_) {
 		SkeletonSystem::Update(*skeleton_);
+		if (model_ && model_->HasSkinCluster()) {
+			model_->UpdateSkinCluster(*skeleton_);
+		}
 	}
 
 	// --- 1. オブジェクト自身の変形行列を作る ---
@@ -81,8 +84,9 @@ void Object3d::Update(Camera* camera) {
 	}
 
 	// --- 3. 定数バッファへの書き込み ---
-	transformationMatrixData_->WVP = MatrixMath::Multiply(worldMatrix_, camera->GetViewProjectionMatrix());
-	transformationMatrixData_->World = worldMatrix_;
+	const Matrix4x4& matrixForRendering = (model_ && model_->HasSkinCluster()) ? objectWorldMatrix_ : worldMatrix_;
+	transformationMatrixData_->WVP = MatrixMath::Multiply(matrixForRendering, camera->GetViewProjectionMatrix());
+	transformationMatrixData_->World = matrixForRendering;
 
 	// カメラ座標の更新
 	cameraData_->worldPosition = camera->GetTranslate();
@@ -96,12 +100,13 @@ void Object3d::Update(Camera* camera) {
 void Object3d::Draw() {
 	if (!model_) return;
 	ID3D12GraphicsCommandList* commandList = object3dCommon_->GetDxCommon()->GetCommandList();
+	const bool isSkinned = model_->HasSkinCluster();
 
 	// 3Dオブジェクト用のルートシグネチャを明示的にセットする
-	commandList->SetGraphicsRootSignature(object3dCommon_->GetRootSignature());
+	commandList->SetGraphicsRootSignature(object3dCommon_->GetRootSignature(isSkinned));
 
 	// パイプラインをセット
-	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_));
+	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_, isSkinned));
 
 	// RootSignature の Index に合わせて定数バッファをセット
 	commandList->SetGraphicsRootConstantBufferView(0, materialResource_->GetGPUVirtualAddress());
@@ -116,6 +121,16 @@ void Object3d::Draw() {
 
 	D3D12_GPU_DESCRIPTOR_HANDLE environmentMapSrvHandle = srvManager->GetGPUDescriptorHandle(environmentMapHandle_);
 	commandList->SetGraphicsRootDescriptorTable(6, environmentMapSrvHandle);
+
+	if (isSkinned) {
+		const Model::SkinCluster& skinCluster = model_->GetSkinCluster();
+		if (skinCluster.paletteSrvHandle == Model::SkinCluster::kInvalidSrvHandle) {
+			OutputDebugStringA("Skinned mesh has invalid MatrixPalette SRV handle.\n");
+			assert(false && "Skinned mesh has invalid MatrixPalette SRV handle.");
+			return;
+		}
+		commandList->SetGraphicsRootDescriptorTable(7, srvManager->GetGPUDescriptorHandle(skinCluster.paletteSrvHandle));
+	}
 
 	// モデルの描画実行
 	model_->Draw(object3dCommon_->GetDxCommon());

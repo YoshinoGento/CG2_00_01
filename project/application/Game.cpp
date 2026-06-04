@@ -7,6 +7,7 @@
 #include "scene/GamePlayScene.h" 
 #include "audio/Audio.h"
 #include "3d/Object3d.h"
+#include "debug/SkinningDebugWindow.h"
 #include "effect/ParticleManager.h"
 #include <cmath>
 
@@ -27,6 +28,7 @@ void Game::Initialize() {
 
 	postProcess_ = std::make_unique<PostProcess>();
 	postProcess_->Initialize(dxCommon_.get(), srvManager_.get());
+	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
 	SceneManager::GetInstance()->SetSceneFactory(sceneFactory_.get());
@@ -34,6 +36,7 @@ void Game::Initialize() {
 }
 
 void Game::Finalize() {
+	skinningDebugWindow_.reset();
 	SceneManager::DeleteInstance();
 	Framework::Finalize();
 }
@@ -214,6 +217,10 @@ void Game::Update() {
 			}
 		}
 		ImGui::End();
+
+		if (skinningDebugWindow_) {
+			skinningDebugWindow_->Draw(playScene->animObj_.get());
+		}
 
 		ImGui::Begin("Effect Control");
 

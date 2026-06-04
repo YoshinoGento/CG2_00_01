@@ -35,6 +35,7 @@ public:
 	void InitializeSkeleton();
 
 	std::optional<Skeleton>& GetSkeleton() { return skeleton_; }
+	Model* GetModel() const { return model_; }
 	const Matrix4x4& GetWorldMatrix() const { return worldMatrix_; }
 	// ルートノードのローカル行列を含まない、オブジェクト自身の純粋なアフィン変換行列を取得する（日本語コメント付き）
 	const Matrix4x4& GetObjectWorldMatrix() const { return objectWorldMatrix_; }
