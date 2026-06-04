@@ -295,6 +295,7 @@
     <None Include="Resources\shader\Line.hlsli" />
     <None Include="Resources\shader\LinePS.hlsl" />
     <None Include="Resources\shader\LineVS.hlsl" />
+    <None Include="Resources\shader\Skinning.CS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\shader\Object3D.Skinning.VS.hlsl" />

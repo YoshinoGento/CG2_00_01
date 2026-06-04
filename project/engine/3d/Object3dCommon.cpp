@@ -7,7 +7,9 @@ void Object3dCommon::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager)
     srvManager_ = srvManager;
     CreateRootSignature();
     CreateSkinningRootSignature();
+    CreateSkinningComputeRootSignature();
     CreateGraphicsPipelineStates();
+    CreateSkinningComputePipelineState();
 }
 
 void Object3dCommon::CommonDrawSettings() {
@@ -189,6 +191,77 @@ void Object3dCommon::CreateSkinningRootSignature() {
     assert(SUCCEEDED(hr));
 }
 
+void Object3dCommon::CreateSkinningComputeRootSignature() {
+    ID3D12Device* device = dxCommon_->GetDevice();
+
+    D3D12_ROOT_PARAMETER rootParameters[5] = {};
+
+    rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[0].Descriptor.ShaderRegister = 0;
+    rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    D3D12_DESCRIPTOR_RANGE inputVertexRange[1] = {};
+    inputVertexRange[0].BaseShaderRegister = 0;
+    inputVertexRange[0].NumDescriptors = 1;
+    inputVertexRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    inputVertexRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[1].DescriptorTable.pDescriptorRanges = inputVertexRange;
+    rootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
+    rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    D3D12_DESCRIPTOR_RANGE influenceRange[1] = {};
+    influenceRange[0].BaseShaderRegister = 1;
+    influenceRange[0].NumDescriptors = 1;
+    influenceRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    influenceRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[2].DescriptorTable.pDescriptorRanges = influenceRange;
+    rootParameters[2].DescriptorTable.NumDescriptorRanges = 1;
+    rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    D3D12_DESCRIPTOR_RANGE paletteRange[1] = {};
+    paletteRange[0].BaseShaderRegister = 2;
+    paletteRange[0].NumDescriptors = 1;
+    paletteRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    paletteRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[3].DescriptorTable.pDescriptorRanges = paletteRange;
+    rootParameters[3].DescriptorTable.NumDescriptorRanges = 1;
+    rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    D3D12_DESCRIPTOR_RANGE outputVertexRange[1] = {};
+    outputVertexRange[0].BaseShaderRegister = 0;
+    outputVertexRange[0].NumDescriptors = 1;
+    outputVertexRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    outputVertexRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[4].DescriptorTable.pDescriptorRanges = outputVertexRange;
+    rootParameters[4].DescriptorTable.NumDescriptorRanges = 1;
+    rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature = {};
+    descriptionRootSignature.pParameters = rootParameters;
+    descriptionRootSignature.NumParameters = _countof(rootParameters);
+    descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+
+    Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
+    Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
+    HRESULT hr = D3D12SerializeRootSignature(&descriptionRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
+    if (FAILED(hr)) {
+        if (errorBlob) {
+            OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
+        }
+        assert(false);
+    }
+    hr = device->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&skinningComputeRootSignature_));
+    assert(SUCCEEDED(hr));
+}
+
 void Object3dCommon::CreateGraphicsPipelineStates() {
     ID3D12Device* device = dxCommon_->GetDevice(); // ★ここでも device を定義
     auto vs = dxCommon_->CompileShader(L"Resources/shader/Object3D.VS.hlsl", L"vs_6_0");
@@ -243,4 +316,16 @@ void Object3dCommon::CreateGraphicsPipelineStates() {
         HRESULT hr = device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&skinningPipelineStates_[i]));
         assert(SUCCEEDED(hr));
     }
+}
+
+void Object3dCommon::CreateSkinningComputePipelineState() {
+    ID3D12Device* device = dxCommon_->GetDevice();
+    auto cs = dxCommon_->CompileShader(L"Resources/shader/Skinning.CS.hlsl", L"cs_6_0");
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{};
+    psoDesc.pRootSignature = skinningComputeRootSignature_.Get();
+    psoDesc.CS = { cs->GetBufferPointer(), cs->GetBufferSize() };
+
+    HRESULT hr = device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&skinningComputePipelineState_));
+    assert(SUCCEEDED(hr));
 }

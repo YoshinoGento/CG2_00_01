@@ -40,6 +40,7 @@ public:
     void UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
     Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const std::wstring& profile);
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeInBytes);
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateUAVBufferResource(size_t sizeInBytes, D3D12_RESOURCE_STATES initialState);
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateRenderTextureResource(uint32_t width, uint32_t height, DXGI_FORMAT format, const float* clearColor);
     uint32_t AllocateRTV();
     D3D12_CPU_DESCRIPTOR_HANDLE GetRTVHandle(uint32_t index) const;
