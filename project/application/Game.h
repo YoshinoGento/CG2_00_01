@@ -5,6 +5,7 @@
 #include "effect/PostProcess.h"
 
 class SceneFactory;
+class SkinningDebugWindow;
 
 /**
  * Gameクラス
@@ -34,4 +35,5 @@ private:
 	static Vector2 mousePosInViewport_;
 
 	std::unique_ptr<PostProcess> postProcess_;
+	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
 };

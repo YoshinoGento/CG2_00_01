@@ -7,6 +7,7 @@
 #include <wrl.h>
 #include <d3d12.h>
 #include <cstdint>
+#include <utility>
 #include "3d/Animation.h"
 
 // Assimpのヘッダー
@@ -16,6 +17,7 @@
 
 class ModelManager;
 class SpriteCommon;
+struct Skeleton;
 
 /**
  * Modelクラス
@@ -59,7 +61,42 @@ public:
 		std::string name;         //　骨の名前（Node名と一致）
 		Matrix4x4 inverseBindMatrix; // Bind空間（初期姿勢）から骨空間への逆行列
 	};
+	struct VertexInfluence {
+		float weights[kMaxBoneInfluence];
+		int32_t jointIndices[kMaxBoneInfluence];
+	};
 
+	struct MatrixPalette {
+		Matrix4x4 skeletonSpaceMatrix;
+		Matrix4x4 skeletonSpaceInverseTransposeMatrix;
+	};
+
+	struct JointWeightData {
+		Matrix4x4 inverseBindPoseMatrix;
+		std::vector<std::pair<uint32_t, float>> vertexWeights;
+	};
+
+	struct SkinCluster {
+		static constexpr uint32_t kInvalidSrvHandle = UINT32_MAX;
+
+		SkinCluster() = default;
+		~SkinCluster();
+		SkinCluster(const SkinCluster&) = delete;
+		SkinCluster& operator=(const SkinCluster&) = delete;
+		SkinCluster(SkinCluster&&) = delete;
+		SkinCluster& operator=(SkinCluster&&) = delete;
+
+		std::vector<std::string> jointNames;
+		std::vector<Matrix4x4> inverseBindPoseMatrices;
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> influenceResource;
+		D3D12_VERTEX_BUFFER_VIEW influenceBufferView{};
+		VertexInfluence* mappedInfluence = nullptr;
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> paletteResource;
+		MatrixPalette* mappedPalette = nullptr;
+		uint32_t paletteSrvHandle = kInvalidSrvHandle;
+	};
 
 	void Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename);
 	void InitializeWithData(ModelManager* modelManager, const std::vector<VertexData>& vertices, const std::vector<uint32_t>& indices);
@@ -71,9 +108,12 @@ public:
 
 	// --- 追加：ルートノードの取得 ---
 	const Node& GetRootNode() const { return rootNode_; }
+	bool HasSkinCluster() const { return skinCluster_.influenceResource.Get() != nullptr && skinCluster_.paletteResource.Get() != nullptr; }
+	const SkinCluster& GetSkinCluster() const { return skinCluster_; }
 
 	// --- 追加：アニメーションの読み込み ---
 	Animation LoadAnimation(const std::string& directoryPath, const std::string& filename);
+	void UpdateSkinCluster(const Skeleton& skeleton);
 
 
 private:
@@ -82,6 +122,7 @@ private:
 
 	// --- 追加：ノードを再帰的に読み込む関数 ---
 	Node ReadNode(aiNode* node);
+	void CreateSkinCluster();
 
 	ModelManager* modelManager_ = nullptr;
 
@@ -104,4 +145,6 @@ private:
 
 	// --- 追加：このモデルの根本（ルート）となるノード ---
 	Node rootNode_;
+	std::map<std::string, JointWeightData> skinClusterData_;
+	SkinCluster skinCluster_;
 };

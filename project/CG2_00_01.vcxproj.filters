@@ -296,4 +296,11 @@
     <None Include="Resources\shader\LinePS.hlsl" />
     <None Include="Resources\shader\LineVS.hlsl" />
   </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Resources\shader\Object3D.Skinning.VS.hlsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="engine\debug\SkinningDebugWindow.cpp" />
+    <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
+  </ItemGroup>
 </Project>
