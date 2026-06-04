@@ -16,6 +16,7 @@
 #include <assimp/postprocess.h>
 
 class ModelManager;
+class Object3dCommon;
 class SpriteCommon;
 struct Skeleton;
 
@@ -65,11 +66,21 @@ public:
 		float weights[kMaxBoneInfluence];
 		int32_t jointIndices[kMaxBoneInfluence];
 	};
+	static_assert(sizeof(VertexInfluence) == 32, "VertexInfluence layout must match HLSL.");
 
 	struct MatrixPalette {
 		Matrix4x4 skeletonSpaceMatrix;
 		Matrix4x4 skeletonSpaceInverseTransposeMatrix;
 	};
+	static_assert(sizeof(VertexData) == 36, "VertexData layout must match HLSL.");
+	static_assert(sizeof(MatrixPalette) == 128, "MatrixPalette layout must match HLSL.");
+
+	struct SkinningInfo {
+		uint32_t vertexCount;
+		uint32_t jointCount;
+		uint32_t padding[2];
+	};
+	static_assert(sizeof(SkinningInfo) == 16, "SkinningInfo must remain 16-byte aligned.");
 
 	struct JointWeightData {
 		Matrix4x4 inverseBindPoseMatrix;
@@ -92,10 +103,21 @@ public:
 		Microsoft::WRL::ComPtr<ID3D12Resource> influenceResource;
 		D3D12_VERTEX_BUFFER_VIEW influenceBufferView{};
 		VertexInfluence* mappedInfluence = nullptr;
+		uint32_t influenceSrvHandle = kInvalidSrvHandle;
 
 		Microsoft::WRL::ComPtr<ID3D12Resource> paletteResource;
 		MatrixPalette* mappedPalette = nullptr;
 		uint32_t paletteSrvHandle = kInvalidSrvHandle;
+
+		uint32_t inputVertexSrvHandle = kInvalidSrvHandle;
+		Microsoft::WRL::ComPtr<ID3D12Resource> skinnedVertexResource;
+		D3D12_VERTEX_BUFFER_VIEW skinnedVertexBufferView{};
+		uint32_t skinnedVertexUavHandle = kInvalidSrvHandle;
+		D3D12_RESOURCE_STATES skinnedVertexResourceState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> skinningInfoResource;
+		SkinningInfo* mappedSkinningInfo = nullptr;
+		bool useComputeSkinning = true;
 	};
 
 	void Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename);
@@ -110,10 +132,13 @@ public:
 	const Node& GetRootNode() const { return rootNode_; }
 	bool HasSkinCluster() const { return skinCluster_.influenceResource.Get() != nullptr && skinCluster_.paletteResource.Get() != nullptr; }
 	const SkinCluster& GetSkinCluster() const { return skinCluster_; }
+	bool UseComputeSkinning() const;
+	void SetUseComputeSkinning(bool useComputeSkinning) { skinCluster_.useComputeSkinning = useComputeSkinning; }
 
 	// --- 追加：アニメーションの読み込み ---
 	Animation LoadAnimation(const std::string& directoryPath, const std::string& filename);
 	void UpdateSkinCluster(const Skeleton& skeleton);
+	void DispatchComputeSkinning(Object3dCommon* object3dCommon);
 
 
 private:
@@ -123,6 +148,7 @@ private:
 	// --- 追加：ノードを再帰的に読み込む関数 ---
 	Node ReadNode(aiNode* node);
 	void CreateSkinCluster();
+	bool HasComputeSkinningResources() const;
 
 	ModelManager* modelManager_ = nullptr;
 

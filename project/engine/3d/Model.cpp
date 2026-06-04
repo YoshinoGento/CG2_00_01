@@ -1,5 +1,6 @@
 #include "3d/Model.h"
 #include "3d/ModelManager.h"
+#include "3d/Object3dCommon.h"
 #include "3d/Skeleton.h"
 #include "base/SrvManager.h"
 #include "2d/SpriteCommon.h" 
@@ -40,6 +41,27 @@ static bool IsFiniteMatrix(const Matrix4x4& matrix) {
 	return true;
 }
 
+static void TransitionResource(
+	ID3D12GraphicsCommandList* commandList,
+	ID3D12Resource* resource,
+	D3D12_RESOURCE_STATES before,
+	D3D12_RESOURCE_STATES after) {
+	assert(commandList);
+	assert(resource);
+	if (before == after) {
+		return;
+	}
+
+	D3D12_RESOURCE_BARRIER barrier{};
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	barrier.Transition.pResource = resource;
+	barrier.Transition.StateBefore = before;
+	barrier.Transition.StateAfter = after;
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	commandList->ResourceBarrier(1, &barrier);
+}
+
 Model::SkinCluster::~SkinCluster() {
 	if (influenceResource && mappedInfluence) {
 		influenceResource->Unmap(0, nullptr);
@@ -49,6 +71,10 @@ Model::SkinCluster::~SkinCluster() {
 		paletteResource->Unmap(0, nullptr);
 		mappedPalette = nullptr;
 	}
+	if (skinningInfoResource && mappedSkinningInfo) {
+		skinningInfoResource->Unmap(0, nullptr);
+		mappedSkinningInfo = nullptr;
+	}
 }
 
 void Model::Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename) {
@@ -56,7 +82,6 @@ void Model::Initialize(ModelManager* modelManager, const std::string& directoryP
 	DirectXCommon* dxCommon = modelManager_->GetDxCommon();
 
 	LoadModelFile(directoryPath, filename);
-	CreateSkinCluster();
 
 	vertexResource_ = dxCommon->CreateBufferResource(sizeof(VertexData) * vertices_.size());
 	vertexBufferView_.BufferLocation = vertexResource_->GetGPUVirtualAddress();
@@ -78,6 +103,8 @@ void Model::Initialize(ModelManager* modelManager, const std::string& directoryP
 		std::memcpy(iData, indices_.data(), sizeof(uint32_t) * indices_.size());
 		indexResource_->Unmap(0, nullptr);
 	}
+
+	CreateSkinCluster();
 }
 
 /**
@@ -273,6 +300,7 @@ void Model::CreateSkinCluster() {
 	SrvManager* srvManager = modelManager_->GetSrvManager();
 	assert(dxCommon);
 	assert(srvManager);
+	assert(vertexResource_);
 
 	const Skeleton bindPoseSkeleton = SkeletonSystem::CreateSkeleton(rootNode_);
 	const size_t jointCount = bindPoseSkeleton.joints.size();
@@ -319,6 +347,20 @@ void Model::CreateSkinCluster() {
 	skinCluster_.influenceBufferView.StrideInBytes = sizeof(VertexInfluence);
 	HRESULT hr = skinCluster_.influenceResource->Map(0, nullptr, reinterpret_cast<void**>(&skinCluster_.mappedInfluence));
 	assert(SUCCEEDED(hr));
+
+	skinCluster_.inputVertexSrvHandle = srvManager->Allocate();
+	srvManager->CreateSRVforStructuredBuffer(
+		skinCluster_.inputVertexSrvHandle,
+		vertexResource_.Get(),
+		static_cast<UINT>(vertices_.size()),
+		sizeof(VertexData));
+
+	skinCluster_.influenceSrvHandle = srvManager->Allocate();
+	srvManager->CreateSRVforStructuredBuffer(
+		skinCluster_.influenceSrvHandle,
+		skinCluster_.influenceResource.Get(),
+		static_cast<UINT>(vertices_.size()),
+		sizeof(VertexInfluence));
 
 	for (size_t vertexIndex = 0; vertexIndex < vertices_.size(); ++vertexIndex) {
 		VertexInfluence& influence = skinCluster_.mappedInfluence[vertexIndex];
@@ -374,6 +416,29 @@ void Model::CreateSkinCluster() {
 		static_cast<UINT>(jointCount),
 		sizeof(MatrixPalette));
 
+	skinCluster_.skinnedVertexResource = dxCommon->CreateUAVBufferResource(
+		sizeof(VertexData) * vertices_.size(),
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	skinCluster_.skinnedVertexResourceState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+	skinCluster_.skinnedVertexBufferView.BufferLocation = skinCluster_.skinnedVertexResource->GetGPUVirtualAddress();
+	skinCluster_.skinnedVertexBufferView.SizeInBytes = static_cast<UINT>(sizeof(VertexData) * vertices_.size());
+	skinCluster_.skinnedVertexBufferView.StrideInBytes = sizeof(VertexData);
+
+	skinCluster_.skinnedVertexUavHandle = srvManager->Allocate();
+	srvManager->CreateUAVforStructuredBuffer(
+		skinCluster_.skinnedVertexUavHandle,
+		skinCluster_.skinnedVertexResource.Get(),
+		static_cast<UINT>(vertices_.size()),
+		sizeof(VertexData));
+
+	skinCluster_.skinningInfoResource = dxCommon->CreateBufferResource(sizeof(SkinningInfo));
+	hr = skinCluster_.skinningInfoResource->Map(0, nullptr, reinterpret_cast<void**>(&skinCluster_.mappedSkinningInfo));
+	assert(SUCCEEDED(hr));
+	skinCluster_.mappedSkinningInfo->vertexCount = static_cast<uint32_t>(vertices_.size());
+	skinCluster_.mappedSkinningInfo->jointCount = static_cast<uint32_t>(skinCluster_.jointNames.size());
+	skinCluster_.mappedSkinningInfo->padding[0] = 0;
+	skinCluster_.mappedSkinningInfo->padding[1] = 0;
+
 	UpdateSkinCluster(bindPoseSkeleton);
 }
 
@@ -413,6 +478,64 @@ void Model::UpdateSkinCluster(const Skeleton& skeleton) {
 		skinCluster_.mappedPalette[jointIndex].skeletonSpaceMatrix = skinningMatrix;
 		skinCluster_.mappedPalette[jointIndex].skeletonSpaceInverseTransposeMatrix = MatrixMath::Transpose(MatrixMath::Inverse(skinningMatrix));
 	}
+}
+
+bool Model::HasComputeSkinningResources() const {
+	return
+		HasSkinCluster() &&
+		skinCluster_.inputVertexSrvHandle != SkinCluster::kInvalidSrvHandle &&
+		skinCluster_.influenceSrvHandle != SkinCluster::kInvalidSrvHandle &&
+		skinCluster_.paletteSrvHandle != SkinCluster::kInvalidSrvHandle &&
+		skinCluster_.skinnedVertexUavHandle != SkinCluster::kInvalidSrvHandle &&
+		skinCluster_.skinnedVertexResource.Get() != nullptr &&
+		skinCluster_.skinningInfoResource.Get() != nullptr;
+}
+
+bool Model::UseComputeSkinning() const {
+	return skinCluster_.useComputeSkinning && HasComputeSkinningResources();
+}
+
+void Model::DispatchComputeSkinning(Object3dCommon* object3dCommon) {
+	if (!UseComputeSkinning()) {
+		return;
+	}
+	assert(object3dCommon);
+	assert(!vertices_.empty());
+
+	ID3D12GraphicsCommandList* commandList = object3dCommon->GetDxCommon()->GetCommandList();
+	SrvManager* srvManager = object3dCommon->GetSrvManager();
+	assert(commandList);
+	assert(srvManager);
+	assert(skinCluster_.mappedSkinningInfo);
+
+	skinCluster_.mappedSkinningInfo->vertexCount = static_cast<uint32_t>(vertices_.size());
+	skinCluster_.mappedSkinningInfo->jointCount = static_cast<uint32_t>(skinCluster_.jointNames.size());
+
+	TransitionResource(
+		commandList,
+		skinCluster_.skinnedVertexResource.Get(),
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	skinCluster_.skinnedVertexResourceState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+	commandList->SetComputeRootSignature(object3dCommon->GetSkinningComputeRootSignature());
+	commandList->SetPipelineState(object3dCommon->GetSkinningComputePipelineState());
+	commandList->SetComputeRootConstantBufferView(0, skinCluster_.skinningInfoResource->GetGPUVirtualAddress());
+	commandList->SetComputeRootDescriptorTable(1, srvManager->GetGPUDescriptorHandle(skinCluster_.inputVertexSrvHandle));
+	commandList->SetComputeRootDescriptorTable(2, srvManager->GetGPUDescriptorHandle(skinCluster_.influenceSrvHandle));
+	commandList->SetComputeRootDescriptorTable(3, srvManager->GetGPUDescriptorHandle(skinCluster_.paletteSrvHandle));
+	commandList->SetComputeRootDescriptorTable(4, srvManager->GetGPUDescriptorHandle(skinCluster_.skinnedVertexUavHandle));
+
+	const uint32_t threadCount = 64;
+	const uint32_t dispatchCount = (static_cast<uint32_t>(vertices_.size()) + threadCount - 1) / threadCount;
+	commandList->Dispatch(dispatchCount, 1, 1);
+
+	TransitionResource(
+		commandList,
+		skinCluster_.skinnedVertexResource.Get(),
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	skinCluster_.skinnedVertexResourceState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
 }
 
 Model::Node Model::ReadNode(aiNode* node) {
@@ -463,7 +586,9 @@ void Model::LoadTextures(SpriteCommon* spriteCommon) {
  */
 void Model::Draw(DirectXCommon* dxCommon) {
 	ID3D12GraphicsCommandList* commandList = dxCommon->GetCommandList();
-	if (HasSkinCluster()) {
+	if (UseComputeSkinning()) {
+		commandList->IASetVertexBuffers(0, 1, &skinCluster_.skinnedVertexBufferView);
+	} else if (HasSkinCluster()) {
 		D3D12_VERTEX_BUFFER_VIEW vertexBufferViews[] = { vertexBufferView_, skinCluster_.influenceBufferView };
 		commandList->IASetVertexBuffers(0, _countof(vertexBufferViews), vertexBufferViews);
 	} else {
@@ -491,7 +616,9 @@ void Model::Draw(DirectXCommon* dxCommon) {
  */
 void Model::Draw(ID3D12GraphicsCommandList* commandList, uint32_t instanceCount) {
 	// 頂点バッファとインデックスバッファをセット
-	if (HasSkinCluster()) {
+	if (UseComputeSkinning()) {
+		commandList->IASetVertexBuffers(0, 1, &skinCluster_.skinnedVertexBufferView);
+	} else if (HasSkinCluster()) {
 		D3D12_VERTEX_BUFFER_VIEW vertexBufferViews[] = { vertexBufferView_, skinCluster_.influenceBufferView };
 		commandList->IASetVertexBuffers(0, _countof(vertexBufferViews), vertexBufferViews);
 	} else {

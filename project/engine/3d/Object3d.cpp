@@ -101,12 +101,18 @@ void Object3d::Draw() {
 	if (!model_) return;
 	ID3D12GraphicsCommandList* commandList = object3dCommon_->GetDxCommon()->GetCommandList();
 	const bool isSkinned = model_->HasSkinCluster();
+	const bool useComputeSkinning = model_->UseComputeSkinning();
+	const bool useVertexShaderSkinning = isSkinned && !useComputeSkinning;
+
+	if (useComputeSkinning) {
+		model_->DispatchComputeSkinning(object3dCommon_);
+	}
 
 	// 3Dオブジェクト用のルートシグネチャを明示的にセットする
-	commandList->SetGraphicsRootSignature(object3dCommon_->GetRootSignature(isSkinned));
+	commandList->SetGraphicsRootSignature(object3dCommon_->GetRootSignature(useVertexShaderSkinning));
 
 	// パイプラインをセット
-	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_, isSkinned));
+	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_, useVertexShaderSkinning));
 
 	// RootSignature の Index に合わせて定数バッファをセット
 	commandList->SetGraphicsRootConstantBufferView(0, materialResource_->GetGPUVirtualAddress());
@@ -122,7 +128,7 @@ void Object3d::Draw() {
 	D3D12_GPU_DESCRIPTOR_HANDLE environmentMapSrvHandle = srvManager->GetGPUDescriptorHandle(environmentMapHandle_);
 	commandList->SetGraphicsRootDescriptorTable(6, environmentMapSrvHandle);
 
-	if (isSkinned) {
+	if (useVertexShaderSkinning) {
 		const Model::SkinCluster& skinCluster = model_->GetSkinCluster();
 		if (skinCluster.paletteSrvHandle == Model::SkinCluster::kInvalidSrvHandle) {
 			OutputDebugStringA("Skinned mesh has invalid MatrixPalette SRV handle.\n");

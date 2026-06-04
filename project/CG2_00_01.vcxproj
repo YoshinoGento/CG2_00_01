@@ -203,6 +203,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\shader\LineVS.hlsl">
       <FileType>Document</FileType>
     </None>
+    <None Include="Resources\shader\Skinning.CS.hlsl">
+      <FileType>Document</FileType>
+    </None>
     <FxCompile Include="Resources\shader\Object3D.PS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
