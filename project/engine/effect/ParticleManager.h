@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <d3d12.h>
 #include <wrl.h>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <list>
@@ -87,6 +88,14 @@ private:
     void CreateRootSignature();
     void CreateGraphicsPipelineState();
     void CreateModel();
+    void CreateGPUParticleResources();
+    void CreateGPUParticleComputeRootSignature();
+    void CreateGPUParticleComputePipelineState();
+    void CreateGPUParticleGraphicsRootSignature();
+    void CreateGPUParticleGraphicsPipelineState();
+    void InitializeGPUParticles();
+    void DrawGPUParticles();
+    bool TryGetGPUParticleTextureHandle(uint32_t& textureHandle) const;
 
 private:
     DirectXCommon* dxCommon_ = nullptr;
@@ -95,6 +104,10 @@ private:
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleComputeRootSignature_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleComputePipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleGraphicsRootSignature_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleGraphicsPipelineState_;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource_;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView_{};
@@ -110,6 +123,30 @@ private:
     };
     InstancingData* instancingData_ = nullptr;
 
+    struct ParticleCS {
+        Vector3 translate;
+        Vector3 scale;
+        float lifeTime;
+        Vector3 velocity;
+        float currentTime;
+        Vector4 color;
+    };
+    static_assert(sizeof(ParticleCS) == 60, "ParticleCS layout must match HLSL.");
+
+    struct GPUParticleViewData {
+        Matrix4x4 viewProjection;
+        Matrix4x4 billboardMatrix;
+    };
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleResource_;
+    uint32_t gpuParticleSrvHandle_ = UINT32_MAX;
+    uint32_t gpuParticleUavHandle_ = UINT32_MAX;
+    D3D12_RESOURCE_STATES gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleViewResource_;
+    GPUParticleViewData* gpuParticleViewData_ = nullptr;
+    bool gpuParticlesInitialized_ = false;
+
     // discardしきい値用の定数バッファ
     // GPU側のピクセルシェーダーに渡すためのバッファ
     struct MaterialData {
@@ -121,6 +158,7 @@ private:
     float alphaReference_ = 0.0f; // CPU側の設定値
 
     static const uint32_t kMaxInstanceCount = 1024;
+    static constexpr uint32_t kMaxGPUParticleCount = 1024;
     std::map<std::string, ParticleGroup> particleGroups_;
 
 };
