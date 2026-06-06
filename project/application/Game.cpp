@@ -9,6 +9,7 @@
 #include "3d/Object3d.h"
 #include "debug/SkinningDebugWindow.h"
 #include "effect/ParticleManager.h"
+#include <algorithm>
 #include <cmath>
 
 Vector2 Game::mousePosInViewport_ = { 0, 0 };
@@ -46,31 +47,45 @@ void Game::Update() {
 	ImGuiManager::GetInstance()->Begin();
 	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
 
+	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
+	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
+	if (playScene) {
+		playScene->viewportHovered_ = false;
+		playScene->viewportImageSize_ = { 0.0f, 0.0f };
+	}
+
 	// ビューポート表示
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 	if (ImGui::Begin("Game Viewport")) {
 		ImVec2 contentSize = ImGui::GetContentRegionAvail();
-		float targetAspect = 1280.0f / 720.0f;
-		ImVec2 displaySize = contentSize;
-		if (displaySize.x / displaySize.y > targetAspect) displaySize.x = displaySize.y * targetAspect;
-		else displaySize.y = displaySize.x / targetAspect;
+		if (contentSize.x > 1.0f && contentSize.y > 1.0f) {
+			float targetAspect = 1280.0f / 720.0f;
+			ImVec2 displaySize = contentSize;
+			if (displaySize.x / displaySize.y > targetAspect) displaySize.x = displaySize.y * targetAspect;
+			else displaySize.y = displaySize.x / targetAspect;
 
-		ImVec2 offset = { (contentSize.x - displaySize.x) * 0.5f, (contentSize.y - displaySize.y) * 0.5f };
-		ImGui::SetCursorPos({ ImGui::GetCursorPos().x + offset.x, ImGui::GetCursorPos().y + offset.y });
+			if (displaySize.x > 1.0f && displaySize.y > 1.0f) {
+				ImVec2 offset = { (contentSize.x - displaySize.x) * 0.5f, (contentSize.y - displaySize.y) * 0.5f };
+				ImGui::SetCursorPos({ ImGui::GetCursorPos().x + offset.x, ImGui::GetCursorPos().y + offset.y });
 
-		ImVec2 mousePos = ImGui::GetIO().MousePos;
-		ImVec2 imageTopLeft = ImGui::GetCursorScreenPos();
-		mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * 1280.0f;
-		mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
+				ImVec2 mousePos = ImGui::GetIO().MousePos;
+				ImVec2 imageTopLeft = ImGui::GetCursorScreenPos();
+				mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * 1280.0f;
+				mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
 
-		// ポストプロセス後のテクスチャを表示する
-		ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(postProcess_->GetFinalSrvIndex()).ptr, displaySize);
+				// ポストプロセス後のテクスチャを表示する
+				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(postProcess_->GetFinalSrvIndex()).ptr, displaySize);
+				if (playScene) {
+					playScene->viewportImageTopLeft_ = { imageTopLeft.x, imageTopLeft.y };
+					playScene->viewportImageSize_ = { displaySize.x, displaySize.y };
+					playScene->viewportMousePosition_ = { mousePos.x, mousePos.y };
+					playScene->viewportHovered_ = ImGui::IsItemHovered();
+				}
+			}
+		}
 	}
 	ImGui::End();
 	ImGui::PopStyleVar();
-
-	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
-	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
 
 	if (playScene) {
 		ImGui::Begin("Global Settings");
@@ -92,8 +107,15 @@ void Game::Update() {
 		ImGui::End();
 
 		ImGui::Begin("Camera Control");
-		ImGui::DragFloat3("Camera Pos", &playScene->cameraPos_.x, 0.1f);
-		ImGui::DragFloat3("Camera Rot", &playScene->cameraRot_.x, 0.01f);
+		ImGui::DragFloat3("Camera Position", &playScene->cameraPos_.x, 0.1f);
+		ImGui::DragFloat3("Camera Rotation", &playScene->cameraRot_.x, 0.01f);
+		ImGui::DragFloat("Move Speed", &playScene->cameraMoveSpeed_, 0.1f, 0.0f, 100.0f);
+		ImGui::DragFloat("Rotate Speed", &playScene->cameraRotateSpeed_, 0.01f, 0.0f, 10.0f);
+		playScene->cameraMoveSpeed_ = (std::max)(playScene->cameraMoveSpeed_, 0.0f);
+		playScene->cameraRotateSpeed_ = (std::max)(playScene->cameraRotateSpeed_, 0.0f);
+		if (ImGui::Button("Reset Camera")) {
+			playScene->ResetCamera();
+		}
 		ImGui::End();
 
 		ImGui::Begin("Object Editor");
@@ -227,6 +249,65 @@ void Game::Update() {
 		ImGui::Text("Space Key: Emit");
 		const char* pTypes[] = { "Spark (Manual)", "Ring (Model)", "Cylinder (Primitive)", "Combined", "Explosion (Emit)" };
 		ImGui::Combo("Particle Mode", &playScene->activeParticleType_, pTypes, 5);
+
+		ImGui::Separator();
+		const char* gpuParticleModeItems[] = { "Off", "Agriculture Mode", "Particle Interaction Mode" };
+		int gpuParticleModeIndex = static_cast<int>(playScene->gpuParticleDebugMode_);
+		if (ImGui::Combo("GPUParticle Mode", &gpuParticleModeIndex, gpuParticleModeItems, _countof(gpuParticleModeItems))) {
+			playScene->SetGPUParticleDebugMode(static_cast<GamePlayScene::GPUParticleDebugMode>(gpuParticleModeIndex));
+		}
+
+		if (playScene->gpuParticleDebugMode_ == GamePlayScene::GPUParticleDebugMode::Agriculture) {
+			if (ImGui::CollapsingHeader("Agriculture Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::DragFloat3("Emit Position", &playScene->agricultureEmitPosition_.x, 0.1f);
+				ImGui::SliderFloat("Particle Size", &playScene->agricultureParticleSize_, 0.02f, 1.0f);
+				ImGui::SliderInt("Count", &playScene->agricultureParticleCount_, 1, 1024);
+
+				if (ImGui::Button("Dirt Dust")) {
+					playScene->EmitAgricultureParticle(GamePlayScene::AgricultureParticleType::DirtDust);
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Water Splash")) {
+					playScene->EmitAgricultureParticle(GamePlayScene::AgricultureParticleType::WaterSplash);
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Harvest Sparkle")) {
+					playScene->EmitAgricultureParticle(GamePlayScene::AgricultureParticleType::HarvestSparkle);
+				}
+
+				ImGui::Checkbox("Show Key Guide", &playScene->agricultureShowKeyGuide_);
+				if (playScene->agricultureShowKeyGuide_) {
+					ImGui::TextUnformatted("1: Dirt Dust  2: Water Splash  3: Harvest Sparkle");
+					ImGui::TextUnformatted("4: Pollen / Spore  5: Bug Swarm");
+				}
+			}
+		} else if (playScene->gpuParticleDebugMode_ == GamePlayScene::GPUParticleDebugMode::Interaction) {
+			if (ImGui::CollapsingHeader("Interaction Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+				bool changed = false;
+				changed |= ImGui::SliderInt("Particle Grid Count", &playScene->interactionGridCount_, 2, 10);
+				changed |= ImGui::SliderFloat("Particle Size", &playScene->interactionParticleSize_, 0.02f, 0.05f);
+				ImGui::SliderFloat("Brush Radius", &playScene->interactionBrushRadius_, 0.1f, 10.0f);
+				ImGui::SliderFloat("Brush Strength", &playScene->interactionBrushStrength_, 0.0f, 10.0f);
+				ImGui::SliderFloat("Interaction Damping", &playScene->interactionDamping_, 0.80f, 0.995f);
+				playScene->interactionGridCount_ = std::clamp(playScene->interactionGridCount_, 2, 10);
+				playScene->interactionDamping_ = std::clamp(playScene->interactionDamping_, 0.80f, 0.995f);
+				playScene->interactionParticleCount_ = playScene->CalculateInteractionParticleCount();
+				ImGui::Text("Current Particle Count: %u", playScene->interactionParticleCount_);
+				ImGui::Text("Brush Position: %.2f, %.2f, %.2f",
+					playScene->interactionBrushPosition_.x,
+					playScene->interactionBrushPosition_.y,
+					playScene->interactionBrushPosition_.z);
+				if (changed) {
+					playScene->interactionResetRequested_ = true;
+				}
+				if (ImGui::Button("Reset Grid")) {
+					Framework::GetInstance()->GetParticleManager()->ResetGPUParticles();
+					playScene->interactionResetRequested_ = true;
+				}
+				ImGui::TextUnformatted("Left Click on Game Viewport: Push");
+				ImGui::TextUnformatted("Shift + Left Click: Pull");
+			}
+		}
 
 		// === discard しきい値（資料スライド10対応） ===
 		// この値以下のアルファを持つピクセルが棄却される

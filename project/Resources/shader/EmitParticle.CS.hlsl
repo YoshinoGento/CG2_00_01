@@ -9,20 +9,29 @@ struct Particle
     uint isAlive;
 };
 
-struct EmitterSphere
+struct GPUParticleEmitSettings
 {
     float3 translate;
     float radius;
+
+    float4 color;
+
+    float3 scale;
+    float lifeTime;
+
+    float3 baseVelocity;
+    float speed;
+
     uint count;
-    float frequency;
-    float frequencyTime;
     uint emit;
+    uint preset;
+    uint padding;
 };
 
 RWStructuredBuffer<Particle> gParticles : register(u0);
 RWStructuredBuffer<int> gFreeListIndex : register(u1);
 RWStructuredBuffer<uint> gFreeList : register(u2);
-ConstantBuffer<EmitterSphere> gEmitter : register(b0);
+ConstantBuffer<GPUParticleEmitSettings> gEmitter : register(b0);
 
 static const uint kMaxParticles = 1024;
 
@@ -63,13 +72,12 @@ void main()
         float3 offset = direction * gEmitter.radius * radiusScale;
 
         Particle particle;
-        // Debug-visible spawn: lift particles above the ground and make them distinct from white lighting.
-        particle.translate = gEmitter.translate + offset + float3(0.0f, 1.5f, -2.0f);
-        particle.scale = float3(0.75f, 0.75f, 0.75f);
-        particle.lifeTime = 5.0f;
-        particle.velocity = direction * 0.35f + float3(0.0f, 0.15f, 0.0f);
+        particle.translate = gEmitter.translate + offset;
+        particle.scale = gEmitter.scale;
+        particle.lifeTime = gEmitter.lifeTime;
+        particle.velocity = gEmitter.baseVelocity + direction * gEmitter.speed;
         particle.currentTime = 0.0f;
-        particle.color = float4(1.0f, 0.0f, 1.0f, 1.0f);
+        particle.color = gEmitter.color;
         particle.isAlive = 1;
 
         gParticles[particleIndex] = particle;

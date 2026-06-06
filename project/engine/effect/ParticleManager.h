@@ -54,12 +54,70 @@ struct ParticleGroup {
  * ParticleManager クラス
  * 従来の Emit と、新しい AddParticle を両方搭載したハイブリッド版
  */
+struct GPUParticleEmitSettings {
+    Vector3 translate;
+    float radius;
+
+    Vector4 color;
+
+    Vector3 scale;
+    float lifeTime;
+
+    Vector3 baseVelocity;
+    float speed;
+
+    uint32_t count;
+    uint32_t emit;
+    uint32_t preset;
+    uint32_t padding;
+};
+static_assert(sizeof(GPUParticleEmitSettings) == 80, "GPUParticleEmitSettings layout must match HLSL.");
+
+enum class InteractionBrushOperation : uint32_t {
+    None = 0,
+    Push = 1,
+    Pull = 2,
+};
+
+struct GPUParticleInteractionSettings {
+    Vector3 gridCenter;
+    float particleSize;
+
+    uint32_t gridCountX;
+    uint32_t gridCountY;
+    uint32_t gridCountZ;
+    uint32_t particleCount;
+
+    Vector3 brushPosition;
+    float brushRadius;
+
+    float brushStrength;
+    uint32_t isPressed;
+    uint32_t operation;
+    float deltaTime;
+
+    float damping;
+    float padding0;
+    float padding1;
+    float padding2;
+};
+static_assert(sizeof(GPUParticleInteractionSettings) == 80, "GPUParticleInteractionSettings layout must match HLSL.");
+static_assert(offsetof(GPUParticleInteractionSettings, brushPosition) == 32, "GPUParticleInteractionSettings::brushPosition offset must match HLSL.");
+static_assert(offsetof(GPUParticleInteractionSettings, operation) == 56, "GPUParticleInteractionSettings::operation offset must match HLSL.");
+static_assert(offsetof(GPUParticleInteractionSettings, deltaTime) == 60, "GPUParticleInteractionSettings::deltaTime offset must match HLSL.");
+static_assert(offsetof(GPUParticleInteractionSettings, damping) == 64, "GPUParticleInteractionSettings::damping offset must match HLSL.");
+
 class ParticleManager {
 public:
     void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager);
     void Update(Camera* camera);
-    void Draw();
+    void Draw(bool drawDefaultGPUParticles = true);
+    void InitializeGPUParticleInteraction(const GPUParticleInteractionSettings& settings);
+    void UpdateGPUParticleInteraction(const GPUParticleInteractionSettings& settings);
+    void DrawGPUParticleBuffer();
     void RequestGPUParticleEmit(const Vector3& position, uint32_t count);
+    void RequestGPUParticleEmit(const GPUParticleEmitSettings& settings);
+    void ResetGPUParticles();
 
     // グループ作成
     void CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model = nullptr);
@@ -97,6 +155,8 @@ private:
     void CreateGPUParticleEmitComputePipelineState();
     void CreateGPUParticleUpdateComputeRootSignature();
     void CreateGPUParticleUpdateComputePipelineState();
+    void CreateGPUParticleInteractionComputeRootSignature();
+    void CreateGPUParticleInteractionComputePipelineStates();
     void CreateGPUParticleGraphicsRootSignature();
     void CreateGPUParticleGraphicsPipelineState();
     void InitializeGPUParticles();
@@ -118,6 +178,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleEmitComputePipelineState_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleUpdateComputeRootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleUpdateComputePipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleInteractionComputeRootSignature_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleInteractionInitializeComputePipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleInteractionUpdateComputePipelineState_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleGraphicsRootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleGraphicsPipelineState_;
 
@@ -162,33 +225,28 @@ private:
     };
     static_assert(sizeof(UpdateParticleInfo) == 16, "UpdateParticleInfo must be 16 bytes.");
 
-    struct EmitterSphere {
-        Vector3 translate;
-        float radius;
-        uint32_t count;
-        float frequency;
-        float frequencyTime;
-        uint32_t emit;
-    };
-    static_assert(sizeof(EmitterSphere) == 32, "EmitterSphere layout must match HLSL.");
-
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleResource_;
     uint32_t gpuParticleSrvHandle_ = UINT32_MAX;
     uint32_t gpuParticleUavHandle_ = UINT32_MAX;
     D3D12_RESOURCE_STATES gpuParticleResourceState_ = D3D12_RESOURCE_STATE_COMMON;
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleFreeListIndexResource_;
     uint32_t gpuParticleFreeListIndexUavHandle_ = UINT32_MAX;
+    D3D12_RESOURCE_STATES gpuParticleFreeListIndexResourceState_ = D3D12_RESOURCE_STATE_COMMON;
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleFreeListResource_;
     uint32_t gpuParticleFreeListUavHandle_ = UINT32_MAX;
+    D3D12_RESOURCE_STATES gpuParticleFreeListResourceState_ = D3D12_RESOURCE_STATE_COMMON;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleViewResource_;
     GPUParticleViewData* gpuParticleViewData_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleUpdateInfoResource_;
     UpdateParticleInfo* gpuParticleUpdateInfo_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleEmitterResource_;
-    EmitterSphere* gpuParticleEmitter_ = nullptr;
+    GPUParticleEmitSettings* gpuParticleEmitter_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleInteractionResource_;
+    GPUParticleInteractionSettings* gpuParticleInteraction_ = nullptr;
     bool gpuParticleEmitRequested_ = false;
     bool gpuParticlesInitialized_ = false;
+    bool gpuParticleInteractionInitialized_ = false;
 
     // discardしきい値用の定数バッファ
     // GPU側のピクセルシェーダーに渡すためのバッファ

@@ -4,9 +4,11 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <chrono>
 #include "math/Matrix.h"
 #include "3d/Skybox.h"
 #include "3d/SkeletonDebugger.h"
+#include "effect/ParticleManager.h"
 
 class Framework;
 class Sprite;
@@ -17,6 +19,20 @@ class Model;
 class GamePlayScene : public BaseScene {
 	friend class Game;
 public:
+	enum class GPUParticleDebugMode {
+		Off,
+		Agriculture,
+		Interaction,
+	};
+
+	enum class AgricultureParticleType {
+		DirtDust,
+		WaterSplash,
+		HarvestSparkle,
+		PollenSpore,
+		BugSwarm,
+	};
+
 	GamePlayScene();
 	~GamePlayScene() override;
 
@@ -32,7 +48,19 @@ public:
 
 private:
 	void AddLog(const std::string& message);
+	void UpdateSceneDeltaTime();
 	void HandleKeyboardMovement();
+	void HandleCameraInput(float deltaTime);
+	void ClampCameraPitch();
+	void ResetCamera();
+	void SyncGPUParticleDebugModeChange();
+	void SetGPUParticleDebugMode(GPUParticleDebugMode mode);
+	void HandleGPUParticleDebugModeInput();
+	void HandleAgricultureParticleInput();
+	void HandleInteractionParticleInput();
+	void EmitAgricultureParticle(AgricultureParticleType type);
+	uint32_t CalculateInteractionParticleCount() const;
+	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
 
 	// エフェクト発生関数
 	void EmitSpark(const Vector3& position);
@@ -47,6 +75,10 @@ private:
 
 	Vector3 cameraPos_ = { 0.0f, 5.0f, -15.0f };
 	Vector3 cameraRot_ = { 0.3f, 0.0f, 0.0f };
+	float cameraMoveSpeed_ = 5.0f;
+	float cameraRotateSpeed_ = 1.5f;
+	float sceneDeltaTime_ = 1.0f / 60.0f;
+	std::chrono::steady_clock::time_point previousFrameTime_{};
 
 	std::unique_ptr<Model> sphereModel_;
 	std::unique_ptr<Object3d> sphereObj_;
@@ -84,6 +116,27 @@ private:
 	int currentAnimModelIdx_ = 1; // 現在のアニメーションモデルのインデックス（0: AnimatedCube, 1: simpleSkin, 2: human/walk, 3: human/sneakWalk）
 	int cullMode_ = 2;
 	int modelPriority_ = 0;
+
+	GPUParticleDebugMode gpuParticleDebugMode_ = GPUParticleDebugMode::Off;
+	GPUParticleDebugMode previousGPUParticleDebugMode_ = GPUParticleDebugMode::Off;
+	Vector3 agricultureEmitPosition_ = { 0.0f, 1.5f, 8.0f };
+	float agricultureParticleSize_ = 0.25f;
+	int agricultureParticleCount_ = 128;
+	bool agricultureShowKeyGuide_ = true;
+	int interactionGridCount_ = 8;
+	float interactionParticleSize_ = 0.03f;
+	float interactionBrushRadius_ = 1.5f;
+	float interactionBrushStrength_ = 1.0f;
+	float interactionDamping_ = 0.95f;
+	Vector3 interactionGridCenter_ = { 0.0f, 0.0f, 8.0f };
+	Vector3 interactionBrushPosition_ = { 0.0f, 0.0f, 8.0f };
+	uint32_t interactionParticleCount_ = 512;
+	bool interactionResetRequested_ = true;
+	InteractionBrushOperation interactionBrushOperation_ = InteractionBrushOperation::None;
+	Vector2 viewportImageTopLeft_ = { 0.0f, 0.0f };
+	Vector2 viewportImageSize_ = { 0.0f, 0.0f };
+	Vector2 viewportMousePosition_ = { 0.0f, 0.0f };
+	bool viewportHovered_ = false;
 
 	// Cylinderパラメータ（ImGuiで操作可能）
 	float cylTopRadius_ = 1.0f;       // 上面の半径
