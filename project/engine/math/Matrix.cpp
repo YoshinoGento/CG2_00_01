@@ -257,7 +257,6 @@ namespace MatrixMath {
 		};
 	}
 
-
 	Quaternion Slerp(const Quaternion& q1, const Quaternion& q2, float t) {
 		float dot = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
 		Quaternion targetQ2 = q2;
