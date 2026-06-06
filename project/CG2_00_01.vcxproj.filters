@@ -304,7 +304,13 @@
     <None Include="Resources\shader\InitializeParticle.CS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </None>
+    <None Include="Resources\shader\InitializeInteractionParticle.CS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </None>
     <None Include="Resources\shader\UpdateParticle.CS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </None>
+    <None Include="Resources\shader\UpdateInteractionParticle.CS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\Skinning.CS.hlsl" />

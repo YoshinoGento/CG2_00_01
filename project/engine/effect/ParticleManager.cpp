@@ -53,6 +53,63 @@ static void InsertUAVBarrier(ID3D12GraphicsCommandList* commandList, ID3D12Resou
     commandList->ResourceBarrier(1, &barrier);
 }
 
+static GPUParticleInteractionSettings SanitizeInteractionSettings(
+    const GPUParticleInteractionSettings& source,
+    uint32_t maxParticleCount) {
+    GPUParticleInteractionSettings settings = source;
+    settings.gridCountX = (std::max)(1u, settings.gridCountX);
+    settings.gridCountY = (std::max)(1u, settings.gridCountY);
+    settings.gridCountZ = (std::max)(1u, settings.gridCountZ);
+
+    auto product = [&settings]() -> uint64_t {
+        return static_cast<uint64_t>(settings.gridCountX) *
+            static_cast<uint64_t>(settings.gridCountY) *
+            static_cast<uint64_t>(settings.gridCountZ);
+    };
+
+    while (product() > maxParticleCount) {
+        uint32_t* largest = &settings.gridCountX;
+        if (settings.gridCountY > *largest) {
+            largest = &settings.gridCountY;
+        }
+        if (settings.gridCountZ > *largest) {
+            largest = &settings.gridCountZ;
+        }
+        if (*largest <= 1) {
+            break;
+        }
+        --(*largest);
+    }
+
+    uint64_t limitedGridParticleCount = product();
+    if (limitedGridParticleCount > maxParticleCount) {
+        limitedGridParticleCount = maxParticleCount;
+    }
+    uint32_t gridParticleCount = static_cast<uint32_t>(limitedGridParticleCount);
+    settings.particleCount = settings.particleCount == 0
+        ? gridParticleCount
+        : (std::min)(settings.particleCount, gridParticleCount);
+    settings.particleSize = std::clamp(settings.particleSize, 0.02f, 0.05f);
+    settings.brushRadius = (std::max)(settings.brushRadius, 0.001f);
+    settings.brushStrength = (std::max)(settings.brushStrength, 0.0f);
+    settings.isPressed = settings.isPressed != 0 ? 1u : 0u;
+    if (settings.operation > static_cast<uint32_t>(InteractionBrushOperation::Pull)) {
+        settings.operation = static_cast<uint32_t>(InteractionBrushOperation::None);
+    }
+    if (settings.operation == static_cast<uint32_t>(InteractionBrushOperation::None)) {
+        settings.isPressed = 0;
+    }
+    if (!std::isfinite(settings.deltaTime) || settings.deltaTime <= 0.0f) {
+        settings.deltaTime = 1.0f / 60.0f;
+    }
+    settings.deltaTime = std::clamp(settings.deltaTime, 1.0f / 240.0f, 1.0f / 15.0f);
+    if (!std::isfinite(settings.damping)) {
+        settings.damping = 0.95f;
+    }
+    settings.damping = std::clamp(settings.damping, 0.0f, 1.0f);
+    return settings;
+}
+
 void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
     assert(dxCommon);
     assert(srvManager);
@@ -82,6 +139,8 @@ void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager
     CreateGPUParticleEmitComputePipelineState();
     CreateGPUParticleUpdateComputeRootSignature();
     CreateGPUParticleUpdateComputePipelineState();
+    CreateGPUParticleInteractionComputeRootSignature();
+    CreateGPUParticleInteractionComputePipelineStates();
     CreateGPUParticleGraphicsRootSignature();
     CreateGPUParticleGraphicsPipelineState();
     materialData_->alphaReference = 0.0f; // 初期値: 0（従来と同じ動作）
@@ -128,17 +187,8 @@ void ParticleManager::Update(Camera* camera) {
     if (gpuParticleEmitter_) {
         gpuParticleEmitter_->emit = 0;
         if (gpuParticleEmitRequested_) {
-            gpuParticleEmitter_->frequencyTime += deltaTime;
-            if (gpuParticleEmitter_->frequency <= 0.0f ||
-                gpuParticleEmitter_->frequencyTime >= gpuParticleEmitter_->frequency) {
-                gpuParticleEmitter_->emit = 1;
-                if (gpuParticleEmitter_->frequency > 0.0f) {
-                    gpuParticleEmitter_->frequencyTime -= gpuParticleEmitter_->frequency;
-                } else {
-                    gpuParticleEmitter_->frequencyTime = 0.0f;
-                }
-                gpuParticleEmitRequested_ = false;
-            }
+            gpuParticleEmitter_->emit = 1;
+            gpuParticleEmitRequested_ = false;
         }
     }
 }
@@ -186,20 +236,42 @@ void ParticleManager::ClearAll() {
 }
 
 void ParticleManager::RequestGPUParticleEmit(const Vector3& position, uint32_t count) {
+    GPUParticleEmitSettings settings{};
+    settings.translate = position;
+    settings.radius = 2.0f;
+    settings.color = { 1.0f, 0.0f, 1.0f, 1.0f };
+    settings.scale = { 0.75f, 0.75f, 0.75f };
+    settings.lifeTime = 5.0f;
+    settings.baseVelocity = { 0.0f, 0.15f, 0.0f };
+    settings.speed = 0.35f;
+    settings.count = count;
+    settings.emit = 1;
+    settings.preset = 0;
+    RequestGPUParticleEmit(settings);
+}
+
+void ParticleManager::RequestGPUParticleEmit(const GPUParticleEmitSettings& settings) {
     if (!gpuParticleEmitter_) {
         return;
     }
 
-    gpuParticleEmitter_->translate = position;
-    gpuParticleEmitter_->radius = 2.0f;
-    gpuParticleEmitter_->count = std::min(count, kMaxGPUParticleCount);
-    gpuParticleEmitter_->frequency = 0.0f;
-    gpuParticleEmitter_->frequencyTime = 0.0f;
+    *gpuParticleEmitter_ = settings;
+    gpuParticleEmitter_->count = (std::min)(settings.count, kMaxGPUParticleCount);
     gpuParticleEmitter_->emit = 0;
-    gpuParticleEmitRequested_ = gpuParticleEmitter_->count > 0;
+    gpuParticleEmitRequested_ = settings.emit != 0 && gpuParticleEmitter_->count > 0;
 }
 
-void ParticleManager::Draw() {
+void ParticleManager::ResetGPUParticles() {
+    gpuParticleEmitRequested_ = false;
+    gpuParticlesInitialized_ = false;
+    gpuParticleInteractionInitialized_ = false;
+    if (gpuParticleEmitter_) {
+        gpuParticleEmitter_->count = 0;
+        gpuParticleEmitter_->emit = 0;
+    }
+}
+
+void ParticleManager::Draw(bool drawDefaultGPUParticles) {
     // CPU側の設定値をGPUバッファに反映
     materialData_->alphaReference = alphaReference_;
 
@@ -269,7 +341,9 @@ void ParticleManager::Draw() {
         }
     }
 
-    DrawGPUParticles();
+    if (drawDefaultGPUParticles) {
+        DrawGPUParticles();
+    }
 }
 
 void ParticleManager::CreateGPUParticleResources() {
@@ -327,15 +401,40 @@ void ParticleManager::CreateGPUParticleResources() {
     gpuParticleUpdateInfo_->timeScale = 1.0f;
     gpuParticleUpdateInfo_->padding = 0;
 
-    gpuParticleEmitterResource_ = dxCommon_->CreateBufferResource(sizeof(EmitterSphere));
+    gpuParticleEmitterResource_ = dxCommon_->CreateBufferResource(sizeof(GPUParticleEmitSettings));
     hr = gpuParticleEmitterResource_->Map(0, nullptr, reinterpret_cast<void**>(&gpuParticleEmitter_));
     assert(SUCCEEDED(hr));
     gpuParticleEmitter_->translate = { 0.0f, 0.0f, 0.0f };
     gpuParticleEmitter_->radius = 0.5f;
+    gpuParticleEmitter_->color = { 1.0f, 1.0f, 1.0f, 1.0f };
+    gpuParticleEmitter_->scale = { 0.5f, 0.5f, 0.5f };
+    gpuParticleEmitter_->lifeTime = 1.0f;
+    gpuParticleEmitter_->baseVelocity = { 0.0f, 0.0f, 0.0f };
+    gpuParticleEmitter_->speed = 0.0f;
     gpuParticleEmitter_->count = 0;
-    gpuParticleEmitter_->frequency = 0.0f;
-    gpuParticleEmitter_->frequencyTime = 0.0f;
     gpuParticleEmitter_->emit = 0;
+    gpuParticleEmitter_->preset = 0;
+    gpuParticleEmitter_->padding = 0;
+
+    gpuParticleInteractionResource_ = dxCommon_->CreateBufferResource(sizeof(GPUParticleInteractionSettings));
+    hr = gpuParticleInteractionResource_->Map(0, nullptr, reinterpret_cast<void**>(&gpuParticleInteraction_));
+    assert(SUCCEEDED(hr));
+    gpuParticleInteraction_->gridCenter = { 0.0f, 0.0f, 8.0f };
+    gpuParticleInteraction_->particleSize = 0.03f;
+    gpuParticleInteraction_->gridCountX = 8;
+    gpuParticleInteraction_->gridCountY = 8;
+    gpuParticleInteraction_->gridCountZ = 8;
+    gpuParticleInteraction_->particleCount = 512;
+    gpuParticleInteraction_->brushPosition = { 0.0f, 0.0f, 8.0f };
+    gpuParticleInteraction_->brushRadius = 1.0f;
+    gpuParticleInteraction_->brushStrength = 1.0f;
+    gpuParticleInteraction_->isPressed = 0;
+    gpuParticleInteraction_->operation = static_cast<uint32_t>(InteractionBrushOperation::None);
+    gpuParticleInteraction_->deltaTime = 1.0f / 60.0f;
+    gpuParticleInteraction_->damping = 0.95f;
+    gpuParticleInteraction_->padding0 = 0.0f;
+    gpuParticleInteraction_->padding1 = 0.0f;
+    gpuParticleInteraction_->padding2 = 0.0f;
 }
 
 void ParticleManager::CreateGPUParticleComputeRootSignature() {
@@ -538,6 +637,57 @@ void ParticleManager::CreateGPUParticleUpdateComputePipelineState() {
     assert(SUCCEEDED(hr));
 }
 
+void ParticleManager::CreateGPUParticleInteractionComputeRootSignature() {
+    D3D12_DESCRIPTOR_RANGE particleUavRange{};
+    particleUavRange.BaseShaderRegister = 0;
+    particleUavRange.NumDescriptors = 1;
+    particleUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    particleUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER rootParameters[2] = {};
+    rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    rootParameters[0].DescriptorTable.pDescriptorRanges = &particleUavRange;
+    rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+
+    rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    rootParameters[1].Descriptor.ShaderRegister = 0;
+
+    D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
+    descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+    descriptionRootSignature.pParameters = rootParameters;
+    descriptionRootSignature.NumParameters = _countof(rootParameters);
+
+    ComPtr<ID3DBlob> signatureBlob;
+    ComPtr<ID3DBlob> errorBlob;
+    HRESULT hr = D3D12SerializeRootSignature(&descriptionRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
+    if (FAILED(hr)) {
+        if (errorBlob) {
+            OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
+        }
+        assert(false);
+    }
+    hr = dxCommon_->GetDevice()->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&gpuParticleInteractionComputeRootSignature_));
+    assert(SUCCEEDED(hr));
+}
+
+void ParticleManager::CreateGPUParticleInteractionComputePipelineStates() {
+    ComPtr<IDxcBlob> initializeCsBlob = dxCommon_->CompileShader(L"Resources/shader/InitializeInteractionParticle.CS.hlsl", L"cs_6_0");
+    ComPtr<IDxcBlob> updateCsBlob = dxCommon_->CompileShader(L"Resources/shader/UpdateInteractionParticle.CS.hlsl", L"cs_6_0");
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{};
+    psoDesc.pRootSignature = gpuParticleInteractionComputeRootSignature_.Get();
+
+    psoDesc.CS = { initializeCsBlob->GetBufferPointer(), initializeCsBlob->GetBufferSize() };
+    HRESULT hr = dxCommon_->GetDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&gpuParticleInteractionInitializeComputePipelineState_));
+    assert(SUCCEEDED(hr));
+
+    psoDesc.CS = { updateCsBlob->GetBufferPointer(), updateCsBlob->GetBufferSize() };
+    hr = dxCommon_->GetDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&gpuParticleInteractionUpdateComputePipelineState_));
+    assert(SUCCEEDED(hr));
+}
+
 void ParticleManager::CreateGPUParticleGraphicsRootSignature() {
     D3D12_DESCRIPTOR_RANGE textureRange{};
     textureRange.BaseShaderRegister = 0;
@@ -658,13 +808,15 @@ void ParticleManager::InitializeGPUParticles() {
     TransitionResource(
         commandList,
         gpuParticleFreeListIndexResource_.Get(),
-        D3D12_RESOURCE_STATE_COMMON,
+        gpuParticleFreeListIndexResourceState_,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    gpuParticleFreeListIndexResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     TransitionResource(
         commandList,
         gpuParticleFreeListResource_.Get(),
-        D3D12_RESOURCE_STATE_COMMON,
+        gpuParticleFreeListResourceState_,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    gpuParticleFreeListResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
     commandList->SetComputeRootSignature(gpuParticleComputeRootSignature_.Get());
     commandList->SetPipelineState(gpuParticleComputePipelineState_.Get());
@@ -737,7 +889,73 @@ void ParticleManager::UpdateGPUParticles() {
     gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
 }
 
-void ParticleManager::DrawGPUParticles() {
+void ParticleManager::InitializeGPUParticleInteraction(const GPUParticleInteractionSettings& settings) {
+    if (!gpuParticleInteraction_ || !gpuParticleResource_) {
+        return;
+    }
+
+    GPUParticleInteractionSettings sanitizedSettings = SanitizeInteractionSettings(settings, kMaxGPUParticleCount);
+    *gpuParticleInteraction_ = sanitizedSettings;
+
+    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
+    TransitionResource(
+        commandList,
+        gpuParticleResource_.Get(),
+        gpuParticleResourceState_,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    gpuParticleResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+    commandList->SetComputeRootSignature(gpuParticleInteractionComputeRootSignature_.Get());
+    commandList->SetPipelineState(gpuParticleInteractionInitializeComputePipelineState_.Get());
+    commandList->SetComputeRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(gpuParticleUavHandle_));
+    commandList->SetComputeRootConstantBufferView(1, gpuParticleInteractionResource_->GetGPUVirtualAddress());
+
+    constexpr uint32_t kThreadCount = 256;
+    const uint32_t dispatchCount = (kMaxGPUParticleCount + kThreadCount - 1) / kThreadCount;
+    commandList->Dispatch(dispatchCount, 1, 1);
+    InsertUAVBarrier(commandList, gpuParticleResource_.Get());
+
+    gpuParticleInteractionInitialized_ = true;
+}
+
+void ParticleManager::UpdateGPUParticleInteraction(const GPUParticleInteractionSettings& settings) {
+    if (!gpuParticleInteraction_ || !gpuParticleResource_) {
+        return;
+    }
+
+    GPUParticleInteractionSettings sanitizedSettings = SanitizeInteractionSettings(settings, kMaxGPUParticleCount);
+    if (!gpuParticleInteractionInitialized_) {
+        InitializeGPUParticleInteraction(sanitizedSettings);
+    }
+    *gpuParticleInteraction_ = sanitizedSettings;
+
+    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
+    TransitionResource(
+        commandList,
+        gpuParticleResource_.Get(),
+        gpuParticleResourceState_,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    gpuParticleResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+    commandList->SetComputeRootSignature(gpuParticleInteractionComputeRootSignature_.Get());
+    commandList->SetPipelineState(gpuParticleInteractionUpdateComputePipelineState_.Get());
+    commandList->SetComputeRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(gpuParticleUavHandle_));
+    commandList->SetComputeRootConstantBufferView(1, gpuParticleInteractionResource_->GetGPUVirtualAddress());
+
+    constexpr uint32_t kThreadCount = 256;
+    const uint32_t dispatchCount = (sanitizedSettings.particleCount + kThreadCount - 1) / kThreadCount;
+    commandList->Dispatch((std::max)(1u, dispatchCount), 1, 1);
+    InsertUAVBarrier(commandList, gpuParticleResource_.Get());
+
+    TransitionResource(
+        commandList,
+        gpuParticleResource_.Get(),
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+}
+
+void ParticleManager::DrawGPUParticleBuffer() {
     if (!camera_) {
         return;
     }
@@ -747,9 +965,13 @@ void ParticleManager::DrawGPUParticles() {
         return;
     }
 
-    InitializeGPUParticles();
-    EmitGPUParticles();
-    UpdateGPUParticles();
+    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
+    TransitionResource(
+        commandList,
+        gpuParticleResource_.Get(),
+        gpuParticleResourceState_,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
 
     Matrix4x4 viewMatrix = camera_->GetViewMatrix();
     Matrix4x4 billboardMatrix = MatrixMath::MakeIdentity4x4();
@@ -760,7 +982,6 @@ void ParticleManager::DrawGPUParticles() {
     gpuParticleViewData_->viewProjection = camera_->GetViewProjectionMatrix();
     gpuParticleViewData_->billboardMatrix = billboardMatrix;
 
-    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
     commandList->SetGraphicsRootSignature(gpuParticleGraphicsRootSignature_.Get());
     commandList->SetPipelineState(gpuParticleGraphicsPipelineState_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -770,6 +991,13 @@ void ParticleManager::DrawGPUParticles() {
     commandList->SetGraphicsRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(gpuParticleSrvHandle_));
     commandList->SetGraphicsRootConstantBufferView(3, gpuParticleViewResource_->GetGPUVirtualAddress());
     commandList->DrawInstanced(6, kMaxGPUParticleCount, 0, 0);
+}
+
+void ParticleManager::DrawGPUParticles() {
+    InitializeGPUParticles();
+    EmitGPUParticles();
+    UpdateGPUParticles();
+    DrawGPUParticleBuffer();
 }
 
 bool ParticleManager::TryGetGPUParticleTextureHandle(uint32_t& textureHandle) const {

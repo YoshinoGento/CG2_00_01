@@ -17,7 +17,74 @@
 #include <dinput.h>
 #include "3d/Skybox.h"
 #include "base/Logger.h" // 追加：外部ロガーツールのインクルード
+#include <algorithm>
+#include <cmath>
 #include <random>
+
+namespace {
+GPUParticleEmitSettings MakeAgricultureEmitSettings(
+	const Vector3& position,
+	float particleSize,
+	uint32_t count,
+	GamePlayScene::AgricultureParticleType type) {
+	GPUParticleEmitSettings settings{};
+	settings.translate = position;
+	settings.radius = 0.8f;
+	settings.color = { 1.0f, 1.0f, 1.0f, 1.0f };
+	settings.scale = { particleSize, particleSize, particleSize };
+	settings.lifeTime = 1.0f;
+	settings.baseVelocity = { 0.0f, 0.3f, 0.0f };
+	settings.speed = 0.5f;
+	settings.count = count;
+	settings.emit = 1;
+	settings.preset = static_cast<uint32_t>(type);
+
+	switch (type) {
+	case GamePlayScene::AgricultureParticleType::DirtDust:
+		settings.radius = 0.65f;
+		settings.color = { 0.45f, 0.28f, 0.12f, 1.0f };
+		settings.scale = { particleSize * 0.65f, particleSize * 0.65f, particleSize * 0.65f };
+		settings.lifeTime = 0.75f;
+		settings.baseVelocity = { 0.0f, 0.35f, 0.0f };
+		settings.speed = 0.25f;
+		break;
+	case GamePlayScene::AgricultureParticleType::WaterSplash:
+		settings.radius = 0.45f;
+		settings.color = { 0.45f, 0.85f, 1.0f, 1.0f };
+		settings.scale = { particleSize * 0.55f, particleSize * 0.55f, particleSize * 0.55f };
+		settings.lifeTime = 0.65f;
+		settings.baseVelocity = { 0.0f, 0.15f, 0.0f };
+		settings.speed = 1.25f;
+		break;
+	case GamePlayScene::AgricultureParticleType::HarvestSparkle:
+		settings.radius = 0.9f;
+		settings.color = { 1.0f, 0.9f, 0.25f, 1.0f };
+		settings.scale = { particleSize * 0.45f, particleSize * 0.45f, particleSize * 0.45f };
+		settings.lifeTime = 1.25f;
+		settings.baseVelocity = { 0.0f, 0.85f, 0.0f };
+		settings.speed = 0.35f;
+		break;
+	case GamePlayScene::AgricultureParticleType::PollenSpore:
+		settings.radius = 1.2f;
+		settings.color = { 0.6f, 0.95f, 0.25f, 1.0f };
+		settings.scale = { particleSize * 0.4f, particleSize * 0.4f, particleSize * 0.4f };
+		settings.lifeTime = 2.0f;
+		settings.baseVelocity = { 0.15f, 0.25f, 0.0f };
+		settings.speed = 0.15f;
+		break;
+	case GamePlayScene::AgricultureParticleType::BugSwarm:
+		settings.radius = 1.0f;
+		settings.color = { 0.08f, 0.25f, 0.06f, 1.0f };
+		settings.scale = { particleSize * 0.35f, particleSize * 0.35f, particleSize * 0.35f };
+		settings.lifeTime = 1.8f;
+		settings.baseVelocity = { 0.0f, 0.1f, 0.0f };
+		settings.speed = 0.45f;
+		break;
+	}
+
+	return settings;
+}
+}
 
 GamePlayScene::GamePlayScene() = default;
 GamePlayScene::~GamePlayScene() = default;
@@ -179,6 +246,9 @@ void GamePlayScene::EmitCylinderEffect(const Vector3& position) {
 }
 
 void GamePlayScene::Update() {
+	UpdateSceneDeltaTime();
+	HandleCameraInput(sceneDeltaTime_);
+	ClampCameraPitch();
 	HandleKeyboardMovement();
 
 	camera_->SetTranslate(cameraPos_);
@@ -240,7 +310,10 @@ void GamePlayScene::Update() {
 		}
 	}
 
-	if (framework_->GetInput()->TriggerKey(DIK_G)) {
+	SyncGPUParticleDebugModeChange();
+	HandleGPUParticleDebugModeInput();
+
+	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Off && framework_->GetInput()->TriggerKey(DIK_G)) {
 		framework_->GetParticleManager()->RequestGPUParticleEmit(spherePos_, 256);
 	}
 
@@ -295,6 +368,19 @@ void GamePlayScene::Draw() {
 		LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
 	}
 
+	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction &&
+		interactionBrushOperation_ != InteractionBrushOperation::None) {
+		const Vector4 brushColor =
+			interactionBrushOperation_ == InteractionBrushOperation::Pull
+			? Vector4{ 0.1f, 0.75f, 1.0f, 1.0f }
+			: Vector4{ 1.0f, 0.35f, 0.05f, 1.0f };
+		LineDrawer::GetInstance()->DrawWireSphere(
+			interactionBrushPosition_,
+			(std::max)(interactionBrushRadius_, 0.01f),
+			brushColor,
+			24);
+	}
+
 	if (modelPriority_ == 0) {
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
@@ -327,11 +413,106 @@ void GamePlayScene::Draw() {
 		LineDrawer::GetInstance()->Draw(camera_->GetViewProjectionMatrix());
 	}
 
-	if (showParticles_) framework_->GetParticleManager()->Draw();
+	if (showParticles_) {
+		ParticleManager* particleManager = framework_->GetParticleManager();
+		if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
+			particleManager->Draw(false);
+
+			GPUParticleInteractionSettings settings{};
+			const uint32_t gridCount = static_cast<uint32_t>(std::clamp(interactionGridCount_, 1, 10));
+			settings.gridCenter = interactionGridCenter_;
+			settings.particleSize = std::clamp(interactionParticleSize_, 0.02f, 0.05f);
+			settings.gridCountX = gridCount;
+			settings.gridCountY = gridCount;
+			settings.gridCountZ = gridCount;
+			settings.particleCount = CalculateInteractionParticleCount();
+			settings.brushPosition = interactionBrushPosition_;
+			settings.brushRadius = (std::max)(interactionBrushRadius_, 0.01f);
+			settings.brushStrength = (std::max)(interactionBrushStrength_, 0.0f);
+			settings.operation = static_cast<uint32_t>(interactionBrushOperation_);
+			settings.isPressed = settings.operation != static_cast<uint32_t>(InteractionBrushOperation::None) ? 1u : 0u;
+			settings.deltaTime = sceneDeltaTime_;
+			settings.damping = std::clamp(interactionDamping_, 0.80f, 0.995f);
+			if (interactionResetRequested_) {
+				particleManager->InitializeGPUParticleInteraction(settings);
+				interactionResetRequested_ = false;
+			}
+			particleManager->UpdateGPUParticleInteraction(settings);
+			particleManager->DrawGPUParticleBuffer();
+		} else {
+			particleManager->Draw();
+		}
+	}
+}
+
+void GamePlayScene::UpdateSceneDeltaTime() {
+	const auto now = std::chrono::steady_clock::now();
+	if (previousFrameTime_.time_since_epoch().count() != 0) {
+		sceneDeltaTime_ = std::chrono::duration<float>(now - previousFrameTime_).count();
+		sceneDeltaTime_ = std::clamp(sceneDeltaTime_, 1.0f / 240.0f, 1.0f / 15.0f);
+	} else {
+		sceneDeltaTime_ = 1.0f / 60.0f;
+	}
+	previousFrameTime_ = now;
+}
+
+void GamePlayScene::ResetCamera() {
+	cameraPos_ = { 0.0f, 5.0f, -15.0f };
+	cameraRot_ = { 0.3f, 0.0f, 0.0f };
+}
+
+void GamePlayScene::ClampCameraPitch() {
+	cameraRot_.x = std::clamp(cameraRot_.x, -1.5f, 1.5f);
+}
+
+void GamePlayScene::HandleCameraInput(float deltaTime) {
+	if (!framework_ || !viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) {
+		return;
+	}
+	if (!std::isfinite(deltaTime) || deltaTime <= 0.0f) {
+		return;
+	}
+
+	Input* input = framework_->GetInput();
+	if (!input) {
+		return;
+	}
+
+	const Matrix4x4 rotateMatrix = MatrixMath::Multiply(
+		MatrixMath::MakeRotateXMatrix(cameraRot_.x),
+		MatrixMath::Multiply(
+			MatrixMath::MakeRotateYMatrix(cameraRot_.y),
+			MatrixMath::MakeRotateZMatrix(cameraRot_.z)));
+
+	Vector3 right = { rotateMatrix.m[0][0], rotateMatrix.m[0][1], rotateMatrix.m[0][2] };
+	Vector3 forward = { rotateMatrix.m[2][0], rotateMatrix.m[2][1], rotateMatrix.m[2][2] };
+	right = MatrixMath::Normalize(right);
+	forward = MatrixMath::Normalize(forward);
+
+	Vector3 move = { 0.0f, 0.0f, 0.0f };
+	if (input->PushKey(DIK_W)) { move += forward; }
+	if (input->PushKey(DIK_S)) { move -= forward; }
+	if (input->PushKey(DIK_D)) { move += right; }
+	if (input->PushKey(DIK_A)) { move -= right; }
+	if (input->PushKey(DIK_E)) { move.y += 1.0f; }
+	if (input->PushKey(DIK_Q)) { move.y -= 1.0f; }
+
+	const float moveLength = MatrixMath::Length(move);
+	if (moveLength > 0.0001f) {
+		const float moveStep = (std::max)(cameraMoveSpeed_, 0.0f) * deltaTime;
+		cameraPos_ += (move / moveLength) * moveStep;
+	}
+
+	const float rotateStep = (std::max)(cameraRotateSpeed_, 0.0f) * deltaTime;
+	if (input->PushKey(DIK_UP)) { cameraRot_.x += rotateStep; }
+	if (input->PushKey(DIK_DOWN)) { cameraRot_.x -= rotateStep; }
+	if (input->PushKey(DIK_RIGHT)) { cameraRot_.y += rotateStep; }
+	if (input->PushKey(DIK_LEFT)) { cameraRot_.y -= rotateStep; }
+	ClampCameraPitch();
 }
 
 void GamePlayScene::HandleKeyboardMovement() {
-	if (selectedTarget_ == 0 || ImGui::GetIO().WantCaptureKeyboard) return;
+	if (selectedTarget_ == 0 || viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) return;
 	Input* input = framework_->GetInput();
 	float speed = input->PushKey(DIK_LSHIFT) ? 5.0f : 0.5f;
 	Vector3 move = { 0, 0, 0 };
@@ -350,6 +531,141 @@ void GamePlayScene::HandleKeyboardMovement() {
 /**
  * AddLog: デバッグログを記録する関数
  */
+void GamePlayScene::SyncGPUParticleDebugModeChange() {
+	if (gpuParticleDebugMode_ == previousGPUParticleDebugMode_) {
+		return;
+	}
+
+	if (framework_ && framework_->GetParticleManager()) {
+		framework_->GetParticleManager()->ResetGPUParticles();
+	}
+	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
+		interactionResetRequested_ = true;
+		interactionBrushOperation_ = InteractionBrushOperation::None;
+	}
+	previousGPUParticleDebugMode_ = gpuParticleDebugMode_;
+}
+
+void GamePlayScene::SetGPUParticleDebugMode(GPUParticleDebugMode mode) {
+	gpuParticleDebugMode_ = mode;
+}
+
+void GamePlayScene::HandleGPUParticleDebugModeInput() {
+	switch (gpuParticleDebugMode_) {
+	case GPUParticleDebugMode::Agriculture:
+		HandleAgricultureParticleInput();
+		break;
+	case GPUParticleDebugMode::Interaction:
+		HandleInteractionParticleInput();
+		break;
+	case GPUParticleDebugMode::Off:
+	default:
+		break;
+	}
+}
+
+void GamePlayScene::HandleAgricultureParticleInput() {
+	if (ImGui::GetIO().WantCaptureKeyboard) {
+		return;
+	}
+
+	Input* input = framework_->GetInput();
+	if (input->TriggerKey(DIK_1)) {
+		EmitAgricultureParticle(AgricultureParticleType::DirtDust);
+	}
+	if (input->TriggerKey(DIK_2)) {
+		EmitAgricultureParticle(AgricultureParticleType::WaterSplash);
+	}
+	if (input->TriggerKey(DIK_3)) {
+		EmitAgricultureParticle(AgricultureParticleType::HarvestSparkle);
+	}
+	if (input->TriggerKey(DIK_4)) {
+		EmitAgricultureParticle(AgricultureParticleType::PollenSpore);
+	}
+	if (input->TriggerKey(DIK_5)) {
+		EmitAgricultureParticle(AgricultureParticleType::BugSwarm);
+	}
+}
+
+void GamePlayScene::HandleInteractionParticleInput() {
+	interactionGridCount_ = std::clamp(interactionGridCount_, 1, 10);
+	interactionParticleSize_ = std::clamp(interactionParticleSize_, 0.02f, 0.05f);
+	interactionBrushRadius_ = (std::max)(interactionBrushRadius_, 0.01f);
+	interactionBrushStrength_ = (std::max)(interactionBrushStrength_, 0.0f);
+	interactionDamping_ = std::clamp(interactionDamping_, 0.80f, 0.995f);
+	interactionParticleCount_ = CalculateInteractionParticleCount();
+
+	Vector3 brushPosition{};
+	const bool hasBrushPosition = TryGetInteractionBrushPosition(brushPosition);
+	if (hasBrushPosition) {
+		interactionBrushPosition_ = brushPosition;
+	}
+
+	interactionBrushOperation_ = InteractionBrushOperation::None;
+	if (hasBrushPosition && viewportHovered_ && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+		interactionBrushOperation_ = ImGui::GetIO().KeyShift
+			? InteractionBrushOperation::Pull
+			: InteractionBrushOperation::Push;
+	}
+}
+
+void GamePlayScene::EmitAgricultureParticle(AgricultureParticleType type) {
+	if (gpuParticleDebugMode_ != GPUParticleDebugMode::Agriculture) {
+		return;
+	}
+
+	const uint32_t count = static_cast<uint32_t>(std::clamp(agricultureParticleCount_, 1, 1024));
+	const float particleSize = (std::max)(agricultureParticleSize_, 0.01f);
+	GPUParticleEmitSettings settings = MakeAgricultureEmitSettings(
+		agricultureEmitPosition_,
+		particleSize,
+		count,
+		type);
+	framework_->GetParticleManager()->RequestGPUParticleEmit(settings);
+}
+
+uint32_t GamePlayScene::CalculateInteractionParticleCount() const {
+	const uint32_t gridCount = static_cast<uint32_t>(std::clamp(interactionGridCount_, 1, 10));
+	const uint64_t particleCount =
+		static_cast<uint64_t>(gridCount) *
+		static_cast<uint64_t>(gridCount) *
+		static_cast<uint64_t>(gridCount);
+	return static_cast<uint32_t>(particleCount > 1024 ? 1024 : particleCount);
+}
+
+bool GamePlayScene::TryGetInteractionBrushPosition(Vector3& outBrushPosition) const {
+	if (!camera_ || !viewportHovered_ || viewportImageSize_.x <= 0.0f || viewportImageSize_.y <= 0.0f) {
+		return false;
+	}
+
+	const float u = (viewportMousePosition_.x - viewportImageTopLeft_.x) / viewportImageSize_.x;
+	const float v = (viewportMousePosition_.y - viewportImageTopLeft_.y) / viewportImageSize_.y;
+	if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+		return false;
+	}
+
+	const float ndcX = u * 2.0f - 1.0f;
+	const float ndcY = 1.0f - v * 2.0f;
+	const Matrix4x4 inverseViewProjection = MatrixMath::Inverse(camera_->GetViewProjectionMatrix());
+	const Vector3 nearPoint = MatrixMath::Transform({ ndcX, ndcY, 0.0f }, inverseViewProjection);
+	const Vector3 farPoint = MatrixMath::Transform({ ndcX, ndcY, 1.0f }, inverseViewProjection);
+	const Vector3 rayDirection = MatrixMath::Normalize(farPoint - nearPoint);
+	if (std::abs(rayDirection.y) <= 0.0001f) {
+		return false;
+	}
+
+	const float t = (interactionGridCenter_.y - nearPoint.y) / rayDirection.y;
+	if (t < 0.0f || !std::isfinite(t)) {
+		return false;
+	}
+
+	outBrushPosition = nearPoint + rayDirection * t;
+	return
+		std::isfinite(outBrushPosition.x) &&
+		std::isfinite(outBrushPosition.y) &&
+		std::isfinite(outBrushPosition.z);
+}
+
 void GamePlayScene::AddLog(const std::string& message) {
 	// 1. 外部ロガーツールを使用して Visual Studio の出力ウィンドウへ出す
 	Logger::Log(message);
