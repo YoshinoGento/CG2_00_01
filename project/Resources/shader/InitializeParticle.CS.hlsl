@@ -10,15 +10,23 @@ struct Particle
 };
 
 RWStructuredBuffer<Particle> gParticles : register(u0);
-RWStructuredBuffer<uint> gFreeCounter : register(u1);
+RWStructuredBuffer<int> gFreeListIndex : register(u1);
+RWStructuredBuffer<uint> gFreeList : register(u2);
+
+static const uint kMaxParticles = 1024;
 
 [numthreads(1024, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
     uint index = dispatchThreadId.x;
+    if (index >= kMaxParticles)
+    {
+        return;
+    }
+
     if (index == 0)
     {
-        gFreeCounter[0] = 0;
+        gFreeListIndex[0] = (int)kMaxParticles - 1;
     }
 
     Particle particle;
@@ -37,4 +45,5 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particle.isAlive = 0;
 
     gParticles[index] = particle;
+    gFreeList[index] = index;
 }

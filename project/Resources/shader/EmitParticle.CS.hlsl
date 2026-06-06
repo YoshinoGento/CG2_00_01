@@ -20,7 +20,8 @@ struct EmitterSphere
 };
 
 RWStructuredBuffer<Particle> gParticles : register(u0);
-RWStructuredBuffer<uint> gFreeCounter : register(u1);
+RWStructuredBuffer<int> gFreeListIndex : register(u1);
+RWStructuredBuffer<uint> gFreeList : register(u2);
 ConstantBuffer<EmitterSphere> gEmitter : register(b0);
 
 static const uint kMaxParticles = 1024;
@@ -36,10 +37,20 @@ void main()
     uint emitCount = min(gEmitter.count, kMaxParticles);
     for (uint i = 0; i < emitCount; ++i)
     {
-        uint particleIndex = 0;
-        InterlockedAdd(gFreeCounter[0], 1, particleIndex);
+        int freeListIndex = -1;
+        InterlockedAdd(gFreeListIndex[0], -1, freeListIndex);
+        if (freeListIndex < 0 || freeListIndex >= (int)kMaxParticles)
+        {
+            int rollbackIndex = 0;
+            InterlockedAdd(gFreeListIndex[0], 1, rollbackIndex);
+            continue;
+        }
+
+        uint particleIndex = gFreeList[(uint)freeListIndex];
         if (particleIndex >= kMaxParticles)
         {
+            int rollbackIndex = 0;
+            InterlockedAdd(gFreeListIndex[0], 1, rollbackIndex);
             continue;
         }
 
