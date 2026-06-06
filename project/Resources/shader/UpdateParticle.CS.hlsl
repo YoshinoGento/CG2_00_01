@@ -10,6 +10,10 @@ struct Particle
 };
 
 RWStructuredBuffer<Particle> gParticles : register(u0);
+RWStructuredBuffer<int> gFreeListIndex : register(u1);
+RWStructuredBuffer<uint> gFreeList : register(u2);
+
+static const uint kMaxParticles = 1024;
 
 cbuffer UpdateParticleInfo : register(b0)
 {
@@ -34,22 +38,35 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
     }
 
-    if (particle.lifeTime <= 0.0f)
+    bool shouldDie = particle.lifeTime <= 0.0f;
+
+    if (!shouldDie)
+    {
+        float scaledDeltaTime = deltaTime * timeScale;
+        particle.currentTime += scaledDeltaTime;
+        particle.translate += particle.velocity * scaledDeltaTime;
+        shouldDie = particle.currentTime >= particle.lifeTime;
+    }
+
+    if (shouldDie)
     {
         particle.isAlive = 0;
         particle.color.a = 0.0f;
         gParticles[index] = particle;
+
+        int oldFreeListIndex = -1;
+        InterlockedAdd(gFreeListIndex[0], 1, oldFreeListIndex);
+        int pushIndex = oldFreeListIndex + 1;
+        if (pushIndex >= 0 && pushIndex < (int)kMaxParticles)
+        {
+            gFreeList[(uint)pushIndex] = index;
+        }
+        else
+        {
+            int rollbackIndex = 0;
+            InterlockedAdd(gFreeListIndex[0], -1, rollbackIndex);
+        }
         return;
-    }
-
-    float scaledDeltaTime = deltaTime * timeScale;
-    particle.currentTime += scaledDeltaTime;
-    particle.translate += particle.velocity * scaledDeltaTime;
-
-    if (particle.currentTime >= particle.lifeTime)
-    {
-        particle.isAlive = 0;
-        particle.color.a = 0.0f;
     }
 
     gParticles[index] = particle;

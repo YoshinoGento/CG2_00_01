@@ -176,8 +176,10 @@ private:
     uint32_t gpuParticleSrvHandle_ = UINT32_MAX;
     uint32_t gpuParticleUavHandle_ = UINT32_MAX;
     D3D12_RESOURCE_STATES gpuParticleResourceState_ = D3D12_RESOURCE_STATE_COMMON;
-    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleFreeCounterResource_;
-    uint32_t gpuParticleFreeCounterUavHandle_ = UINT32_MAX;
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleFreeListIndexResource_;
+    uint32_t gpuParticleFreeListIndexUavHandle_ = UINT32_MAX;
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleFreeListResource_;
+    uint32_t gpuParticleFreeListUavHandle_ = UINT32_MAX;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleViewResource_;
     GPUParticleViewData* gpuParticleViewData_ = nullptr;

@@ -292,14 +292,25 @@ void ParticleManager::CreateGPUParticleResources() {
         kMaxGPUParticleCount,
         sizeof(ParticleCS));
 
-    gpuParticleFreeCounterResource_ = dxCommon_->CreateUAVBufferResource(
-        sizeof(uint32_t),
+    static_assert(sizeof(int32_t) == 4, "GPU free-list index must be 32-bit signed int.");
+    gpuParticleFreeListIndexResource_ = dxCommon_->CreateUAVBufferResource(
+        sizeof(int32_t),
         D3D12_RESOURCE_STATE_COMMON);
-    gpuParticleFreeCounterUavHandle_ = srvManager_->Allocate();
+    gpuParticleFreeListIndexUavHandle_ = srvManager_->Allocate();
     srvManager_->CreateUAVforStructuredBuffer(
-        gpuParticleFreeCounterUavHandle_,
-        gpuParticleFreeCounterResource_.Get(),
+        gpuParticleFreeListIndexUavHandle_,
+        gpuParticleFreeListIndexResource_.Get(),
         1,
+        sizeof(int32_t));
+
+    gpuParticleFreeListResource_ = dxCommon_->CreateUAVBufferResource(
+        sizeof(uint32_t) * kMaxGPUParticleCount,
+        D3D12_RESOURCE_STATE_COMMON);
+    gpuParticleFreeListUavHandle_ = srvManager_->Allocate();
+    srvManager_->CreateUAVforStructuredBuffer(
+        gpuParticleFreeListUavHandle_,
+        gpuParticleFreeListResource_.Get(),
+        kMaxGPUParticleCount,
         sizeof(uint32_t));
 
     gpuParticleViewResource_ = dxCommon_->CreateBufferResource(sizeof(GPUParticleViewData));
@@ -334,13 +345,19 @@ void ParticleManager::CreateGPUParticleComputeRootSignature() {
     particleUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     particleUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_DESCRIPTOR_RANGE freeCounterUavRange{};
-    freeCounterUavRange.BaseShaderRegister = 1;
-    freeCounterUavRange.NumDescriptors = 1;
-    freeCounterUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    freeCounterUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    D3D12_DESCRIPTOR_RANGE freeListIndexUavRange{};
+    freeListIndexUavRange.BaseShaderRegister = 1;
+    freeListIndexUavRange.NumDescriptors = 1;
+    freeListIndexUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    freeListIndexUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_PARAMETER rootParameters[2] = {};
+    D3D12_DESCRIPTOR_RANGE freeListUavRange{};
+    freeListUavRange.BaseShaderRegister = 2;
+    freeListUavRange.NumDescriptors = 1;
+    freeListUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    freeListUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER rootParameters[3] = {};
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     rootParameters[0].DescriptorTable.pDescriptorRanges = &particleUavRange;
@@ -348,8 +365,13 @@ void ParticleManager::CreateGPUParticleComputeRootSignature() {
 
     rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    rootParameters[1].DescriptorTable.pDescriptorRanges = &freeCounterUavRange;
+    rootParameters[1].DescriptorTable.pDescriptorRanges = &freeListIndexUavRange;
     rootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
+
+    rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    rootParameters[2].DescriptorTable.pDescriptorRanges = &freeListUavRange;
+    rootParameters[2].DescriptorTable.NumDescriptorRanges = 1;
 
     D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
     descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
@@ -387,13 +409,19 @@ void ParticleManager::CreateGPUParticleEmitComputeRootSignature() {
     particleUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     particleUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_DESCRIPTOR_RANGE freeCounterUavRange{};
-    freeCounterUavRange.BaseShaderRegister = 1;
-    freeCounterUavRange.NumDescriptors = 1;
-    freeCounterUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    freeCounterUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    D3D12_DESCRIPTOR_RANGE freeListIndexUavRange{};
+    freeListIndexUavRange.BaseShaderRegister = 1;
+    freeListIndexUavRange.NumDescriptors = 1;
+    freeListIndexUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    freeListIndexUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_PARAMETER rootParameters[3] = {};
+    D3D12_DESCRIPTOR_RANGE freeListUavRange{};
+    freeListUavRange.BaseShaderRegister = 2;
+    freeListUavRange.NumDescriptors = 1;
+    freeListUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    freeListUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER rootParameters[4] = {};
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     rootParameters[0].DescriptorTable.pDescriptorRanges = &particleUavRange;
@@ -401,12 +429,17 @@ void ParticleManager::CreateGPUParticleEmitComputeRootSignature() {
 
     rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    rootParameters[1].DescriptorTable.pDescriptorRanges = &freeCounterUavRange;
+    rootParameters[1].DescriptorTable.pDescriptorRanges = &freeListIndexUavRange;
     rootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
 
-    rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    rootParameters[2].Descriptor.ShaderRegister = 0;
+    rootParameters[2].DescriptorTable.pDescriptorRanges = &freeListUavRange;
+    rootParameters[2].DescriptorTable.NumDescriptorRanges = 1;
+
+    rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    rootParameters[3].Descriptor.ShaderRegister = 0;
 
     D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
     descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
@@ -444,15 +477,37 @@ void ParticleManager::CreateGPUParticleUpdateComputeRootSignature() {
     particleUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     particleUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_PARAMETER rootParameters[2] = {};
+    D3D12_DESCRIPTOR_RANGE freeListIndexUavRange{};
+    freeListIndexUavRange.BaseShaderRegister = 1;
+    freeListIndexUavRange.NumDescriptors = 1;
+    freeListIndexUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    freeListIndexUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_DESCRIPTOR_RANGE freeListUavRange{};
+    freeListUavRange.BaseShaderRegister = 2;
+    freeListUavRange.NumDescriptors = 1;
+    freeListUavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    freeListUavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER rootParameters[4] = {};
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     rootParameters[0].DescriptorTable.pDescriptorRanges = &particleUavRange;
     rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
 
-    rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    rootParameters[1].Descriptor.ShaderRegister = 0;
+    rootParameters[1].DescriptorTable.pDescriptorRanges = &freeListIndexUavRange;
+    rootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
+
+    rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    rootParameters[2].DescriptorTable.pDescriptorRanges = &freeListUavRange;
+    rootParameters[2].DescriptorTable.NumDescriptorRanges = 1;
+
+    rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    rootParameters[3].Descriptor.ShaderRegister = 0;
 
     D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
     descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
@@ -600,11 +655,22 @@ void ParticleManager::InitializeGPUParticles() {
         gpuParticleResourceState_,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     gpuParticleResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    TransitionResource(
+        commandList,
+        gpuParticleFreeListIndexResource_.Get(),
+        D3D12_RESOURCE_STATE_COMMON,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    TransitionResource(
+        commandList,
+        gpuParticleFreeListResource_.Get(),
+        D3D12_RESOURCE_STATE_COMMON,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     commandList->SetComputeRootSignature(gpuParticleComputeRootSignature_.Get());
     commandList->SetPipelineState(gpuParticleComputePipelineState_.Get());
     commandList->SetComputeRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(gpuParticleUavHandle_));
-    commandList->SetComputeRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(gpuParticleFreeCounterUavHandle_));
+    commandList->SetComputeRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(gpuParticleFreeListIndexUavHandle_));
+    commandList->SetComputeRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(gpuParticleFreeListUavHandle_));
     commandList->Dispatch(1, 1, 1);
 
     InsertUAVBarrier(commandList, nullptr);
@@ -627,11 +693,12 @@ void ParticleManager::EmitGPUParticles() {
     commandList->SetComputeRootSignature(gpuParticleEmitComputeRootSignature_.Get());
     commandList->SetPipelineState(gpuParticleEmitComputePipelineState_.Get());
     commandList->SetComputeRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(gpuParticleUavHandle_));
-    commandList->SetComputeRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(gpuParticleFreeCounterUavHandle_));
-    commandList->SetComputeRootConstantBufferView(2, gpuParticleEmitterResource_->GetGPUVirtualAddress());
+    commandList->SetComputeRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(gpuParticleFreeListIndexUavHandle_));
+    commandList->SetComputeRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(gpuParticleFreeListUavHandle_));
+    commandList->SetComputeRootConstantBufferView(3, gpuParticleEmitterResource_->GetGPUVirtualAddress());
     commandList->Dispatch(1, 1, 1);
 
-    InsertUAVBarrier(commandList, gpuParticleResource_.Get());
+    InsertUAVBarrier(commandList, nullptr);
 }
 
 void ParticleManager::UpdateGPUParticles() {
@@ -649,16 +716,18 @@ void ParticleManager::UpdateGPUParticles() {
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     gpuParticleResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
-    InsertUAVBarrier(commandList, gpuParticleResource_.Get());
-
     commandList->SetComputeRootSignature(gpuParticleUpdateComputeRootSignature_.Get());
     commandList->SetPipelineState(gpuParticleUpdateComputePipelineState_.Get());
     commandList->SetComputeRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(gpuParticleUavHandle_));
-    commandList->SetComputeRootConstantBufferView(1, gpuParticleUpdateInfoResource_->GetGPUVirtualAddress());
+    commandList->SetComputeRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(gpuParticleFreeListIndexUavHandle_));
+    commandList->SetComputeRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(gpuParticleFreeListUavHandle_));
+    commandList->SetComputeRootConstantBufferView(3, gpuParticleUpdateInfoResource_->GetGPUVirtualAddress());
 
     constexpr uint32_t kThreadCount = 256;
     const uint32_t dispatchCount = (kMaxGPUParticleCount + kThreadCount - 1) / kThreadCount;
     commandList->Dispatch(dispatchCount, 1, 1);
+
+    InsertUAVBarrier(commandList, nullptr);
 
     TransitionResource(
         commandList,
