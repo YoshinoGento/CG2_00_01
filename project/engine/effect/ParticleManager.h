@@ -3,6 +3,7 @@
 #include <d3d12.h>
 #include <wrl.h>
 #include <cstdint>
+#include <cstddef>
 #include <string>
 #include <vector>
 #include <list>
@@ -58,6 +59,7 @@ public:
     void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager);
     void Update(Camera* camera);
     void Draw();
+    void RequestGPUParticleEmit(const Vector3& position, uint32_t count);
 
     // グループ作成
     void CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model = nullptr);
@@ -91,9 +93,15 @@ private:
     void CreateGPUParticleResources();
     void CreateGPUParticleComputeRootSignature();
     void CreateGPUParticleComputePipelineState();
+    void CreateGPUParticleEmitComputeRootSignature();
+    void CreateGPUParticleEmitComputePipelineState();
+    void CreateGPUParticleUpdateComputeRootSignature();
+    void CreateGPUParticleUpdateComputePipelineState();
     void CreateGPUParticleGraphicsRootSignature();
     void CreateGPUParticleGraphicsPipelineState();
     void InitializeGPUParticles();
+    void EmitGPUParticles();
+    void UpdateGPUParticles();
     void DrawGPUParticles();
     bool TryGetGPUParticleTextureHandle(uint32_t& textureHandle) const;
 
@@ -106,6 +114,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleComputeRootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleComputePipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleEmitComputeRootSignature_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleEmitComputePipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleUpdateComputeRootSignature_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleUpdateComputePipelineState_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleGraphicsRootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> gpuParticleGraphicsPipelineState_;
 
@@ -130,21 +142,50 @@ private:
         Vector3 velocity;
         float currentTime;
         Vector4 color;
+        uint32_t isAlive;
     };
-    static_assert(sizeof(ParticleCS) == 60, "ParticleCS layout must match HLSL.");
+    static_assert(sizeof(Vector3) == 12, "Vector3 must be 12 bytes.");
+    static_assert(sizeof(Vector4) == 16, "Vector4 must be 16 bytes.");
+    static_assert(sizeof(ParticleCS) == 64, "ParticleCS layout must match HLSL.");
+    static_assert(offsetof(ParticleCS, isAlive) == 60, "ParticleCS::isAlive offset must match HLSL.");
 
     struct GPUParticleViewData {
         Matrix4x4 viewProjection;
         Matrix4x4 billboardMatrix;
     };
 
+    struct UpdateParticleInfo {
+        float deltaTime;
+        uint32_t particleCount;
+        float timeScale;
+        uint32_t padding;
+    };
+    static_assert(sizeof(UpdateParticleInfo) == 16, "UpdateParticleInfo must be 16 bytes.");
+
+    struct EmitterSphere {
+        Vector3 translate;
+        float radius;
+        uint32_t count;
+        float frequency;
+        float frequencyTime;
+        uint32_t emit;
+    };
+    static_assert(sizeof(EmitterSphere) == 32, "EmitterSphere layout must match HLSL.");
+
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleResource_;
     uint32_t gpuParticleSrvHandle_ = UINT32_MAX;
     uint32_t gpuParticleUavHandle_ = UINT32_MAX;
     D3D12_RESOURCE_STATES gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleFreeCounterResource_;
+    uint32_t gpuParticleFreeCounterUavHandle_ = UINT32_MAX;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleViewResource_;
     GPUParticleViewData* gpuParticleViewData_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleUpdateInfoResource_;
+    UpdateParticleInfo* gpuParticleUpdateInfo_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleEmitterResource_;
+    EmitterSphere* gpuParticleEmitter_ = nullptr;
+    bool gpuParticleEmitRequested_ = false;
     bool gpuParticlesInitialized_ = false;
 
     // discardしきい値用の定数バッファ

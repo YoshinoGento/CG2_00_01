@@ -298,7 +298,13 @@
     <None Include="Resources\shader\Line.hlsli" />
     <None Include="Resources\shader\LinePS.hlsl" />
     <None Include="Resources\shader\LineVS.hlsl" />
+    <None Include="Resources\shader\EmitParticle.CS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </None>
     <None Include="Resources\shader\InitializeParticle.CS.hlsl">
+      <Filter>リソース ファイル\Resources\shader</Filter>
+    </None>
+    <None Include="Resources\shader\UpdateParticle.CS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\Skinning.CS.hlsl" />

@@ -239,6 +239,11 @@ void GamePlayScene::Update() {
 			break;
 		}
 	}
+
+	if (framework_->GetInput()->TriggerKey(DIK_G)) {
+		framework_->GetParticleManager()->RequestGPUParticleEmit(spherePos_, 32);
+	}
+
 	framework_->GetParticleManager()->Update(camera_.get());
 }
 

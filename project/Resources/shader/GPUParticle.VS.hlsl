@@ -8,6 +8,7 @@ struct Particle
     float3 velocity;
     float currentTime;
     float4 color;
+    uint isAlive;
 };
 
 struct ViewData
@@ -34,6 +35,15 @@ struct VertexShaderInput
 VertexShaderOutput main(VertexShaderInput input)
 {
     Particle particle = gParticles[input.instanceId];
+
+    if (particle.isAlive == 0)
+    {
+        VertexShaderOutput deadOutput;
+        deadOutput.position = float4(2.0f, 2.0f, 0.0f, 1.0f);
+        deadOutput.texcoord = input.texcoord;
+        deadOutput.color = float4(0.0f, 0.0f, 0.0f, 0.0f);
+        return deadOutput;
+    }
 
     float4 localPosition = input.position;
     localPosition.xyz *= particle.scale;
