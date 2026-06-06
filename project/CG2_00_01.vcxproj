@@ -203,7 +203,13 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\shader\LineVS.hlsl">
       <FileType>Document</FileType>
     </None>
+    <None Include="Resources\shader\EmitParticle.CS.hlsl">
+      <FileType>Document</FileType>
+    </None>
     <None Include="Resources\shader\InitializeParticle.CS.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Resources\shader\UpdateParticle.CS.hlsl">
       <FileType>Document</FileType>
     </None>
     <None Include="Resources\shader\Skinning.CS.hlsl">

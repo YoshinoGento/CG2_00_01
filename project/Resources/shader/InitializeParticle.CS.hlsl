@@ -6,14 +6,20 @@ struct Particle
     float3 velocity;
     float currentTime;
     float4 color;
+    uint isAlive;
 };
 
 RWStructuredBuffer<Particle> gParticles : register(u0);
+RWStructuredBuffer<uint> gFreeCounter : register(u1);
 
 [numthreads(1024, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
     uint index = dispatchThreadId.x;
+    if (index == 0)
+    {
+        gFreeCounter[0] = 0;
+    }
 
     Particle particle;
     particle.translate = float3(0.0f, 0.0f, 0.0f);
@@ -28,6 +34,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particle.velocity = float3(0.0f, 0.0f, 0.0f);
     particle.currentTime = 0.0f;
     particle.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    particle.isAlive = 0;
 
     gParticles[index] = particle;
 }
