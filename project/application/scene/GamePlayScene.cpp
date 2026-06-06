@@ -241,7 +241,7 @@ void GamePlayScene::Update() {
 	}
 
 	if (framework_->GetInput()->TriggerKey(DIK_G)) {
-		framework_->GetParticleManager()->RequestGPUParticleEmit(spherePos_, 32);
+		framework_->GetParticleManager()->RequestGPUParticleEmit(spherePos_, 256);
 	}
 
 	framework_->GetParticleManager()->Update(camera_.get());

@@ -191,7 +191,7 @@ void ParticleManager::RequestGPUParticleEmit(const Vector3& position, uint32_t c
     }
 
     gpuParticleEmitter_->translate = position;
-    gpuParticleEmitter_->radius = 0.5f;
+    gpuParticleEmitter_->radius = 2.0f;
     gpuParticleEmitter_->count = std::min(count, kMaxGPUParticleCount);
     gpuParticleEmitter_->frequency = 0.0f;
     gpuParticleEmitter_->frequencyTime = 0.0f;
@@ -275,8 +275,8 @@ void ParticleManager::Draw() {
 void ParticleManager::CreateGPUParticleResources() {
     gpuParticleResource_ = dxCommon_->CreateUAVBufferResource(
         sizeof(ParticleCS) * kMaxGPUParticleCount,
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+        D3D12_RESOURCE_STATE_COMMON);
+    gpuParticleResourceState_ = D3D12_RESOURCE_STATE_COMMON;
 
     gpuParticleSrvHandle_ = srvManager_->Allocate();
     srvManager_->CreateSRVforStructuredBuffer(
@@ -294,7 +294,7 @@ void ParticleManager::CreateGPUParticleResources() {
 
     gpuParticleFreeCounterResource_ = dxCommon_->CreateUAVBufferResource(
         sizeof(uint32_t),
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        D3D12_RESOURCE_STATE_COMMON);
     gpuParticleFreeCounterUavHandle_ = srvManager_->Allocate();
     srvManager_->CreateUAVforStructuredBuffer(
         gpuParticleFreeCounterUavHandle_,
@@ -631,7 +631,7 @@ void ParticleManager::EmitGPUParticles() {
     commandList->SetComputeRootConstantBufferView(2, gpuParticleEmitterResource_->GetGPUVirtualAddress());
     commandList->Dispatch(1, 1, 1);
 
-    InsertUAVBarrier(commandList, nullptr);
+    InsertUAVBarrier(commandList, gpuParticleResource_.Get());
 }
 
 void ParticleManager::UpdateGPUParticles() {
