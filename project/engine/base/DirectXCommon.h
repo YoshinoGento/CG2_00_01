@@ -21,7 +21,8 @@ public:
     // 1. ゲーム画面（テクスチャ）への描画を開始する
     void PreDraw();
     // 2. 描画先を「実際のモニター（スワップチェーン）」に切り替える（ImGui描画用）
-    void PreDrawToSwapChain();
+    void PreDrawToSwapChain(D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle);
+    void RestoreRenderTextureToRenderTarget();
     // 3. 全ての描画を終了し、画面を表示する
     void PostDraw();
 
@@ -53,10 +54,13 @@ private:
     void InitializeRenderTargetView(); // RTVヒープのサイズを拡張します
     void InitializeDepthStencilView();
     void InitializeRenderTexture();    // ゲーム画面用のテクスチャを作成
+    void InitializeCopyImagePipeline();
     void InitializeFence();
     void InitializeDXCCompiler();
     void InitializeFixFPS();
     void UpdateFixFPS();
+    void TransitionRenderTexture(D3D12_RESOURCE_STATES stateAfter);
+    void DrawRenderTextureToSwapChain(D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle);
 
     WinApp* winApp_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Device> device_;
@@ -74,9 +78,16 @@ private:
 
     // --- 追加：ゲーム画面を保存するテクスチャ ---
     Microsoft::WRL::ComPtr<ID3D12Resource> renderTextureResource_;
+    D3D12_RESOURCE_STATES renderTextureState_ = D3D12_RESOURCE_STATE_RENDER_TARGET;
     // RTVヒープ内での場所（0,1はモニター用、2はゲーム画面用）
     const UINT kRenderTextureRTVIndex = 2;
     uint32_t nextRtvIndex_ = 3; // RTVの次の割り当てインデックス
+
+    static constexpr DXGI_FORMAT kRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    float renderTextureClearColor_[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> copyImageRootSignature_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> copyImagePipelineState_;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
     uint64_t fenceValue_ = 0;

@@ -298,6 +298,9 @@
     <None Include="Resources\shader\Line.hlsli" />
     <None Include="Resources\shader\LinePS.hlsl" />
     <None Include="Resources\shader\LineVS.hlsl" />
+    <None Include="Resources\shader\CopyImage.hlsli" />
+    <None Include="Resources\shader\CopyImage.VS.hlsl" />
+    <None Include="Resources\shader\CopyImage.PS.hlsl" />
     <None Include="Resources\shader\EmitParticle.CS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </None>
