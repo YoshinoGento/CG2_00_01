@@ -45,7 +45,7 @@ void Game::Finalize() {
 void Game::Update() {
 	Framework::Update();
 	ImGuiManager::GetInstance()->Begin();
-	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
+	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
 	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
 	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
@@ -54,7 +54,7 @@ void Game::Update() {
 		playScene->viewportImageSize_ = { 0.0f, 0.0f };
 	}
 
-	// ビューポート表示
+	// Game Viewport displays the current frame RenderTexture.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 	if (ImGui::Begin("Game Viewport")) {
 		ImVec2 contentSize = ImGui::GetContentRegionAvail();
@@ -73,8 +73,8 @@ void Game::Update() {
 				mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * 1280.0f;
 				mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
 
-				// ポストプロセス後のテクスチャを表示する
-				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(postProcess_->GetFinalSrvIndex()).ptr, displaySize);
+				// Use the RenderTexture SRV, not the old PostProcess output.
+				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(viewportSrvIndex_).ptr, displaySize);
 				if (playScene) {
 					playScene->viewportImageTopLeft_ = { imageTopLeft.x, imageTopLeft.y };
 					playScene->viewportImageSize_ = { displaySize.x, displaySize.y };
@@ -345,35 +345,18 @@ void Game::Update() {
 void Game::Draw() {
 	dxCommon_->PreDraw();
 	srvManager_->PreDraw();
-	
-	// 通常のシーン描画 (renderTextureResource_ に書き込まれる)
+
+	// Draw the scene into the offscreen RenderTexture.
 	SceneManager::GetInstance()->Draw();
 
-	// シーン描画が終わったので、元画像をSHADER_RESOURCEとして使えるようにバリアを張る
-	// (PostProcess::DrawがGENERIC_READに遷移するので、ここは不要。
-	//  PreDrawToSwapChainが RENDER_TARGET→GENERIC_READ を行うため、
-	//  PostProcess実行後にRENDER_TARGETに戻す必要がある)
-	
-	// ポストプロセスの適用
-	// PostProcess::Draw内でsrcResourceのバリア(RT→GENERIC_READ)を行う
-	postProcess_->Draw(
-		srvManager_->GetGPUDescriptorHandle(viewportSrvIndex_),
-		dxCommon_->GetRenderTextureResource()
-	);
+	// CopyImage reads the RenderTexture SRV and writes it to the swapchain.
+	// DirectXCommon keeps the RenderTexture in PIXEL_SHADER_RESOURCE
+	// until ImGui has also sampled it.
+	srvManager_->PreDraw();
+	dxCommon_->PreDrawToSwapChain(srvManager_->GetGPUDescriptorHandle(viewportSrvIndex_));
 
-	// PostProcess後、srcResource(renderTextureResource_)はGENERIC_READ状態のまま。
-	// PreDrawToSwapChain は RENDER_TARGET→GENERIC_READ のバリアを張るので、
-	// その前にRENDER_TARGETに戻す必要がある
-	{
-		D3D12_RESOURCE_BARRIER b{};
-		b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		b.Transition.pResource = dxCommon_->GetRenderTextureResource();
-		b.Transition.StateBefore = D3D12_RESOURCE_STATE_GENERIC_READ;
-		b.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		dxCommon_->GetCommandList()->ResourceBarrier(1, &b);
-	}
-
-	dxCommon_->PreDrawToSwapChain();
+	// Render ImGui last on the swapchain, then present.
 	ImGuiManager::GetInstance()->Draw();
+	dxCommon_->RestoreRenderTextureToRenderTarget();
 	dxCommon_->PostDraw();
 }

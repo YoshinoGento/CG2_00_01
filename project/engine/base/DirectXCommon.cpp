@@ -4,10 +4,12 @@
 #include <vector>
 #include <thread>
 #include "externals/DirectXTex/d3dx12.h" 
+#include <d3dcompiler.h>
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "dxcompiler.lib")
+#pragma comment(lib, "d3dcompiler.lib")
 
 using namespace Microsoft::WRL;
 
@@ -109,16 +111,105 @@ void DirectXCommon::InitializeDepthStencilView() {
 void DirectXCommon::InitializeRenderTexture() {
     D3D12_RESOURCE_DESC desc{};
     desc.Width = WinApp::kClientWidth; desc.Height = WinApp::kClientHeight;
-    desc.MipLevels = 1; desc.DepthOrArraySize = 1; desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.MipLevels = 1; desc.DepthOrArraySize = 1; desc.Format = kRenderTargetFormat;
     desc.SampleDesc.Count = 1; desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
     desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
     D3D12_HEAP_PROPERTIES heapProps{ D3D12_HEAP_TYPE_DEFAULT };
-    D3D12_CLEAR_VALUE clearValue{}; clearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    clearValue.Color[0] = 0.1f; clearValue.Color[1] = 0.25f; clearValue.Color[2] = 0.5f; clearValue.Color[3] = 1.0f;
-    device_->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, &clearValue, IID_PPV_ARGS(&renderTextureResource_));
+    D3D12_CLEAR_VALUE clearValue{}; clearValue.Format = kRenderTargetFormat;
+    clearValue.Color[0] = renderTextureClearColor_[0];
+    clearValue.Color[1] = renderTextureClearColor_[1];
+    clearValue.Color[2] = renderTextureClearColor_[2];
+    clearValue.Color[3] = renderTextureClearColor_[3];
+    HRESULT hr = device_->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearValue, IID_PPV_ARGS(&renderTextureResource_));
+    assert(SUCCEEDED(hr));
+    renderTextureState_ = D3D12_RESOURCE_STATE_RENDER_TARGET;
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
     rtvHandle.ptr += static_cast<size_t>(2) * rtvDescriptorSize_; // Index 2 を使用
     device_->CreateRenderTargetView(renderTextureResource_.Get(), nullptr, rtvHandle);
+}
+
+void DirectXCommon::InitializeCopyImagePipeline() {
+    auto vsBlob = CompileShader(L"Resources/shader/CopyImage.VS.hlsl", L"vs_6_0");
+    auto psBlob = CompileShader(L"Resources/shader/CopyImage.PS.hlsl", L"ps_6_0");
+
+    D3D12_DESCRIPTOR_RANGE srvRange{};
+    srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRange.NumDescriptors = 1;
+    srvRange.BaseShaderRegister = 0;
+    srvRange.RegisterSpace = 0;
+    srvRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER rootParameter{};
+    rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameter.DescriptorTable.NumDescriptorRanges = 1;
+    rootParameter.DescriptorTable.pDescriptorRanges = &srvRange;
+    rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_STATIC_SAMPLER_DESC staticSampler{};
+    staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    staticSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    staticSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    staticSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    staticSampler.MipLODBias = 0.0f;
+    staticSampler.MaxAnisotropy = 1;
+    staticSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    staticSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+    staticSampler.MinLOD = 0.0f;
+    staticSampler.MaxLOD = D3D12_FLOAT32_MAX;
+    staticSampler.ShaderRegister = 0;
+    staticSampler.RegisterSpace = 0;
+    staticSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{};
+    rootSignatureDesc.NumParameters = 1;
+    rootSignatureDesc.pParameters = &rootParameter;
+    rootSignatureDesc.NumStaticSamplers = 1;
+    rootSignatureDesc.pStaticSamplers = &staticSampler;
+    rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    ComPtr<ID3DBlob> signatureBlob;
+    ComPtr<ID3DBlob> errorBlob;
+    HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
+    if (FAILED(hr)) {
+        if (errorBlob) {
+            Logger::Log(std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize()));
+        }
+        assert(false);
+    }
+
+    hr = device_->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&copyImageRootSignature_));
+    assert(SUCCEEDED(hr));
+
+    D3D12_BLEND_DESC blendDesc{};
+    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+    D3D12_RASTERIZER_DESC rasterizerDesc{};
+    rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+    rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+    rasterizerDesc.DepthClipEnable = TRUE;
+
+    D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};
+    depthStencilDesc.DepthEnable = FALSE;
+    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc{};
+    pipelineDesc.pRootSignature = copyImageRootSignature_.Get();
+    pipelineDesc.InputLayout = { nullptr, 0 };
+    pipelineDesc.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
+    pipelineDesc.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
+    pipelineDesc.BlendState = blendDesc;
+    pipelineDesc.RasterizerState = rasterizerDesc;
+    pipelineDesc.DepthStencilState = depthStencilDesc;
+    pipelineDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+    pipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    pipelineDesc.NumRenderTargets = 1;
+    pipelineDesc.RTVFormats[0] = kRenderTargetFormat;
+    pipelineDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+    pipelineDesc.SampleDesc.Count = 1;
+
+    hr = device_->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&copyImagePipelineState_));
+    assert(SUCCEEDED(hr));
 }
 
 void DirectXCommon::InitializeFence() {
@@ -130,6 +221,7 @@ void DirectXCommon::InitializeDXCCompiler() {
     DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxcUtils_));
     DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&dxcCompiler_));
     dxcUtils_->CreateDefaultIncludeHandler(&includeHandler_);
+    InitializeCopyImagePipeline();
 }
 
 // --- 描画フロー管理 ---
@@ -138,20 +230,15 @@ void DirectXCommon::InitializeDXCCompiler() {
  * PreDraw: ゲーム画面をテクスチャへ描き込む準備
  */
 void DirectXCommon::PreDraw() {
-    D3D12_RESOURCE_BARRIER barrier{};
-    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrier.Transition.pResource = renderTextureResource_.Get();
-    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_GENERIC_READ;
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    commandList_->ResourceBarrier(1, &barrier);
+    assert(renderTextureResource_);
+    TransitionRenderTexture(D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
     rtvHandle.ptr += static_cast<size_t>(2) * rtvDescriptorSize_;
     D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvHeap_->GetCPUDescriptorHandleForHeapStart();
     commandList_->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
 
-    float clearColor[] = { 0.1f, 0.25f, 0.5f, 1.0f };
-    commandList_->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    commandList_->ClearRenderTargetView(rtvHandle, renderTextureClearColor_, 0, nullptr);
     commandList_->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
     D3D12_VIEWPORT viewport{ 0, 0, (FLOAT)WinApp::kClientWidth, (FLOAT)WinApp::kClientHeight, 0, 1 };
@@ -163,14 +250,12 @@ void DirectXCommon::PreDraw() {
 /**
  * PreDrawToSwapChain: 描き込み先を実際のモニターへ切り替える
  */
-void DirectXCommon::PreDrawToSwapChain() {
-    D3D12_RESOURCE_BARRIER barrierRT{};
-    barrierRT.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrierRT.Transition.pResource = renderTextureResource_.Get();
-    barrierRT.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    barrierRT.Transition.StateAfter = D3D12_RESOURCE_STATE_GENERIC_READ;
-    commandList_->ResourceBarrier(1, &barrierRT);
-
+void DirectXCommon::PreDrawToSwapChain(D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle) {
+    assert(renderTextureResource_);
+    assert(copyImageRootSignature_);
+    assert(copyImagePipelineState_);
+    TransitionRenderTexture(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+ 
     UINT backBufferIndex = swapChain_->GetCurrentBackBufferIndex();
     D3D12_RESOURCE_BARRIER barrierSC{};
     barrierSC.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -185,11 +270,46 @@ void DirectXCommon::PreDrawToSwapChain() {
 
     float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
     commandList_->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+
+    D3D12_VIEWPORT viewport{ 0, 0, (FLOAT)WinApp::kClientWidth, (FLOAT)WinApp::kClientHeight, 0, 1 };
+    commandList_->RSSetViewports(1, &viewport);
+    D3D12_RECT scissor{ 0, 0, WinApp::kClientWidth, WinApp::kClientHeight };
+    commandList_->RSSetScissorRects(1, &scissor);
+
+    DrawRenderTextureToSwapChain(renderTextureSrvHandle);
+}
+
+void DirectXCommon::RestoreRenderTextureToRenderTarget() {
+    TransitionRenderTexture(D3D12_RESOURCE_STATE_RENDER_TARGET);
 }
 
 /**
  * PostDraw: GPUへの命令送信と同期
  */
+void DirectXCommon::TransitionRenderTexture(D3D12_RESOURCE_STATES stateAfter) {
+    if (!renderTextureResource_ || renderTextureState_ == stateAfter) {
+        return;
+    }
+
+    D3D12_RESOURCE_BARRIER barrier{};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barrier.Transition.pResource = renderTextureResource_.Get();
+    barrier.Transition.StateBefore = renderTextureState_;
+    barrier.Transition.StateAfter = stateAfter;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    commandList_->ResourceBarrier(1, &barrier);
+    renderTextureState_ = stateAfter;
+}
+
+void DirectXCommon::DrawRenderTextureToSwapChain(D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle) {
+    commandList_->SetGraphicsRootSignature(copyImageRootSignature_.Get());
+    commandList_->SetPipelineState(copyImagePipelineState_.Get());
+    commandList_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    commandList_->SetGraphicsRootDescriptorTable(0, renderTextureSrvHandle);
+    commandList_->DrawInstanced(3, 1, 0, 0);
+}
+
 void DirectXCommon::PostDraw() {
     UINT backBufferIndex = swapChain_->GetCurrentBackBufferIndex();
     D3D12_RESOURCE_BARRIER barrier{};
