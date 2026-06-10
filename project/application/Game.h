@@ -41,6 +41,10 @@ private:
 	float fullscreenBloomIntensity_ = 1.5f;
 	float fullscreenBloomRadius_ = 8.0f;
 	float fullscreenBloomSoftKnee_ = 0.2f;
+	Vector2 fullscreenRadialBlurCenter_ = { 0.5f, 0.5f };
+	float fullscreenRadialBlurWidth_ = 0.01f;
+	float fullscreenRadialBlurIntensity_ = 1.0f;
+	int fullscreenRadialBlurSampleCount_ = 10;
 	float fullscreenOutlineThreshold_ = 0.15f;
 	float fullscreenOutlineIntensity_ = 1.0f;
 	float fullscreenOutlineThickness_ = 1.0f;

@@ -291,6 +291,8 @@ void DirectXCommon::InitializeCopyImagePipeline() {
         createPipelineState(L"Resources/shader/BoxFilter.PS.hlsl");
     fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::BoxFilter5x5)] =
         createPipelineState(L"Resources/shader/BoxFilter5x5.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::RadialBlur)] =
+        createPipelineState(L"Resources/shader/RadialBlur.PS.hlsl");
     fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::OutlineLuminance)] =
         createPipelineState(L"Resources/shader/OutlineLuminance.PS.hlsl");
     fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::OutlineDepth)] =
@@ -320,6 +322,7 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     constexpr size_t kConstantBufferSize = 256;
     fullscreenPostEffectParameterResource_ = CreateBufferResource(kConstantBufferSize);
     vignetteParameterResource_ = CreateBufferResource(kConstantBufferSize);
+    radialBlurParameterResource_ = CreateBufferResource(kConstantBufferSize);
 
     D3D12_RANGE readRange{ 0, 0 };
     HRESULT hr = fullscreenPostEffectParameterResource_->Map(
@@ -328,11 +331,16 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     hr = vignetteParameterResource_->Map(
         0, &readRange, reinterpret_cast<void**>(&mappedVignetteParameter_));
     assert(SUCCEEDED(hr));
+    hr = radialBlurParameterResource_->Map(
+        0, &readRange, reinterpret_cast<void**>(&mappedRadialBlurParameter_));
+    assert(SUCCEEDED(hr));
 
     FullscreenPostEffectParameter parameter{};
     SetFullscreenPostEffectParameter(parameter);
     VignetteParamForGPU vignetteParameter{};
     SetVignetteParameter(vignetteParameter);
+    RadialBlurParamForGPU radialBlurParameter{};
+    SetRadialBlurParameter(radialBlurParameter);
 }
 
 void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter) {
@@ -378,6 +386,21 @@ void DirectXCommon::SetVignetteParameter(const VignetteParamForGPU& parameter) {
     mappedVignetteParameter_->power = std::clamp(parameter.power, 0.01f, 8.0f);
     mappedVignetteParameter_->intensity = std::clamp(parameter.intensity, 0.0f, 1.0f);
     mappedVignetteParameter_->padding = 0.0f;
+}
+
+void DirectXCommon::SetRadialBlurParameter(const RadialBlurParamForGPU& parameter) {
+    if (!mappedRadialBlurParameter_) {
+        return;
+    }
+
+    mappedRadialBlurParameter_->center.x = std::clamp(parameter.center.x, 0.0f, 1.0f);
+    mappedRadialBlurParameter_->center.y = std::clamp(parameter.center.y, 0.0f, 1.0f);
+    mappedRadialBlurParameter_->blurWidth = std::clamp(parameter.blurWidth, 0.0f, 0.1f);
+    mappedRadialBlurParameter_->intensity = std::clamp(parameter.intensity, 0.0f, 1.0f);
+    mappedRadialBlurParameter_->sampleCount = std::clamp(parameter.sampleCount, 1, 32);
+    mappedRadialBlurParameter_->padding[0] = 0.0f;
+    mappedRadialBlurParameter_->padding[1] = 0.0f;
+    mappedRadialBlurParameter_->padding[2] = 0.0f;
 }
 
 // --- 描画フロー管理 ---
@@ -568,6 +591,7 @@ void DirectXCommon::DrawFullscreenTriangle(
     assert(fullscreenPostEffectPipelineStates_[effectIndex]);
     assert(fullscreenPostEffectParameterResource_);
     assert(vignetteParameterResource_);
+    assert(radialBlurParameterResource_);
 
     commandList_->SetGraphicsRootSignature(copyImageRootSignature_.Get());
     commandList_->SetPipelineState(fullscreenPostEffectPipelineStates_[effectIndex].Get());
@@ -577,8 +601,10 @@ void DirectXCommon::DrawFullscreenTriangle(
     commandList_->SetGraphicsRootDescriptorTable(3, normalSrvHandle.ptr != 0 ? normalSrvHandle : textureSrvHandle);
     ID3D12Resource* parameterResource =
         postEffectType == FullscreenPostEffectType::Vignette
-        ? vignetteParameterResource_.Get()
-        : fullscreenPostEffectParameterResource_.Get();
+            ? vignetteParameterResource_.Get()
+            : postEffectType == FullscreenPostEffectType::RadialBlur
+                ? radialBlurParameterResource_.Get()
+                : fullscreenPostEffectParameterResource_.Get();
     commandList_->SetGraphicsRootConstantBufferView(1, parameterResource->GetGPUVirtualAddress());
     commandList_->DrawInstanced(3, 1, 0, 0);
 }
