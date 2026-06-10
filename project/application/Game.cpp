@@ -356,6 +356,7 @@ void Game::Update() {
 			"Bloom",
 			"BoxFilter 3x3",
 			"BoxFilter 5x5",
+			"Radial Blur",
 			"Outline Luminance",
 			"Outline Depth",
 			"Outline Normal",
@@ -375,6 +376,12 @@ void Game::Update() {
 		ImGui::SliderFloat("Bloom Radius", &fullscreenBloomRadius_, 0.0f, 32.0f);
 		ImGui::SliderFloat("Bloom Soft Knee", &fullscreenBloomSoftKnee_, 0.001f, 1.0f);
 		ImGui::Separator();
+		ImGui::SliderFloat("Radial Center X", &fullscreenRadialBlurCenter_.x, 0.0f, 1.0f);
+		ImGui::SliderFloat("Radial Center Y", &fullscreenRadialBlurCenter_.y, 0.0f, 1.0f);
+		ImGui::SliderFloat("Radial Blur Width", &fullscreenRadialBlurWidth_, 0.0f, 0.1f);
+		ImGui::SliderFloat("Radial Blur Intensity", &fullscreenRadialBlurIntensity_, 0.0f, 1.0f);
+		ImGui::SliderInt("Radial Sample Count", &fullscreenRadialBlurSampleCount_, 1, 32);
+		ImGui::Separator();
 		ImGui::SliderFloat("Outline Threshold", &fullscreenOutlineThreshold_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Outline Intensity", &fullscreenOutlineIntensity_, 0.0f, 8.0f);
 		ImGui::SliderFloat("Outline Thickness", &fullscreenOutlineThickness_, 0.0f, 8.0f);
@@ -393,6 +400,10 @@ void Game::Update() {
 			fullscreenBloomIntensity_ = 1.5f;
 			fullscreenBloomRadius_ = 8.0f;
 			fullscreenBloomSoftKnee_ = 0.2f;
+			fullscreenRadialBlurCenter_ = { 0.5f, 0.5f };
+			fullscreenRadialBlurWidth_ = 0.01f;
+			fullscreenRadialBlurIntensity_ = 1.0f;
+			fullscreenRadialBlurSampleCount_ = 10;
 			fullscreenOutlineThreshold_ = 0.15f;
 			fullscreenOutlineIntensity_ = 1.0f;
 			fullscreenOutlineThickness_ = 1.0f;
@@ -457,6 +468,12 @@ void Game::Draw() {
 	vignetteParameter.power = fullscreenVignettePower_;
 	vignetteParameter.intensity = fullscreenVignetteIntensity_;
 	dxCommon_->SetVignetteParameter(vignetteParameter);
+	DirectXCommon::RadialBlurParamForGPU radialBlurParameter{};
+	radialBlurParameter.center = fullscreenRadialBlurCenter_;
+	radialBlurParameter.blurWidth = fullscreenRadialBlurWidth_;
+	radialBlurParameter.intensity = fullscreenRadialBlurIntensity_;
+	radialBlurParameter.sampleCount = fullscreenRadialBlurSampleCount_;
+	dxCommon_->SetRadialBlurParameter(radialBlurParameter);
 
 	srvManager_->PreDraw();
 	DirectXCommon::FullscreenPostEffectType postEffectType =

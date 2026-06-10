@@ -7,6 +7,8 @@
 #include <wrl.h>
 #include <string>
 #include <chrono>
+#include <cstdint>
+#include "math/Struct.h"
 #include "externals/DirectXTex/DirectXTex.h"
 
 /**
@@ -23,6 +25,7 @@ public:
         Bloom,
         BoxFilter3x3,
         BoxFilter5x5,
+        RadialBlur,
         OutlineLuminance,
         OutlineDepth,
         OutlineNormal,
@@ -67,6 +70,15 @@ public:
     };
     static_assert(sizeof(VignetteParamForGPU) == 16);
 
+    struct RadialBlurParamForGPU {
+        Vector2 center = { 0.5f, 0.5f };
+        float blurWidth = 0.01f;
+        float intensity = 1.0f;
+        int32_t sampleCount = 10;
+        float padding[3] = {};
+    };
+    static_assert(sizeof(RadialBlurParamForGPU) == 32);
+
     void Initialize(WinApp* winApp);
 
     // --- 描画フロー管理 ---
@@ -82,6 +94,7 @@ public:
     void RestoreRenderTextureToRenderTarget();
     void SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter);
     void SetVignetteParameter(const VignetteParamForGPU& parameter);
+    void SetRadialBlurParameter(const RadialBlurParamForGPU& parameter);
     // 3. 全ての描画を終了し、画面を表示する
     void PostDraw();
 
@@ -173,6 +186,8 @@ private:
     FullscreenPostEffectParameter* mappedFullscreenPostEffectParameter_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> vignetteParameterResource_;
     VignetteParamForGPU* mappedVignetteParameter_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> radialBlurParameterResource_;
+    RadialBlurParamForGPU* mappedRadialBlurParameter_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
     uint64_t fenceValue_ = 0;

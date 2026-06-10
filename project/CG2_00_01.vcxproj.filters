@@ -308,6 +308,7 @@
     <None Include="Resources\shader\Bloom.PS.hlsl" />
     <None Include="Resources\shader\BoxFilter.PS.hlsl" />
     <None Include="Resources\shader\BoxFilter5x5.PS.hlsl" />
+    <None Include="Resources\shader\RadialBlur.PS.hlsl" />
     <None Include="Resources\shader\OutlineLuminance.PS.hlsl" />
     <None Include="Resources\shader\OutlineDepth.PS.hlsl" />
     <None Include="Resources\shader\OutlineNormal.PS.hlsl" />
