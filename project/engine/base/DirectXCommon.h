@@ -21,6 +21,8 @@ public:
         Sepia,
         Blur,
         Bloom,
+        BoxFilter3x3,
+        BoxFilter5x5,
         Vignette,
         Count,
     };

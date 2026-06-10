@@ -334,7 +334,15 @@ void Game::Update() {
 
 		// Fullscreen post effect selection.
 		ImGui::Begin("Fullscreen PostEffect");
-		const char* postEffectItems[] = { "None / Copy", "Grayscale", "Sepia", "Blur", "Bloom" };
+		const char* postEffectItems[] = {
+			"None / Copy",
+			"Grayscale",
+			"Sepia",
+			"Blur",
+			"Bloom",
+			"BoxFilter 3x3",
+			"BoxFilter 5x5",
+		};
 		ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
 		ImGui::Checkbox("Vignette Enable", &fullscreenVignetteEnabled_);
 		ImGui::SliderFloat("Vignette Scale", &fullscreenVignetteScale_, 0.0f, 64.0f);

@@ -244,6 +244,10 @@ void DirectXCommon::InitializeCopyImagePipeline() {
         createPipelineState(L"Resources/shader/Blur.PS.hlsl");
     fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Bloom)] =
         createPipelineState(L"Resources/shader/Bloom.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::BoxFilter3x3)] =
+        createPipelineState(L"Resources/shader/BoxFilter.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::BoxFilter5x5)] =
+        createPipelineState(L"Resources/shader/BoxFilter5x5.PS.hlsl");
     fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Vignette)] =
         createPipelineState(L"Resources/shader/Vignette.PS.hlsl");
 }
