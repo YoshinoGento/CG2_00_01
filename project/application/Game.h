@@ -28,8 +28,17 @@ public:
 private:
 	std::unique_ptr<SceneFactory> sceneFactory_;
 
-	// ゲーム画面表示用のディスクリプタ番号
-	uint32_t viewportSrvIndex_ = 0;
+	// RenderTexture / PostEffect result SRV indices.
+	uint32_t renderTextureSrvIndex_ = 0;
+	uint32_t postEffectResultSrvIndex_ = 0;
+	int fullscreenPostEffectIndex_ = 0;
+	float fullscreenGrayscaleIntensity_ = 1.0f;
+	float fullscreenSepiaIntensity_ = 1.0f;
+	float fullscreenBlurStrength_ = 4.0f;
+	float fullscreenBloomThreshold_ = 0.65f;
+	float fullscreenBloomIntensity_ = 1.5f;
+	float fullscreenBloomRadius_ = 8.0f;
+	float fullscreenBloomSoftKnee_ = 0.2f;
 
 	// 計算・補正されたマウス座標を保持
 	static Vector2 mousePosInViewport_;
