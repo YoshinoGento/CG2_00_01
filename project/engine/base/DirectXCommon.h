@@ -21,6 +21,7 @@ public:
         Sepia,
         Blur,
         Bloom,
+        Vignette,
         Count,
     };
 
@@ -36,6 +37,14 @@ public:
     };
     static_assert(sizeof(FullscreenPostEffectParameter) == 32);
 
+    struct VignetteParamForGPU {
+        float scale = 16.0f;
+        float power = 0.8f;
+        float intensity = 1.0f;
+        float padding = 0.0f;
+    };
+    static_assert(sizeof(VignetteParamForGPU) == 16);
+
     void Initialize(WinApp* winApp);
 
     // --- 描画フロー管理 ---
@@ -48,6 +57,7 @@ public:
         FullscreenPostEffectType postEffectType = FullscreenPostEffectType::Copy);
     void RestoreRenderTextureToRenderTarget();
     void SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter);
+    void SetVignetteParameter(const VignetteParamForGPU& parameter);
     // 3. 全ての描画を終了し、画面を表示する
     void PostDraw();
 
@@ -124,6 +134,8 @@ private:
     std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kFullscreenPostEffectCount> fullscreenPostEffectPipelineStates_;
     Microsoft::WRL::ComPtr<ID3D12Resource> fullscreenPostEffectParameterResource_;
     FullscreenPostEffectParameter* mappedFullscreenPostEffectParameter_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> vignetteParameterResource_;
+    VignetteParamForGPU* mappedVignetteParameter_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
     uint64_t fenceValue_ = 0;

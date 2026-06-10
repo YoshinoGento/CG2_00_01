@@ -39,6 +39,10 @@ private:
 	float fullscreenBloomIntensity_ = 1.5f;
 	float fullscreenBloomRadius_ = 8.0f;
 	float fullscreenBloomSoftKnee_ = 0.2f;
+	bool fullscreenVignetteEnabled_ = false;
+	float fullscreenVignetteScale_ = 16.0f;
+	float fullscreenVignettePower_ = 0.8f;
+	float fullscreenVignetteIntensity_ = 1.0f;
 
 	// 計算・補正されたマウス座標を保持
 	static Vector2 mousePosInViewport_;
