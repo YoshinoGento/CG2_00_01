@@ -23,6 +23,10 @@ public:
         Bloom,
         BoxFilter3x3,
         BoxFilter5x5,
+        OutlineLuminance,
+        OutlineDepth,
+        OutlineNormal,
+        OutlineDepthNormal,
         Vignette,
         Count,
     };
@@ -36,8 +40,24 @@ public:
         float bloomIntensity = 1.0f;
         float bloomRadius = 6.0f;
         float bloomSoftKnee = 0.2f;
+        float outlineThreshold = 0.15f;
+        float outlineIntensity = 1.0f;
+        float outlineThickness = 1.0f;
+        float outlinePadding = 0.0f;
+        float depthOutlineThreshold = 0.002f;
+        float depthOutlineIntensity = 1.0f;
+        float depthOutlineThickness = 1.0f;
+        float depthOutlinePadding = 0.0f;
+        float depthOutlineNearClip = 0.1f;
+        float depthOutlineFarClip = 1000.0f;
+        float depthOutlineLinearize = 1.0f;
+        float depthOutlineLinearPadding = 0.0f;
+        float normalOutlineThreshold = 0.25f;
+        float normalOutlineIntensity = 1.0f;
+        float normalOutlineThickness = 1.0f;
+        float normalOutlinePadding = 0.0f;
     };
-    static_assert(sizeof(FullscreenPostEffectParameter) == 32);
+    static_assert(sizeof(FullscreenPostEffectParameter) == 96);
 
     struct VignetteParamForGPU {
         float scale = 16.0f;
@@ -56,6 +76,8 @@ public:
     void PreDrawToSwapChain(
         D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle,
         D3D12_GPU_DESCRIPTOR_HANDLE postEffectResultSrvHandle,
+        D3D12_GPU_DESCRIPTOR_HANDLE depthSrvHandle,
+        D3D12_GPU_DESCRIPTOR_HANDLE normalSrvHandle,
         FullscreenPostEffectType postEffectType = FullscreenPostEffectType::Copy);
     void RestoreRenderTextureToRenderTarget();
     void SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter);
@@ -72,6 +94,10 @@ public:
     // ImGuiに渡すための、描き込み済みテクスチャリソースを取得
     ID3D12Resource* GetRenderTextureResource() const { return renderTextureResource_.Get(); }
     ID3D12Resource* GetPostEffectResultResource() const { return postEffectResultResource_.Get(); }
+    ID3D12Resource* GetDepthBufferResource() const { return depthBuffer_.Get(); }
+    ID3D12Resource* GetNormalTextureResource() const { return normalTextureResource_.Get(); }
+    void SetSceneRenderTarget();
+    void SetSceneRenderTargetsWithNormal();
 
     // --- 各種ヘルパー ---
     DirectX::ScratchImage LoadTexture(const std::string& filePath);
@@ -100,9 +126,13 @@ private:
     void UpdateFixFPS();
     void TransitionRenderTexture(D3D12_RESOURCE_STATES stateAfter);
     void TransitionPostEffectResult(D3D12_RESOURCE_STATES stateAfter);
+    void TransitionNormalTexture(D3D12_RESOURCE_STATES stateAfter);
+    void TransitionDepthBuffer(D3D12_RESOURCE_STATES stateAfter);
     void DrawFullscreenTriangle(
         D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle,
-        FullscreenPostEffectType postEffectType);
+        FullscreenPostEffectType postEffectType,
+        D3D12_GPU_DESCRIPTOR_HANDLE depthSrvHandle = {},
+        D3D12_GPU_DESCRIPTOR_HANDLE normalSrvHandle = {});
 
     WinApp* winApp_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Device> device_;
@@ -117,18 +147,23 @@ private:
     UINT rtvDescriptorSize_ = 0;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap_;
     Microsoft::WRL::ComPtr<ID3D12Resource> depthBuffer_;
+    D3D12_RESOURCE_STATES depthBufferState_ = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
     // --- 追加：ゲーム画面を保存するテクスチャ ---
     Microsoft::WRL::ComPtr<ID3D12Resource> renderTextureResource_;
     D3D12_RESOURCE_STATES renderTextureState_ = D3D12_RESOURCE_STATE_RENDER_TARGET;
     Microsoft::WRL::ComPtr<ID3D12Resource> postEffectResultResource_;
     D3D12_RESOURCE_STATES postEffectResultState_ = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    Microsoft::WRL::ComPtr<ID3D12Resource> normalTextureResource_;
+    D3D12_RESOURCE_STATES normalTextureState_ = D3D12_RESOURCE_STATE_RENDER_TARGET;
     // RTVヒープ内での場所（0,1はモニター用、2はゲーム画面用）
     const UINT kRenderTextureRTVIndex = 2;
     const UINT kPostEffectResultRTVIndex = 3;
-    uint32_t nextRtvIndex_ = 4; // RTVの次の割り当てインデックス
+    const UINT kNormalTextureRTVIndex = 4;
+    uint32_t nextRtvIndex_ = 5; // RTVの次の割り当てインデックス
 
     static constexpr DXGI_FORMAT kRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    static constexpr DXGI_FORMAT kNormalTextureFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     static constexpr size_t kFullscreenPostEffectCount = static_cast<size_t>(FullscreenPostEffectType::Count);
     float renderTextureClearColor_[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 

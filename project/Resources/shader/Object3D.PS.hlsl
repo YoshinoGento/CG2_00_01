@@ -41,11 +41,14 @@ SamplerState gSampler : register(s0);
 struct PixelShaderOutput
 {
     float4 color : SV_TARGET0;
+    float4 normal : SV_TARGET1;
 };
 
 PixelShaderOutput main(VertexShaderOutput input)
 {
     PixelShaderOutput output;
+    float3 N = length(input.normal) > 0.00001f ? normalize(input.normal) : float3(0.0f, 1.0f, 0.0f);
+    output.normal = float4(N * 0.5f + 0.5f, 1.0f);
     float4 textureColor = gTexture.Sample(gSampler, input.texcoord);
     
     // ライティング無効ならテクスチャ色をそのまま出す
@@ -56,7 +59,6 @@ PixelShaderOutput main(VertexShaderOutput input)
     }
 
     // --- 準備 ---
-    float3 N = normalize(input.normal);
     float3 V = normalize(gCamera.worldPosition - input.worldPosition);
 
     // --- 1. 平行光源 ---

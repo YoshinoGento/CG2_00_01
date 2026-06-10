@@ -280,13 +280,15 @@ void Object3dCommon::CreateGraphicsPipelineStates() {
     psoDesc.VS = { vs->GetBufferPointer(), vs->GetBufferSize() };
     psoDesc.PS = { ps->GetBufferPointer(), ps->GetBufferSize() };
     psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    psoDesc.BlendState.RenderTarget[1].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
     psoDesc.DepthStencilState.DepthEnable = true;
     psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
     psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
+    psoDesc.NumRenderTargets = 2;
     psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.RTVFormats[1] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.SampleDesc.Count = 1;
     psoDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
 

@@ -16,6 +16,8 @@ public:
 	const Matrix4x4& GetViewProjectionMatrix() const { return viewProjectionMatrix_; }
 	const Vector3& GetRotate() const { return transform_.rotate; }
 	const Vector3& GetTranslate() const { return transform_.translate; }
+	float GetNearClip() const { return nearClip_; }
+	float GetFarClip() const { return farClip_; }
 
 	void SetRotate(const Vector3& rotate) { transform_.rotate = rotate; }
 	void SetTranslate(const Vector3& translate) { transform_.translate = translate; }
