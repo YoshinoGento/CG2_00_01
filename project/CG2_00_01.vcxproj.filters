@@ -308,6 +308,10 @@
     <None Include="Resources\shader\Bloom.PS.hlsl" />
     <None Include="Resources\shader\BoxFilter.PS.hlsl" />
     <None Include="Resources\shader\BoxFilter5x5.PS.hlsl" />
+    <None Include="Resources\shader\OutlineLuminance.PS.hlsl" />
+    <None Include="Resources\shader\OutlineDepth.PS.hlsl" />
+    <None Include="Resources\shader\OutlineNormal.PS.hlsl" />
+    <None Include="Resources\shader\OutlineDepthNormal.PS.hlsl" />
     <None Include="Resources\shader\Vignette.PS.hlsl" />
     <None Include="Resources\shader\EmitParticle.CS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>

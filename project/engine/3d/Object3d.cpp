@@ -139,7 +139,9 @@ void Object3d::Draw() {
 	}
 
 	// モデルの描画実行
+	object3dCommon_->GetDxCommon()->SetSceneRenderTargetsWithNormal();
 	model_->Draw(object3dCommon_->GetDxCommon());
+	object3dCommon_->GetDxCommon()->SetSceneRenderTarget();
 }
 
 void Object3d::SetModel(Model* model) {

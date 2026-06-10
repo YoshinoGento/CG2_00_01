@@ -31,6 +31,8 @@ private:
 	// RenderTexture / PostEffect result SRV indices.
 	uint32_t renderTextureSrvIndex_ = 0;
 	uint32_t postEffectResultSrvIndex_ = 0;
+	uint32_t depthBufferSrvIndex_ = 0;
+	uint32_t normalTextureSrvIndex_ = 0;
 	int fullscreenPostEffectIndex_ = 0;
 	float fullscreenGrayscaleIntensity_ = 1.0f;
 	float fullscreenSepiaIntensity_ = 1.0f;
@@ -39,6 +41,16 @@ private:
 	float fullscreenBloomIntensity_ = 1.5f;
 	float fullscreenBloomRadius_ = 8.0f;
 	float fullscreenBloomSoftKnee_ = 0.2f;
+	float fullscreenOutlineThreshold_ = 0.15f;
+	float fullscreenOutlineIntensity_ = 1.0f;
+	float fullscreenOutlineThickness_ = 1.0f;
+	float fullscreenDepthOutlineThreshold_ = 0.001f;
+	float fullscreenDepthOutlineIntensity_ = 1.0f;
+	float fullscreenDepthOutlineThickness_ = 1.0f;
+	bool fullscreenDepthOutlineLinearize_ = true;
+	float fullscreenNormalOutlineThreshold_ = 0.25f;
+	float fullscreenNormalOutlineIntensity_ = 1.0f;
+	float fullscreenNormalOutlineThickness_ = 1.0f;
 	bool fullscreenVignetteEnabled_ = false;
 	float fullscreenVignetteScale_ = 16.0f;
 	float fullscreenVignettePower_ = 0.8f;

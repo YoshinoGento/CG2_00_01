@@ -33,6 +33,20 @@ void Game::Initialize() {
 		DXGI_FORMAT_R8G8B8A8_UNORM,
 		1
 	);
+	depthBufferSrvIndex_ = srvManager_->Allocate();
+	srvManager_->CreateSRVforTexture2D(
+		depthBufferSrvIndex_,
+		dxCommon_->GetDepthBufferResource(),
+		DXGI_FORMAT_R24_UNORM_X8_TYPELESS,
+		1
+	);
+	normalTextureSrvIndex_ = srvManager_->Allocate();
+	srvManager_->CreateSRVforTexture2D(
+		normalTextureSrvIndex_,
+		dxCommon_->GetNormalTextureResource(),
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		1
+	);
 
 	postProcess_ = std::make_unique<PostProcess>();
 	postProcess_->Initialize(dxCommon_.get(), srvManager_.get());
@@ -342,6 +356,10 @@ void Game::Update() {
 			"Bloom",
 			"BoxFilter 3x3",
 			"BoxFilter 5x5",
+			"Outline Luminance",
+			"Outline Depth",
+			"Outline Normal",
+			"Outline Depth + Normal",
 		};
 		ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
 		ImGui::Checkbox("Vignette Enable", &fullscreenVignetteEnabled_);
@@ -356,6 +374,17 @@ void Game::Update() {
 		ImGui::SliderFloat("Bloom Intensity", &fullscreenBloomIntensity_, 0.0f, 8.0f);
 		ImGui::SliderFloat("Bloom Radius", &fullscreenBloomRadius_, 0.0f, 32.0f);
 		ImGui::SliderFloat("Bloom Soft Knee", &fullscreenBloomSoftKnee_, 0.001f, 1.0f);
+		ImGui::Separator();
+		ImGui::SliderFloat("Outline Threshold", &fullscreenOutlineThreshold_, 0.0f, 1.0f);
+		ImGui::SliderFloat("Outline Intensity", &fullscreenOutlineIntensity_, 0.0f, 8.0f);
+		ImGui::SliderFloat("Outline Thickness", &fullscreenOutlineThickness_, 0.0f, 8.0f);
+		ImGui::SliderFloat("Depth Outline Threshold", &fullscreenDepthOutlineThreshold_, 0.0f, 0.1f, "%.5f");
+		ImGui::SliderFloat("Depth Outline Intensity", &fullscreenDepthOutlineIntensity_, 0.0f, 8.0f);
+		ImGui::SliderFloat("Depth Outline Thickness", &fullscreenDepthOutlineThickness_, 1.0f, 8.0f);
+		ImGui::Checkbox("Depth Linearize", &fullscreenDepthOutlineLinearize_);
+		ImGui::SliderFloat("Normal Outline Threshold", &fullscreenNormalOutlineThreshold_, 0.0f, 4.0f);
+		ImGui::SliderFloat("Normal Outline Intensity", &fullscreenNormalOutlineIntensity_, 0.0f, 8.0f);
+		ImGui::SliderFloat("Normal Outline Thickness", &fullscreenNormalOutlineThickness_, 1.0f, 8.0f);
 		if (ImGui::Button("Reset PostEffect Params")) {
 			fullscreenGrayscaleIntensity_ = 1.0f;
 			fullscreenSepiaIntensity_ = 1.0f;
@@ -364,6 +393,16 @@ void Game::Update() {
 			fullscreenBloomIntensity_ = 1.5f;
 			fullscreenBloomRadius_ = 8.0f;
 			fullscreenBloomSoftKnee_ = 0.2f;
+			fullscreenOutlineThreshold_ = 0.15f;
+			fullscreenOutlineIntensity_ = 1.0f;
+			fullscreenOutlineThickness_ = 1.0f;
+			fullscreenDepthOutlineThreshold_ = 0.001f;
+			fullscreenDepthOutlineIntensity_ = 1.0f;
+			fullscreenDepthOutlineThickness_ = 1.0f;
+			fullscreenDepthOutlineLinearize_ = true;
+			fullscreenNormalOutlineThreshold_ = 0.25f;
+			fullscreenNormalOutlineIntensity_ = 1.0f;
+			fullscreenNormalOutlineThickness_ = 1.0f;
 			fullscreenVignetteEnabled_ = false;
 			fullscreenVignetteScale_ = 16.0f;
 			fullscreenVignettePower_ = 0.8f;
@@ -394,6 +433,24 @@ void Game::Draw() {
 	postEffectParameter.bloomIntensity = fullscreenBloomIntensity_;
 	postEffectParameter.bloomRadius = fullscreenBloomRadius_;
 	postEffectParameter.bloomSoftKnee = fullscreenBloomSoftKnee_;
+	postEffectParameter.outlineThreshold = fullscreenOutlineThreshold_;
+	postEffectParameter.outlineIntensity = fullscreenOutlineIntensity_;
+	postEffectParameter.outlineThickness = fullscreenOutlineThickness_;
+	postEffectParameter.depthOutlineThreshold = fullscreenDepthOutlineThreshold_;
+	postEffectParameter.depthOutlineIntensity = fullscreenDepthOutlineIntensity_;
+	postEffectParameter.depthOutlineThickness = fullscreenDepthOutlineThickness_;
+	postEffectParameter.depthOutlineLinearize = fullscreenDepthOutlineLinearize_ ? 1.0f : 0.0f;
+	postEffectParameter.normalOutlineThreshold = fullscreenNormalOutlineThreshold_;
+	postEffectParameter.normalOutlineIntensity = fullscreenNormalOutlineIntensity_;
+	postEffectParameter.normalOutlineThickness = fullscreenNormalOutlineThickness_;
+	if (BaseScene* currentScene = SceneManager::GetInstance()->GetCurrentScene()) {
+		if (GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(currentScene)) {
+			if (playScene->camera_) {
+				postEffectParameter.depthOutlineNearClip = playScene->camera_->GetNearClip();
+				postEffectParameter.depthOutlineFarClip = playScene->camera_->GetFarClip();
+			}
+		}
+	}
 	dxCommon_->SetFullscreenPostEffectParameter(postEffectParameter);
 	DirectXCommon::VignetteParamForGPU vignetteParameter{};
 	vignetteParameter.scale = fullscreenVignetteScale_;
@@ -409,6 +466,8 @@ void Game::Draw() {
 	dxCommon_->PreDrawToSwapChain(
 		srvManager_->GetGPUDescriptorHandle(renderTextureSrvIndex_),
 		srvManager_->GetGPUDescriptorHandle(postEffectResultSrvIndex_),
+		srvManager_->GetGPUDescriptorHandle(depthBufferSrvIndex_),
+		srvManager_->GetGPUDescriptorHandle(normalTextureSrvIndex_),
 		postEffectType);
 
 	// Render ImGui last on the swapchain, then present.

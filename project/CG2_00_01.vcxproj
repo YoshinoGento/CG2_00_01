@@ -233,6 +233,18 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\shader\BoxFilter5x5.PS.hlsl">
       <FileType>Document</FileType>
     </None>
+    <None Include="Resources\shader\OutlineLuminance.PS.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Resources\shader\OutlineDepth.PS.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Resources\shader\OutlineNormal.PS.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Resources\shader\OutlineDepthNormal.PS.hlsl">
+      <FileType>Document</FileType>
+    </None>
     <None Include="Resources\shader\Vignette.PS.hlsl">
       <FileType>Document</FileType>
     </None>
