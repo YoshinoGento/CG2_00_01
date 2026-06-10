@@ -244,6 +244,8 @@ void DirectXCommon::InitializeCopyImagePipeline() {
         createPipelineState(L"Resources/shader/Blur.PS.hlsl");
     fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Bloom)] =
         createPipelineState(L"Resources/shader/Bloom.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Vignette)] =
+        createPipelineState(L"Resources/shader/Vignette.PS.hlsl");
 }
 
 void DirectXCommon::InitializeFence() {
@@ -262,14 +264,20 @@ void DirectXCommon::InitializeDXCCompiler() {
 void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     constexpr size_t kConstantBufferSize = 256;
     fullscreenPostEffectParameterResource_ = CreateBufferResource(kConstantBufferSize);
+    vignetteParameterResource_ = CreateBufferResource(kConstantBufferSize);
 
     D3D12_RANGE readRange{ 0, 0 };
     HRESULT hr = fullscreenPostEffectParameterResource_->Map(
         0, &readRange, reinterpret_cast<void**>(&mappedFullscreenPostEffectParameter_));
     assert(SUCCEEDED(hr));
+    hr = vignetteParameterResource_->Map(
+        0, &readRange, reinterpret_cast<void**>(&mappedVignetteParameter_));
+    assert(SUCCEEDED(hr));
 
     FullscreenPostEffectParameter parameter{};
     SetFullscreenPostEffectParameter(parameter);
+    VignetteParamForGPU vignetteParameter{};
+    SetVignetteParameter(vignetteParameter);
 }
 
 void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter) {
@@ -285,6 +293,17 @@ void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectP
     mappedFullscreenPostEffectParameter_->bloomIntensity = std::clamp(parameter.bloomIntensity, 0.0f, 8.0f);
     mappedFullscreenPostEffectParameter_->bloomRadius = std::clamp(parameter.bloomRadius, 0.0f, 32.0f);
     mappedFullscreenPostEffectParameter_->bloomSoftKnee = std::clamp(parameter.bloomSoftKnee, 0.001f, 1.0f);
+}
+
+void DirectXCommon::SetVignetteParameter(const VignetteParamForGPU& parameter) {
+    if (!mappedVignetteParameter_) {
+        return;
+    }
+
+    mappedVignetteParameter_->scale = std::clamp(parameter.scale, 0.0f, 64.0f);
+    mappedVignetteParameter_->power = std::clamp(parameter.power, 0.01f, 8.0f);
+    mappedVignetteParameter_->intensity = std::clamp(parameter.intensity, 0.0f, 1.0f);
+    mappedVignetteParameter_->padding = 0.0f;
 }
 
 // --- 描画フロー管理 ---
@@ -407,12 +426,17 @@ void DirectXCommon::DrawFullscreenTriangle(
     }
     assert(fullscreenPostEffectPipelineStates_[effectIndex]);
     assert(fullscreenPostEffectParameterResource_);
+    assert(vignetteParameterResource_);
 
     commandList_->SetGraphicsRootSignature(copyImageRootSignature_.Get());
     commandList_->SetPipelineState(fullscreenPostEffectPipelineStates_[effectIndex].Get());
     commandList_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList_->SetGraphicsRootDescriptorTable(0, textureSrvHandle);
-    commandList_->SetGraphicsRootConstantBufferView(1, fullscreenPostEffectParameterResource_->GetGPUVirtualAddress());
+    ID3D12Resource* parameterResource =
+        postEffectType == FullscreenPostEffectType::Vignette
+        ? vignetteParameterResource_.Get()
+        : fullscreenPostEffectParameterResource_.Get();
+    commandList_->SetGraphicsRootConstantBufferView(1, parameterResource->GetGPUVirtualAddress());
     commandList_->DrawInstanced(3, 1, 0, 0);
 }
 

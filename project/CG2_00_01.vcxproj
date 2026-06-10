@@ -227,6 +227,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\shader\Bloom.PS.hlsl">
       <FileType>Document</FileType>
     </None>
+    <None Include="Resources\shader\Vignette.PS.hlsl">
+      <FileType>Document</FileType>
+    </None>
     <None Include="Resources\shader\EmitParticle.CS.hlsl">
       <FileType>Document</FileType>
     </None>

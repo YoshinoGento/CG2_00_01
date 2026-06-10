@@ -336,6 +336,10 @@ void Game::Update() {
 		ImGui::Begin("Fullscreen PostEffect");
 		const char* postEffectItems[] = { "None / Copy", "Grayscale", "Sepia", "Blur", "Bloom" };
 		ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
+		ImGui::Checkbox("Vignette Enable", &fullscreenVignetteEnabled_);
+		ImGui::SliderFloat("Vignette Scale", &fullscreenVignetteScale_, 0.0f, 64.0f);
+		ImGui::SliderFloat("Vignette Power", &fullscreenVignettePower_, 0.01f, 8.0f);
+		ImGui::SliderFloat("Vignette Intensity", &fullscreenVignetteIntensity_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Grayscale Amount", &fullscreenGrayscaleIntensity_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Sepia Amount", &fullscreenSepiaIntensity_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Blur Strength", &fullscreenBlurStrength_, 0.0f, 16.0f);
@@ -352,6 +356,10 @@ void Game::Update() {
 			fullscreenBloomIntensity_ = 1.5f;
 			fullscreenBloomRadius_ = 8.0f;
 			fullscreenBloomSoftKnee_ = 0.2f;
+			fullscreenVignetteEnabled_ = false;
+			fullscreenVignetteScale_ = 16.0f;
+			fullscreenVignettePower_ = 0.8f;
+			fullscreenVignetteIntensity_ = 1.0f;
 		}
 		ImGui::End();
 	}
@@ -379,12 +387,21 @@ void Game::Draw() {
 	postEffectParameter.bloomRadius = fullscreenBloomRadius_;
 	postEffectParameter.bloomSoftKnee = fullscreenBloomSoftKnee_;
 	dxCommon_->SetFullscreenPostEffectParameter(postEffectParameter);
+	DirectXCommon::VignetteParamForGPU vignetteParameter{};
+	vignetteParameter.scale = fullscreenVignetteScale_;
+	vignetteParameter.power = fullscreenVignettePower_;
+	vignetteParameter.intensity = fullscreenVignetteIntensity_;
+	dxCommon_->SetVignetteParameter(vignetteParameter);
 
 	srvManager_->PreDraw();
+	DirectXCommon::FullscreenPostEffectType postEffectType =
+		fullscreenVignetteEnabled_
+		? DirectXCommon::FullscreenPostEffectType::Vignette
+		: static_cast<DirectXCommon::FullscreenPostEffectType>(fullscreenPostEffectIndex_);
 	dxCommon_->PreDrawToSwapChain(
 		srvManager_->GetGPUDescriptorHandle(renderTextureSrvIndex_),
 		srvManager_->GetGPUDescriptorHandle(postEffectResultSrvIndex_),
-		static_cast<DirectXCommon::FullscreenPostEffectType>(fullscreenPostEffectIndex_));
+		postEffectType);
 
 	// Render ImGui last on the swapchain, then present.
 	ImGuiManager::GetInstance()->Draw();
