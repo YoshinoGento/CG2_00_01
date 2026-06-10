@@ -1,5 +1,6 @@
 #include "DirectXCommon.h"
 #include "Logger.h"
+#include <algorithm>
 #include <cassert>
 #include <vector>
 #include <thread>
@@ -124,13 +125,24 @@ void DirectXCommon::InitializeRenderTexture() {
     assert(SUCCEEDED(hr));
     renderTextureState_ = D3D12_RESOURCE_STATE_RENDER_TARGET;
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
-    rtvHandle.ptr += static_cast<size_t>(2) * rtvDescriptorSize_; // Index 2 を使用
+    rtvHandle.ptr += static_cast<size_t>(kRenderTextureRTVIndex) * rtvDescriptorSize_;
     device_->CreateRenderTargetView(renderTextureResource_.Get(), nullptr, rtvHandle);
+
+    float postEffectClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    clearValue.Color[0] = postEffectClearColor[0];
+    clearValue.Color[1] = postEffectClearColor[1];
+    clearValue.Color[2] = postEffectClearColor[2];
+    clearValue.Color[3] = postEffectClearColor[3];
+    hr = device_->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue, IID_PPV_ARGS(&postEffectResultResource_));
+    assert(SUCCEEDED(hr));
+    postEffectResultState_ = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    D3D12_CPU_DESCRIPTOR_HANDLE postEffectRtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
+    postEffectRtvHandle.ptr += static_cast<size_t>(kPostEffectResultRTVIndex) * rtvDescriptorSize_;
+    device_->CreateRenderTargetView(postEffectResultResource_.Get(), nullptr, postEffectRtvHandle);
 }
 
 void DirectXCommon::InitializeCopyImagePipeline() {
     auto vsBlob = CompileShader(L"Resources/shader/CopyImage.VS.hlsl", L"vs_6_0");
-    auto psBlob = CompileShader(L"Resources/shader/CopyImage.PS.hlsl", L"ps_6_0");
 
     D3D12_DESCRIPTOR_RANGE srvRange{};
     srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
@@ -139,11 +151,16 @@ void DirectXCommon::InitializeCopyImagePipeline() {
     srvRange.RegisterSpace = 0;
     srvRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_PARAMETER rootParameter{};
-    rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    rootParameter.DescriptorTable.NumDescriptorRanges = 1;
-    rootParameter.DescriptorTable.pDescriptorRanges = &srvRange;
-    rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    D3D12_ROOT_PARAMETER rootParameters[2]{};
+    rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+    rootParameters[0].DescriptorTable.pDescriptorRanges = &srvRange;
+    rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    rootParameters[1].Descriptor.ShaderRegister = 0;
+    rootParameters[1].Descriptor.RegisterSpace = 0;
+    rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_STATIC_SAMPLER_DESC staticSampler{};
     staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -161,8 +178,8 @@ void DirectXCommon::InitializeCopyImagePipeline() {
     staticSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{};
-    rootSignatureDesc.NumParameters = 1;
-    rootSignatureDesc.pParameters = &rootParameter;
+    rootSignatureDesc.NumParameters = _countof(rootParameters);
+    rootSignatureDesc.pParameters = rootParameters;
     rootSignatureDesc.NumStaticSamplers = 1;
     rootSignatureDesc.pStaticSamplers = &staticSampler;
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -180,36 +197,53 @@ void DirectXCommon::InitializeCopyImagePipeline() {
     hr = device_->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&copyImageRootSignature_));
     assert(SUCCEEDED(hr));
 
-    D3D12_BLEND_DESC blendDesc{};
-    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    auto createPipelineState = [&](const std::wstring& psPath) {
+        auto psBlob = CompileShader(psPath, L"ps_6_0");
 
-    D3D12_RASTERIZER_DESC rasterizerDesc{};
-    rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
-    rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-    rasterizerDesc.DepthClipEnable = TRUE;
+        D3D12_BLEND_DESC blendDesc{};
+        blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
-    D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};
-    depthStencilDesc.DepthEnable = FALSE;
-    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-    depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+        D3D12_RASTERIZER_DESC rasterizerDesc{};
+        rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+        rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+        rasterizerDesc.DepthClipEnable = TRUE;
 
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc{};
-    pipelineDesc.pRootSignature = copyImageRootSignature_.Get();
-    pipelineDesc.InputLayout = { nullptr, 0 };
-    pipelineDesc.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
-    pipelineDesc.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
-    pipelineDesc.BlendState = blendDesc;
-    pipelineDesc.RasterizerState = rasterizerDesc;
-    pipelineDesc.DepthStencilState = depthStencilDesc;
-    pipelineDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
-    pipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    pipelineDesc.NumRenderTargets = 1;
-    pipelineDesc.RTVFormats[0] = kRenderTargetFormat;
-    pipelineDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
-    pipelineDesc.SampleDesc.Count = 1;
+        D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};
+        depthStencilDesc.DepthEnable = FALSE;
+        depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+        depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 
-    hr = device_->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&copyImagePipelineState_));
-    assert(SUCCEEDED(hr));
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc{};
+        pipelineDesc.pRootSignature = copyImageRootSignature_.Get();
+        pipelineDesc.InputLayout = { nullptr, 0 };
+        pipelineDesc.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
+        pipelineDesc.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
+        pipelineDesc.BlendState = blendDesc;
+        pipelineDesc.RasterizerState = rasterizerDesc;
+        pipelineDesc.DepthStencilState = depthStencilDesc;
+        pipelineDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+        pipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        pipelineDesc.NumRenderTargets = 1;
+        pipelineDesc.RTVFormats[0] = kRenderTargetFormat;
+        pipelineDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+        pipelineDesc.SampleDesc.Count = 1;
+
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState;
+        HRESULT psoHr = device_->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&pipelineState));
+        assert(SUCCEEDED(psoHr));
+        return pipelineState;
+        };
+
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Copy)] =
+        createPipelineState(L"Resources/shader/CopyImage.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Grayscale)] =
+        createPipelineState(L"Resources/shader/Grayscale.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Sepia)] =
+        createPipelineState(L"Resources/shader/Sepia.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Blur)] =
+        createPipelineState(L"Resources/shader/Blur.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Bloom)] =
+        createPipelineState(L"Resources/shader/Bloom.PS.hlsl");
 }
 
 void DirectXCommon::InitializeFence() {
@@ -222,6 +256,35 @@ void DirectXCommon::InitializeDXCCompiler() {
     DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&dxcCompiler_));
     dxcUtils_->CreateDefaultIncludeHandler(&includeHandler_);
     InitializeCopyImagePipeline();
+    InitializeFullscreenPostEffectParameter();
+}
+
+void DirectXCommon::InitializeFullscreenPostEffectParameter() {
+    constexpr size_t kConstantBufferSize = 256;
+    fullscreenPostEffectParameterResource_ = CreateBufferResource(kConstantBufferSize);
+
+    D3D12_RANGE readRange{ 0, 0 };
+    HRESULT hr = fullscreenPostEffectParameterResource_->Map(
+        0, &readRange, reinterpret_cast<void**>(&mappedFullscreenPostEffectParameter_));
+    assert(SUCCEEDED(hr));
+
+    FullscreenPostEffectParameter parameter{};
+    SetFullscreenPostEffectParameter(parameter);
+}
+
+void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter) {
+    if (!mappedFullscreenPostEffectParameter_) {
+        return;
+    }
+
+    mappedFullscreenPostEffectParameter_->grayscaleIntensity = std::clamp(parameter.grayscaleIntensity, 0.0f, 1.0f);
+    mappedFullscreenPostEffectParameter_->sepiaIntensity = std::clamp(parameter.sepiaIntensity, 0.0f, 1.0f);
+    mappedFullscreenPostEffectParameter_->blurStrength = std::clamp(parameter.blurStrength, 0.0f, 16.0f);
+    mappedFullscreenPostEffectParameter_->padding = 0.0f;
+    mappedFullscreenPostEffectParameter_->bloomThreshold = std::clamp(parameter.bloomThreshold, 0.0f, 1.0f);
+    mappedFullscreenPostEffectParameter_->bloomIntensity = std::clamp(parameter.bloomIntensity, 0.0f, 8.0f);
+    mappedFullscreenPostEffectParameter_->bloomRadius = std::clamp(parameter.bloomRadius, 0.0f, 32.0f);
+    mappedFullscreenPostEffectParameter_->bloomSoftKnee = std::clamp(parameter.bloomSoftKnee, 0.001f, 1.0f);
 }
 
 // --- 描画フロー管理 ---
@@ -234,7 +297,7 @@ void DirectXCommon::PreDraw() {
     TransitionRenderTexture(D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
-    rtvHandle.ptr += static_cast<size_t>(2) * rtvDescriptorSize_;
+    rtvHandle.ptr += static_cast<size_t>(kRenderTextureRTVIndex) * rtvDescriptorSize_;
     D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvHeap_->GetCPUDescriptorHandleForHeapStart();
     commandList_->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
 
@@ -250,11 +313,30 @@ void DirectXCommon::PreDraw() {
 /**
  * PreDrawToSwapChain: 描き込み先を実際のモニターへ切り替える
  */
-void DirectXCommon::PreDrawToSwapChain(D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle) {
+void DirectXCommon::PreDrawToSwapChain(
+    D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle,
+    D3D12_GPU_DESCRIPTOR_HANDLE postEffectResultSrvHandle,
+    FullscreenPostEffectType postEffectType) {
     assert(renderTextureResource_);
+    assert(postEffectResultResource_);
     assert(copyImageRootSignature_);
-    assert(copyImagePipelineState_);
     TransitionRenderTexture(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    TransitionPostEffectResult(D3D12_RESOURCE_STATE_RENDER_TARGET);
+    D3D12_CPU_DESCRIPTOR_HANDLE postEffectRtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
+    postEffectRtvHandle.ptr += static_cast<size_t>(kPostEffectResultRTVIndex) * rtvDescriptorSize_;
+    commandList_->OMSetRenderTargets(1, &postEffectRtvHandle, false, nullptr);
+
+    float postEffectClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    commandList_->ClearRenderTargetView(postEffectRtvHandle, postEffectClearColor, 0, nullptr);
+
+    D3D12_VIEWPORT viewport{ 0, 0, (FLOAT)WinApp::kClientWidth, (FLOAT)WinApp::kClientHeight, 0, 1 };
+    commandList_->RSSetViewports(1, &viewport);
+    D3D12_RECT scissor{ 0, 0, WinApp::kClientWidth, WinApp::kClientHeight };
+    commandList_->RSSetScissorRects(1, &scissor);
+
+    DrawFullscreenTriangle(renderTextureSrvHandle, postEffectType);
+    TransitionPostEffectResult(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
  
     UINT backBufferIndex = swapChain_->GetCurrentBackBufferIndex();
     D3D12_RESOURCE_BARRIER barrierSC{};
@@ -271,12 +353,10 @@ void DirectXCommon::PreDrawToSwapChain(D3D12_GPU_DESCRIPTOR_HANDLE renderTexture
     float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
     commandList_->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
-    D3D12_VIEWPORT viewport{ 0, 0, (FLOAT)WinApp::kClientWidth, (FLOAT)WinApp::kClientHeight, 0, 1 };
     commandList_->RSSetViewports(1, &viewport);
-    D3D12_RECT scissor{ 0, 0, WinApp::kClientWidth, WinApp::kClientHeight };
     commandList_->RSSetScissorRects(1, &scissor);
 
-    DrawRenderTextureToSwapChain(renderTextureSrvHandle);
+    DrawFullscreenTriangle(postEffectResultSrvHandle, FullscreenPostEffectType::Copy);
 }
 
 void DirectXCommon::RestoreRenderTextureToRenderTarget() {
@@ -302,11 +382,37 @@ void DirectXCommon::TransitionRenderTexture(D3D12_RESOURCE_STATES stateAfter) {
     renderTextureState_ = stateAfter;
 }
 
-void DirectXCommon::DrawRenderTextureToSwapChain(D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle) {
+void DirectXCommon::TransitionPostEffectResult(D3D12_RESOURCE_STATES stateAfter) {
+    if (!postEffectResultResource_ || postEffectResultState_ == stateAfter) {
+        return;
+    }
+
+    D3D12_RESOURCE_BARRIER barrier{};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barrier.Transition.pResource = postEffectResultResource_.Get();
+    barrier.Transition.StateBefore = postEffectResultState_;
+    barrier.Transition.StateAfter = stateAfter;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    commandList_->ResourceBarrier(1, &barrier);
+    postEffectResultState_ = stateAfter;
+}
+
+void DirectXCommon::DrawFullscreenTriangle(
+    D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle,
+    FullscreenPostEffectType postEffectType) {
+    size_t effectIndex = static_cast<size_t>(postEffectType);
+    if (effectIndex >= kFullscreenPostEffectCount) {
+        effectIndex = static_cast<size_t>(FullscreenPostEffectType::Copy);
+    }
+    assert(fullscreenPostEffectPipelineStates_[effectIndex]);
+    assert(fullscreenPostEffectParameterResource_);
+
     commandList_->SetGraphicsRootSignature(copyImageRootSignature_.Get());
-    commandList_->SetPipelineState(copyImagePipelineState_.Get());
+    commandList_->SetPipelineState(fullscreenPostEffectPipelineStates_[effectIndex].Get());
     commandList_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    commandList_->SetGraphicsRootDescriptorTable(0, renderTextureSrvHandle);
+    commandList_->SetGraphicsRootDescriptorTable(0, textureSrvHandle);
+    commandList_->SetGraphicsRootConstantBufferView(1, fullscreenPostEffectParameterResource_->GetGPUVirtualAddress());
     commandList_->DrawInstanced(3, 1, 0, 0);
 }
 

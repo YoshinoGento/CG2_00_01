@@ -19,10 +19,17 @@ Game::~Game() = default;
 
 void Game::Initialize() {
 	Framework::Initialize();
-	viewportSrvIndex_ = srvManager_->Allocate();
+	renderTextureSrvIndex_ = srvManager_->Allocate();
 	srvManager_->CreateSRVforTexture2D(
-		viewportSrvIndex_,
+		renderTextureSrvIndex_,
 		dxCommon_->GetRenderTextureResource(),
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		1
+	);
+	postEffectResultSrvIndex_ = srvManager_->Allocate();
+	srvManager_->CreateSRVforTexture2D(
+		postEffectResultSrvIndex_,
+		dxCommon_->GetPostEffectResultResource(),
 		DXGI_FORMAT_R8G8B8A8_UNORM,
 		1
 	);
@@ -73,8 +80,8 @@ void Game::Update() {
 				mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * 1280.0f;
 				mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
 
-				// Use the RenderTexture SRV, not the old PostProcess output.
-				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(viewportSrvIndex_).ptr, displaySize);
+				// Display the fullscreen post-effect result in the Game Viewport.
+				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(postEffectResultSrvIndex_).ptr, displaySize);
 				if (playScene) {
 					playScene->viewportImageTopLeft_ = { imageTopLeft.x, imageTopLeft.y };
 					playScene->viewportImageSize_ = { displaySize.x, displaySize.y };
@@ -325,15 +332,26 @@ void Game::Update() {
 
 		ImGui::End();
 
-		// ★ブルームエフェクトの設定UI
-		ImGui::Begin("Post Process (Bloom)");
-		auto& bloomParam = postProcess_->GetBloomParam();
-		bool changed = false;
-		changed |= ImGui::SliderFloat("Threshold", &bloomParam.threshold, 0.0f, 1.0f);
-		changed |= ImGui::SliderFloat("Intensity", &bloomParam.intensity, 0.0f, 5.0f);
-		changed |= ImGui::SliderFloat("Blur Radius", postProcess_->GetBlurSigma(), 1.0f, 6.0f);
-		if (changed) {
-			postProcess_->UpdateBlurWeights();
+		// Fullscreen post effect selection.
+		ImGui::Begin("Fullscreen PostEffect");
+		const char* postEffectItems[] = { "None / Copy", "Grayscale", "Sepia", "Blur", "Bloom" };
+		ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
+		ImGui::SliderFloat("Grayscale Amount", &fullscreenGrayscaleIntensity_, 0.0f, 1.0f);
+		ImGui::SliderFloat("Sepia Amount", &fullscreenSepiaIntensity_, 0.0f, 1.0f);
+		ImGui::SliderFloat("Blur Strength", &fullscreenBlurStrength_, 0.0f, 16.0f);
+		ImGui::Separator();
+		ImGui::SliderFloat("Bloom Threshold", &fullscreenBloomThreshold_, 0.0f, 1.0f);
+		ImGui::SliderFloat("Bloom Intensity", &fullscreenBloomIntensity_, 0.0f, 8.0f);
+		ImGui::SliderFloat("Bloom Radius", &fullscreenBloomRadius_, 0.0f, 32.0f);
+		ImGui::SliderFloat("Bloom Soft Knee", &fullscreenBloomSoftKnee_, 0.001f, 1.0f);
+		if (ImGui::Button("Reset PostEffect Params")) {
+			fullscreenGrayscaleIntensity_ = 1.0f;
+			fullscreenSepiaIntensity_ = 1.0f;
+			fullscreenBlurStrength_ = 4.0f;
+			fullscreenBloomThreshold_ = 0.65f;
+			fullscreenBloomIntensity_ = 1.5f;
+			fullscreenBloomRadius_ = 8.0f;
+			fullscreenBloomSoftKnee_ = 0.2f;
 		}
 		ImGui::End();
 	}
@@ -349,11 +367,24 @@ void Game::Draw() {
 	// Draw the scene into the offscreen RenderTexture.
 	SceneManager::GetInstance()->Draw();
 
-	// CopyImage reads the RenderTexture SRV and writes it to the swapchain.
-	// DirectXCommon keeps the RenderTexture in PIXEL_SHADER_RESOURCE
-	// until ImGui has also sampled it.
+	// Fullscreen post effect reads the scene RenderTexture and writes the result
+	// to an intermediate texture. The result is then copied to the swapchain and
+	// kept in PIXEL_SHADER_RESOURCE so ImGui can show the same image.
+	DirectXCommon::FullscreenPostEffectParameter postEffectParameter{};
+	postEffectParameter.grayscaleIntensity = fullscreenGrayscaleIntensity_;
+	postEffectParameter.sepiaIntensity = fullscreenSepiaIntensity_;
+	postEffectParameter.blurStrength = fullscreenBlurStrength_;
+	postEffectParameter.bloomThreshold = fullscreenBloomThreshold_;
+	postEffectParameter.bloomIntensity = fullscreenBloomIntensity_;
+	postEffectParameter.bloomRadius = fullscreenBloomRadius_;
+	postEffectParameter.bloomSoftKnee = fullscreenBloomSoftKnee_;
+	dxCommon_->SetFullscreenPostEffectParameter(postEffectParameter);
+
 	srvManager_->PreDraw();
-	dxCommon_->PreDrawToSwapChain(srvManager_->GetGPUDescriptorHandle(viewportSrvIndex_));
+	dxCommon_->PreDrawToSwapChain(
+		srvManager_->GetGPUDescriptorHandle(renderTextureSrvIndex_),
+		srvManager_->GetGPUDescriptorHandle(postEffectResultSrvIndex_),
+		static_cast<DirectXCommon::FullscreenPostEffectType>(fullscreenPostEffectIndex_));
 
 	// Render ImGui last on the swapchain, then present.
 	ImGuiManager::GetInstance()->Draw();
