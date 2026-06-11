@@ -382,6 +382,7 @@ void Game::Update() {
 			"Outline Depth + Normal",
 			"Vignette",
 			"RandomNoise",
+			"HSV Filter",
 		};
 		ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
 		fullscreenPostEffectIndex_ = std::clamp(fullscreenPostEffectIndex_, 0, static_cast<int>(_countof(postEffectItems)) - 1);
@@ -396,6 +397,15 @@ void Game::Update() {
 		ImGui::SliderFloat("Random Noise Scale", &fullscreenRandomNoiseScale_, 1.0f, 2000.0f);
 		ImGui::Checkbox("Random Noise Animate", &fullscreenRandomNoiseAnimate_);
 		ImGui::SliderFloat("Random Noise Time Speed", &fullscreenRandomNoiseTimeSpeed_, 0.0f, 10.0f);
+		ImGui::Separator();
+		ImGui::SliderFloat("HSV Hue", &fullscreenHSVHue_, -1.0f, 1.0f);
+		ImGui::SliderFloat("HSV Saturation", &fullscreenHSVSaturation_, -1.0f, 1.0f);
+		ImGui::SliderFloat("HSV Value", &fullscreenHSVValue_, -1.0f, 1.0f);
+		if (ImGui::Button("Reset HSV")) {
+			fullscreenHSVHue_ = 0.0f;
+			fullscreenHSVSaturation_ = 0.0f;
+			fullscreenHSVValue_ = 0.0f;
+		}
 		ImGui::SliderFloat("Grayscale Amount", &fullscreenGrayscaleIntensity_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Sepia Amount", &fullscreenSepiaIntensity_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Blur Strength", &fullscreenBlurStrength_, 0.0f, 16.0f);
@@ -473,6 +483,9 @@ void Game::Update() {
 			fullscreenRandomNoiseTimeSpeed_ = 1.0f;
 			fullscreenRandomNoiseMode_ = 1;
 			fullscreenRandomNoiseAnimate_ = true;
+			fullscreenHSVHue_ = 0.0f;
+			fullscreenHSVSaturation_ = 0.0f;
+			fullscreenHSVValue_ = 0.0f;
 		}
 		ImGui::End();
 	}
@@ -543,6 +556,11 @@ void Game::Draw() {
 	randomNoiseParameter.mode = static_cast<float>(fullscreenRandomNoiseMode_);
 	randomNoiseParameter.animate = fullscreenRandomNoiseAnimate_ ? 1.0f : 0.0f;
 	dxCommon_->SetRandomNoiseParameter(randomNoiseParameter);
+	DirectXCommon::HSVFilterParamForGPU hsvFilterParameter{};
+	hsvFilterParameter.hue = fullscreenHSVHue_;
+	hsvFilterParameter.saturation = fullscreenHSVSaturation_;
+	hsvFilterParameter.value = fullscreenHSVValue_;
+	dxCommon_->SetHSVFilterParameter(hsvFilterParameter);
 
 	srvManager_->PreDraw();
 	DirectXCommon::FullscreenPostEffectType postEffectType =

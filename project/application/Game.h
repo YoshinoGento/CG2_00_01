@@ -77,6 +77,9 @@ private:
 	int fullscreenRandomNoiseMode_ = 1;
 	bool fullscreenRandomNoiseAnimate_ = true;
 	std::chrono::steady_clock::time_point previousRandomNoiseTime_{};
+	float fullscreenHSVHue_ = 0.0f;
+	float fullscreenHSVSaturation_ = 0.0f;
+	float fullscreenHSVValue_ = 0.0f;
 
 	// 計算・補正されたマウス座標を保持
 	static Vector2 mousePosInViewport_;
