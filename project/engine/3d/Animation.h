@@ -1,33 +1,33 @@
-#pragma once
+﻿#pragma once
 #include "math/Matrix.h"
-#include <vector>
-#include <string>
-#include <map>
 
-// キーフレームのテンプレート構造体 (資料スライド 6)
+#include <map>
+#include <string>
+#include <type_traits>
+#include <vector>
+
+#include <cstddef>
+
 template <typename tValue>
 struct Keyframe {
-    float time;   // 秒単位
+    float time;
     tValue value;
 };
 
 using KeyframeVector3 = Keyframe<Vector3>;
 using KeyframeQuaternion = Keyframe<Quaternion>;
 
-// 各ノードのアニメーション (資料スライド 7)
 struct NodeAnimation {
     std::vector<KeyframeVector3> translate;
     std::vector<KeyframeQuaternion> rotate;
     std::vector<KeyframeVector3> scale;
 };
 
-// アニメーション全体 (資料スライド 8)
 struct Animation {
-    float duration; // 全体の長さ（秒）
-    std::map<std::string, NodeAnimation> nodeAnimations; // ノード名とアニメーションの紐付け
+    float duration = 0.0f;
+    std::map<std::string, NodeAnimation> nodeAnimations;
 };
 
-// 任意時刻のアニメーション値を計算します
 template <typename tValue>
 tValue CalculateValue(const std::vector<Keyframe<tValue>>& keyframes, float time) {
     if (keyframes.empty()) {

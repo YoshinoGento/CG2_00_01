@@ -26,6 +26,7 @@ public:
         BoxFilter3x3,
         BoxFilter5x5,
         RadialBlur,
+        Dissolve,
         OutlineLuminance,
         OutlineDepth,
         OutlineNormal,
@@ -79,6 +80,16 @@ public:
     };
     static_assert(sizeof(RadialBlurParamForGPU) == 32);
 
+    struct DissolveParamForGPU {
+        float threshold = 0.5f;
+        float edgeWidth = 0.03f;
+        float edgeIntensity = 1.0f;
+        float enableEdge = 1.0f;
+        Vector3 edgeColor = { 1.0f, 0.4f, 0.3f };
+        float padding0 = 0.0f;
+    };
+    static_assert(sizeof(DissolveParamForGPU) == 32);
+
     void Initialize(WinApp* winApp);
 
     // --- 描画フロー管理 ---
@@ -95,6 +106,7 @@ public:
     void SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter);
     void SetVignetteParameter(const VignetteParamForGPU& parameter);
     void SetRadialBlurParameter(const RadialBlurParamForGPU& parameter);
+    void SetDissolveParameter(const DissolveParamForGPU& parameter);
     // 3. 全ての描画を終了し、画面を表示する
     void PostDraw();
 
@@ -188,6 +200,8 @@ private:
     VignetteParamForGPU* mappedVignetteParameter_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> radialBlurParameterResource_;
     RadialBlurParamForGPU* mappedRadialBlurParameter_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> dissolveParameterResource_;
+    DissolveParamForGPU* mappedDissolveParameter_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
     uint64_t fenceValue_ = 0;
