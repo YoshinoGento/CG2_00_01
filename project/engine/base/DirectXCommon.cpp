@@ -308,6 +308,8 @@ void DirectXCommon::InitializeCopyImagePipeline() {
         createPipelineState(L"Resources/shader/Vignette.PS.hlsl");
     fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::RandomNoise)] =
         createPipelineState(L"Resources/shader/RandomNoise.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::HSVFilter)] =
+        createPipelineState(L"Resources/shader/HSVFilter.PS.hlsl");
 }
 
 void DirectXCommon::InitializeFence() {
@@ -330,6 +332,7 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     radialBlurParameterResource_ = CreateBufferResource(kConstantBufferSize);
     dissolveParameterResource_ = CreateBufferResource(kConstantBufferSize);
     randomNoiseParameterResource_ = CreateBufferResource(kConstantBufferSize);
+    hsvFilterParameterResource_ = CreateBufferResource(kConstantBufferSize);
 
     D3D12_RANGE readRange{ 0, 0 };
     HRESULT hr = fullscreenPostEffectParameterResource_->Map(
@@ -347,6 +350,9 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     hr = randomNoiseParameterResource_->Map(
         0, &readRange, reinterpret_cast<void**>(&mappedRandomNoiseParameter_));
     assert(SUCCEEDED(hr));
+    hr = hsvFilterParameterResource_->Map(
+        0, &readRange, reinterpret_cast<void**>(&mappedHSVFilterParameter_));
+    assert(SUCCEEDED(hr));
 
     FullscreenPostEffectParameter parameter{};
     SetFullscreenPostEffectParameter(parameter);
@@ -358,6 +364,8 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     SetDissolveParameter(dissolveParameter);
     RandomNoiseParamForGPU randomNoiseParameter{};
     SetRandomNoiseParameter(randomNoiseParameter);
+    HSVFilterParamForGPU hsvFilterParameter{};
+    SetHSVFilterParameter(hsvFilterParameter);
 }
 
 void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter) {
@@ -448,6 +456,17 @@ void DirectXCommon::SetRandomNoiseParameter(const RandomNoiseParamForGPU& parame
     mappedRandomNoiseParameter_->padding0 = 0.0f;
     mappedRandomNoiseParameter_->padding1 = 0.0f;
     mappedRandomNoiseParameter_->padding2 = 0.0f;
+}
+
+void DirectXCommon::SetHSVFilterParameter(const HSVFilterParamForGPU& parameter) {
+    if (!mappedHSVFilterParameter_) {
+        return;
+    }
+
+    mappedHSVFilterParameter_->hue = std::clamp(parameter.hue, -1.0f, 1.0f);
+    mappedHSVFilterParameter_->saturation = std::clamp(parameter.saturation, -1.0f, 1.0f);
+    mappedHSVFilterParameter_->value = std::clamp(parameter.value, -1.0f, 1.0f);
+    mappedHSVFilterParameter_->padding = 0.0f;
 }
 
 // --- 描画フロー管理 ---
@@ -641,6 +660,7 @@ void DirectXCommon::DrawFullscreenTriangle(
     assert(radialBlurParameterResource_);
     assert(dissolveParameterResource_);
     assert(randomNoiseParameterResource_);
+    assert(hsvFilterParameterResource_);
 
     commandList_->SetGraphicsRootSignature(copyImageRootSignature_.Get());
     commandList_->SetPipelineState(fullscreenPostEffectPipelineStates_[effectIndex].Get());
@@ -657,7 +677,9 @@ void DirectXCommon::DrawFullscreenTriangle(
                     ? dissolveParameterResource_.Get()
                     : postEffectType == FullscreenPostEffectType::RandomNoise
                         ? randomNoiseParameterResource_.Get()
-                        : fullscreenPostEffectParameterResource_.Get();
+                        : postEffectType == FullscreenPostEffectType::HSVFilter
+                            ? hsvFilterParameterResource_.Get()
+                            : fullscreenPostEffectParameterResource_.Get();
     commandList_->SetGraphicsRootConstantBufferView(1, parameterResource->GetGPUVirtualAddress());
     commandList_->DrawInstanced(3, 1, 0, 0);
 }

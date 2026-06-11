@@ -33,6 +33,7 @@ public:
         OutlineDepthNormal,
         Vignette,
         RandomNoise,
+        HSVFilter,
         Count,
     };
 
@@ -103,6 +104,14 @@ public:
     };
     static_assert(sizeof(RandomNoiseParamForGPU) == 32);
 
+    struct HSVFilterParamForGPU {
+        float hue = 0.0f;
+        float saturation = 0.0f;
+        float value = 0.0f;
+        float padding = 0.0f;
+    };
+    static_assert(sizeof(HSVFilterParamForGPU) == 16);
+
     void Initialize(WinApp* winApp);
 
     // --- 描画フロー管理 ---
@@ -121,6 +130,7 @@ public:
     void SetRadialBlurParameter(const RadialBlurParamForGPU& parameter);
     void SetDissolveParameter(const DissolveParamForGPU& parameter);
     void SetRandomNoiseParameter(const RandomNoiseParamForGPU& parameter);
+    void SetHSVFilterParameter(const HSVFilterParamForGPU& parameter);
     // 3. 全ての描画を終了し、画面を表示する
     void PostDraw();
 
@@ -218,6 +228,8 @@ private:
     DissolveParamForGPU* mappedDissolveParameter_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> randomNoiseParameterResource_;
     RandomNoiseParamForGPU* mappedRandomNoiseParameter_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> hsvFilterParameterResource_;
+    HSVFilterParamForGPU* mappedHSVFilterParameter_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
     uint64_t fenceValue_ = 0;
