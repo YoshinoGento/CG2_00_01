@@ -2,6 +2,7 @@
 #include "Logger.h"
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <vector>
 #include <thread>
 #include "externals/DirectXTex/d3dx12.h" 
@@ -305,6 +306,8 @@ void DirectXCommon::InitializeCopyImagePipeline() {
         createPipelineState(L"Resources/shader/OutlineDepthNormal.PS.hlsl");
     fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::Vignette)] =
         createPipelineState(L"Resources/shader/Vignette.PS.hlsl");
+    fullscreenPostEffectPipelineStates_[static_cast<size_t>(FullscreenPostEffectType::RandomNoise)] =
+        createPipelineState(L"Resources/shader/RandomNoise.PS.hlsl");
 }
 
 void DirectXCommon::InitializeFence() {
@@ -326,6 +329,7 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     vignetteParameterResource_ = CreateBufferResource(kConstantBufferSize);
     radialBlurParameterResource_ = CreateBufferResource(kConstantBufferSize);
     dissolveParameterResource_ = CreateBufferResource(kConstantBufferSize);
+    randomNoiseParameterResource_ = CreateBufferResource(kConstantBufferSize);
 
     D3D12_RANGE readRange{ 0, 0 };
     HRESULT hr = fullscreenPostEffectParameterResource_->Map(
@@ -340,6 +344,9 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     hr = dissolveParameterResource_->Map(
         0, &readRange, reinterpret_cast<void**>(&mappedDissolveParameter_));
     assert(SUCCEEDED(hr));
+    hr = randomNoiseParameterResource_->Map(
+        0, &readRange, reinterpret_cast<void**>(&mappedRandomNoiseParameter_));
+    assert(SUCCEEDED(hr));
 
     FullscreenPostEffectParameter parameter{};
     SetFullscreenPostEffectParameter(parameter);
@@ -349,6 +356,8 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     SetRadialBlurParameter(radialBlurParameter);
     DissolveParamForGPU dissolveParameter{};
     SetDissolveParameter(dissolveParameter);
+    RandomNoiseParamForGPU randomNoiseParameter{};
+    SetRandomNoiseParameter(randomNoiseParameter);
 }
 
 void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter) {
@@ -424,6 +433,21 @@ void DirectXCommon::SetDissolveParameter(const DissolveParamForGPU& parameter) {
     mappedDissolveParameter_->edgeColor.y = std::clamp(parameter.edgeColor.y, 0.0f, 1.0f);
     mappedDissolveParameter_->edgeColor.z = std::clamp(parameter.edgeColor.z, 0.0f, 1.0f);
     mappedDissolveParameter_->padding0 = 0.0f;
+}
+
+void DirectXCommon::SetRandomNoiseParameter(const RandomNoiseParamForGPU& parameter) {
+    if (!mappedRandomNoiseParameter_) {
+        return;
+    }
+
+    mappedRandomNoiseParameter_->time = std::isfinite(parameter.time) ? parameter.time : 0.0f;
+    mappedRandomNoiseParameter_->strength = std::clamp(parameter.strength, 0.0f, 1.0f);
+    mappedRandomNoiseParameter_->scale = std::clamp(parameter.scale, 1.0f, 2000.0f);
+    mappedRandomNoiseParameter_->mode = parameter.mode < 0.5f ? 0.0f : 1.0f;
+    mappedRandomNoiseParameter_->animate = parameter.animate != 0.0f ? 1.0f : 0.0f;
+    mappedRandomNoiseParameter_->padding0 = 0.0f;
+    mappedRandomNoiseParameter_->padding1 = 0.0f;
+    mappedRandomNoiseParameter_->padding2 = 0.0f;
 }
 
 // --- 描画フロー管理 ---
@@ -616,6 +640,7 @@ void DirectXCommon::DrawFullscreenTriangle(
     assert(vignetteParameterResource_);
     assert(radialBlurParameterResource_);
     assert(dissolveParameterResource_);
+    assert(randomNoiseParameterResource_);
 
     commandList_->SetGraphicsRootSignature(copyImageRootSignature_.Get());
     commandList_->SetPipelineState(fullscreenPostEffectPipelineStates_[effectIndex].Get());
@@ -630,7 +655,9 @@ void DirectXCommon::DrawFullscreenTriangle(
                 ? radialBlurParameterResource_.Get()
                 : postEffectType == FullscreenPostEffectType::Dissolve
                     ? dissolveParameterResource_.Get()
-                    : fullscreenPostEffectParameterResource_.Get();
+                    : postEffectType == FullscreenPostEffectType::RandomNoise
+                        ? randomNoiseParameterResource_.Get()
+                        : fullscreenPostEffectParameterResource_.Get();
     commandList_->SetGraphicsRootConstantBufferView(1, parameterResource->GetGPUVirtualAddress());
     commandList_->DrawInstanced(3, 1, 0, 0);
 }

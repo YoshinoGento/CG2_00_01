@@ -315,6 +315,7 @@
     <None Include="Resources\shader\OutlineNormal.PS.hlsl" />
     <None Include="Resources\shader\OutlineDepthNormal.PS.hlsl" />
     <None Include="Resources\shader\Vignette.PS.hlsl" />
+    <None Include="Resources\shader\RandomNoise.PS.hlsl" />
     <None Include="Resources\shader\EmitParticle.CS.hlsl">
       <Filter>リソース ファイル\Resources\shader</Filter>
     </None>
