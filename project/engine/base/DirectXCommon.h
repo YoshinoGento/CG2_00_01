@@ -32,6 +32,7 @@ public:
         OutlineNormal,
         OutlineDepthNormal,
         Vignette,
+        RandomNoise,
         Count,
     };
 
@@ -90,6 +91,18 @@ public:
     };
     static_assert(sizeof(DissolveParamForGPU) == 32);
 
+    struct RandomNoiseParamForGPU {
+        float time = 0.0f;
+        float strength = 0.2f;
+        float scale = 800.0f;
+        float mode = 1.0f;
+        float animate = 1.0f;
+        float padding0 = 0.0f;
+        float padding1 = 0.0f;
+        float padding2 = 0.0f;
+    };
+    static_assert(sizeof(RandomNoiseParamForGPU) == 32);
+
     void Initialize(WinApp* winApp);
 
     // --- 描画フロー管理 ---
@@ -107,6 +120,7 @@ public:
     void SetVignetteParameter(const VignetteParamForGPU& parameter);
     void SetRadialBlurParameter(const RadialBlurParamForGPU& parameter);
     void SetDissolveParameter(const DissolveParamForGPU& parameter);
+    void SetRandomNoiseParameter(const RandomNoiseParamForGPU& parameter);
     // 3. 全ての描画を終了し、画面を表示する
     void PostDraw();
 
@@ -202,6 +216,8 @@ private:
     RadialBlurParamForGPU* mappedRadialBlurParameter_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> dissolveParameterResource_;
     DissolveParamForGPU* mappedDissolveParameter_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> randomNoiseParameterResource_;
+    RandomNoiseParamForGPU* mappedRandomNoiseParameter_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
     uint64_t fenceValue_ = 0;

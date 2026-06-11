@@ -72,6 +72,17 @@ void Game::Finalize() {
 
 void Game::Update() {
 	Framework::Update();
+	const auto now = std::chrono::steady_clock::now();
+	float randomNoiseDeltaTime = 1.0f / 60.0f;
+	if (previousRandomNoiseTime_.time_since_epoch().count() != 0) {
+		randomNoiseDeltaTime = std::chrono::duration<float>(now - previousRandomNoiseTime_).count();
+		randomNoiseDeltaTime = std::clamp(randomNoiseDeltaTime, 1.0f / 240.0f, 1.0f / 15.0f);
+	}
+	previousRandomNoiseTime_ = now;
+	if (fullscreenRandomNoiseAnimate_) {
+		fullscreenRandomNoiseTime_ += randomNoiseDeltaTime * std::clamp(fullscreenRandomNoiseTimeSpeed_, 0.0f, 10.0f);
+	}
+
 	ImGuiManager::GetInstance()->Begin();
 	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
@@ -370,12 +381,21 @@ void Game::Update() {
 			"Outline Normal",
 			"Outline Depth + Normal",
 			"Vignette",
+			"RandomNoise",
 		};
 		ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
 		fullscreenPostEffectIndex_ = std::clamp(fullscreenPostEffectIndex_, 0, static_cast<int>(_countof(postEffectItems)) - 1);
 		ImGui::SliderFloat("Vignette Scale", &fullscreenVignetteScale_, 0.0f, 64.0f);
 		ImGui::SliderFloat("Vignette Power", &fullscreenVignettePower_, 0.01f, 8.0f);
 		ImGui::SliderFloat("Vignette Intensity", &fullscreenVignetteIntensity_, 0.0f, 1.0f);
+		ImGui::Separator();
+		const char* randomNoiseModeItems[] = { "WhiteNoiseOnly", "MultiplyScene" };
+		ImGui::Combo("Random Noise Mode", &fullscreenRandomNoiseMode_, randomNoiseModeItems, _countof(randomNoiseModeItems));
+		fullscreenRandomNoiseMode_ = std::clamp(fullscreenRandomNoiseMode_, 0, static_cast<int>(_countof(randomNoiseModeItems)) - 1);
+		ImGui::SliderFloat("Random Noise Strength", &fullscreenRandomNoiseStrength_, 0.0f, 1.0f);
+		ImGui::SliderFloat("Random Noise Scale", &fullscreenRandomNoiseScale_, 1.0f, 2000.0f);
+		ImGui::Checkbox("Random Noise Animate", &fullscreenRandomNoiseAnimate_);
+		ImGui::SliderFloat("Random Noise Time Speed", &fullscreenRandomNoiseTimeSpeed_, 0.0f, 10.0f);
 		ImGui::SliderFloat("Grayscale Amount", &fullscreenGrayscaleIntensity_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Sepia Amount", &fullscreenSepiaIntensity_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Blur Strength", &fullscreenBlurStrength_, 0.0f, 16.0f);
@@ -447,6 +467,12 @@ void Game::Update() {
 			fullscreenVignetteScale_ = 16.0f;
 			fullscreenVignettePower_ = 0.8f;
 			fullscreenVignetteIntensity_ = 1.0f;
+			fullscreenRandomNoiseTime_ = 0.0f;
+			fullscreenRandomNoiseStrength_ = 0.2f;
+			fullscreenRandomNoiseScale_ = 800.0f;
+			fullscreenRandomNoiseTimeSpeed_ = 1.0f;
+			fullscreenRandomNoiseMode_ = 1;
+			fullscreenRandomNoiseAnimate_ = true;
 		}
 		ImGui::End();
 	}
@@ -510,6 +536,13 @@ void Game::Draw() {
 	dissolveParameter.enableEdge = fullscreenDissolveEnableEdge_ ? 1.0f : 0.0f;
 	dissolveParameter.edgeColor = fullscreenDissolveEdgeColor_;
 	dxCommon_->SetDissolveParameter(dissolveParameter);
+	DirectXCommon::RandomNoiseParamForGPU randomNoiseParameter{};
+	randomNoiseParameter.time = fullscreenRandomNoiseTime_;
+	randomNoiseParameter.strength = fullscreenRandomNoiseStrength_;
+	randomNoiseParameter.scale = fullscreenRandomNoiseScale_;
+	randomNoiseParameter.mode = static_cast<float>(fullscreenRandomNoiseMode_);
+	randomNoiseParameter.animate = fullscreenRandomNoiseAnimate_ ? 1.0f : 0.0f;
+	dxCommon_->SetRandomNoiseParameter(randomNoiseParameter);
 
 	srvManager_->PreDraw();
 	DirectXCommon::FullscreenPostEffectType postEffectType =

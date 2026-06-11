@@ -1,6 +1,7 @@
 #pragma once
 #include "base/Framework.h"
 #include "math/Matrix.h"	
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -69,6 +70,13 @@ private:
 	float fullscreenVignetteScale_ = 16.0f;
 	float fullscreenVignettePower_ = 0.8f;
 	float fullscreenVignetteIntensity_ = 1.0f;
+	float fullscreenRandomNoiseTime_ = 0.0f;
+	float fullscreenRandomNoiseStrength_ = 0.2f;
+	float fullscreenRandomNoiseScale_ = 800.0f;
+	float fullscreenRandomNoiseTimeSpeed_ = 1.0f;
+	int fullscreenRandomNoiseMode_ = 1;
+	bool fullscreenRandomNoiseAnimate_ = true;
+	std::chrono::steady_clock::time_point previousRandomNoiseTime_{};
 
 	// 計算・補正されたマウス座標を保持
 	static Vector2 mousePosInViewport_;
