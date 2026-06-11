@@ -2,6 +2,8 @@
 #include "base/Framework.h"
 #include "math/Matrix.h"	
 #include <memory>
+#include <string>
+#include <vector>
 #include "effect/PostProcess.h"
 
 class SceneFactory;
@@ -33,6 +35,9 @@ private:
 	uint32_t postEffectResultSrvIndex_ = 0;
 	uint32_t depthBufferSrvIndex_ = 0;
 	uint32_t normalTextureSrvIndex_ = 0;
+	std::vector<uint32_t> noiseSrvIndices_;
+	std::vector<std::string> noiseNames_;
+	int selectedNoiseIndex_ = 0;
 	int fullscreenPostEffectIndex_ = 0;
 	float fullscreenGrayscaleIntensity_ = 1.0f;
 	float fullscreenSepiaIntensity_ = 1.0f;
@@ -45,6 +50,11 @@ private:
 	float fullscreenRadialBlurWidth_ = 0.01f;
 	float fullscreenRadialBlurIntensity_ = 1.0f;
 	int fullscreenRadialBlurSampleCount_ = 10;
+	float fullscreenDissolveThreshold_ = 0.5f;
+	float fullscreenDissolveEdgeWidth_ = 0.03f;
+	float fullscreenDissolveEdgeIntensity_ = 1.0f;
+	bool fullscreenDissolveEnableEdge_ = true;
+	Vector3 fullscreenDissolveEdgeColor_ = { 1.0f, 0.4f, 0.3f };
 	float fullscreenOutlineThreshold_ = 0.15f;
 	float fullscreenOutlineIntensity_ = 1.0f;
 	float fullscreenOutlineThickness_ = 1.0f;

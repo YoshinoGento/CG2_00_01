@@ -7,6 +7,7 @@
 #include "scene/GamePlayScene.h" 
 #include "audio/Audio.h"
 #include "3d/Object3d.h"
+#include "2d/SpriteCommon.h"
 #include "debug/SkinningDebugWindow.h"
 #include "effect/ParticleManager.h"
 #include <algorithm>
@@ -47,6 +48,12 @@ void Game::Initialize() {
 		DXGI_FORMAT_R8G8B8A8_UNORM,
 		1
 	);
+	noiseNames_ = { "noise0.png", "noise1.png" };
+	noiseSrvIndices_.clear();
+	noiseSrvIndices_.reserve(noiseNames_.size());
+	for (const std::string& noiseName : noiseNames_) {
+		noiseSrvIndices_.push_back(spriteCommon_->LoadTexture("Resources/" + noiseName));
+	}
 
 	postProcess_ = std::make_unique<PostProcess>();
 	postProcess_->Initialize(dxCommon_.get(), srvManager_.get());
@@ -75,7 +82,7 @@ void Game::Update() {
 		playScene->viewportImageSize_ = { 0.0f, 0.0f };
 	}
 
-	// Game Viewport displays the current frame RenderTexture.
+	// Game Viewport displays the current frame post-effect result texture.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 	if (ImGui::Begin("Game Viewport")) {
 		ImVec2 contentSize = ImGui::GetContentRegionAvail();
@@ -357,13 +364,15 @@ void Game::Update() {
 			"BoxFilter 3x3",
 			"BoxFilter 5x5",
 			"Radial Blur",
+			"Dissolve",
 			"Outline Luminance",
 			"Outline Depth",
 			"Outline Normal",
 			"Outline Depth + Normal",
+			"Vignette",
 		};
 		ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
-		ImGui::Checkbox("Vignette Enable", &fullscreenVignetteEnabled_);
+		fullscreenPostEffectIndex_ = std::clamp(fullscreenPostEffectIndex_, 0, static_cast<int>(_countof(postEffectItems)) - 1);
 		ImGui::SliderFloat("Vignette Scale", &fullscreenVignetteScale_, 0.0f, 64.0f);
 		ImGui::SliderFloat("Vignette Power", &fullscreenVignettePower_, 0.01f, 8.0f);
 		ImGui::SliderFloat("Vignette Intensity", &fullscreenVignetteIntensity_, 0.0f, 1.0f);
@@ -381,6 +390,22 @@ void Game::Update() {
 		ImGui::SliderFloat("Radial Blur Width", &fullscreenRadialBlurWidth_, 0.0f, 0.1f);
 		ImGui::SliderFloat("Radial Blur Intensity", &fullscreenRadialBlurIntensity_, 0.0f, 1.0f);
 		ImGui::SliderInt("Radial Sample Count", &fullscreenRadialBlurSampleCount_, 1, 32);
+		ImGui::Separator();
+		if (!noiseNames_.empty()) {
+			selectedNoiseIndex_ = std::clamp(selectedNoiseIndex_, 0, static_cast<int>(noiseNames_.size()) - 1);
+			std::vector<const char*> noiseNameItems;
+			noiseNameItems.reserve(noiseNames_.size());
+			for (const std::string& noiseName : noiseNames_) {
+				noiseNameItems.push_back(noiseName.c_str());
+			}
+			ImGui::Combo("Noise Texture", &selectedNoiseIndex_, noiseNameItems.data(), static_cast<int>(noiseNameItems.size()));
+			selectedNoiseIndex_ = std::clamp(selectedNoiseIndex_, 0, static_cast<int>(noiseNames_.size()) - 1);
+		}
+		ImGui::SliderFloat("Dissolve Threshold", &fullscreenDissolveThreshold_, 0.0f, 1.0f);
+		ImGui::SliderFloat("Dissolve Edge Width", &fullscreenDissolveEdgeWidth_, 0.001f, 0.2f);
+		ImGui::SliderFloat("Dissolve Edge Intensity", &fullscreenDissolveEdgeIntensity_, 0.0f, 5.0f);
+		ImGui::ColorEdit3("Dissolve Edge Color", &fullscreenDissolveEdgeColor_.x);
+		ImGui::Checkbox("Dissolve Enable Edge", &fullscreenDissolveEnableEdge_);
 		ImGui::Separator();
 		ImGui::SliderFloat("Outline Threshold", &fullscreenOutlineThreshold_, 0.0f, 1.0f);
 		ImGui::SliderFloat("Outline Intensity", &fullscreenOutlineIntensity_, 0.0f, 8.0f);
@@ -404,6 +429,11 @@ void Game::Update() {
 			fullscreenRadialBlurWidth_ = 0.01f;
 			fullscreenRadialBlurIntensity_ = 1.0f;
 			fullscreenRadialBlurSampleCount_ = 10;
+			fullscreenDissolveThreshold_ = 0.5f;
+			fullscreenDissolveEdgeWidth_ = 0.03f;
+			fullscreenDissolveEdgeIntensity_ = 1.0f;
+			fullscreenDissolveEnableEdge_ = true;
+			fullscreenDissolveEdgeColor_ = { 1.0f, 0.4f, 0.3f };
 			fullscreenOutlineThreshold_ = 0.15f;
 			fullscreenOutlineIntensity_ = 1.0f;
 			fullscreenOutlineThickness_ = 1.0f;
@@ -414,7 +444,6 @@ void Game::Update() {
 			fullscreenNormalOutlineThreshold_ = 0.25f;
 			fullscreenNormalOutlineIntensity_ = 1.0f;
 			fullscreenNormalOutlineThickness_ = 1.0f;
-			fullscreenVignetteEnabled_ = false;
 			fullscreenVignetteScale_ = 16.0f;
 			fullscreenVignettePower_ = 0.8f;
 			fullscreenVignetteIntensity_ = 1.0f;
@@ -474,16 +503,26 @@ void Game::Draw() {
 	radialBlurParameter.intensity = fullscreenRadialBlurIntensity_;
 	radialBlurParameter.sampleCount = fullscreenRadialBlurSampleCount_;
 	dxCommon_->SetRadialBlurParameter(radialBlurParameter);
+	DirectXCommon::DissolveParamForGPU dissolveParameter{};
+	dissolveParameter.threshold = fullscreenDissolveThreshold_;
+	dissolveParameter.edgeWidth = fullscreenDissolveEdgeWidth_;
+	dissolveParameter.edgeIntensity = fullscreenDissolveEdgeIntensity_;
+	dissolveParameter.enableEdge = fullscreenDissolveEnableEdge_ ? 1.0f : 0.0f;
+	dissolveParameter.edgeColor = fullscreenDissolveEdgeColor_;
+	dxCommon_->SetDissolveParameter(dissolveParameter);
 
 	srvManager_->PreDraw();
 	DirectXCommon::FullscreenPostEffectType postEffectType =
-		fullscreenVignetteEnabled_
-		? DirectXCommon::FullscreenPostEffectType::Vignette
-		: static_cast<DirectXCommon::FullscreenPostEffectType>(fullscreenPostEffectIndex_);
+		static_cast<DirectXCommon::FullscreenPostEffectType>(fullscreenPostEffectIndex_);
+	D3D12_GPU_DESCRIPTOR_HANDLE auxiliarySrvHandle = srvManager_->GetGPUDescriptorHandle(depthBufferSrvIndex_);
+	if (postEffectType == DirectXCommon::FullscreenPostEffectType::Dissolve && !noiseSrvIndices_.empty()) {
+		selectedNoiseIndex_ = std::clamp(selectedNoiseIndex_, 0, static_cast<int>(noiseSrvIndices_.size()) - 1);
+		auxiliarySrvHandle = srvManager_->GetGPUDescriptorHandle(noiseSrvIndices_[selectedNoiseIndex_]);
+	}
 	dxCommon_->PreDrawToSwapChain(
 		srvManager_->GetGPUDescriptorHandle(renderTextureSrvIndex_),
 		srvManager_->GetGPUDescriptorHandle(postEffectResultSrvIndex_),
-		srvManager_->GetGPUDescriptorHandle(depthBufferSrvIndex_),
+		auxiliarySrvHandle,
 		srvManager_->GetGPUDescriptorHandle(normalTextureSrvIndex_),
 		postEffectType);
 
