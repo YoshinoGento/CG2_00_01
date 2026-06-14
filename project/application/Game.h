@@ -9,6 +9,7 @@
 
 class SceneFactory;
 class SkinningDebugWindow;
+class PostEffectManager;
 
 /**
  * Gameクラス
@@ -34,6 +35,7 @@ private:
 	// RenderTexture / PostEffect result SRV indices.
 	uint32_t renderTextureSrvIndex_ = 0;
 	uint32_t postEffectResultSrvIndex_ = 0;
+	uint32_t finalDisplayTextureSrvIndex_ = 0;
 	uint32_t depthBufferSrvIndex_ = 0;
 	uint32_t normalTextureSrvIndex_ = 0;
 	std::vector<uint32_t> noiseSrvIndices_;
@@ -85,5 +87,6 @@ private:
 	static Vector2 mousePosInViewport_;
 
 	std::unique_ptr<PostProcess> postProcess_;
+	std::unique_ptr<PostEffectManager> postEffectManager_;
 	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
 };

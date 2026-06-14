@@ -1,298 +1,316 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="ソース ファイル">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="ヘッダー ファイル">
+    <Filter Include="繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
-    <Filter Include="リソース ファイル">
+    <Filter Include="繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="ソース ファイル\engine">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine">
       <UniqueIdentifier>{aef43af2-66f8-49ed-be92-d391356b8070}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\engine\2d">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\2d">
       <UniqueIdentifier>{789dd78d-8201-4322-85de-58bd92cbf97e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\engine\3d">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\3d">
       <UniqueIdentifier>{95096f63-7f03-40f3-8da3-4810d5b8ca5e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\engine\base">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\base">
       <UniqueIdentifier>{78b88003-f0a7-4cdc-881c-5f08498599e5}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\engine\math">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\math">
       <UniqueIdentifier>{b5f28e78-c01f-48bc-ae84-961018048100}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\engine\io">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io">
       <UniqueIdentifier>{9287f564-a732-4a39-9d4e-a9739469b1bd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\engine\audio">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\audio">
       <UniqueIdentifier>{b6882271-9087-430f-bc81-f5a4aa3e78b3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\application">
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application">
       <UniqueIdentifier>{22f1cb47-f204-4718-b0e3-ff1b71e3f63f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="リソース ファイル\Resources">
+    <Filter Include="繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources">
       <UniqueIdentifier>{b1b01ead-a50b-431e-aab4-09931dab71f1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="リソース ファイル\Resources\shader">
+    <Filter Include="繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader">
       <UniqueIdentifier>{7fbf45cd-5280-4ea0-9a22-2fcb57e13c2a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="engine\base\main.cpp">
-      <Filter>ソース ファイル\engine\base</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\base</Filter>
     </ClCompile>
     <ClCompile Include="engine\math\Matrix.cpp">
-      <Filter>ソース ファイル\engine\math</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\math</Filter>
     </ClCompile>
     <ClCompile Include="engine\io\Input.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\base\WinApp.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="test\hoge.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\base\DirectXCommon.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\base\Logger.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\2d\SpriteCommon.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\2d\Sprite.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Object3dCommon.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Object3d.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Model.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\audio\Audio.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\ModelManager.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Camera.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\base\SrvManager.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\effect\ParticleManager.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\base\ImGuiManager.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="application\Game.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\base\Framework.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="application\scene\GamePlayScene.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="application\scene\BaseScene.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="application\scene\SceneManager.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="application\scene\SceneFactory.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="application\scene\TitleScene.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\PrimitiveGenerator.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Skybox.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\effect\PostProcess.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\effect\PostEffectManager.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\effect\FullscreenPass.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\effect\RenderTexture.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\LineDrawer.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Skeleton.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\shader\Object3D.PS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </FxCompile>
     <FxCompile Include="Resources\shader\Object3D.VS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </FxCompile>
     <FxCompile Include="Resources\shader\Sprite2D.PS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </FxCompile>
     <FxCompile Include="Resources\shader\Sprite2D.VS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </FxCompile>
     <FxCompile Include="Resources\shader\Skybox.VS.hlsl" />
     <FxCompile Include="Resources\shader\Skybox.PS.hlsl" />
     <FxCompile Include="Resources\shader\PostProcess.VS.hlsl" />
     <FxCompile Include="Resources\shader\PostProcess.PS.hlsl" />
     <FxCompile Include="Resources\shader\LuminanceExtraction.PS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </FxCompile>
     <FxCompile Include="Resources\shader\GaussianBlur.PS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </FxCompile>
     <FxCompile Include="Resources\shader\BloomComposite.PS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="engine\math\Struct.h">
-      <Filter>ソース ファイル\engine\math</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\math</Filter>
     </ClInclude>
     <ClInclude Include="engine\math\Matrix.h">
-      <Filter>ソース ファイル\engine\math</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\math</Filter>
     </ClInclude>
     <ClInclude Include="engine\math\Transform.h">
-      <Filter>ソース ファイル\engine\math</Filter>
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\math</Filter>
     </ClInclude>
     <ClInclude Include="engine\io\Input.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\base\WinApp.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="test\hoge.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\base\DirectXCommon.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\base\Logger.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\2d\SpriteCommon.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\2d\Sprite.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Object3dCommon.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Object3d.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Model.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\audio\Audio.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\ModelManager.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Camera.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\base\SrvManager.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\effect\ParticleManager.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\base\ImGuiManager.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="application\Game.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\base\Framework.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="application\scene\GamePlayScene.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="application\scene\BaseScene.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="application\scene\SceneManager.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="application\scene\AbstractSceneFactory.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="application\scene\SceneFactory.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="application\scene\TitleScene.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\PrimitiveGenerator.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Skybox.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Animation.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\effect\PostProcess.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\effect\PostEffectManager.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\effect\FullscreenPass.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\effect\RenderTexture.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\LineDrawer.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Skeleton.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\SkeletonDebugger.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Resources\shader\Particle.PS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </Text>
     <Text Include="Resources\shader\Particle.VS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </Text>
     <Text Include="Resources\shader\GPUParticle.VS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </Text>
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\shader\Object3d.hlsli">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\Particle.hlsli">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\Sprite2D.hlsli">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\Skybox.hlsli" />
     <None Include="Resources\shader\Line.hlsli" />
@@ -317,20 +335,21 @@
     <None Include="Resources\shader\Vignette.PS.hlsl" />
     <None Include="Resources\shader\RandomNoise.PS.hlsl" />
     <None Include="Resources\shader\HSVFilter.PS.hlsl" />
+    <None Include="Resources\shader\LinearToSRGB.PS.hlsl" />
     <None Include="Resources\shader\EmitParticle.CS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\InitializeParticle.CS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\InitializeInteractionParticle.CS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\UpdateParticle.CS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\UpdateInteractionParticle.CS.hlsl">
-      <Filter>リソース ファイル\Resources\shader</Filter>
+      <Filter>繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources\shader</Filter>
     </None>
     <None Include="Resources\shader\Skinning.CS.hlsl" />
   </ItemGroup>

@@ -10,6 +10,7 @@
 #include "2d/SpriteCommon.h"
 #include "debug/SkinningDebugWindow.h"
 #include "effect/ParticleManager.h"
+#include "effect/PostEffectManager.h"
 #include <algorithm>
 #include <cmath>
 
@@ -31,6 +32,13 @@ void Game::Initialize() {
 	srvManager_->CreateSRVforTexture2D(
 		postEffectResultSrvIndex_,
 		dxCommon_->GetPostEffectResultResource(),
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		1
+	);
+	finalDisplayTextureSrvIndex_ = srvManager_->Allocate();
+	srvManager_->CreateSRVforTexture2D(
+		finalDisplayTextureSrvIndex_,
+		dxCommon_->GetFinalDisplayTextureResource(),
 		DXGI_FORMAT_R8G8B8A8_UNORM,
 		1
 	);
@@ -57,6 +65,15 @@ void Game::Initialize() {
 
 	postProcess_ = std::make_unique<PostProcess>();
 	postProcess_->Initialize(dxCommon_.get(), srvManager_.get());
+	postEffectManager_ = std::make_unique<PostEffectManager>();
+	postEffectManager_->Initialize(
+		dxCommon_.get(),
+		srvManager_.get(),
+		renderTextureSrvIndex_,
+		postEffectResultSrvIndex_,
+		finalDisplayTextureSrvIndex_,
+		depthBufferSrvIndex_,
+		normalTextureSrvIndex_);
 	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
@@ -65,6 +82,7 @@ void Game::Initialize() {
 }
 
 void Game::Finalize() {
+	postEffectManager_.reset();
 	skinningDebugWindow_.reset();
 	SceneManager::DeleteInstance();
 	Framework::Finalize();
@@ -93,7 +111,7 @@ void Game::Update() {
 		playScene->viewportImageSize_ = { 0.0f, 0.0f };
 	}
 
-	// Game Viewport displays the current frame post-effect result texture.
+	// Game Viewport displays the gamma-corrected final display texture.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 	if (ImGui::Begin("Game Viewport")) {
 		ImVec2 contentSize = ImGui::GetContentRegionAvail();
@@ -112,8 +130,7 @@ void Game::Update() {
 				mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * 1280.0f;
 				mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
 
-				// Display the fullscreen post-effect result in the Game Viewport.
-				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(postEffectResultSrvIndex_).ptr, displaySize);
+				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(finalDisplayTextureSrvIndex_).ptr, displaySize);
 				if (playScene) {
 					playScene->viewportImageTopLeft_ = { imageTopLeft.x, imageTopLeft.y };
 					playScene->viewportImageSize_ = { displaySize.x, displaySize.y };
@@ -384,8 +401,46 @@ void Game::Update() {
 			"RandomNoise",
 			"HSV Filter",
 		};
-		ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
-		fullscreenPostEffectIndex_ = std::clamp(fullscreenPostEffectIndex_, 0, static_cast<int>(_countof(postEffectItems)) - 1);
+		bool chainModeEnabled = postEffectManager_ && postEffectManager_->IsChainModeEnabled();
+		if (postEffectManager_) {
+			if (ImGui::Checkbox("PostEffect Chain Mode", &chainModeEnabled)) {
+				postEffectManager_->SetChainModeEnabled(chainModeEnabled);
+			}
+		}
+		if (!chainModeEnabled) {
+			ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
+			fullscreenPostEffectIndex_ = std::clamp(fullscreenPostEffectIndex_, 0, static_cast<int>(_countof(postEffectItems)) - 1);
+		} else {
+			ImGui::TextUnformatted("Fullscreen Effect selector is ignored in Chain Mode.");
+		}
+		if (postEffectManager_) {
+			if (chainModeEnabled) {
+				ImGui::TextUnformatted("Chain Order");
+				for (size_t i = 0; i < postEffectManager_->GetChainPassCount(); ++i) {
+					bool passEnabled = postEffectManager_->IsChainPassEnabled(i);
+					if (ImGui::Checkbox(postEffectManager_->GetChainPassName(i), &passEnabled)) {
+						postEffectManager_->SetChainPassEnabled(i, passEnabled);
+					}
+				}
+			}
+			if (ImGui::CollapsingHeader("PostEffect Chain Debug", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::Text("ChainMode: %s", chainModeEnabled ? "ON" : "OFF");
+				ImGui::Text("Enabled Passes: %zu / %zu",
+					postEffectManager_->GetEnabledChainPassCount(),
+					postEffectManager_->GetChainPassCount());
+				for (size_t i = 0; i < postEffectManager_->GetChainPassCount(); ++i) {
+					ImGui::Text("%zu. %s: %s",
+						i + 1,
+						postEffectManager_->GetChainPassName(i),
+						postEffectManager_->IsChainPassEnabled(i) ? "ON" : "OFF");
+				}
+				ImGui::TextUnformatted("GammaCorrection: Fixed Last");
+				ImGui::TextUnformatted("Copy: Fallback when no chain pass is enabled");
+				ImGui::TextUnformatted("Viewport Source: FinalDisplayTexture");
+				ImGui::TextUnformatted("Swapchain Source: FinalDisplayTexture");
+			}
+		}
+		ImGui::Separator();
 		ImGui::SliderFloat("Vignette Scale", &fullscreenVignetteScale_, 0.0f, 64.0f);
 		ImGui::SliderFloat("Vignette Power", &fullscreenVignettePower_, 0.01f, 8.0f);
 		ImGui::SliderFloat("Vignette Intensity", &fullscreenVignetteIntensity_, 0.0f, 1.0f);
@@ -501,9 +556,9 @@ void Game::Draw() {
 	// Draw the scene into the offscreen RenderTexture.
 	SceneManager::GetInstance()->Draw();
 
-	// Fullscreen post effect reads the scene RenderTexture and writes the result
-	// to an intermediate texture. The result is then copied to the swapchain and
-	// kept in PIXEL_SHADER_RESOURCE so ImGui can show the same image.
+	// Fullscreen post effect keeps linear values in PostEffectResultTexture.
+	// Gamma correction is applied once into FinalDisplayTexture for swapchain
+	// presentation and the ImGui Game Viewport.
 	DirectXCommon::FullscreenPostEffectParameter postEffectParameter{};
 	postEffectParameter.grayscaleIntensity = fullscreenGrayscaleIntensity_;
 	postEffectParameter.sepiaIntensity = fullscreenSepiaIntensity_;
@@ -565,17 +620,16 @@ void Game::Draw() {
 	srvManager_->PreDraw();
 	DirectXCommon::FullscreenPostEffectType postEffectType =
 		static_cast<DirectXCommon::FullscreenPostEffectType>(fullscreenPostEffectIndex_);
-	D3D12_GPU_DESCRIPTOR_HANDLE auxiliarySrvHandle = srvManager_->GetGPUDescriptorHandle(depthBufferSrvIndex_);
-	if (postEffectType == DirectXCommon::FullscreenPostEffectType::Dissolve && !noiseSrvIndices_.empty()) {
+	D3D12_GPU_DESCRIPTOR_HANDLE auxiliarySrvHandle{};
+	const bool chainModeEnabled = postEffectManager_ && postEffectManager_->IsChainModeEnabled();
+	const bool needsNoiseSrv =
+		chainModeEnabled ||
+		postEffectType == DirectXCommon::FullscreenPostEffectType::Dissolve;
+	if (needsNoiseSrv && !noiseSrvIndices_.empty()) {
 		selectedNoiseIndex_ = std::clamp(selectedNoiseIndex_, 0, static_cast<int>(noiseSrvIndices_.size()) - 1);
 		auxiliarySrvHandle = srvManager_->GetGPUDescriptorHandle(noiseSrvIndices_[selectedNoiseIndex_]);
 	}
-	dxCommon_->PreDrawToSwapChain(
-		srvManager_->GetGPUDescriptorHandle(renderTextureSrvIndex_),
-		srvManager_->GetGPUDescriptorHandle(postEffectResultSrvIndex_),
-		auxiliarySrvHandle,
-		srvManager_->GetGPUDescriptorHandle(normalTextureSrvIndex_),
-		postEffectType);
+	postEffectManager_->Execute(postEffectType, auxiliarySrvHandle);
 
 	// Render ImGui last on the swapchain, then present.
 	ImGuiManager::GetInstance()->Draw();

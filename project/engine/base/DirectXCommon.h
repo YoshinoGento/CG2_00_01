@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "WinApp.h"
 #include <array>
 #include <d3d12.h>
@@ -8,12 +8,13 @@
 #include <string>
 #include <chrono>
 #include <cstdint>
+#include "effect/RenderTexture.h"
 #include "math/Struct.h"
 #include "externals/DirectXTex/DirectXTex.h"
 
 /**
- * DirectXCommonクラス
- * DirectX12の基盤管理に加え、エディタ用の「レンダーテクスチャ」管理機能を追加。
+ * DirectXCommon繧ｯ繝ｩ繧ｹ
+ * DirectX12縺ｮ蝓ｺ逶､邂｡逅・↓蜉縺医√お繝・ぅ繧ｿ逕ｨ縺ｮ縲後Ξ繝ｳ繝繝ｼ繝・け繧ｹ繝√Ε縲咲ｮ｡逅・ｩ溯・繧定ｿｽ蜉縲・
  */
 class DirectXCommon {
 public:
@@ -34,6 +35,7 @@ public:
         Vignette,
         RandomNoise,
         HSVFilter,
+        LinearToSRGB,
         Count,
     };
 
@@ -114,41 +116,49 @@ public:
 
     void Initialize(WinApp* winApp);
 
-    // --- 描画フロー管理 ---
-    // 1. ゲーム画面（テクスチャ）への描画を開始する
+    // --- 謠冗判繝輔Ο繝ｼ邂｡逅・---
+    // 1. 繧ｲ繝ｼ繝逕ｻ髱｢・医ユ繧ｯ繧ｹ繝√Ε・峨∈縺ｮ謠冗判繧帝幕蟋九☆繧・
     void PreDraw();
-    // 2. 描画先を「実際のモニター（スワップチェーン）」に切り替える（ImGui描画用）
-    void PreDrawToSwapChain(
-        D3D12_GPU_DESCRIPTOR_HANDLE renderTextureSrvHandle,
-        D3D12_GPU_DESCRIPTOR_HANDLE postEffectResultSrvHandle,
-        D3D12_GPU_DESCRIPTOR_HANDLE depthSrvHandle,
-        D3D12_GPU_DESCRIPTOR_HANDLE normalSrvHandle,
-        FullscreenPostEffectType postEffectType = FullscreenPostEffectType::Copy);
     void RestoreRenderTextureToRenderTarget();
+    void TransitionRenderTexture(D3D12_RESOURCE_STATES stateAfter);
+    void TransitionPostEffectResult(D3D12_RESOURCE_STATES stateAfter);
+    void TransitionFinalDisplayTexture(D3D12_RESOURCE_STATES stateAfter);
+    void TransitionNormalTexture(D3D12_RESOURCE_STATES stateAfter);
+    void TransitionDepthBuffer(D3D12_RESOURCE_STATES stateAfter);
+    void BeginPostEffectResultRenderTarget();
+    void BeginFinalDisplayRenderTarget();
+    void BeginSwapChainRenderTarget();
+    D3D12_GPU_VIRTUAL_ADDRESS GetCommonPostEffectParameterAddress() const;
+    D3D12_GPU_VIRTUAL_ADDRESS GetVignetteParameterAddress() const;
+    D3D12_GPU_VIRTUAL_ADDRESS GetRadialBlurParameterAddress() const;
+    D3D12_GPU_VIRTUAL_ADDRESS GetDissolveParameterAddress() const;
+    D3D12_GPU_VIRTUAL_ADDRESS GetRandomNoiseParameterAddress() const;
+    D3D12_GPU_VIRTUAL_ADDRESS GetHSVFilterParameterAddress() const;
     void SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter);
     void SetVignetteParameter(const VignetteParamForGPU& parameter);
     void SetRadialBlurParameter(const RadialBlurParamForGPU& parameter);
     void SetDissolveParameter(const DissolveParamForGPU& parameter);
     void SetRandomNoiseParameter(const RandomNoiseParamForGPU& parameter);
     void SetHSVFilterParameter(const HSVFilterParamForGPU& parameter);
-    // 3. 全ての描画を終了し、画面を表示する
+    // 3. 蜈ｨ縺ｦ縺ｮ謠冗判繧堤ｵゆｺ・＠縲∫判髱｢繧定｡ｨ遉ｺ縺吶ｋ
     void PostDraw();
 
-    // --- ゲッター ---
+    // --- 繧ｲ繝・ち繝ｼ ---
     ID3D12Device* GetDevice() const { return device_.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() const { return commandList_.Get(); }
     ID3D12CommandQueue* GetCommandQueue() const { return commandQueue_.Get(); }
     size_t GetSwapChainResourcesNum() const { return backBuffers_.size(); }
 
-    // ImGuiに渡すための、描き込み済みテクスチャリソースを取得
-    ID3D12Resource* GetRenderTextureResource() const { return renderTextureResource_.Get(); }
-    ID3D12Resource* GetPostEffectResultResource() const { return postEffectResultResource_.Get(); }
+    // ImGui縺ｫ貂｡縺吶◆繧√・縲∵緒縺崎ｾｼ縺ｿ貂医∩繝・け繧ｹ繝√Ε繝ｪ繧ｽ繝ｼ繧ｹ繧貞叙蠕・
+    ID3D12Resource* GetRenderTextureResource() const { return sceneRenderTexture_.GetResource(); }
+    ID3D12Resource* GetPostEffectResultResource() const { return postEffectResultTexture_.GetResource(); }
+    ID3D12Resource* GetFinalDisplayTextureResource() const { return finalDisplayTexture_.GetResource(); }
     ID3D12Resource* GetDepthBufferResource() const { return depthBuffer_.Get(); }
-    ID3D12Resource* GetNormalTextureResource() const { return normalTextureResource_.Get(); }
+    ID3D12Resource* GetNormalTextureResource() const { return normalTexture_.GetResource(); }
     void SetSceneRenderTarget();
     void SetSceneRenderTargetsWithNormal();
 
-    // --- 各種ヘルパー ---
+    // --- 蜷・ｨｮ繝倥Ν繝代・ ---
     DirectX::ScratchImage LoadTexture(const std::string& filePath);
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
     void UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
@@ -164,24 +174,15 @@ private:
     void InitializeDevice();
     void InitializeCommand();
     void InitializeSwapChain(WinApp* winApp);
-    void InitializeRenderTargetView(); // RTVヒープのサイズを拡張します
+    void InitializeRenderTargetView(); // RTV繝偵・繝励・繧ｵ繧､繧ｺ繧呈僑蠑ｵ縺励∪縺・
     void InitializeDepthStencilView();
-    void InitializeRenderTexture();    // ゲーム画面用のテクスチャを作成
-    void InitializeCopyImagePipeline();
+    void InitializeRenderTexture();    // 繧ｲ繝ｼ繝逕ｻ髱｢逕ｨ縺ｮ繝・け繧ｹ繝√Ε繧剃ｽ懈・
     void InitializeFullscreenPostEffectParameter();
     void InitializeFence();
     void InitializeDXCCompiler();
     void InitializeFixFPS();
     void UpdateFixFPS();
-    void TransitionRenderTexture(D3D12_RESOURCE_STATES stateAfter);
-    void TransitionPostEffectResult(D3D12_RESOURCE_STATES stateAfter);
-    void TransitionNormalTexture(D3D12_RESOURCE_STATES stateAfter);
-    void TransitionDepthBuffer(D3D12_RESOURCE_STATES stateAfter);
-    void DrawFullscreenTriangle(
-        D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle,
-        FullscreenPostEffectType postEffectType,
-        D3D12_GPU_DESCRIPTOR_HANDLE depthSrvHandle = {},
-        D3D12_GPU_DESCRIPTOR_HANDLE normalSrvHandle = {});
+    void SetFullscreenViewportAndScissor();
 
     WinApp* winApp_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Device> device_;
@@ -198,26 +199,17 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> depthBuffer_;
     D3D12_RESOURCE_STATES depthBufferState_ = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
-    // --- 追加：ゲーム画面を保存するテクスチャ ---
-    Microsoft::WRL::ComPtr<ID3D12Resource> renderTextureResource_;
-    D3D12_RESOURCE_STATES renderTextureState_ = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    Microsoft::WRL::ComPtr<ID3D12Resource> postEffectResultResource_;
-    D3D12_RESOURCE_STATES postEffectResultState_ = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    Microsoft::WRL::ComPtr<ID3D12Resource> normalTextureResource_;
-    D3D12_RESOURCE_STATES normalTextureState_ = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    // RTVヒープ内での場所（0,1はモニター用、2はゲーム画面用）
-    const UINT kRenderTextureRTVIndex = 2;
-    const UINT kPostEffectResultRTVIndex = 3;
-    const UINT kNormalTextureRTVIndex = 4;
-    uint32_t nextRtvIndex_ = 5; // RTVの次の割り当てインデックス
+    // --- 霑ｽ蜉・壹ご繝ｼ繝逕ｻ髱｢繧剃ｿ晏ｭ倥☆繧九ユ繧ｯ繧ｹ繝√Ε ---
+    RenderTexture sceneRenderTexture_;
+    RenderTexture postEffectResultTexture_;
+    RenderTexture finalDisplayTexture_;
+    RenderTexture normalTexture_;
+    uint32_t nextRtvIndex_ = 2;
 
     static constexpr DXGI_FORMAT kRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     static constexpr DXGI_FORMAT kNormalTextureFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-    static constexpr size_t kFullscreenPostEffectCount = static_cast<size_t>(FullscreenPostEffectType::Count);
     float renderTextureClearColor_[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> copyImageRootSignature_;
-    std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kFullscreenPostEffectCount> fullscreenPostEffectPipelineStates_;
     Microsoft::WRL::ComPtr<ID3D12Resource> fullscreenPostEffectParameterResource_;
     FullscreenPostEffectParameter* mappedFullscreenPostEffectParameter_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> vignetteParameterResource_;
