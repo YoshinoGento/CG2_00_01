@@ -129,6 +129,7 @@ public:
     // ★従来機能：指定した数だけランダムに放出する
     // 爆発や煙など、大量に出したい時用
     void Emit(const std::string& name, const Vector3& position, uint32_t count);
+    void EmitHarvestBurst(const std::string& name, const Vector3& position, uint32_t count);
 
     //全パーティクル削除
     void ClearAll();

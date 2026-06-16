@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <chrono>
 #include "math/Matrix.h"
-#include "3d/Skybox.h"
+#include "3d/SkyboxManager.h"
 #include "3d/SkeletonDebugger.h"
 #include "effect/ParticleManager.h"
 
@@ -91,7 +91,7 @@ private:
 	std::unique_ptr<Model> ringModel_;
 	std::unique_ptr<Model> cylinderModel_;
 
-	std::unique_ptr<Skybox> skybox_;
+	std::unique_ptr<SkyboxManager> skyboxManager_;
 	std::vector<uint32_t> textureHandles_;
 	uint32_t ringTexHandle_ = 0;
 

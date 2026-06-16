@@ -15,7 +15,7 @@
 #include "3d/PrimitiveGenerator.h"
 #include "3d/LineDrawer.h"
 #include <dinput.h>
-#include "3d/Skybox.h"
+#include "3d/SkyboxManager.h"
 #include "base/Logger.h" // 追加：外部ロガーツールのインクルード
 #include <algorithm>
 #include <cmath>
@@ -113,14 +113,20 @@ void GamePlayScene::Initialize() {
 	// 2. システム・環境の初期化
 	// ---------------------------------------------------------
 	camera_ = std::make_unique<Camera>();
-	skybox_ = std::make_unique<Skybox>();
-	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), "Resources/rostock_laage_airport_4k.dds");
+	skyboxManager_ = std::make_unique<SkyboxManager>();
+	skyboxManager_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager());
+	const std::string defaultSkyboxPath = "Resources/rostock_laage_airport_4k.dds";
+	skyboxManager_->LoadSkybox("Sunny", defaultSkyboxPath);
+	skyboxManager_->LoadSkybox("Evening", defaultSkyboxPath);
+	skyboxManager_->LoadSkybox("Night", defaultSkyboxPath);
+	skyboxManager_->LoadSkybox("Storm", defaultSkyboxPath);
+	skyboxManager_->SetCurrentSkybox("Sunny");
 
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
 
 	skeletonDebugger_ = std::make_unique<SkeletonDebugger>();
 	skeletonDebugger_->Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager());
-	skeletonDebugger_->SetEnvironmentMap(skybox_->GetSrvIndex());
+	skeletonDebugger_->SetEnvironmentMap(skyboxManager_->GetCurrentSrvIndex());
 
 	// ---------------------------------------------------------
 	// 3. モデルデータのロード
@@ -159,12 +165,12 @@ void GamePlayScene::Initialize() {
 	terrainObj_->SetModel(tModel);
 	terrainObj_->SetPosition({ 0.0f, -2.0f, 0.0f });
 	terrainObj_->SetScale({ 2.0f, 2.0f, 2.0f });
-	terrainObj_->SetEnvironmentMap(skybox_->GetSrvIndex());
+	terrainObj_->SetEnvironmentMap(skyboxManager_->GetCurrentSrvIndex());
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize(framework_->GetObject3dCommon());
 	object3d_->SetModel(planeModel);
-	object3d_->SetEnvironmentMap(skybox_->GetSrvIndex());
+	object3d_->SetEnvironmentMap(skyboxManager_->GetCurrentSrvIndex());
 
 	// デフォルトで simpleSkin.gltf (配布データ) をアニメーション表示オブジェクトとしてロード
 	currentAnimModelIdx_ = 1;
@@ -258,7 +264,9 @@ void GamePlayScene::Update() {
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
 
-	skybox_->Update(camera_.get());
+	if (skyboxManager_) {
+		skyboxManager_->Update(camera_.get());
+	}
 
 	Vector3 normSpotDir = MatrixMath::Normalize(spotLightDir_);
 
@@ -278,7 +286,7 @@ void GamePlayScene::Update() {
 		obj->SetSpotLightAngle(spotLightAngle_);
 		obj->SetSpotLightFalloff(spotLightFalloff_);
 
-		obj->SetEnvironmentMap(skybox_->GetSrvIndex());
+		obj->SetEnvironmentMap(skyboxManager_ ? skyboxManager_->GetCurrentSrvIndex() : 0);
 		obj->SetEnvironmentCoefficient(envCoef);
 
 		obj->Update(camera_.get());
@@ -386,7 +394,7 @@ void GamePlayScene::Draw() {
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
-		if (skybox_) skybox_->Draw();
+		if (skyboxManager_) skyboxManager_->Draw();
 
 		if (showSkeleton_ && animObj_ && animObj_->GetSkeleton()) {
 			// 【修正】モデルルート行列の二重掛けを防ぐため、GetWorldMatrix() ではなくルートを含まない GetObjectWorldMatrix() を渡します
@@ -404,7 +412,7 @@ void GamePlayScene::Draw() {
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
-		if (skybox_) skybox_->Draw();
+		if (skyboxManager_) skyboxManager_->Draw();
 
 		if (showSkeleton_ && animObj_ && animObj_->GetSkeleton()) {
 			// 【修正】モデルルート行列の二重掛けを防ぐため、GetWorldMatrix() ではなくルートを含まない GetObjectWorldMatrix() を渡します
@@ -718,7 +726,7 @@ void GamePlayScene::ChangeAnimationModel(int index) {
 		}
 		
 		// 環境マップ設定の引き継ぎ
-		animObj_->SetEnvironmentMap(skybox_->GetSrvIndex());
+		animObj_->SetEnvironmentMap(skyboxManager_ ? skyboxManager_->GetCurrentSrvIndex() : 0);
 		
 		// アニメーションデータをアセットフォルダから読み込んでオブジェクトにセット
 		Animation anim = animModel->LoadAnimation("Resources/" + animModels[index].first, animModels[index].second);

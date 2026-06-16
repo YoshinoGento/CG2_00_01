@@ -9,8 +9,10 @@
 #include "3d/Object3d.h"
 #include "2d/SpriteCommon.h"
 #include "debug/SkinningDebugWindow.h"
+#include "GameplayEffectManager.h"
 #include "effect/ParticleManager.h"
 #include "effect/PostEffectManager.h"
+#include "io/Input.h"
 #include <algorithm>
 #include <cmath>
 
@@ -74,6 +76,7 @@ void Game::Initialize() {
 		finalDisplayTextureSrvIndex_,
 		depthBufferSrvIndex_,
 		normalTextureSrvIndex_);
+	gameplayEffectManager_ = std::make_unique<GameplayEffectManager>();
 	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
@@ -82,10 +85,74 @@ void Game::Initialize() {
 }
 
 void Game::Finalize() {
+	gameplayEffectManager_.reset();
 	postEffectManager_.reset();
 	skinningDebugWindow_.reset();
 	SceneManager::DeleteInstance();
 	Framework::Finalize();
+}
+
+void Game::PlayHarvestEffect(const Vector3& position, int32_t price) {
+	if (!gameplayEffectManager_) {
+		return;
+	}
+
+	gameplayEffectManager_->PlayHarvestEffect(position, price);
+
+	GPUParticleEmitSettings particleSettings{};
+	if (gameplayEffectManager_->ConsumeHarvestParticleEmitSettings(particleSettings) && particleManager_) {
+		particleManager_->RequestGPUParticleEmit(particleSettings);
+		particleManager_->EmitHarvestBurst(
+			"Spark",
+			position,
+			gameplayEffectManager_->GetHarvestBurstParticleCount());
+	}
+}
+
+void Game::PlayDigitalImpactEffect(const Vector3& position) {
+	if (!gameplayEffectManager_) {
+		return;
+	}
+	gameplayEffectManager_->PlayDigitalImpactEffect(position);
+}
+
+void Game::UpdateGameplayEffects(float deltaTime) {
+	if (!gameplayEffectManager_) {
+		return;
+	}
+	gameplayEffectManager_->Update(deltaTime);
+}
+
+void Game::DrawGameplayEffects() {
+	if (!gameplayEffectManager_) {
+		return;
+	}
+
+	Matrix4x4 viewProjectionMatrix = MatrixMath::MakeIdentity4x4();
+	const Matrix4x4* viewProjection = nullptr;
+	if (BaseScene* currentScene = SceneManager::GetInstance()->GetCurrentScene()) {
+		if (GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(currentScene)) {
+			if (playScene->camera_) {
+				viewProjectionMatrix = playScene->camera_->GetViewProjectionMatrix();
+				viewProjection = &viewProjectionMatrix;
+			}
+		}
+	}
+	gameplayEffectManager_->DrawGameplayEffects(
+		gameViewportImageTopLeft_,
+		gameViewportImageSize_,
+		viewProjection);
+}
+
+void Game::DrawGameplayEffectImGui() {
+	if (!gameplayEffectManager_) {
+		return;
+	}
+	if (gameplayEffectManager_->DrawGameplayEffectImGui()) {
+		PlayHarvestEffect(
+			gameplayEffectManager_->GetDebugHarvestPosition(),
+			gameplayEffectManager_->GetDebugHarvestPrice());
+	}
 }
 
 void Game::Update() {
@@ -97,12 +164,23 @@ void Game::Update() {
 		randomNoiseDeltaTime = std::clamp(randomNoiseDeltaTime, 1.0f / 240.0f, 1.0f / 15.0f);
 	}
 	previousRandomNoiseTime_ = now;
-	if (fullscreenRandomNoiseAnimate_) {
+	UpdateGameplayEffects(randomNoiseDeltaTime);
+	const GameplayEffectManager::ScreenPostEffectModifier gameplayPostEffectModifier =
+		gameplayEffectManager_ ? gameplayEffectManager_->GetScreenPostEffectModifier() : GameplayEffectManager::ScreenPostEffectModifier{};
+	if (fullscreenRandomNoiseAnimate_ || gameplayPostEffectModifier.randomNoiseAnimate) {
 		fullscreenRandomNoiseTime_ += randomNoiseDeltaTime * std::clamp(fullscreenRandomNoiseTimeSpeed_, 0.0f, 10.0f);
 	}
 
 	ImGuiManager::GetInstance()->Begin();
 	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+	if (input_ && input_->TriggerKey(DIK_H) && !ImGui::GetIO().WantCaptureKeyboard && gameplayEffectManager_) {
+		PlayHarvestEffect(
+			gameplayEffectManager_->GetDebugHarvestPosition(),
+			gameplayEffectManager_->GetDebugHarvestPrice());
+	}
+	if (input_ && input_->TriggerKey(DIK_J) && !ImGui::GetIO().WantCaptureKeyboard && gameplayEffectManager_) {
+		PlayDigitalImpactEffect(gameplayEffectManager_->GetDebugDigitalImpactPosition());
+	}
 
 	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
 	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
@@ -110,6 +188,8 @@ void Game::Update() {
 		playScene->viewportHovered_ = false;
 		playScene->viewportImageSize_ = { 0.0f, 0.0f };
 	}
+	gameViewportImageTopLeft_ = { 0.0f, 0.0f };
+	gameViewportImageSize_ = { 0.0f, 0.0f };
 
 	// Game Viewport displays the gamma-corrected final display texture.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
@@ -123,7 +203,13 @@ void Game::Update() {
 
 			if (displaySize.x > 1.0f && displaySize.y > 1.0f) {
 				ImVec2 offset = { (contentSize.x - displaySize.x) * 0.5f, (contentSize.y - displaySize.y) * 0.5f };
-				ImGui::SetCursorPos({ ImGui::GetCursorPos().x + offset.x, ImGui::GetCursorPos().y + offset.y });
+				const Vector2 shakeOffset = gameplayEffectManager_
+					? gameplayEffectManager_->GetViewportShakeOffset()
+					: Vector2{ 0.0f, 0.0f };
+				ImGui::SetCursorPos({
+					ImGui::GetCursorPos().x + offset.x + shakeOffset.x,
+					ImGui::GetCursorPos().y + offset.y + shakeOffset.y,
+					});
 
 				ImVec2 mousePos = ImGui::GetIO().MousePos;
 				ImVec2 imageTopLeft = ImGui::GetCursorScreenPos();
@@ -131,12 +217,21 @@ void Game::Update() {
 				mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
 
 				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(finalDisplayTextureSrvIndex_).ptr, displaySize);
+				const ImVec2 imageMin = ImGui::GetItemRectMin();
+				const ImVec2 imageMax = ImGui::GetItemRectMax();
+				const ImVec2 imageSize = {
+					imageMax.x - imageMin.x,
+					imageMax.y - imageMin.y,
+				};
+				gameViewportImageTopLeft_ = { imageMin.x, imageMin.y };
+				gameViewportImageSize_ = { imageSize.x, imageSize.y };
 				if (playScene) {
-					playScene->viewportImageTopLeft_ = { imageTopLeft.x, imageTopLeft.y };
-					playScene->viewportImageSize_ = { displaySize.x, displaySize.y };
+					playScene->viewportImageTopLeft_ = { imageMin.x, imageMin.y };
+					playScene->viewportImageSize_ = { imageSize.x, imageSize.y };
 					playScene->viewportMousePosition_ = { mousePos.x, mousePos.y };
 					playScene->viewportHovered_ = ImGui::IsItemHovered();
 				}
+				DrawGameplayEffects();
 			}
 		}
 	}
@@ -147,6 +242,10 @@ void Game::Update() {
 		ImGui::Begin("Global Settings");
 		static const char* targets[] = { "None", "Sprite", "Object3D", "Particle", "Sphere" };
 		ImGui::Combo("Edit Focus", &playScene->selectedTarget_, targets, 5);
+		ImGui::Separator();
+		if (playScene->skyboxManager_) {
+			playScene->skyboxManager_->DrawImGui();
+		}
 		ImGui::End();
 
 		ImGui::Begin("Visibility & Cull");
@@ -381,6 +480,8 @@ void Game::Update() {
 
 		ImGui::End();
 
+		DrawGameplayEffectImGui();
+
 		// Fullscreen post effect selection.
 		ImGui::Begin("Fullscreen PostEffect");
 		const char* postEffectItems[] = {
@@ -432,7 +533,11 @@ void Game::Update() {
 					ImGui::Text("%zu. %s: %s",
 						i + 1,
 						postEffectManager_->GetChainPassName(i),
-						postEffectManager_->IsChainPassEnabled(i) ? "ON" : "OFF");
+						(postEffectManager_->IsChainPassEnabled(i) || postEffectManager_->IsChainPassRuntimeEnabled(i)) ? "ON" : "OFF");
+					if (postEffectManager_->IsChainPassRuntimeEnabled(i)) {
+						ImGui::SameLine();
+						ImGui::TextUnformatted("(Runtime)");
+					}
 				}
 				ImGui::TextUnformatted("GammaCorrection: Fixed Last");
 				ImGui::TextUnformatted("Copy: Fallback when no chain pass is enabled");
@@ -559,6 +664,8 @@ void Game::Draw() {
 	// Fullscreen post effect keeps linear values in PostEffectResultTexture.
 	// Gamma correction is applied once into FinalDisplayTexture for swapchain
 	// presentation and the ImGui Game Viewport.
+	const GameplayEffectManager::ScreenPostEffectModifier gameplayModifier =
+		gameplayEffectManager_ ? gameplayEffectManager_->GetScreenPostEffectModifier() : GameplayEffectManager::ScreenPostEffectModifier{};
 	DirectXCommon::FullscreenPostEffectParameter postEffectParameter{};
 	postEffectParameter.grayscaleIntensity = fullscreenGrayscaleIntensity_;
 	postEffectParameter.sepiaIntensity = fullscreenSepiaIntensity_;
@@ -587,15 +694,24 @@ void Game::Draw() {
 	}
 	dxCommon_->SetFullscreenPostEffectParameter(postEffectParameter);
 	DirectXCommon::VignetteParamForGPU vignetteParameter{};
-	vignetteParameter.scale = fullscreenVignetteScale_;
-	vignetteParameter.power = fullscreenVignettePower_;
-	vignetteParameter.intensity = fullscreenVignetteIntensity_;
+	vignetteParameter.scale = (std::max)(fullscreenVignetteScale_ + gameplayModifier.vignetteScaleAdd, 0.0f);
+	vignetteParameter.power = (std::max)(fullscreenVignettePower_ + gameplayModifier.vignettePowerAdd, 0.01f);
+	vignetteParameter.intensity = std::clamp(
+		fullscreenVignetteIntensity_ + gameplayModifier.vignetteIntensityAdd,
+		0.0f,
+		1.0f);
 	dxCommon_->SetVignetteParameter(vignetteParameter);
 	DirectXCommon::RadialBlurParamForGPU radialBlurParameter{};
-	radialBlurParameter.center = fullscreenRadialBlurCenter_;
-	radialBlurParameter.blurWidth = fullscreenRadialBlurWidth_;
-	radialBlurParameter.intensity = fullscreenRadialBlurIntensity_;
-	radialBlurParameter.sampleCount = fullscreenRadialBlurSampleCount_;
+	radialBlurParameter.center = gameplayModifier.forceRadialBlur ? gameplayModifier.radialCenter : fullscreenRadialBlurCenter_;
+	radialBlurParameter.blurWidth = std::clamp(
+		fullscreenRadialBlurWidth_ + gameplayModifier.radialBlurWidthAdd,
+		0.0f,
+		0.1f);
+	radialBlurParameter.intensity = std::clamp(
+		fullscreenRadialBlurIntensity_ + gameplayModifier.radialBlurIntensityAdd,
+		0.0f,
+		1.0f);
+	radialBlurParameter.sampleCount = (std::max)(fullscreenRadialBlurSampleCount_, gameplayModifier.radialSampleCountMin);
 	dxCommon_->SetRadialBlurParameter(radialBlurParameter);
 	DirectXCommon::DissolveParamForGPU dissolveParameter{};
 	dissolveParameter.threshold = fullscreenDissolveThreshold_;
@@ -606,22 +722,46 @@ void Game::Draw() {
 	dxCommon_->SetDissolveParameter(dissolveParameter);
 	DirectXCommon::RandomNoiseParamForGPU randomNoiseParameter{};
 	randomNoiseParameter.time = fullscreenRandomNoiseTime_;
-	randomNoiseParameter.strength = fullscreenRandomNoiseStrength_;
-	randomNoiseParameter.scale = fullscreenRandomNoiseScale_;
-	randomNoiseParameter.mode = static_cast<float>(fullscreenRandomNoiseMode_);
-	randomNoiseParameter.animate = fullscreenRandomNoiseAnimate_ ? 1.0f : 0.0f;
+	randomNoiseParameter.strength = std::clamp(
+		fullscreenRandomNoiseStrength_ + gameplayModifier.randomNoiseStrengthAdd,
+		0.0f,
+		1.0f);
+	randomNoiseParameter.scale = gameplayModifier.forceRandomNoise ? gameplayModifier.randomNoiseScale : fullscreenRandomNoiseScale_;
+	randomNoiseParameter.mode = static_cast<float>(gameplayModifier.forceRandomNoise ? gameplayModifier.randomNoiseMode : fullscreenRandomNoiseMode_);
+	randomNoiseParameter.animate = (fullscreenRandomNoiseAnimate_ || gameplayModifier.randomNoiseAnimate) ? 1.0f : 0.0f;
 	dxCommon_->SetRandomNoiseParameter(randomNoiseParameter);
 	DirectXCommon::HSVFilterParamForGPU hsvFilterParameter{};
 	hsvFilterParameter.hue = fullscreenHSVHue_;
-	hsvFilterParameter.saturation = fullscreenHSVSaturation_;
-	hsvFilterParameter.value = fullscreenHSVValue_;
+	hsvFilterParameter.saturation = std::clamp(
+		fullscreenHSVSaturation_ + gameplayModifier.hsvSaturationAdd,
+		-1.0f,
+		1.0f);
+	hsvFilterParameter.value = std::clamp(
+		fullscreenHSVValue_ + gameplayModifier.hsvValueAdd,
+		-1.0f,
+		1.0f);
 	dxCommon_->SetHSVFilterParameter(hsvFilterParameter);
 
 	srvManager_->PreDraw();
 	DirectXCommon::FullscreenPostEffectType postEffectType =
 		static_cast<DirectXCommon::FullscreenPostEffectType>(fullscreenPostEffectIndex_);
+	if (postEffectManager_) {
+		postEffectManager_->ClearRuntimeChainOverrides();
+		if (gameplayModifier.forceChainMode) {
+			postEffectManager_->SetRuntimeChainModeEnabled(true);
+			postEffectManager_->SetRuntimeChainPassEnabled(DirectXCommon::FullscreenPostEffectType::HSVFilter, gameplayModifier.forceHSVFilter);
+			postEffectManager_->SetRuntimeChainPassEnabled(DirectXCommon::FullscreenPostEffectType::Vignette, gameplayModifier.forceVignette);
+			postEffectManager_->SetRuntimeChainPassEnabled(DirectXCommon::FullscreenPostEffectType::RadialBlur, gameplayModifier.forceRadialBlur);
+			postEffectManager_->SetRuntimeChainPassEnabled(DirectXCommon::FullscreenPostEffectType::RandomNoise, gameplayModifier.forceRandomNoise);
+			if (!postEffectManager_->IsChainModeEnabled() &&
+				postEffectType != DirectXCommon::FullscreenPostEffectType::Copy &&
+				postEffectType != DirectXCommon::FullscreenPostEffectType::LinearToSRGB) {
+				postEffectManager_->SetRuntimeChainPassEnabled(postEffectType, true);
+			}
+		}
+	}
 	D3D12_GPU_DESCRIPTOR_HANDLE auxiliarySrvHandle{};
-	const bool chainModeEnabled = postEffectManager_ && postEffectManager_->IsChainModeEnabled();
+	const bool chainModeEnabled = postEffectManager_ && postEffectManager_->IsChainExecutionEnabled();
 	const bool needsNoiseSrv =
 		chainModeEnabled ||
 		postEffectType == DirectXCommon::FullscreenPostEffectType::Dissolve;

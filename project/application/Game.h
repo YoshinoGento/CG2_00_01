@@ -2,6 +2,7 @@
 #include "base/Framework.h"
 #include "math/Matrix.h"	
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -10,6 +11,7 @@
 class SceneFactory;
 class SkinningDebugWindow;
 class PostEffectManager;
+class GameplayEffectManager;
 
 /**
  * Gameクラス
@@ -25,6 +27,12 @@ public:
 	void Finalize() override;
 	void Update() override;
 	void Draw() override;
+
+	void PlayHarvestEffect(const Vector3& position, int32_t price);
+	void PlayDigitalImpactEffect(const Vector3& position);
+	void UpdateGameplayEffects(float deltaTime);
+	void DrawGameplayEffects();
+	void DrawGameplayEffectImGui();
 
 	// 各シーンから「補正後のマウス座標」を取得するための関数
 	static Vector2 GetMousePosInViewport() { return mousePosInViewport_; }
@@ -82,11 +90,14 @@ private:
 	float fullscreenHSVHue_ = 0.0f;
 	float fullscreenHSVSaturation_ = 0.0f;
 	float fullscreenHSVValue_ = 0.0f;
+	Vector2 gameViewportImageTopLeft_ = { 0.0f, 0.0f };
+	Vector2 gameViewportImageSize_ = { 0.0f, 0.0f };
 
 	// 計算・補正されたマウス座標を保持
 	static Vector2 mousePosInViewport_;
 
 	std::unique_ptr<PostProcess> postProcess_;
 	std::unique_ptr<PostEffectManager> postEffectManager_;
+	std::unique_ptr<GameplayEffectManager> gameplayEffectManager_;
 	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
 };

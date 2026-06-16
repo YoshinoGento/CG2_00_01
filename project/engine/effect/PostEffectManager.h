@@ -30,9 +30,14 @@ public:
 
     void SetChainModeEnabled(bool enabled) { chainModeEnabled_ = enabled; }
     bool IsChainModeEnabled() const { return chainModeEnabled_; }
+    void ClearRuntimeChainOverrides();
+    void SetRuntimeChainModeEnabled(bool enabled) { runtimeChainModeEnabled_ = enabled; }
+    void SetRuntimeChainPassEnabled(DirectXCommon::FullscreenPostEffectType postEffectType, bool enabled);
+    bool IsChainExecutionEnabled() const { return chainModeEnabled_ || runtimeChainModeEnabled_; }
     size_t GetChainPassCount() const { return chainPassTypes_.size(); }
     const char* GetChainPassName(size_t index) const;
     bool IsChainPassEnabled(size_t index) const;
+    bool IsChainPassRuntimeEnabled(size_t index) const;
     void SetChainPassEnabled(size_t index, bool enabled);
     size_t GetEnabledChainPassCount() const;
 
@@ -79,6 +84,8 @@ private:
     RenderTexture pingTexture_;
     RenderTexture pongTexture_;
     bool chainModeEnabled_ = false;
+    bool runtimeChainModeEnabled_ = false;
+    std::array<bool, kPostEffectPassCount> runtimeChainPassEnabled_{};
     std::vector<DirectXCommon::FullscreenPostEffectType> chainPassTypes_;
     std::vector<bool> chainPassEnabled_;
     std::vector<PostEffectPassDesc> activePasses_;

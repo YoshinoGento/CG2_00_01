@@ -229,6 +229,61 @@ void ParticleManager::Emit(const std::string& name, const Vector3& position, uin
         p.color = { 1.0f, 0.8f, 0.2f, 1.0f }; // 火の粉のような色
     }
 }
+
+void ParticleManager::EmitHarvestBurst(const std::string& name, const Vector3& position, uint32_t count) {
+    auto groupIt = particleGroups_.find(name);
+    if (groupIt == particleGroups_.end() || count == 0) {
+        return;
+    }
+
+    std::random_device seedGenerator;
+    std::mt19937 engine(seedGenerator());
+    std::uniform_real_distribution<float> angleDist(0.0f, 6.2831853f);
+    std::uniform_real_distribution<float> radiusDist(0.0f, 1.0f);
+    std::uniform_real_distribution<float> heightDist(0.0f, 0.35f);
+    std::uniform_real_distribution<float> speedDist(0.03f, 0.18f);
+    std::uniform_real_distribution<float> scaleDist(0.08f, 0.34f);
+    std::uniform_real_distribution<float> rotateDist(-3.141592f, 3.141592f);
+
+    const uint32_t safeCount = (std::min)(count, 1024u);
+    for (uint32_t i = 0; i < safeCount; ++i) {
+        Particle& particle = AddParticle(name, position);
+        const float angle = angleDist(engine);
+        const float radius = radiusDist(engine);
+        const float outwardX = std::cos(angle);
+        const float outwardZ = std::sin(angle);
+        const float speed = speedDist(engine);
+
+        particle.transform.translate.x += outwardX * radius * 0.55f;
+        particle.transform.translate.y += heightDist(engine);
+        particle.transform.translate.z += outwardZ * radius * 0.55f;
+        particle.velocity = {
+            outwardX * speed,
+            0.10f + speed * 0.85f,
+            outwardZ * speed,
+        };
+        particle.acceleration = { 0.0f, -0.0025f, 0.0f };
+        particle.transform.rotate = { 0.0f, 0.0f, rotateDist(engine) };
+        const float scale = scaleDist(engine);
+        particle.transform.scale = { scale * 0.45f, scale, 1.0f };
+        particle.startSize = scale;
+        particle.endSize = scale * 0.15f;
+        particle.lifeTime = 0.75f + radiusDist(engine) * 0.35f;
+
+        switch (i % 3) {
+        case 0:
+            particle.color = { 0.35f, 0.95f, 0.18f, 1.0f };
+            break;
+        case 1:
+            particle.color = { 1.0f, 0.92f, 0.30f, 1.0f };
+            break;
+        default:
+            particle.color = { 0.58f, 0.38f, 0.18f, 0.82f };
+            break;
+        }
+    }
+}
+
 void ParticleManager::ClearAll() {
     for (auto& pair : particleGroups_) {
         pair.second.particles.clear();

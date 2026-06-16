@@ -102,6 +102,9 @@
     <ClCompile Include="application\Game.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
+    <ClCompile Include="application\GameplayEffectManager.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
     <ClCompile Include="engine\base\Framework.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
@@ -127,6 +130,9 @@
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Skybox.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\3d\SkyboxManager.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\effect\PostProcess.cpp">
@@ -239,6 +245,9 @@
     <ClInclude Include="application\Game.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
+    <ClInclude Include="application\GameplayEffectManager.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
     <ClInclude Include="engine\base\Framework.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
@@ -264,6 +273,9 @@
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Skybox.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\3d\SkyboxManager.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Animation.h">
