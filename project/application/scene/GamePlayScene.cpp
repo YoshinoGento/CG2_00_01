@@ -6,6 +6,7 @@
 #include "3d/Camera.h"
 #include "audio/Audio.h"
 #include "io/Input.h"
+#include "base/DirectXCommon.h"
 #include "base/ImGuiManager.h"
 #include "3d/ModelManager.h"
 #include "effect/ParticleManager.h"
@@ -211,6 +212,7 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle_, ringModel_.get());
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
+	ApplyCleanDemoScene();
 
 }
 
@@ -280,7 +282,10 @@ void GamePlayScene::Update() {
 	sprite_->Update();
 
 	if (skyboxManager_) {
-		if (framework_->GetInput() && framework_->GetInput()->TriggerKey(DIK_F6) && !ImGui::GetIO().WantCaptureKeyboard) {
+		if (skyboxInputEnabled_ &&
+			framework_->GetInput() &&
+			framework_->GetInput()->TriggerKey(DIK_F6) &&
+			!ImGui::GetIO().WantCaptureKeyboard) {
 			skyboxManager_->CycleMode();
 		}
 		framework_->GetDxCommon()->SetSceneClearColor(skyboxManager_->GetClearColor());
@@ -385,17 +390,16 @@ void GamePlayScene::Draw() {
 
 	objCommon->CommonDrawSettings();
 
-	// === 地面のグリッド（格子線）の描画 ===
-	const float gridScale = 20.0f; // グリッドの広さ
-	const int divCount = 10;       // 分割数
-	const Vector4 gridColor = { 0.5f, 0.5f, 0.5f, 1.0f }; // グレー
+	if (showDebugGrid_) {
+		const float gridScale = 20.0f;
+		const int divCount = 10;
+		const Vector4 gridColor = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-	for (int i = -divCount; i <= divCount; ++i) {
-		float f = (float)i / (float)divCount * gridScale;
-		// X軸に平行な線
-		LineDrawer::GetInstance()->DrawLine({ -gridScale, -2.0f, f }, { gridScale, -2.0f, f }, gridColor);
-		// Z軸に平行な線
-		LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
+		for (int i = -divCount; i <= divCount; ++i) {
+			float f = (float)i / (float)divCount * gridScale;
+			LineDrawer::GetInstance()->DrawLine({ -gridScale, -2.0f, f }, { gridScale, -2.0f, f }, gridColor);
+			LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
+		}
 	}
 
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction &&
@@ -488,17 +492,120 @@ void GamePlayScene::UpdateSceneDeltaTime() {
 	previousFrameTime_ = now;
 }
 
+Camera* GamePlayScene::GetCamera() const {
+	return camera_.get();
+}
+
+FieldManager* GamePlayScene::GetFieldManager() const {
+	return fieldManager_.get();
+}
+
+SkyboxManager* GamePlayScene::GetSkyboxManager() const {
+	return skyboxManager_.get();
+}
+
+Object3d* GamePlayScene::GetAnimationObject() const {
+	return animObj_.get();
+}
+
+void GamePlayScene::SetViewportInfo(
+	const Vector2& imageTopLeft,
+	const Vector2& imageSize,
+	const Vector2& mousePosition,
+	bool hovered) {
+	viewportImageTopLeft_ = imageTopLeft;
+	viewportImageSize_ = imageSize;
+	viewportMousePosition_ = mousePosition;
+	viewportHovered_ = hovered;
+}
+
+void GamePlayScene::SetFieldSelectionEnabled(bool enabled) {
+	fieldSelectionEnabled_ = enabled;
+}
+
+void GamePlayScene::SetSkyboxInputEnabled(bool enabled) {
+	skyboxInputEnabled_ = enabled;
+}
+
+void GamePlayScene::SetFieldInputEnabled(bool enabled) {
+	if (fieldManager_) {
+		fieldManager_->SetInputEnabled(enabled);
+	}
+}
+
+void GamePlayScene::SetCameraInputEnabled(bool enabled) {
+	cameraInputEnabled_ = enabled;
+}
+
+void GamePlayScene::SetDemoCameraPreset() {
+	const Vector3 fieldCenter = fieldManager_ ? fieldManager_->GetFieldCenter() : Vector3{ 0.0f, -1.92f, 8.0f };
+	const Vector3 cameraPosition = fieldCenter + Vector3{ 0.0f, 10.5f, -8.0f };
+	SetCameraLookAt(cameraPosition, fieldCenter);
+}
+
+void GamePlayScene::ApplyCleanDemoScene() {
+	showTerrain_ = false;
+	showSphere_ = false;
+	showPlane_ = false;
+	showSprite_ = false;
+	showAnimModel_ = false;
+	showSkeleton_ = false;
+	showDebugGrid_ = true;
+	showParticles_ = true;
+	modelPriority_ = 0;
+	selectedTarget_ = 0;
+	cameraInputEnabled_ = true;
+
+	SetGPUParticleDebugMode(GPUParticleDebugMode::Off);
+	previousGPUParticleDebugMode_ = GPUParticleDebugMode::Off;
+
+	if (framework_ && framework_->GetParticleManager()) {
+		framework_->GetParticleManager()->ResetGPUParticles();
+	}
+
+	if (skyboxManager_) {
+		skyboxManager_->SetMode(SkyboxManager::SkyboxMode::SolidColor);
+		if (framework_ && framework_->GetDxCommon()) {
+			framework_->GetDxCommon()->SetSceneClearColor(skyboxManager_->GetClearColor());
+		}
+	}
+}
+
+void GamePlayScene::ApplyAutoDemoScenePreset() {
+	SetDemoCameraPreset();
+	ApplyCleanDemoScene();
+	fieldSelectionEnabled_ = false;
+	skyboxInputEnabled_ = false;
+	SetFieldInputEnabled(false);
+	SetCameraInputEnabled(false);
+}
+
 void GamePlayScene::ResetCamera() {
 	cameraPos_ = { 0.0f, 5.0f, -15.0f };
 	cameraRot_ = { 0.3f, 0.0f, 0.0f };
 }
 
 void GamePlayScene::ClampCameraPitch() {
-	cameraRot_.x = std::clamp(cameraRot_.x, -1.45f, 1.10f);
+	cameraRot_.x = std::clamp(cameraRot_.x, -1.45f, 1.30f);
+}
+
+void GamePlayScene::SetCameraLookAt(const Vector3& eye, const Vector3& target) {
+	Vector3 direction = target - eye;
+	const float length = MatrixMath::Length(direction);
+	if (length <= 0.0001f || !std::isfinite(length)) {
+		return;
+	}
+
+	direction /= length;
+	cameraPos_ = eye;
+	cameraRot_.y = std::atan2(direction.x, direction.z);
+	cameraRot_.x = std::asin(std::clamp(-direction.y, -1.0f, 1.0f));
+	cameraRot_.z = 0.0f;
+	ClampCameraPitch();
 }
 
 void GamePlayScene::HandleCameraInput(float deltaTime) {
-	if (!framework_ || !viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) {
+	if (!cameraInputEnabled_ || !framework_ || !viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) {
 		return;
 	}
 	if (!std::isfinite(deltaTime) || deltaTime <= 0.0f) {
@@ -575,7 +682,10 @@ void GamePlayScene::HandleFieldMouseSelection() {
 	fieldMouseVirtualPosition_ = { -1.0f, -1.0f };
 	fieldMouseSelectedIndex_ = fieldManager_ ? fieldManager_->GetSelectedIndex() : -1;
 
-	if (!fieldManager_ || !camera_ || gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
+	if (!fieldSelectionEnabled_ ||
+		!fieldManager_ ||
+		!camera_ ||
+		gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
 		return;
 	}
 

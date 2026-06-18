@@ -9,39 +9,59 @@
 
 namespace {
 constexpr float kEpsilon = 0.0001f;
-constexpr float kRewardPopupDuration = 1.05f;
-constexpr Vector3 kRewardPopupVelocity = { 0.0f, 0.85f, 0.0f };
+constexpr float kRewardPopupDuration = 1.25f;
+constexpr Vector3 kRewardPopupVelocity = { 0.0f, 0.95f, 0.0f };
 }
 
 void FloatingTextSystem::Initialize(SpriteCommon* spriteCommon, const std::string& texturePath, uint32_t poolSize) {
 	spriteCommon_ = spriteCommon;
 	ready_ = false;
 	floatingTexts_.clear();
+	textures_.clear();
 
 	if (!spriteCommon_ || poolSize == 0 || !std::filesystem::exists(texturePath)) {
 		return;
 	}
 
-	textureHandle_ = spriteCommon_->LoadTexture(texturePath);
-	const D3D12_RESOURCE_DESC textureDesc = spriteCommon_->GetTextureResourceDesc(textureHandle_);
-	if (textureDesc.Width == 0 || textureDesc.Height == 0) {
+	if (!RegisterTexture("reward_120g", texturePath)) {
 		return;
 	}
 
-	textureBaseSize_ = {
-		static_cast<float>(textureDesc.Width),
-		static_cast<float>(textureDesc.Height),
-	};
+	const TextureEntry& rewardTexture = textures_.at("reward_120g");
+	textureHandle_ = rewardTexture.handle;
+	textureBaseSize_ = rewardTexture.baseSize;
 
 	floatingTexts_.resize(poolSize);
 	for (FloatingText& text : floatingTexts_) {
 		text.sprite = std::make_unique<Sprite>();
 		text.sprite->Initialize(spriteCommon_, textureHandle_);
 		text.sprite->SetAnchorPoint({ 0.5f, 0.5f });
+		text.textureHandle = textureHandle_;
 		text.baseSize = textureBaseSize_;
 	}
 
 	ready_ = true;
+}
+
+bool FloatingTextSystem::RegisterTexture(const std::string& id, const std::string& texturePath) {
+	if (!spriteCommon_ || id.empty() || !std::filesystem::exists(texturePath)) {
+		return false;
+	}
+
+	const uint32_t handle = spriteCommon_->LoadTexture(texturePath);
+	const D3D12_RESOURCE_DESC textureDesc = spriteCommon_->GetTextureResourceDesc(handle);
+	if (textureDesc.Width == 0 || textureDesc.Height == 0) {
+		return false;
+	}
+
+	TextureEntry entry{};
+	entry.handle = handle;
+	entry.baseSize = {
+		static_cast<float>(textureDesc.Width),
+		static_cast<float>(textureDesc.Height),
+	};
+	textures_[id] = entry;
+	return true;
 }
 
 void FloatingTextSystem::Update(float deltaTime) {
@@ -105,15 +125,41 @@ void FloatingTextSystem::Draw(
 
 		text.sprite->SetPosition(projectedPosition);
 		text.sprite->SetSize(text.baseSize * text.scale);
-		text.sprite->SetColor({ 1.0f, 1.0f, 1.0f, std::clamp(text.alpha, 0.0f, 1.0f) });
+		text.sprite->SetColor({
+			text.color.x,
+			text.color.y,
+			text.color.z,
+			text.color.w * std::clamp(text.alpha, 0.0f, 1.0f)
+			});
 		text.sprite->Update();
 		text.sprite->Draw();
 	}
 }
 
-void FloatingTextSystem::PlayRewardPopup(const Vector3& worldPosition, int32_t price) {
+void FloatingTextSystem::PlayRewardPopup(const Vector3& worldPosition, int32_t price, float sizeScale, float duration) {
 	(void)price;
+	const float safeSizeScale = (std::max)(sizeScale, 0.1f);
+	PlayFloatingText(
+		worldPosition,
+		"reward_120g",
+		{ textureBaseSize_.x * safeSizeScale, textureBaseSize_.y * safeSizeScale },
+		{ 1.0f, 1.0f, 1.0f, 1.0f },
+		(std::max)(duration, kRewardPopupDuration),
+		kRewardPopupVelocity);
+}
+
+void FloatingTextSystem::PlayFloatingText(
+	const Vector3& worldPosition,
+	const std::string& textureId,
+	const Vector2& size,
+	const Vector4& color,
+	float duration,
+	const Vector3& velocity) {
 	if (!ready_) {
+		return;
+	}
+	const auto textureIt = textures_.find(textureId);
+	if (textureIt == textures_.end()) {
 		return;
 	}
 
@@ -123,15 +169,48 @@ void FloatingTextSystem::PlayRewardPopup(const Vector3& worldPosition, int32_t p
 	}
 
 	text->active = true;
-	text->worldPosition = worldPosition;
-	text->velocity = kRewardPopupVelocity;
+	text->worldPosition = ComputeStackedWorldPosition(worldPosition);
+	text->velocity = velocity;
 	text->timer = 0.0f;
-	text->duration = kRewardPopupDuration;
+	text->duration = (std::max)(duration, kEpsilon);
 	text->alpha = 1.0f;
 	text->scale = 1.0f;
-	text->baseSize = textureBaseSize_;
-	text->sprite->SetTexture(textureHandle_);
+	text->baseSize = size.x > 0.0f && size.y > 0.0f ? size : textureIt->second.baseSize;
+	text->color = color;
+	text->textureHandle = textureIt->second.handle;
+	text->sprite->SetTexture(text->textureHandle);
 	text->sprite->SetAnchorPoint({ 0.5f, 0.5f });
+}
+
+Vector3 FloatingTextSystem::ComputeStackedWorldPosition(const Vector3& worldPosition) const {
+	int nearbyCount = 0;
+	for (const FloatingText& text : floatingTexts_) {
+		if (!text.active) {
+			continue;
+		}
+
+		const float dx = text.worldPosition.x - worldPosition.x;
+		const float dy = text.worldPosition.y - worldPosition.y;
+		const float dz = text.worldPosition.z - worldPosition.z;
+		const float horizontalDistanceSq = dx * dx + dz * dz;
+		if (horizontalDistanceSq <= 0.42f * 0.42f && std::abs(dy) <= 1.15f) {
+			++nearbyCount;
+		}
+	}
+
+	const int stackIndex = nearbyCount % 5;
+	switch (stackIndex) {
+	case 1:
+		return worldPosition + Vector3{ 0.24f, 0.24f, 0.04f };
+	case 2:
+		return worldPosition + Vector3{ -0.24f, 0.48f, -0.04f };
+	case 3:
+		return worldPosition + Vector3{ 0.0f, 0.72f, 0.16f };
+	case 4:
+		return worldPosition + Vector3{ 0.18f, 0.96f, -0.16f };
+	default:
+		return worldPosition;
+	}
 }
 
 FloatingTextSystem::FloatingText* FloatingTextSystem::AllocateFloatingText() {

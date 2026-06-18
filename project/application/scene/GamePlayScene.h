@@ -11,6 +11,7 @@
 #include "effect/ParticleManager.h"
 
 class Framework;
+class Game;
 class Sprite;
 class Object3d;
 class Camera;
@@ -47,6 +48,22 @@ public:
 	// アニメーションモデルの動的切り替え（ImGuiからの呼び出し用）
 	void ChangeAnimationModel(int index);
 	bool ConsumeFieldHarvestEvent(Vector3& outPosition, int32_t& outPrice, bool& outRare);
+	Camera* GetCamera() const;
+	FieldManager* GetFieldManager() const;
+	SkyboxManager* GetSkyboxManager() const;
+	Object3d* GetAnimationObject() const;
+	void SetViewportInfo(const Vector2& imageTopLeft, const Vector2& imageSize, const Vector2& mousePosition, bool hovered);
+	void SetFieldSelectionEnabled(bool enabled);
+	void SetSkyboxInputEnabled(bool enabled);
+	void SetFieldInputEnabled(bool enabled);
+	void SetCameraInputEnabled(bool enabled);
+	void SetDemoCameraPreset();
+	void ApplyCleanDemoScene();
+	void ApplyAutoDemoScenePreset();
+	void ResetCamera();
+	void SetGPUParticleDebugMode(GPUParticleDebugMode mode);
+	void EmitAgricultureParticle(AgricultureParticleType type);
+	uint32_t CalculateInteractionParticleCount() const;
 
 private:
 	struct Ray {
@@ -60,17 +77,14 @@ private:
 	void HandleCameraInput(float deltaTime);
 	void ClampCameraPitch();
 	void HandleFieldMouseSelection();
+	void SetCameraLookAt(const Vector3& eye, const Vector3& target);
 	bool ConvertMouseToVirtualScreen(const Vector2& mouseScreenPos, Vector2& outVirtualPos) const;
 	bool CreateRayFromVirtualScreen(const Vector2& virtualScreenPos, Ray& outRay) const;
 	bool IntersectRayPlaneY(const Ray& ray, float planeY, Vector3& outHitPosition) const;
-	void ResetCamera();
 	void SyncGPUParticleDebugModeChange();
-	void SetGPUParticleDebugMode(GPUParticleDebugMode mode);
 	void HandleGPUParticleDebugModeInput();
 	void HandleAgricultureParticleInput();
 	void HandleInteractionParticleInput();
-	void EmitAgricultureParticle(AgricultureParticleType type);
-	uint32_t CalculateInteractionParticleCount() const;
 	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
 
 	// エフェクト発生関数
@@ -109,13 +123,14 @@ private:
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
 	std::unique_ptr<FieldManager> fieldManager_;
 
-	bool showTerrain_ = true;
-	bool showSphere_ = true;
-	bool showPlane_ = true;
-	bool showSprite_ = true;
+	bool showTerrain_ = false;
+	bool showSphere_ = false;
+	bool showPlane_ = false;
+	bool showSprite_ = false;
 	bool showParticles_ = true;
-	bool showAnimModel_ = true;
+	bool showAnimModel_ = false;
 	bool showSkeleton_ = false;
+	bool showDebugGrid_ = true;
 
 	Vector2 spritePos_ = { 640.0f, 360.0f };
 	Vector3 objectPos_ = { 0.0f, 0.0f, 0.0f };
@@ -149,6 +164,9 @@ private:
 	Vector2 viewportImageSize_ = { 0.0f, 0.0f };
 	Vector2 viewportMousePosition_ = { 0.0f, 0.0f };
 	bool viewportHovered_ = false;
+	bool cameraInputEnabled_ = true;
+	bool fieldSelectionEnabled_ = true;
+	bool skyboxInputEnabled_ = true;
 	bool fieldMouseInViewport_ = false;
 	bool fieldMouseRayValid_ = false;
 	bool fieldMouseHit_ = false;

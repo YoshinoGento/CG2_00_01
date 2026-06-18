@@ -2,8 +2,6 @@
 
 #include "math/Matrix.h"
 
-#include <array>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <random>
@@ -31,9 +29,6 @@ enum class FieldActionFeedbackType {
 };
 
 struct FieldTile {
-	static constexpr size_t kFurrowCount = 3;
-	static constexpr size_t kWaterHighlightCount = 3;
-
 	Vector3 worldPosition = { 0.0f, 0.0f, 0.0f };
 	FieldState state = FieldState::Empty;
 	int cropType = 0;
@@ -43,9 +38,11 @@ struct FieldTile {
 	Vector4 actionFlashColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 	std::unique_ptr<Object3d> groundObject;
-	std::array<std::unique_ptr<Object3d>, kFurrowCount> furrowObjects;
-	std::array<std::unique_ptr<Object3d>, kWaterHighlightCount> waterHighlightObjects;
-	std::unique_ptr<Object3d> cropObject;
+	std::unique_ptr<Object3d> moundObject;
+	std::unique_ptr<Object3d> cropStemObject;
+	std::unique_ptr<Object3d> cropFruitObject;
+	std::unique_ptr<Object3d> cropLeafLeftObject;
+	std::unique_ptr<Object3d> cropLeafRightObject;
 };
 
 class FieldManager {
@@ -66,7 +63,15 @@ public:
 	const FieldTile* GetSelectedTile() const;
 	int GetSelectedIndex() const { return selectedIndex_; }
 	int GetTileCount() const { return static_cast<int>(tiles_.size()); }
+	int GetVisibleTileCount() const;
+	Vector3 GetFieldCenter() const;
 	float GetGroundY() const;
+	void SelectTile(int index);
+	void ResetAllTilesForAutoDemo(int selectedIndex);
+	void PrepareTileForAutoDemo(int index);
+	void FastForwardSelectedGrowth(float amount);
+	bool FastForwardAllGrowth(float amount);
+	void SetInputEnabled(bool enabled) { inputEnabled_ = enabled; }
 	bool TrySelectTileByWorldPosition(const Vector3& worldPosition);
 
 	bool ConsumeHarvestEvent(Vector3& outPosition, int32_t& outPrice, bool& outRare);
@@ -97,17 +102,17 @@ private:
 	void EmitPlantFeedback(const Vector3& position);
 	void SpawnPebbles(const Vector3& position);
 	void SetObjectColor(Object3d* object, const Vector4& color);
+	void InitializeCropPart(std::unique_ptr<Object3d>& object, Model* model);
+	void HideAndUpdateObject(Object3d* object, Camera* camera);
 	void SetTileFlash(FieldTile& tile, const Vector4& color, float duration);
 	void SetActionFeedback(FieldActionFeedbackType type, const Vector3& position);
 	Vector4 GetGroundColor(const FieldTile& tile, bool selected) const;
-	Vector4 GetCropColor(const FieldTile& tile) const;
 	bool IsValidIndex(int index) const;
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Model> tileModel_;
-	std::unique_ptr<Model> furrowModel_;
-	std::unique_ptr<Model> waterHighlightModel_;
-	std::unique_ptr<Model> cropModel_;
+	std::unique_ptr<Model> moundModel_;
+	std::unique_ptr<Model> cropPartModel_;
 	std::unique_ptr<Model> pebbleModel_;
 	uint32_t fieldTextureHandle_ = 0;
 	std::vector<FieldTile> tiles_;
@@ -115,6 +120,8 @@ private:
 	int selectedIndex_ = 0;
 	int32_t harvestCount_ = 0;
 	float selectionPulseTimer_ = 0.0f;
+	bool fieldVisualCullNoneTest_ = false;
+	bool inputEnabled_ = true;
 
 	bool pendingHarvestEvent_ = false;
 	Vector3 pendingHarvestPosition_ = { 0.0f, 0.0f, 0.0f };

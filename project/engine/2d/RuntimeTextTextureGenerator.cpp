@@ -11,6 +11,7 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <regex>
@@ -42,13 +43,131 @@ std::string ReadAllText(const std::string& path) {
     return stream.str();
 }
 
+int HexDigitToValue(char c) {
+    if ('0' <= c && c <= '9') {
+        return c - '0';
+    }
+    if ('a' <= c && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if ('A' <= c && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+bool TryReadJsonUnicodeEscape(const std::string& text, size_t pos, uint32_t& outCodePoint) {
+    if (pos + 4 > text.size()) {
+        return false;
+    }
+
+    uint32_t codePoint = 0;
+    for (size_t i = 0; i < 4; ++i) {
+        const int value = HexDigitToValue(text[pos + i]);
+        if (value < 0) {
+            return false;
+        }
+        codePoint = (codePoint << 4) | static_cast<uint32_t>(value);
+    }
+
+    outCodePoint = codePoint;
+    return true;
+}
+
+void AppendCodePointAsUtf8(uint32_t codePoint, std::string& outText) {
+    if (codePoint <= 0x7Fu) {
+        outText.push_back(static_cast<char>(codePoint));
+    } else if (codePoint <= 0x7FFu) {
+        outText.push_back(static_cast<char>(0xC0u | ((codePoint >> 6) & 0x1Fu)));
+        outText.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
+    } else if (codePoint <= 0xFFFFu) {
+        outText.push_back(static_cast<char>(0xE0u | ((codePoint >> 12) & 0x0Fu)));
+        outText.push_back(static_cast<char>(0x80u | ((codePoint >> 6) & 0x3Fu)));
+        outText.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
+    } else if (codePoint <= 0x10FFFFu) {
+        outText.push_back(static_cast<char>(0xF0u | ((codePoint >> 18) & 0x07u)));
+        outText.push_back(static_cast<char>(0x80u | ((codePoint >> 12) & 0x3Fu)));
+        outText.push_back(static_cast<char>(0x80u | ((codePoint >> 6) & 0x3Fu)));
+        outText.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
+    }
+}
+
+std::string UnescapeJsonString(const std::string& escapedText) {
+    std::string result;
+    result.reserve(escapedText.size());
+
+    for (size_t i = 0; i < escapedText.size(); ++i) {
+        const char c = escapedText[i];
+        if (c != '\\' || i + 1 >= escapedText.size()) {
+            result.push_back(c);
+            continue;
+        }
+
+        const char escaped = escapedText[++i];
+        switch (escaped) {
+        case '"':
+        case '\\':
+        case '/':
+            result.push_back(escaped);
+            break;
+        case 'b':
+            result.push_back('\b');
+            break;
+        case 'f':
+            result.push_back('\f');
+            break;
+        case 'n':
+            result.push_back('\n');
+            break;
+        case 'r':
+            result.push_back('\r');
+            break;
+        case 't':
+            result.push_back('\t');
+            break;
+        case 'u': {
+            uint32_t codePoint = 0;
+            if (!TryReadJsonUnicodeEscape(escapedText, i + 1, codePoint)) {
+                result.push_back('\\');
+                result.push_back('u');
+                break;
+            }
+            i += 4;
+
+            if (0xD800u <= codePoint && codePoint <= 0xDBFFu &&
+                i + 6 < escapedText.size() &&
+                escapedText[i + 1] == '\\' &&
+                escapedText[i + 2] == 'u') {
+                uint32_t lowSurrogate = 0;
+                if (TryReadJsonUnicodeEscape(escapedText, i + 3, lowSurrogate) &&
+                    0xDC00u <= lowSurrogate && lowSurrogate <= 0xDFFFu) {
+                    codePoint =
+                        0x10000u +
+                        ((codePoint - 0xD800u) << 10) +
+                        (lowSurrogate - 0xDC00u);
+                    i += 6;
+                }
+            }
+
+            AppendCodePointAsUtf8(codePoint, result);
+            break;
+        }
+        default:
+            result.push_back(escaped);
+            break;
+        }
+    }
+
+    return result;
+}
+
 bool ExtractString(const std::string& objectText, const char* key, std::string& outValue) {
     const std::regex pattern(std::string("\"") + key + "\"\\s*:\\s*\"([^\"]*)\"");
     std::smatch match;
     if (!std::regex_search(objectText, match, pattern)) {
         return false;
     }
-    outValue = match[1].str();
+    outValue = UnescapeJsonString(match[1].str());
     return true;
 }
 

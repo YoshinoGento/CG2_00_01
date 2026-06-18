@@ -17,7 +17,7 @@ void ImGuiManager::Initialize([[maybe_unused]] WinApp* winApp, [[maybe_unused]] 
 
 	// ドッキングとマルチビューポートを有効化
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+	io.ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
 
 	ImGui::StyleColorsDark();
 

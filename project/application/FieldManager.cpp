@@ -19,7 +19,6 @@
 namespace {
 constexpr float kGroundY = -1.92f;
 constexpr float kTileSpacing = 2.15f;
-constexpr float kCropBaseHeight = 0.9f;
 constexpr float kGrowthPerSecondDry = 0.22f;
 constexpr float kGrowthPerSecondWet = 0.48f;
 constexpr float kMoistureDecayPerSecond = 0.08f;
@@ -35,6 +34,21 @@ Vector4 LerpColor(const Vector4& a, const Vector4& b, float t) {
 		a.w + (b.w - a.w) * clampedT,
 	};
 }
+
+Vector4 GetMoundColor(FieldState state) {
+	switch (state) {
+	case FieldState::Tilled:
+		return { 0.86f, 0.50f, 0.24f, 1.0f };
+	case FieldState::Watered:
+		return { 0.36f, 0.48f, 0.54f, 1.0f };
+	case FieldState::Planted:
+		return { 0.78f, 0.44f, 0.22f, 1.0f };
+	case FieldState::ReadyToHarvest:
+		return { 0.90f, 0.58f, 0.22f, 1.0f };
+	default:
+		return { 0.0f, 0.0f, 0.0f, 0.0f };
+	}
+}
 }
 
 FieldManager::~FieldManager() = default;
@@ -46,9 +60,8 @@ void FieldManager::Initialize(Framework* framework) {
 	}
 
 	tileModel_ = PrimitiveGenerator::CreatePlane(framework_->GetModelManager(), 1.85f, 1.85f);
-	furrowModel_ = PrimitiveGenerator::CreateBox(framework_->GetModelManager(), { 1.55f, 0.045f, 0.085f });
-	waterHighlightModel_ = PrimitiveGenerator::CreateBox(framework_->GetModelManager(), { 0.28f, 0.018f, 0.16f });
-	cropModel_ = PrimitiveGenerator::CreateBox(framework_->GetModelManager(), { 0.45f, 1.0f, 0.45f });
+	moundModel_ = PrimitiveGenerator::CreateBox(framework_->GetModelManager(), { 0.92f, 0.08f, 0.92f });
+	cropPartModel_ = PrimitiveGenerator::CreateBox(framework_->GetModelManager(), { 1.0f, 1.0f, 1.0f });
 	pebbleModel_ = PrimitiveGenerator::CreateSphere(framework_->GetModelManager(), 0.08f, 8);
 	fieldTextureHandle_ = framework_->GetSpriteCommon()
 		? framework_->GetSpriteCommon()->LoadTexture("Resources/human/white.png")
@@ -74,31 +87,17 @@ void FieldManager::Initialize(Framework* framework) {
 			tile.groundObject->SetPosition(tile.worldPosition);
 			tile.groundObject->SetEnvironmentCoefficient(0.0f);
 
-			for (auto& furrowObject : tile.furrowObjects) {
-				furrowObject = std::make_unique<Object3d>();
-				furrowObject->Initialize(framework_->GetObject3dCommon());
-				furrowObject->SetModel(furrowModel_.get());
-				furrowObject->SetTexture(fieldTextureHandle_);
-				furrowObject->SetScale({ 0.0f, 0.0f, 0.0f });
-				furrowObject->SetEnvironmentCoefficient(0.0f);
-			}
+			tile.moundObject = std::make_unique<Object3d>();
+			tile.moundObject->Initialize(framework_->GetObject3dCommon());
+			tile.moundObject->SetModel(moundModel_.get());
+			tile.moundObject->SetTexture(fieldTextureHandle_);
+			tile.moundObject->SetScale({ 0.0f, 0.0f, 0.0f });
+			tile.moundObject->SetEnvironmentCoefficient(0.0f);
 
-			for (auto& waterHighlightObject : tile.waterHighlightObjects) {
-				waterHighlightObject = std::make_unique<Object3d>();
-				waterHighlightObject->Initialize(framework_->GetObject3dCommon());
-				waterHighlightObject->SetModel(waterHighlightModel_.get());
-				waterHighlightObject->SetTexture(fieldTextureHandle_);
-				waterHighlightObject->SetScale({ 0.0f, 0.0f, 0.0f });
-				waterHighlightObject->SetEnvironmentCoefficient(0.0f);
-			}
-
-			tile.cropObject = std::make_unique<Object3d>();
-			tile.cropObject->Initialize(framework_->GetObject3dCommon());
-			tile.cropObject->SetModel(cropModel_.get());
-			tile.cropObject->SetTexture(fieldTextureHandle_);
-			tile.cropObject->SetPosition(tile.worldPosition + Vector3{ 0.0f, 0.25f, 0.0f });
-			tile.cropObject->SetEnvironmentCoefficient(0.0f);
-			tile.cropObject->SetScale({ 0.0f, 0.0f, 0.0f });
+			InitializeCropPart(tile.cropStemObject, cropPartModel_.get());
+			InitializeCropPart(tile.cropFruitObject, cropPartModel_.get());
+			InitializeCropPart(tile.cropLeafLeftObject, cropPartModel_.get());
+			InitializeCropPart(tile.cropLeafRightObject, cropPartModel_.get());
 		}
 	}
 
@@ -131,22 +130,22 @@ void FieldManager::Draw() {
 		if (tile.groundObject) {
 			tile.groundObject->Draw();
 		}
-		if (tile.state != FieldState::Empty) {
-			for (const auto& furrowObject : tile.furrowObjects) {
-				if (furrowObject) {
-					furrowObject->Draw();
-				}
-			}
+		if (tile.state != FieldState::Empty && tile.moundObject) {
+			tile.moundObject->Draw();
 		}
-		if (tile.state == FieldState::Watered) {
-			for (const auto& waterHighlightObject : tile.waterHighlightObjects) {
-				if (waterHighlightObject) {
-					waterHighlightObject->Draw();
-				}
+		if (tile.state == FieldState::Planted || tile.state == FieldState::ReadyToHarvest) {
+			if (tile.cropStemObject) {
+				tile.cropStemObject->Draw();
 			}
-		}
-		if ((tile.state == FieldState::Planted || tile.state == FieldState::ReadyToHarvest) && tile.cropObject) {
-			tile.cropObject->Draw();
+			if (tile.cropLeafLeftObject) {
+				tile.cropLeafLeftObject->Draw();
+			}
+			if (tile.cropLeafRightObject) {
+				tile.cropLeafRightObject->Draw();
+			}
+			if (tile.cropFruitObject) {
+				tile.cropFruitObject->Draw();
+			}
 		}
 	}
 
@@ -208,8 +207,20 @@ void FieldManager::DrawImGui() {
 			ImGui::Text("Growth: %.2f", selectedTile->growth);
 			ImGui::Text("Moisture: %.2f", selectedTile->moisture);
 		}
+		if (ImGui::CollapsingHeader("Field Visual Debug", ImGuiTreeNodeFlags_DefaultOpen)) {
+			const bool moundVisible = selectedTile && selectedTile->state != FieldState::Empty && selectedTile->moundObject != nullptr;
+			const bool cropVisible =
+				selectedTile &&
+				(selectedTile->state == FieldState::Planted || selectedTile->state == FieldState::ReadyToHarvest) &&
+				selectedTile->cropStemObject != nullptr;
+			ImGui::TextUnformatted("Use Safe Cube Model: true");
+			ImGui::Checkbox("CullNone Test", &fieldVisualCullNoneTest_);
+			ImGui::Text("Mound Visible: %s", moundVisible ? "true" : "false");
+			ImGui::Text("Crop Visible: %s", cropVisible ? "true" : "false");
+			ImGui::Text("Selected Tile State: %s", stateName);
+		}
 		ImGui::TextUnformatted("Left Click on Game Viewport: Select tile");
-		ImGui::TextUnformatted("T: Till  Y: Water  P: Plant  H: Harvest");
+		ImGui::TextUnformatted("T: Till  Y: Water  U: Plant  I: Harvest");
 		if (ImGui::Button("Till")) {
 			TillTile(selectedIndex_);
 		}
@@ -218,11 +229,11 @@ void FieldManager::DrawImGui() {
 			WaterTile(selectedIndex_);
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Plant")) {
+		if (ImGui::Button("Plant (U)")) {
 			PlantTile(selectedIndex_);
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Harvest")) {
+		if (ImGui::Button("Harvest (I)")) {
 			HarvestTile(selectedIndex_);
 		}
 		ImGui::Text("Harvest Count: %d", harvestCount_);
@@ -243,7 +254,7 @@ void FieldManager::TillTile(int index) {
 	tile.moisture = 0.0f;
 	tile.growth = 0.0f;
 	SetTileFlash(tile, { 0.95f, 0.62f, 0.28f, 1.0f }, 0.25f);
-	SetActionFeedback(FieldActionFeedbackType::Tilled, tile.worldPosition + Vector3{ 0.0f, 0.55f, 0.0f });
+	SetActionFeedback(FieldActionFeedbackType::Tilled, tile.worldPosition + Vector3{ 0.0f, 1.4f, 0.0f });
 	EmitDirtFeedback(tile.worldPosition);
 	SpawnPebbles(tile.worldPosition);
 }
@@ -262,7 +273,7 @@ void FieldManager::WaterTile(int index) {
 		tile.state = FieldState::Watered;
 	}
 	SetTileFlash(tile, { 0.35f, 0.75f, 1.0f, 1.0f }, 0.25f);
-	SetActionFeedback(FieldActionFeedbackType::Watered, tile.worldPosition + Vector3{ 0.0f, 0.55f, 0.0f });
+	SetActionFeedback(FieldActionFeedbackType::Watered, tile.worldPosition + Vector3{ 0.0f, 1.4f, 0.0f });
 	EmitWaterFeedback(tile.worldPosition);
 }
 
@@ -279,7 +290,7 @@ void FieldManager::PlantTile(int index) {
 	tile.cropType = 0;
 	tile.growth = 0.05f;
 	SetTileFlash(tile, { 0.35f, 1.0f, 0.35f, 1.0f }, 0.25f);
-	SetActionFeedback(FieldActionFeedbackType::Planted, tile.worldPosition + Vector3{ 0.0f, 0.70f, 0.0f });
+	SetActionFeedback(FieldActionFeedbackType::Planted, tile.worldPosition + Vector3{ 0.0f, 1.4f, 0.0f });
 	EmitPlantFeedback(tile.worldPosition);
 }
 
@@ -304,7 +315,7 @@ void FieldManager::HarvestTile(int index) {
 	tile.growth = 0.0f;
 	tile.moisture = 0.35f;
 	SetTileFlash(tile, rareHarvest ? Vector4{ 0.25f, 0.85f, 1.0f, 1.0f } : Vector4{ 1.0f, 0.85f, 0.20f, 1.0f }, 0.32f);
-	SetActionFeedback(FieldActionFeedbackType::Harvested, pendingHarvestPosition_);
+	SetActionFeedback(FieldActionFeedbackType::Harvested, tile.worldPosition + Vector3{ 0.0f, 1.4f, 0.0f });
 }
 
 FieldTile* FieldManager::GetSelectedTile() {
@@ -319,6 +330,16 @@ const FieldTile* FieldManager::GetSelectedTile() const {
 		return nullptr;
 	}
 	return &tiles_[selectedIndex_];
+}
+
+int FieldManager::GetVisibleTileCount() const {
+	int visibleCount = 0;
+	for (const FieldTile& tile : tiles_) {
+		if (tile.groundObject) {
+			++visibleCount;
+		}
+	}
+	return visibleCount;
 }
 
 bool FieldManager::ConsumeHarvestEvent(Vector3& outPosition, int32_t& outPrice, bool& outRare) {
@@ -346,6 +367,107 @@ float FieldManager::GetGroundY() const {
 	return kGroundY;
 }
 
+Vector3 FieldManager::GetFieldCenter() const {
+	if (tiles_.empty()) {
+		return { 0.0f, kGroundY, 0.0f };
+	}
+
+	Vector3 center{};
+	for (const FieldTile& tile : tiles_) {
+		center += tile.worldPosition;
+	}
+	center /= static_cast<float>(tiles_.size());
+	return center;
+}
+
+void FieldManager::SelectTile(int index) {
+	if (!IsValidIndex(index)) {
+		return;
+	}
+	selectedIndex_ = index;
+}
+
+void FieldManager::ResetAllTilesForAutoDemo(int selectedIndex) {
+	if (tiles_.empty()) {
+		selectedIndex_ = 0;
+		return;
+	}
+
+	selectedIndex_ = std::clamp(selectedIndex, 0, static_cast<int>(tiles_.size()) - 1);
+	for (FieldTile& tile : tiles_) {
+		tile.state = FieldState::Empty;
+		tile.cropType = 0;
+		tile.growth = 0.0f;
+		tile.moisture = 0.0f;
+		tile.actionFlashTimer = 0.0f;
+		tile.actionFlashColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	}
+
+	harvestCount_ = 0;
+	pendingHarvestEvent_ = false;
+	pendingHarvestRare_ = false;
+	pendingHarvestPrice_ = 120;
+	pendingActionFeedback_ = false;
+	pendingActionFeedbackType_ = FieldActionFeedbackType::None;
+}
+
+void FieldManager::PrepareTileForAutoDemo(int index) {
+	if (!IsValidIndex(index)) {
+		return;
+	}
+	FieldTile& tile = tiles_[index];
+	selectedIndex_ = index;
+	tile.state = FieldState::Empty;
+	tile.cropType = 0;
+	tile.growth = 0.0f;
+	tile.moisture = 0.0f;
+	SetTileFlash(tile, { 1.0f, 0.95f, 0.18f, 1.0f }, 0.22f);
+}
+
+void FieldManager::FastForwardSelectedGrowth(float amount) {
+	if (!IsValidIndex(selectedIndex_)) {
+		return;
+	}
+	FieldTile& tile = tiles_[selectedIndex_];
+	if (tile.state != FieldState::Planted) {
+		return;
+	}
+	tile.growth = std::clamp(tile.growth + (std::max)(amount, 0.0f), 0.0f, 1.0f);
+	tile.moisture = (std::max)(tile.moisture, 0.35f);
+	if (tile.growth >= 1.0f) {
+		tile.state = FieldState::ReadyToHarvest;
+	}
+}
+
+bool FieldManager::FastForwardAllGrowth(float amount) {
+	const float safeAmount = (std::max)(amount, 0.0f);
+	bool hasCrop = false;
+	bool allReady = true;
+
+	for (FieldTile& tile : tiles_) {
+		if (tile.state == FieldState::ReadyToHarvest) {
+			hasCrop = true;
+			continue;
+		}
+
+		if (tile.state != FieldState::Planted) {
+			allReady = false;
+			continue;
+		}
+
+		hasCrop = true;
+		tile.growth = std::clamp(tile.growth + safeAmount, 0.0f, 1.0f);
+		tile.moisture = (std::max)(tile.moisture, 0.45f);
+		if (tile.growth >= 1.0f) {
+			tile.state = FieldState::ReadyToHarvest;
+		} else {
+			allReady = false;
+		}
+	}
+
+	return hasCrop && allReady;
+}
+
 bool FieldManager::TrySelectTileByWorldPosition(const Vector3& worldPosition) {
 	const int index = FindTileIndexFromWorldPosition(worldPosition);
 	if (!IsValidIndex(index)) {
@@ -357,7 +479,7 @@ bool FieldManager::TrySelectTileByWorldPosition(const Vector3& worldPosition) {
 
 void FieldManager::HandleInput() {
 	Input* input = framework_ ? framework_->GetInput() : nullptr;
-	if (!input || ImGui::GetIO().WantCaptureKeyboard) {
+	if (!inputEnabled_ || !input || ImGui::GetIO().WantCaptureKeyboard) {
 		return;
 	}
 
@@ -367,10 +489,10 @@ void FieldManager::HandleInput() {
 	if (input->TriggerKey(DIK_Y)) {
 		WaterTile(selectedIndex_);
 	}
-	if (input->TriggerKey(DIK_P)) {
+	if (input->TriggerKey(DIK_U)) {
 		PlantTile(selectedIndex_);
 	}
-	if (input->TriggerKey(DIK_H)) {
+	if (input->TriggerKey(DIK_I)) {
 		HarvestTile(selectedIndex_);
 	}
 }
@@ -396,24 +518,123 @@ void FieldManager::UpdateTileVisuals(Camera* camera) {
 	for (int i = 0; i < static_cast<int>(tiles_.size()); ++i) {
 		FieldTile& tile = tiles_[i];
 		const bool selected = i == selectedIndex_;
+		const int fieldCullMode = fieldVisualCullNoneTest_ ? 0 : 2;
 		if (tile.groundObject) {
+			tile.groundObject->SetCullMode(fieldCullMode);
 			tile.groundObject->SetPosition(tile.worldPosition);
 			SetObjectColor(tile.groundObject.get(), GetGroundColor(tile, selected));
 			tile.groundObject->Update(camera);
 		}
 
-		if (tile.cropObject) {
-			const bool cropVisible = tile.state == FieldState::Planted || tile.state == FieldState::ReadyToHarvest;
-			const float growth = tile.state == FieldState::ReadyToHarvest ? 1.0f : std::clamp(tile.growth, 0.0f, 1.0f);
-			if (cropVisible) {
-				const float scale = 0.35f + 0.75f * growth;
-				tile.cropObject->SetScale({ scale, 0.25f + kCropBaseHeight * growth, scale });
-				tile.cropObject->SetPosition(tile.worldPosition + Vector3{ 0.0f, 0.12f + 0.45f * growth, 0.0f });
-				SetObjectColor(tile.cropObject.get(), GetCropColor(tile));
+		if (tile.moundObject) {
+			tile.moundObject->SetCullMode(fieldCullMode);
+			const bool moundVisible = tile.state != FieldState::Empty;
+			if (moundVisible) {
+				const float readyPulse = tile.state == FieldState::ReadyToHarvest
+					? 0.5f + 0.5f * std::sin(selectionPulseTimer_ * 8.0f)
+					: 0.0f;
+				const float moundScale = tile.state == FieldState::ReadyToHarvest
+					? 1.08f + 0.04f * readyPulse
+					: 1.0f;
+				tile.moundObject->SetScale({ moundScale, 1.0f, moundScale });
+				tile.moundObject->SetPosition(tile.worldPosition + Vector3{ 0.0f, 0.055f, 0.0f });
+				SetObjectColor(tile.moundObject.get(), GetMoundColor(tile.state));
 			} else {
-				tile.cropObject->SetScale({ 0.0f, 0.0f, 0.0f });
+				tile.moundObject->SetScale({ 0.0f, 0.0f, 0.0f });
 			}
-			tile.cropObject->Update(camera);
+			tile.moundObject->Update(camera);
+		}
+
+		const bool cropVisible = tile.state == FieldState::Planted || tile.state == FieldState::ReadyToHarvest;
+		const float growth = tile.state == FieldState::ReadyToHarvest ? 1.0f : std::clamp(tile.growth, 0.0f, 1.0f);
+		const float readyPulse = tile.state == FieldState::ReadyToHarvest
+			? 0.5f + 0.5f * std::sin(selectionPulseTimer_ * 8.0f)
+			: 0.0f;
+		const Vector3 cropBase = tile.worldPosition + Vector3{ 0.0f, 0.12f, 0.0f };
+
+		if (!cropVisible) {
+			HideAndUpdateObject(tile.cropStemObject.get(), camera);
+			HideAndUpdateObject(tile.cropLeafLeftObject.get(), camera);
+			HideAndUpdateObject(tile.cropLeafRightObject.get(), camera);
+			HideAndUpdateObject(tile.cropFruitObject.get(), camera);
+			continue;
+		}
+
+		if (tile.cropStemObject) {
+			tile.cropStemObject->SetCullMode(fieldCullMode);
+			tile.cropStemObject->SetRotation({ 0.0f, 0.0f, 0.0f });
+			if (growth < 0.30f) {
+				const float sproutHeight = 0.14f + 0.22f * (growth / 0.30f);
+				tile.cropStemObject->SetScale({ 0.11f, sproutHeight, 0.11f });
+				tile.cropStemObject->SetPosition(cropBase + Vector3{ 0.0f, sproutHeight * 0.5f, 0.0f });
+				SetObjectColor(tile.cropStemObject.get(), { 0.20f, 0.95f, 0.25f, 1.0f });
+			} else {
+				const float stemGrowth = std::clamp((growth - 0.30f) / 0.70f, 0.0f, 1.0f);
+				const float stemHeight = 0.38f + 0.24f * stemGrowth + 0.035f * readyPulse;
+				tile.cropStemObject->SetScale({ 0.08f, stemHeight, 0.08f });
+				tile.cropStemObject->SetPosition(cropBase + Vector3{ 0.0f, stemHeight * 0.5f, 0.0f });
+				SetObjectColor(tile.cropStemObject.get(), { 0.14f, 0.62f + 0.18f * stemGrowth, 0.20f, 1.0f });
+			}
+			tile.cropStemObject->Update(camera);
+		}
+
+		const bool leafVisible = growth >= 0.22f;
+		if (leafVisible) {
+			const float leafGrowth = std::clamp((growth - 0.22f) / 0.58f, 0.0f, 1.0f);
+			const float leafY = 0.30f + 0.08f * leafGrowth + 0.015f * readyPulse;
+			const Vector3 leafScale = {
+				0.24f + 0.10f * leafGrowth,
+				0.045f,
+				0.12f + 0.04f * leafGrowth
+			};
+			const Vector4 leafColor = {
+				0.18f,
+				0.82f + 0.12f * leafGrowth,
+				0.22f,
+				1.0f
+			};
+
+			if (tile.cropLeafLeftObject) {
+				tile.cropLeafLeftObject->SetCullMode(fieldCullMode);
+				tile.cropLeafLeftObject->SetScale(leafScale);
+				tile.cropLeafLeftObject->SetRotation({ 0.0f, -0.25f, 0.35f });
+				tile.cropLeafLeftObject->SetPosition(cropBase + Vector3{ -0.17f - 0.05f * leafGrowth, leafY, 0.0f });
+				SetObjectColor(tile.cropLeafLeftObject.get(), leafColor);
+				tile.cropLeafLeftObject->Update(camera);
+			}
+			if (tile.cropLeafRightObject) {
+				tile.cropLeafRightObject->SetCullMode(fieldCullMode);
+				tile.cropLeafRightObject->SetScale(leafScale);
+				tile.cropLeafRightObject->SetRotation({ 0.0f, 0.25f, -0.35f });
+				tile.cropLeafRightObject->SetPosition(cropBase + Vector3{ 0.17f + 0.05f * leafGrowth, leafY, 0.0f });
+				SetObjectColor(tile.cropLeafRightObject.get(), leafColor);
+				tile.cropLeafRightObject->Update(camera);
+			}
+		} else {
+			HideAndUpdateObject(tile.cropLeafLeftObject.get(), camera);
+			HideAndUpdateObject(tile.cropLeafRightObject.get(), camera);
+		}
+
+		const bool fruitVisible = tile.state == FieldState::ReadyToHarvest || growth >= 0.82f;
+		if (fruitVisible && tile.cropFruitObject) {
+			const float fruitGrowth = tile.state == FieldState::ReadyToHarvest
+				? 1.0f
+				: std::clamp((growth - 0.82f) / 0.18f, 0.0f, 1.0f);
+			const float fruitSize = 0.16f + 0.14f * fruitGrowth + 0.025f * readyPulse;
+			const float fruitY = 0.66f + 0.035f * readyPulse;
+			tile.cropFruitObject->SetCullMode(fieldCullMode);
+			tile.cropFruitObject->SetRotation({ 0.0f, selectionPulseTimer_ * 0.35f, 0.0f });
+			tile.cropFruitObject->SetScale({ fruitSize, fruitSize, fruitSize });
+			tile.cropFruitObject->SetPosition(cropBase + Vector3{ 0.0f, fruitY, 0.0f });
+			SetObjectColor(tile.cropFruitObject.get(), {
+				1.0f,
+				0.66f + 0.22f * readyPulse,
+				0.08f + 0.08f * fruitGrowth,
+				1.0f
+				});
+			tile.cropFruitObject->Update(camera);
+		} else {
+			HideAndUpdateObject(tile.cropFruitObject.get(), camera);
 		}
 	}
 }
@@ -576,6 +797,23 @@ void FieldManager::SetObjectColor(Object3d* object, const Vector4& color) {
 	object->GetMaterialData()->environmentCoefficient = 0.0f;
 }
 
+void FieldManager::InitializeCropPart(std::unique_ptr<Object3d>& object, Model* model) {
+	object = std::make_unique<Object3d>();
+	object->Initialize(framework_->GetObject3dCommon());
+	object->SetModel(model);
+	object->SetTexture(fieldTextureHandle_);
+	object->SetEnvironmentCoefficient(0.0f);
+	object->SetScale({ 0.0f, 0.0f, 0.0f });
+}
+
+void FieldManager::HideAndUpdateObject(Object3d* object, Camera* camera) {
+	if (!object) {
+		return;
+	}
+	object->SetScale({ 0.0f, 0.0f, 0.0f });
+	object->Update(camera);
+}
+
 void FieldManager::SetTileFlash(FieldTile& tile, const Vector4& color, float duration) {
 	tile.actionFlashColor = color;
 	tile.actionFlashTimer = (std::max)(duration, 0.0f);
@@ -618,25 +856,6 @@ Vector4 FieldManager::GetGroundColor(const FieldTile& tile, bool selected) const
 		color = LerpColor(color, { 1.0f, 0.95f, 0.18f, 1.0f }, 0.22f);
 	}
 	return color;
-}
-
-Vector4 FieldManager::GetCropColor(const FieldTile& tile) const {
-	if (tile.state == FieldState::ReadyToHarvest) {
-		const float pulse = 0.5f + 0.5f * std::sin(selectionPulseTimer_ * 8.0f);
-		return {
-			1.0f,
-			0.85f + 0.12f * pulse,
-			0.15f + 0.18f * pulse,
-			1.0f
-		};
-	}
-	const float growth = std::clamp(tile.growth, 0.0f, 1.0f);
-	return {
-		0.20f + growth * 0.20f,
-		0.95f - growth * 0.08f,
-		0.25f,
-		1.0f,
-	};
 }
 
 bool FieldManager::IsValidIndex(int index) const {

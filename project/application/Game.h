@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "base/Framework.h"
 #include "math/Matrix.h"	
 #include <chrono>
@@ -8,19 +8,18 @@
 #include <string>
 #include <vector>
 #include "effect/PostProcess.h"
+#include "effect/PostEffectManager.h"
+#include "GameplayEffectManager.h"
 
 class SceneFactory;
-class SkinningDebugWindow;
-class PostEffectManager;
-class GameplayEffectManager;
 class FloatingTextSystem;
 class Sprite;
 enum class FieldActionFeedbackType;
 
 /**
- * Gameクラス
- * プロジェクトのメイン管理者。エディタUI（DockSpace）と
- * ゲーム画面の表示・座標補正を担当します。
+ * Main game application.
+ * Owns high-level application systems such as scene management, debug UI,
+ * post effects, and release-visible gameplay HUD.
  */
 class Game : public Framework {
 public:
@@ -38,28 +37,38 @@ public:
 	void DrawGameplayEffects();
 	void DrawGameplayEffectImGui();
 
-	// 各シーンから「補正後のマウス座標」を取得するための関数
+	// Mouse position converted to the current Game Viewport coordinate space.
 	static Vector2 GetMousePosInViewport() { return mousePosInViewport_; }
 
 private:
 	enum class AutoDemoStage {
 		Idle,
-		NormalHarvest,
-		WaitAfterHarvest,
-		DigitalRareHarvest,
-		SwitchSkybox,
+		InitializeField,
+		WaitBeforeTill,
+		TillTiles,
+		WaitAfterTill,
+		WaterTiles,
+		WaitAfterWater,
+		PlantTiles,
+		GrowTiles,
+		WaitReady,
+		HarvestTiles,
+		WaitBeforeDigitalImpact,
+		DigitalImpact,
 		Finished,
 	};
 
 	void ApplyDemoRecordingModeSettings();
+	void SetPresentationMode(bool enabled);
 	void StartAutoDemoSequence();
+	void StopAutoDemoSequence();
 	void UpdateAutoDemoSequence(float deltaTime);
 	void DrawDemoRecordingImGui(class GamePlayScene* playScene);
 	void InitializeRuntimeTextTextures();
 	void InitializeGameplayHud();
 	void DrawGameplayEffectSprites();
 	void DrawGameplayHud(class GamePlayScene* playScene);
-	void ShowFieldActionMessage(FieldActionFeedbackType type);
+	void ShowFieldActionMessage(FieldActionFeedbackType type, const Vector3& worldPosition);
 
 	std::unique_ptr<SceneFactory> sceneFactory_;
 
@@ -117,11 +126,13 @@ private:
 	Vector2 gameViewportImageSize_ = { 0.0f, 0.0f };
 
 	bool demoRecordingMode_ = false;
-	bool hideDebugUI_ = false;
+	bool presentationMode_ = true;
+	bool hideDebugUI_ = true;
 	bool showGameplayHud_ = true;
 	bool autoDemoSequenceActive_ = false;
 	AutoDemoStage autoDemoStage_ = AutoDemoStage::Idle;
 	float autoDemoTimer_ = 0.0f;
+	int autoDemoTileCursor_ = 0;
 	std::unique_ptr<FloatingTextSystem> floatingTextSystem_;
 
 	uint32_t hudWhiteTextureHandle_ = 0;
@@ -132,7 +143,6 @@ private:
 	uint32_t hudMoistureLabelTextureHandle_ = 0;
 	std::array<uint32_t, 5> hudStateTextureHandles_{};
 	std::array<uint32_t, 5> hudNextTextureHandles_{};
-	std::array<uint32_t, 4> hudActionTextureHandles_{};
 	std::array<uint32_t, 101> hudPercentTextureHandles_{};
 	std::unique_ptr<Sprite> hudControlsPanelSprite_;
 	std::unique_ptr<Sprite> hudControlsLine1Sprite_;
@@ -150,15 +160,11 @@ private:
 	std::unique_ptr<Sprite> hudNextActionSprite_;
 	std::unique_ptr<Sprite> hudGrowthPercentSprite_;
 	std::unique_ptr<Sprite> hudMoisturePercentSprite_;
-	std::unique_ptr<Sprite> hudActionMessageSprite_;
-	float hudActionMessageTimer_ = 0.0f;
-	int hudActionMessageIndex_ = -1;
 
-	// 計算・補正されたマウス座標を保持
+	// Cached mouse position in the Game Viewport after scaling and offset correction.
 	static Vector2 mousePosInViewport_;
 
 	std::unique_ptr<PostProcess> postProcess_;
 	std::unique_ptr<PostEffectManager> postEffectManager_;
 	std::unique_ptr<GameplayEffectManager> gameplayEffectManager_;
-	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
 };
