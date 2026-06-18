@@ -332,6 +332,13 @@ const FieldTile* FieldManager::GetSelectedTile() const {
 	return &tiles_[selectedIndex_];
 }
 
+const FieldTile* FieldManager::GetTile(int index) const {
+	if (!IsValidIndex(index)) {
+		return nullptr;
+	}
+	return &tiles_[index];
+}
+
 int FieldManager::GetVisibleTileCount() const {
 	int visibleCount = 0;
 	for (const FieldTile& tile : tiles_) {
@@ -378,6 +385,20 @@ Vector3 FieldManager::GetFieldCenter() const {
 	}
 	center /= static_cast<float>(tiles_.size());
 	return center;
+}
+
+Vector3 FieldManager::GetDemoFieldWorldPosition(int index) const {
+	if (tiles_.empty()) {
+		return { 0.0f, kGroundY, 0.0f };
+	}
+
+	const int clampedIndex = std::clamp(index, 0, kGridWidth - 1);
+	const int middleRow = kGridHeight / 2;
+	const int tileIndex = middleRow * kGridWidth + clampedIndex;
+	if (!IsValidIndex(tileIndex)) {
+		return GetFieldCenter();
+	}
+	return tiles_[tileIndex].worldPosition;
 }
 
 void FieldManager::SelectTile(int index) {

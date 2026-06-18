@@ -21,6 +21,7 @@
 #include "FieldManager.h"
 #include <algorithm>
 #include <cmath>
+#include <sstream>
 #include <random>
 
 namespace {
@@ -106,6 +107,7 @@ bool GamePlayScene::ConsumeFieldHarvestEvent(Vector3& outPosition, int32_t& outP
  */
 void GamePlayScene::Initialize() {
 	framework_ = Framework::GetInstance();
+	particleManager_ = framework_ ? framework_->GetParticleManager() : nullptr;
 
 	// ログ記録：UIと外部出力の両方に行われます
 	AddLog("Scene: GamePlay Initialized.");
@@ -142,6 +144,9 @@ void GamePlayScene::Initialize() {
 
 	fieldManager_ = std::make_unique<FieldManager>();
 	fieldManager_->Initialize(framework_);
+	cropBurstSelectedIndex_ = 1;
+	cropBurstEffectPosition_ = fieldManager_->GetDemoFieldWorldPosition(cropBurstSelectedIndex_);
+	fieldManager_->TrySelectTileByWorldPosition(cropBurstEffectPosition_);
 
 	// ---------------------------------------------------------
 	// 3. モデルデータのロード
@@ -319,7 +324,9 @@ void GamePlayScene::Update() {
 	UpdateObjectLights(terrainObj_.get(), 0.0f);
 	UpdateObjectLights(object3d_.get(), 0.0f);
 	UpdateObjectLights(animObj_.get(), 0.5f);
+	bool cropBurstInputHandled = false;
 	if (fieldManager_) {
+		cropBurstInputHandled = UpdateCropBurstDebugInput();
 		fieldManager_->Update(sceneDeltaTime_, camera_.get());
 	}
 
@@ -330,7 +337,9 @@ void GamePlayScene::Update() {
 	}
 
 	// スペースキー入力時の分岐（activeParticleType_ は Game.cpp の ImGui から書き換わる）
-	if (framework_->GetInput()->TriggerKey(DIK_SPACE)) {
+	if (!cropBurstInputHandled &&
+		gpuParticleDebugMode_ != GPUParticleDebugMode::Off &&
+		framework_->GetInput()->TriggerKey(DIK_SPACE)) {
 		switch (activeParticleType_) {
 		case 0: EmitSpark(spherePos_); break;
 		case 1: EmitRingEffect(spherePos_); break;
@@ -449,8 +458,8 @@ void GamePlayScene::Draw() {
 		LineDrawer::GetInstance()->Draw(camera_->GetViewProjectionMatrix());
 	}
 
-	if (showParticles_) {
-		ParticleManager* particleManager = framework_->GetParticleManager();
+	if (particleManager_ && showParticles_) {
+		ParticleManager* particleManager = particleManager_;
 		if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
 			particleManager->Draw(false);
 
@@ -478,6 +487,10 @@ void GamePlayScene::Draw() {
 		} else {
 			particleManager->Draw();
 		}
+	}
+
+	if (particleManager_) {
+		particleManager_->DrawAccentFX();
 	}
 }
 
@@ -859,6 +872,72 @@ void GamePlayScene::HandleInteractionParticleInput() {
 			? InteractionBrushOperation::Pull
 			: InteractionBrushOperation::Push;
 	}
+}
+
+bool GamePlayScene::UpdateCropBurstDebugInput() {
+	if (!framework_ || !framework_->GetInput() || !fieldManager_) {
+		return false;
+	}
+
+	Input* input = framework_->GetInput();
+	bool handledCropBurstPlay = false;
+	auto selectCropBurstField = [this](int demoIndex) {
+		cropBurstSelectedIndex_ = std::clamp(demoIndex, 0, 2);
+		cropBurstEffectPosition_ = fieldManager_->GetDemoFieldWorldPosition(cropBurstSelectedIndex_);
+		fieldManager_->TrySelectTileByWorldPosition(cropBurstEffectPosition_);
+		fieldMouseSelectedIndex_ = fieldManager_->GetSelectedIndex();
+
+		std::ostringstream log;
+		log << "[CropBurst] select field index=" << cropBurstSelectedIndex_;
+		AddLog(log.str());
+	};
+
+	if (input->TriggerKey(DIK_1)) {
+		selectCropBurstField(0);
+	}
+	if (input->TriggerKey(DIK_2)) {
+		selectCropBurstField(1);
+	}
+	if (input->TriggerKey(DIK_3)) {
+		selectCropBurstField(2);
+	}
+
+	if (input->TriggerKey(DIK_SPACE)) {
+		AddLog("[CropBurst] Space pressed");
+		Vector3 playPosition = cropBurstEffectPosition_;
+		playPosition.y += 0.5f;
+		handledCropBurstPlay = true;
+
+		if (!particleManager_) {
+			AddLog("[CropBurst] ParticleManager is null");
+			return handledCropBurstPlay;
+		}
+
+		particleManager_->PlayCropBurst(playPosition, CropBurstLevel::Normal);
+
+		std::ostringstream log;
+		log << "[CropBurst] play crop burst pos=("
+			<< playPosition.x << ", "
+			<< playPosition.y << ", "
+			<< playPosition.z << ")";
+		AddLog(log.str());
+	}
+
+	if (viewportHovered_ &&
+		fieldMouseHit_ &&
+		ImGui::GetIO().KeyShift &&
+		ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+		Vector3 playPosition = fieldMouseHitPosition_;
+		playPosition.y += 0.5f;
+		cropBurstEffectPosition_ = fieldMouseHitPosition_;
+		fieldManager_->TrySelectTileByWorldPosition(cropBurstEffectPosition_);
+		fieldMouseSelectedIndex_ = fieldManager_->GetSelectedIndex();
+		framework_->GetParticleManager()->PlayCropBurst(
+			playPosition,
+			CropBurstLevel::Strong);
+	}
+
+	return handledCropBurstPlay;
 }
 
 void GamePlayScene::EmitAgricultureParticle(AgricultureParticleType type) {

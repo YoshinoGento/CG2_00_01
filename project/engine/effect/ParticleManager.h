@@ -79,6 +79,20 @@ enum class InteractionBrushOperation : uint32_t {
     Pull = 2,
 };
 
+enum class CropBurstLevel : uint32_t {
+    Normal = 0,
+    Strong = 1,
+    Rare = 2,
+};
+
+enum class CropBurstPhase : uint32_t {
+    None = 0,
+    Absorb = 1,
+    Impact = 2,
+    Burst = 3,
+    Fade = 4,
+};
+
 struct GPUParticleInteractionSettings {
     Vector3 gridCenter;
     float particleSize;
@@ -118,6 +132,9 @@ public:
     void RequestGPUParticleEmit(const Vector3& position, uint32_t count);
     void RequestGPUParticleEmit(const GPUParticleEmitSettings& settings);
     void ResetGPUParticles();
+    void PlayCropBurst(const Vector3& center, CropBurstLevel level = CropBurstLevel::Normal);
+    void DrawAccentFX();
+    bool IsCropBurstActive() const { return cropBurstActive_; }
 
     // グループ作成
     void CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model = nullptr);
@@ -160,10 +177,16 @@ private:
     void CreateGPUParticleInteractionComputePipelineStates();
     void CreateGPUParticleGraphicsRootSignature();
     void CreateGPUParticleGraphicsPipelineState();
+    void CreateAccentFXResources();
+    void CreateAccentFXComputePipelineStates();
     void InitializeGPUParticles();
     void EmitGPUParticles();
     void UpdateGPUParticles();
     void DrawGPUParticles();
+    void InitializeAccentParticles();
+    void EmitAccentParticles();
+    void UpdateAccentParticles();
+    void DrawAccentParticleBuffer();
     bool TryGetGPUParticleTextureHandle(uint32_t& textureHandle) const;
 
 private:
@@ -226,6 +249,20 @@ private:
     };
     static_assert(sizeof(UpdateParticleInfo) == 16, "UpdateParticleInfo must be 16 bytes.");
 
+    struct CropBurstInfo {
+        Vector3 center;
+        float radiusSq;
+        float strength;
+        uint32_t phase;
+        float phaseTime;
+        float deltaTime;
+        float maxSpeed;
+        uint32_t particleCount;
+        float timeScale;
+        uint32_t padding;
+    };
+    static_assert(sizeof(CropBurstInfo) == 48, "CropBurstInfo layout must match HLSL.");
+
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleResource_;
     uint32_t gpuParticleSrvHandle_ = UINT32_MAX;
     uint32_t gpuParticleUavHandle_ = UINT32_MAX;
@@ -249,6 +286,32 @@ private:
     bool gpuParticlesInitialized_ = false;
     bool gpuParticleInteractionInitialized_ = false;
 
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> accentInitializeComputePipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> accentEmitComputePipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> accentUpdateComputePipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12Resource> accentParticleResource_;
+    uint32_t accentParticleSrvHandle_ = UINT32_MAX;
+    uint32_t accentParticleUavHandle_ = UINT32_MAX;
+    D3D12_RESOURCE_STATES accentParticleResourceState_ = D3D12_RESOURCE_STATE_COMMON;
+    Microsoft::WRL::ComPtr<ID3D12Resource> accentFreeListIndexResource_;
+    uint32_t accentFreeListIndexUavHandle_ = UINT32_MAX;
+    D3D12_RESOURCE_STATES accentFreeListIndexResourceState_ = D3D12_RESOURCE_STATE_COMMON;
+    Microsoft::WRL::ComPtr<ID3D12Resource> accentFreeListResource_;
+    uint32_t accentFreeListUavHandle_ = UINT32_MAX;
+    D3D12_RESOURCE_STATES accentFreeListResourceState_ = D3D12_RESOURCE_STATE_COMMON;
+    Microsoft::WRL::ComPtr<ID3D12Resource> accentEmitterResource_;
+    GPUParticleEmitSettings* accentEmitter_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> cropBurstInfoResource_;
+    CropBurstInfo* cropBurstInfo_ = nullptr;
+    bool accentParticlesInitialized_ = false;
+    bool accentEmitRequested_ = false;
+    bool cropBurstActive_ = false;
+    CropBurstLevel cropBurstLevel_ = CropBurstLevel::Normal;
+    CropBurstPhase cropBurstPhase_ = CropBurstPhase::None;
+    Vector3 cropBurstCenter_ = { 0.0f, 0.0f, 0.0f };
+    float cropBurstPhaseTimer_ = 0.0f;
+    uint32_t cropBurstEmitCount_ = 0;
+
     // discardしきい値用の定数バッファ
     // GPU側のピクセルシェーダーに渡すためのバッファ
     struct MaterialData {
@@ -261,6 +324,7 @@ private:
 
     static const uint32_t kMaxInstanceCount = 1024;
     static constexpr uint32_t kMaxGPUParticleCount = 1024;
+    static constexpr uint32_t kMaxAccentParticleCount = 512;
     std::map<std::string, ParticleGroup> particleGroups_;
 
 };

@@ -244,6 +244,9 @@ void Game::PlayHarvestEffect(const Vector3& position, int32_t price) {
 			position,
 			gameplayEffectManager_->GetHarvestBurstParticleCount());
 	}
+	if (particleManager_) {
+		particleManager_->PlayCropBurst(position, CropBurstLevel::Normal);
+	}
 }
 
 void Game::PlayDigitalImpactEffect(const Vector3& position) {
@@ -1466,6 +1469,9 @@ void Game::Update() {
 		bool rareHarvest = false;
 		if (playScene->ConsumeFieldHarvestEvent(harvestPosition, harvestPrice, rareHarvest)) {
 			PlayHarvestEffect(harvestPosition, harvestPrice);
+			if (rareHarvest && particleManager_) {
+				particleManager_->PlayCropBurst(harvestPosition, CropBurstLevel::Rare);
+			}
 			if (rareHarvest && !autoDemoSequenceActive_) {
 				PlayDigitalImpactEffect(harvestPosition);
 			}

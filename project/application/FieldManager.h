@@ -61,10 +61,12 @@ public:
 
 	FieldTile* GetSelectedTile();
 	const FieldTile* GetSelectedTile() const;
+	const FieldTile* GetTile(int index) const;
 	int GetSelectedIndex() const { return selectedIndex_; }
 	int GetTileCount() const { return static_cast<int>(tiles_.size()); }
 	int GetVisibleTileCount() const;
 	Vector3 GetFieldCenter() const;
+	Vector3 GetDemoFieldWorldPosition(int index) const;
 	float GetGroundY() const;
 	void SelectTile(int index);
 	void ResetAllTilesForAutoDemo(int selectedIndex);

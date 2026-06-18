@@ -85,6 +85,7 @@ private:
 	void HandleGPUParticleDebugModeInput();
 	void HandleAgricultureParticleInput();
 	void HandleInteractionParticleInput();
+	bool UpdateCropBurstDebugInput();
 	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
 
 	// エフェクト発生関数
@@ -94,6 +95,7 @@ private:
 
 private:
 	Framework* framework_ = nullptr;
+	ParticleManager* particleManager_ = nullptr;
 	std::unique_ptr<Sprite> sprite_;
 	std::unique_ptr<Object3d> object3d_;
 	std::unique_ptr<Camera> camera_;
@@ -175,6 +177,8 @@ private:
 	Vector3 fieldMouseRayDirection_ = { 0.0f, 0.0f, 1.0f };
 	Vector3 fieldMouseHitPosition_ = { 0.0f, 0.0f, 0.0f };
 	int fieldMouseSelectedIndex_ = -1;
+	int cropBurstSelectedIndex_ = 1;
+	Vector3 cropBurstEffectPosition_ = { 0.0f, 0.0f, 0.0f };
 
 	// Cylinderパラメータ（ImGuiで操作可能）
 	float cylTopRadius_ = 1.0f;       // 上面の半径
