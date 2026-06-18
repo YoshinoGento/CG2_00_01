@@ -72,20 +72,62 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
     }
 
-    // Spherical distribution using golden angle
+    // Deterministic layout for a readable hit-effect silhouette:
+    //  - first particles: central flash
+    //  - middle particles: horizontal digital shock ring
+    //  - remaining particles: upper spark shell
     float t = ((float) i + 0.5f) / max((float) emitCount, 1.0f);
     float angle = (float) i * 2.39996323f; // golden angle
-    float y = 1.0f - 2.0f * t;
-    float radial = sqrt(max(1.0f - y * y, 0.0f));
-    float radiusScale = pow(t, 1.0f / 3.0f);
-    float3 direction = float3(cos(angle) * radial, y, sin(angle) * radial);
-    float3 offset = direction * gEmitter.radius * radiusScale;
+    float3 direction = float3(0.0f, 1.0f, 0.0f);
+    float3 offset = float3(0.0f, 0.0f, 0.0f);
+    float initialSpeedScale = 1.0f;
+
+    if (i < 32)
+    {
+        float flashAngle = (float) i * 0.3926991f;
+        float flashRadius = 0.10f + 0.14f * frac((float) i * 0.6180339f);
+        direction = normalize(float3(cos(flashAngle) * 0.4f, 1.0f, sin(flashAngle) * 0.4f));
+        offset = float3(cos(flashAngle) * flashRadius, 0.18f, sin(flashAngle) * flashRadius);
+        initialSpeedScale = 0.15f;
+    }
+    else if (i < 224)
+    {
+        float ringIndex = (float) (i - 32);
+        float ringAngle = ringIndex * 0.19634954f;
+        float ringJitter = ((float) (i % 5) - 2.0f) * 0.035f;
+        float ringRadius = gEmitter.radius * (0.65f + 0.18f * frac(ringIndex * 0.37f));
+        direction = normalize(float3(cos(ringAngle), 0.18f + ringJitter, sin(ringAngle)));
+        offset = float3(direction.x, 0.05f + ringJitter, direction.z) * ringRadius;
+        initialSpeedScale = 0.45f;
+    }
+    else
+    {
+        float y = 0.15f + 0.85f * frac(t * 2.71f);
+        float radial = sqrt(max(1.0f - y * y * 0.45f, 0.0f));
+        float radiusScale = pow(t, 0.45f);
+        direction = normalize(float3(cos(angle) * radial, y, sin(angle) * radial));
+        offset = direction * gEmitter.radius * radiusScale;
+        initialSpeedScale = 0.75f;
+    }
 
     Particle particle;
     particle.translate = gEmitter.translate + offset;
     particle.scale = gEmitter.scale;
-    particle.lifeTime = gEmitter.lifeTime;
-    particle.velocity = gEmitter.baseVelocity + direction * gEmitter.speed;
+    if (i < 32)
+    {
+        particle.scale *= 1.9f;
+        particle.lifeTime = min(gEmitter.lifeTime, 0.55f);
+    }
+    else if (i < 224)
+    {
+        particle.scale *= 1.25f;
+        particle.lifeTime = gEmitter.lifeTime * 0.88f;
+    }
+    else
+    {
+        particle.lifeTime = gEmitter.lifeTime;
+    }
+    particle.velocity = gEmitter.baseVelocity + direction * gEmitter.speed * initialSpeedScale;
     particle.currentTime = 0.0f;
     particle.isAlive = 1;
 

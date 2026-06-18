@@ -218,6 +218,16 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
 	ApplyCleanDemoScene();
+	cropBurstEffectPosition_ = fieldManager_->GetDemoFieldWorldPosition(cropBurstSelectedIndex_);
+	if (particleManager_) {
+		Vector3 playPosition = cropBurstEffectPosition_;
+		playPosition.y += 0.8f;
+		particleManager_->PlayCropBurst(playPosition, CropBurstLevel::Rare);
+		cropBurstAutoPlayed_ = true;
+		cropBurstAutoTimer_ = 0.0f;
+		cropBurstLoopTimer_ = 0.0f;
+		AddLog("[CropBurst] initial release-visible play");
+	}
 
 }
 
@@ -328,6 +338,7 @@ void GamePlayScene::Update() {
 	if (fieldManager_) {
 		cropBurstInputHandled = UpdateCropBurstDebugInput();
 		fieldManager_->Update(sceneDeltaTime_, camera_.get());
+		UpdateCropBurstAutoPlayback(sceneDeltaTime_);
 	}
 
 	if (sphereObj_) {
@@ -355,6 +366,7 @@ void GamePlayScene::Update() {
 	}
 
 	SyncGPUParticleDebugModeChange();
+	HandleReleaseParticleInteractionInput(sceneDeltaTime_);
 	HandleGPUParticleDebugModeInput();
 
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Off && framework_->GetInput()->TriggerKey(DIK_G)) {
@@ -575,6 +587,9 @@ void GamePlayScene::ApplyCleanDemoScene() {
 	if (framework_ && framework_->GetParticleManager()) {
 		framework_->GetParticleManager()->ResetGPUParticles();
 	}
+	cropBurstAutoPlayed_ = false;
+	cropBurstAutoTimer_ = 0.0f;
+	cropBurstLoopTimer_ = 0.0f;
 
 	if (skyboxManager_) {
 		skyboxManager_->SetMode(SkyboxManager::SkyboxMode::SolidColor);
@@ -852,6 +867,60 @@ void GamePlayScene::HandleAgricultureParticleInput() {
 	}
 }
 
+void GamePlayScene::HandleReleaseParticleInteractionInput(float deltaTime) {
+	if (!framework_ || !framework_->GetInput() || !fieldManager_) {
+		return;
+	}
+
+	Input* input = framework_->GetInput();
+
+	auto setupInteractionAtSelectedField = [this]() {
+		const Vector3 fieldPosition = fieldManager_->GetDemoFieldWorldPosition(cropBurstSelectedIndex_);
+		interactionGridCenter_ = fieldPosition + Vector3{ 0.0f, 1.0f, 0.0f };
+		interactionBrushPosition_ = interactionGridCenter_;
+		interactionGridCount_ = std::clamp(interactionGridCount_, 5, 8);
+		interactionParticleSize_ = std::clamp(interactionParticleSize_, 0.025f, 0.05f);
+		interactionBrushRadius_ = (std::max)(interactionBrushRadius_, 1.8f);
+		interactionBrushStrength_ = (std::max)(interactionBrushStrength_, 7.0f);
+		interactionDamping_ = std::clamp(interactionDamping_, 0.90f, 0.985f);
+		interactionParticleCount_ = CalculateInteractionParticleCount();
+		SetGPUParticleDebugMode(GPUParticleDebugMode::Interaction);
+		interactionResetRequested_ = true;
+	};
+
+	if (input->TriggerKey(DIK_K)) {
+		if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
+			SetGPUParticleDebugMode(GPUParticleDebugMode::Off);
+			releaseInteractionOperation_ = InteractionBrushOperation::None;
+			releaseInteractionTimer_ = 0.0f;
+			AddLog("[ParticleInteraction] release mode off");
+		} else {
+			setupInteractionAtSelectedField();
+			AddLog("[ParticleInteraction] release mode on");
+		}
+	}
+
+	auto triggerInteraction = [&](InteractionBrushOperation operation, const char* logMessage) {
+		setupInteractionAtSelectedField();
+		releaseInteractionOperation_ = operation;
+		releaseInteractionTimer_ = releaseInteractionDuration_;
+		AddLog(logMessage);
+	};
+
+	if (input->TriggerKey(DIK_O)) {
+		triggerInteraction(InteractionBrushOperation::Push, "[ParticleInteraction] push");
+	}
+	if (input->TriggerKey(DIK_P)) {
+		triggerInteraction(InteractionBrushOperation::Pull, "[ParticleInteraction] pull");
+	}
+
+	if (releaseInteractionTimer_ > 0.0f) {
+		releaseInteractionTimer_ = (std::max)(0.0f, releaseInteractionTimer_ - deltaTime);
+	} else {
+		releaseInteractionOperation_ = InteractionBrushOperation::None;
+	}
+}
+
 void GamePlayScene::HandleInteractionParticleInput() {
 	interactionGridCount_ = std::clamp(interactionGridCount_, 1, 10);
 	interactionParticleSize_ = std::clamp(interactionParticleSize_, 0.02f, 0.05f);
@@ -867,7 +936,9 @@ void GamePlayScene::HandleInteractionParticleInput() {
 	}
 
 	interactionBrushOperation_ = InteractionBrushOperation::None;
-	if (hasBrushPosition && viewportHovered_ && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+	if (releaseInteractionOperation_ != InteractionBrushOperation::None && releaseInteractionTimer_ > 0.0f) {
+		interactionBrushOperation_ = releaseInteractionOperation_;
+	} else if (hasBrushPosition && viewportHovered_ && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
 		interactionBrushOperation_ = ImGui::GetIO().KeyShift
 			? InteractionBrushOperation::Pull
 			: InteractionBrushOperation::Push;
@@ -913,7 +984,7 @@ bool GamePlayScene::UpdateCropBurstDebugInput() {
 			return handledCropBurstPlay;
 		}
 
-		particleManager_->PlayCropBurst(playPosition, CropBurstLevel::Normal);
+		particleManager_->PlayCropBurst(playPosition, CropBurstLevel::Rare);
 
 		std::ostringstream log;
 		log << "[CropBurst] play crop burst pos=("
@@ -925,6 +996,7 @@ bool GamePlayScene::UpdateCropBurstDebugInput() {
 
 	if (viewportHovered_ &&
 		fieldMouseHit_ &&
+		particleManager_ &&
 		ImGui::GetIO().KeyShift &&
 		ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 		Vector3 playPosition = fieldMouseHitPosition_;
@@ -932,12 +1004,46 @@ bool GamePlayScene::UpdateCropBurstDebugInput() {
 		cropBurstEffectPosition_ = fieldMouseHitPosition_;
 		fieldManager_->TrySelectTileByWorldPosition(cropBurstEffectPosition_);
 		fieldMouseSelectedIndex_ = fieldManager_->GetSelectedIndex();
-		framework_->GetParticleManager()->PlayCropBurst(
+		particleManager_->PlayCropBurst(
 			playPosition,
 			CropBurstLevel::Strong);
 	}
 
 	return handledCropBurstPlay;
+}
+
+void GamePlayScene::UpdateCropBurstAutoPlayback(float deltaTime) {
+	if (!fieldManager_ || !particleManager_) {
+		return;
+	}
+
+	cropBurstEffectPosition_ = fieldManager_->GetDemoFieldWorldPosition(cropBurstSelectedIndex_);
+
+	if (!cropBurstAutoPlayed_) {
+		cropBurstAutoTimer_ += deltaTime;
+		if (cropBurstAutoTimer_ >= 0.25f) {
+			Vector3 playPosition = cropBurstEffectPosition_;
+			playPosition.y += 0.8f;
+			particleManager_->PlayCropBurst(playPosition, CropBurstLevel::Rare);
+			cropBurstAutoPlayed_ = true;
+			cropBurstLoopTimer_ = 0.0f;
+			AddLog("[CropBurst] auto play on scene start");
+		}
+		return;
+	}
+
+	if (!cropBurstAutoLoop_) {
+		return;
+	}
+
+	cropBurstLoopTimer_ += deltaTime;
+	if (cropBurstLoopTimer_ >= 1.5f) {
+		cropBurstLoopTimer_ = 0.0f;
+		Vector3 playPosition = cropBurstEffectPosition_;
+		playPosition.y += 0.8f;
+		particleManager_->PlayCropBurst(playPosition, CropBurstLevel::Rare);
+		AddLog("[CropBurst] auto loop play");
+	}
 }
 
 void GamePlayScene::EmitAgricultureParticle(AgricultureParticleType type) {

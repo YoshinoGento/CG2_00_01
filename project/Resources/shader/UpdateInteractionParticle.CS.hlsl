@@ -58,12 +58,15 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         gInteraction.operation <= 2)
     {
         float3 toParticle = particle.translate - gInteraction.brushPosition;
-        float distanceToBrush = length(toParticle);
         float brushRadius = max(gInteraction.brushRadius, 0.0001f);
-        if (distanceToBrush > 0.0001f && distanceToBrush < brushRadius)
+        float radiusSq = brushRadius * brushRadius;
+        float distanceSq = dot(toParticle, toParticle);
+        if (distanceSq > 0.0001f && distanceSq < radiusSq)
         {
-            float falloff = 1.0f - saturate(distanceToBrush / brushRadius);
-            float3 pushDirection = toParticle / distanceToBrush;
+            float invDistance = rsqrt(distanceSq);
+            float distanceRatioSq = saturate(distanceSq / radiusSq);
+            float falloff = 1.0f - distanceRatioSq;
+            float3 pushDirection = toParticle * invDistance;
             float directionSign = gInteraction.operation == 2 ? -1.0f : 1.0f;
             particle.velocity += pushDirection * directionSign * gInteraction.brushStrength * falloff * dt;
         }

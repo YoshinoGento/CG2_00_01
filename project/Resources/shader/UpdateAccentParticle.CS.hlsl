@@ -76,6 +76,18 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         {
         case PHASE_ABSORB:
         {
+            if (index < 32)
+            {
+                float angle = (float) index * 0.3926991f;
+                float pulse = 1.0f + 0.45f * sin(phaseTime * 18.8496f);
+                particle.translate = center + float3(cos(angle) * 0.16f, 0.08f, sin(angle) * 0.16f) * pulse;
+                particle.velocity *= 0.2f;
+                particle.color.rgb = lerp(particle.color.rgb, float3(1.0f, 0.98f, 0.75f), 0.25f);
+                particle.color.a = saturate(0.75f + phaseTime * 0.25f);
+                particle.scale = max(particle.scale, float3(0.28f, 0.28f, 0.28f));
+                break;
+            }
+
             if (distSq < radiusSq && distSq > 0.0001f)
             {
                 float3 dir = toCenter * rsqrt(distSq);
@@ -90,9 +102,16 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         }
         case PHASE_IMPACT:
         {
-            particle.velocity *= 0.15f;
+            if (index < 32)
+            {
+                float angle = (float) index * 0.3926991f;
+                particle.translate = center + float3(cos(angle) * 0.06f, 0.1f, sin(angle) * 0.06f);
+                particle.scale = max(particle.scale, float3(0.55f, 0.55f, 0.55f));
+            }
+
+            particle.velocity *= 0.10f;
             float flashT = saturate(phaseTime * 8.0f);
-            particle.color.rgb = lerp(particle.color.rgb, float3(1.8f, 1.8f, 1.8f), flashT);
+            particle.color.rgb = lerp(particle.color.rgb, float3(1.0f, 0.98f, 0.85f), flashT);
             particle.color.a = 1.0f;
             if (distSq > 0.01f)
             {
@@ -114,12 +133,17 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
                 outDir = float3(cos(angle), 0.0f, sin(angle));
             }
 
-            outDir.y += 0.65f;
+            float ringBias = index >= 32 && index < 224 ? 0.25f : 0.65f;
+            outDir.y += ringBias;
             outDir = normalize(outDir);
-            float burstPower = strength * 2.8f * max(1.0f - phaseTime * 0.7f, 0.35f);
+            float burstPower = strength * (index < 32 ? 1.2f : 3.2f) * max(1.0f - phaseTime * 0.7f, 0.35f);
             particle.velocity += outDir * burstPower * scaledDeltaTime;
             particle.velocity.y -= 1.0f * scaledDeltaTime;
             particle.color.a = saturate(1.0f - phaseTime * 0.25f);
+            if (index >= 32 && index < 224)
+            {
+                particle.scale *= 1.0f + 0.018f * (1.0f - phaseTime);
+            }
             break;
         }
         case PHASE_FADE:

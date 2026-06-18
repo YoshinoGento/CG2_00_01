@@ -85,7 +85,9 @@ private:
 	void HandleGPUParticleDebugModeInput();
 	void HandleAgricultureParticleInput();
 	void HandleInteractionParticleInput();
+	void HandleReleaseParticleInteractionInput(float deltaTime);
 	bool UpdateCropBurstDebugInput();
+	void UpdateCropBurstAutoPlayback(float deltaTime);
 	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
 
 	// エフェクト発生関数
@@ -162,6 +164,9 @@ private:
 	uint32_t interactionParticleCount_ = 512;
 	bool interactionResetRequested_ = true;
 	InteractionBrushOperation interactionBrushOperation_ = InteractionBrushOperation::None;
+	InteractionBrushOperation releaseInteractionOperation_ = InteractionBrushOperation::None;
+	float releaseInteractionTimer_ = 0.0f;
+	float releaseInteractionDuration_ = 0.35f;
 	Vector2 viewportImageTopLeft_ = { 0.0f, 0.0f };
 	Vector2 viewportImageSize_ = { 0.0f, 0.0f };
 	Vector2 viewportMousePosition_ = { 0.0f, 0.0f };
@@ -179,6 +184,10 @@ private:
 	int fieldMouseSelectedIndex_ = -1;
 	int cropBurstSelectedIndex_ = 1;
 	Vector3 cropBurstEffectPosition_ = { 0.0f, 0.0f, 0.0f };
+	bool cropBurstAutoPlayed_ = false;
+	float cropBurstAutoTimer_ = 0.0f;
+	bool cropBurstAutoLoop_ = true;
+	float cropBurstLoopTimer_ = 0.0f;
 
 	// Cylinderパラメータ（ImGuiで操作可能）
 	float cylTopRadius_ = 1.0f;       // 上面の半径

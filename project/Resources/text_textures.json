@@ -74,7 +74,7 @@
     },
     {
       "id": "field_controls_line2",
-      "text": "J: \u30ec\u30a2\u6f14\u51fa   F2: HUD   F5: Auto Demo   F7: Presentation   F6: \u7a7a   F11: \u5168\u753b\u9762",
+      "text": "J: \u30ec\u30a2   K: \u7c92\u5b50   O: \u62e1\u6563   P: \u5438\u53ce   F2: HUD   F5: Demo   F7: Pres   F6: \u7a7a   F11: \u5168\u753b\u9762",
       "font": "Resources/fonts/KiwiMaru-Medium.ttf",
       "output": "Resources/generated/text/field_controls_line2.png",
       "fontSize": 25,

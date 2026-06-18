@@ -143,12 +143,12 @@ static uint32_t GetCropBurstEmitCount(CropBurstLevel level) {
 static float GetCropBurstStrength(CropBurstLevel level) {
     switch (level) {
     case CropBurstLevel::Strong:
-        return 7.0f;
+        return 8.0f;
     case CropBurstLevel::Rare:
-        return 9.5f;
+        return 11.0f;
     case CropBurstLevel::Normal:
     default:
-        return 5.5f;
+        return 6.2f;
     }
 }
 
@@ -423,15 +423,15 @@ void ParticleManager::PlayCropBurst(const Vector3& center, CropBurstLevel level)
     accentParticlesInitialized_ = false;
 
     accentEmitter_->translate = cropBurstCenter_;
-    accentEmitter_->radius = level == CropBurstLevel::Rare ? 2.2f : (level == CropBurstLevel::Strong ? 1.8f : 1.45f);
+    accentEmitter_->radius = level == CropBurstLevel::Rare ? 2.8f : (level == CropBurstLevel::Strong ? 2.15f : 1.65f);
     accentEmitter_->color = level == CropBurstLevel::Rare
         ? Vector4{ 0.65f, 0.95f, 1.0f, 1.0f }
         : Vector4{ 1.0f, 0.85f, 0.35f, 1.0f };
-    const float scale = level == CropBurstLevel::Rare ? 0.28f : (level == CropBurstLevel::Strong ? 0.24f : 0.20f);
+    const float scale = level == CropBurstLevel::Rare ? 0.36f : (level == CropBurstLevel::Strong ? 0.29f : 0.23f);
     accentEmitter_->scale = { scale, scale, scale };
-    accentEmitter_->lifeTime = 1.45f;
-    accentEmitter_->baseVelocity = { 0.0f, 0.12f, 0.0f };
-    accentEmitter_->speed = level == CropBurstLevel::Rare ? 1.15f : (level == CropBurstLevel::Strong ? 0.95f : 0.75f);
+    accentEmitter_->lifeTime = level == CropBurstLevel::Rare ? 1.65f : 1.45f;
+    accentEmitter_->baseVelocity = { 0.0f, 0.18f, 0.0f };
+    accentEmitter_->speed = level == CropBurstLevel::Rare ? 1.45f : (level == CropBurstLevel::Strong ? 1.10f : 0.85f);
     accentEmitter_->count = cropBurstEmitCount_;
     accentEmitter_->emit = 0;
     accentEmitter_->preset = 1;
@@ -1354,13 +1354,13 @@ void ParticleManager::UpdateAccentParticles() {
         : 0.0f;
 
     cropBurstInfo_->center = cropBurstCenter_;
-    const float radius = cropBurstLevel_ == CropBurstLevel::Rare ? 3.4f : (cropBurstLevel_ == CropBurstLevel::Strong ? 2.8f : 2.3f);
+    const float radius = cropBurstLevel_ == CropBurstLevel::Rare ? 4.0f : (cropBurstLevel_ == CropBurstLevel::Strong ? 3.2f : 2.5f);
     cropBurstInfo_->radiusSq = radius * radius;
     cropBurstInfo_->strength = GetCropBurstStrength(cropBurstLevel_);
     cropBurstInfo_->phase = static_cast<uint32_t>(cropBurstPhase_);
     cropBurstInfo_->phaseTime = normalizedPhaseTime;
     cropBurstInfo_->deltaTime = 1.0f / 60.0f;
-    cropBurstInfo_->maxSpeed = cropBurstLevel_ == CropBurstLevel::Rare ? 11.5f : (cropBurstLevel_ == CropBurstLevel::Strong ? 9.5f : 8.0f);
+    cropBurstInfo_->maxSpeed = cropBurstLevel_ == CropBurstLevel::Rare ? 13.0f : (cropBurstLevel_ == CropBurstLevel::Strong ? 10.5f : 8.5f);
     cropBurstInfo_->particleCount = kMaxAccentParticleCount;
     cropBurstInfo_->timeScale = 1.0f;
     cropBurstInfo_->padding = 0;
