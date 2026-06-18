@@ -78,6 +78,22 @@ void main()
         particle.velocity = gEmitter.baseVelocity + direction * gEmitter.speed;
         particle.currentTime = 0.0f;
         particle.color = gEmitter.color;
+        if (gEmitter.preset == 100)
+        {
+            uint colorPattern = i % 3;
+            if (colorPattern == 0)
+            {
+                particle.color = float4(0.15f, 0.72f, 1.0f, 1.0f);
+            }
+            else if (colorPattern == 1)
+            {
+                particle.color = float4(0.55f, 1.0f, 1.0f, 1.0f);
+            }
+            else
+            {
+                particle.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+            }
+        }
         particle.isAlive = 1;
 
         gParticles[particleIndex] = particle;

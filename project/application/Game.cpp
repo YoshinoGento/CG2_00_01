@@ -7,14 +7,109 @@
 #include "scene/GamePlayScene.h" 
 #include "audio/Audio.h"
 #include "3d/Object3d.h"
+#include "2d/RuntimeTextTextureGenerator.h"
+#include "2d/Sprite.h"
 #include "2d/SpriteCommon.h"
+#include "base/WinApp.h"
 #include "debug/SkinningDebugWindow.h"
+#include "FieldManager.h"
+#include "FloatingTextSystem.h"
 #include "GameplayEffectManager.h"
 #include "effect/ParticleManager.h"
 #include "effect/PostEffectManager.h"
 #include "io/Input.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+
+namespace {
+#if defined(_DEBUG) || defined(DEVELOPMENT_BUILD)
+constexpr bool kAllowDebugUi = true;
+#else
+constexpr bool kAllowDebugUi = false;
+#endif
+constexpr float kVirtualScreenWidth = 1280.0f;
+constexpr float kVirtualScreenHeight = 720.0f;
+constexpr float kVirtualScreenAspect = kVirtualScreenWidth / kVirtualScreenHeight;
+
+void DrawHudSprite(Sprite* sprite, const Vector2& position, const Vector2& size, const Vector4& color) {
+	if (!sprite) {
+		return;
+	}
+	sprite->SetPosition(position);
+	sprite->SetSize(size);
+	sprite->SetColor(color);
+	sprite->Update();
+	sprite->Draw();
+}
+
+size_t GetFieldStateHudIndex(FieldState state) {
+	switch (state) {
+	case FieldState::Empty:
+		return 0;
+	case FieldState::Tilled:
+		return 1;
+	case FieldState::Watered:
+		return 2;
+	case FieldState::Planted:
+		return 3;
+	case FieldState::ReadyToHarvest:
+		return 4;
+	default:
+		return 0;
+	}
+}
+
+Vector4 GetFieldStateHudColor(FieldState state) {
+	switch (state) {
+	case FieldState::Empty:
+		return { 0.45f, 0.75f, 0.28f, 1.0f };
+	case FieldState::Tilled:
+		return { 0.72f, 0.42f, 0.20f, 1.0f };
+	case FieldState::Watered:
+		return { 0.32f, 0.58f, 0.95f, 1.0f };
+	case FieldState::Planted:
+		return { 0.20f, 0.95f, 0.25f, 1.0f };
+	case FieldState::ReadyToHarvest:
+		return { 1.0f, 0.85f, 0.15f, 1.0f };
+	default:
+		return { 1.0f, 1.0f, 1.0f, 1.0f };
+	}
+}
+
+Vector4 GetGrowthBarColor(float growth) {
+	const float t = std::clamp(growth, 0.0f, 1.0f);
+	return {
+		0.30f + 0.70f * t,
+		0.95f - 0.12f * t,
+		0.25f,
+		0.95f
+	};
+}
+
+Vector4 GetMoistureBarColor(float moisture) {
+	if (moisture < 0.2f) {
+		return { 0.70f, 0.30f, 0.18f, 0.95f };
+	}
+	return { 0.25f, 0.62f + 0.22f * moisture, 1.0f, 0.95f };
+}
+
+int GetActionMessageIndex(FieldActionFeedbackType type) {
+	switch (type) {
+	case FieldActionFeedbackType::Tilled:
+		return 0;
+	case FieldActionFeedbackType::Watered:
+		return 1;
+	case FieldActionFeedbackType::Planted:
+		return 2;
+	case FieldActionFeedbackType::Harvested:
+		return 3;
+	case FieldActionFeedbackType::None:
+	default:
+		return -1;
+	}
+}
+}
 
 Vector2 Game::mousePosInViewport_ = { 0, 0 };
 
@@ -23,6 +118,7 @@ Game::~Game() = default;
 
 void Game::Initialize() {
 	Framework::Initialize();
+	hideDebugUI_ = !kAllowDebugUi;
 	renderTextureSrvIndex_ = srvManager_->Allocate();
 	srvManager_->CreateSRVforTexture2D(
 		renderTextureSrvIndex_,
@@ -64,6 +160,12 @@ void Game::Initialize() {
 	for (const std::string& noiseName : noiseNames_) {
 		noiseSrvIndices_.push_back(spriteCommon_->LoadTexture("Resources/" + noiseName));
 	}
+	InitializeRuntimeTextTextures();
+	InitializeGameplayHud();
+	floatingTextSystem_ = std::make_unique<FloatingTextSystem>();
+	floatingTextSystem_->Initialize(
+		spriteCommon_.get(),
+		"Resources/generated/text/harvest_gold_120.png");
 
 	postProcess_ = std::make_unique<PostProcess>();
 	postProcess_->Initialize(dxCommon_.get(), srvManager_.get());
@@ -77,6 +179,7 @@ void Game::Initialize() {
 		depthBufferSrvIndex_,
 		normalTextureSrvIndex_);
 	gameplayEffectManager_ = std::make_unique<GameplayEffectManager>();
+	gameplayEffectManager_->SetHarvestPopupDrawListEnabled(!floatingTextSystem_->IsReady());
 	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
@@ -86,6 +189,7 @@ void Game::Initialize() {
 
 void Game::Finalize() {
 	gameplayEffectManager_.reset();
+	floatingTextSystem_.reset();
 	postEffectManager_.reset();
 	skinningDebugWindow_.reset();
 	SceneManager::DeleteInstance();
@@ -98,6 +202,9 @@ void Game::PlayHarvestEffect(const Vector3& position, int32_t price) {
 	}
 
 	gameplayEffectManager_->PlayHarvestEffect(position, price);
+	if (floatingTextSystem_) {
+		floatingTextSystem_->PlayRewardPopup(position + Vector3{ 0.0f, 1.2f, 0.0f }, price);
+	}
 
 	GPUParticleEmitSettings particleSettings{};
 	if (gameplayEffectManager_->ConsumeHarvestParticleEmitSettings(particleSettings) && particleManager_) {
@@ -114,6 +221,11 @@ void Game::PlayDigitalImpactEffect(const Vector3& position) {
 		return;
 	}
 	gameplayEffectManager_->PlayDigitalImpactEffect(position);
+
+	GPUParticleEmitSettings particleSettings{};
+	if (gameplayEffectManager_->ConsumeDigitalParticleEmitSettings(particleSettings) && particleManager_) {
+		particleManager_->RequestGPUParticleEmit(particleSettings);
+	}
 }
 
 void Game::UpdateGameplayEffects(float deltaTime) {
@@ -121,6 +233,10 @@ void Game::UpdateGameplayEffects(float deltaTime) {
 		return;
 	}
 	gameplayEffectManager_->Update(deltaTime);
+	if (floatingTextSystem_) {
+		floatingTextSystem_->Update(deltaTime);
+	}
+	hudActionMessageTimer_ = (std::max)(hudActionMessageTimer_ - std::clamp(deltaTime, 0.0f, 0.25f), 0.0f);
 }
 
 void Game::DrawGameplayEffects() {
@@ -153,6 +269,383 @@ void Game::DrawGameplayEffectImGui() {
 			gameplayEffectManager_->GetDebugHarvestPosition(),
 			gameplayEffectManager_->GetDebugHarvestPrice());
 	}
+
+	GPUParticleEmitSettings particleSettings{};
+	if (gameplayEffectManager_->ConsumeDigitalParticleEmitSettings(particleSettings) && particleManager_) {
+		particleManager_->RequestGPUParticleEmit(particleSettings);
+	}
+}
+
+void Game::InitializeRuntimeTextTextures() {
+	RuntimeTextTextureGenerator::GenerateFromJson("Resources/text_textures.json");
+}
+
+void Game::InitializeGameplayHud() {
+	if (!spriteCommon_) {
+		return;
+	}
+
+	hudWhiteTextureHandle_ = spriteCommon_->LoadTexture("Resources/human/white.png");
+	hudControlsLine1TextureHandle_ = spriteCommon_->LoadTexture("Resources/generated/text/field_controls_line1.png");
+	hudControlsLine2TextureHandle_ = spriteCommon_->LoadTexture("Resources/generated/text/field_controls_line2.png");
+	hudSelectedLabelTextureHandle_ = spriteCommon_->LoadTexture("Resources/generated/text/field_selected_label.png");
+	hudGrowthLabelTextureHandle_ = spriteCommon_->LoadTexture("Resources/generated/text/field_growth_label.png");
+	hudMoistureLabelTextureHandle_ = spriteCommon_->LoadTexture("Resources/generated/text/field_moisture_label.png");
+	hudStateTextureHandles_[0] = spriteCommon_->LoadTexture("Resources/generated/text/field_state_empty.png");
+	hudStateTextureHandles_[1] = spriteCommon_->LoadTexture("Resources/generated/text/field_state_tilled.png");
+	hudStateTextureHandles_[2] = spriteCommon_->LoadTexture("Resources/generated/text/field_state_watered.png");
+	hudStateTextureHandles_[3] = spriteCommon_->LoadTexture("Resources/generated/text/field_state_planted.png");
+	hudStateTextureHandles_[4] = spriteCommon_->LoadTexture("Resources/generated/text/field_state_ready.png");
+	hudNextTextureHandles_[0] = spriteCommon_->LoadTexture("Resources/generated/text/field_next_empty.png");
+	hudNextTextureHandles_[1] = spriteCommon_->LoadTexture("Resources/generated/text/field_next_tilled.png");
+	hudNextTextureHandles_[2] = spriteCommon_->LoadTexture("Resources/generated/text/field_next_watered.png");
+	hudNextTextureHandles_[3] = spriteCommon_->LoadTexture("Resources/generated/text/field_next_planted.png");
+	hudNextTextureHandles_[4] = spriteCommon_->LoadTexture("Resources/generated/text/field_next_ready.png");
+	hudActionTextureHandles_[0] = spriteCommon_->LoadTexture("Resources/generated/text/field_action_tilled.png");
+	hudActionTextureHandles_[1] = spriteCommon_->LoadTexture("Resources/generated/text/field_action_watered.png");
+	hudActionTextureHandles_[2] = spriteCommon_->LoadTexture("Resources/generated/text/field_action_planted.png");
+	hudActionTextureHandles_[3] = spriteCommon_->LoadTexture("Resources/generated/text/field_action_harvested.png");
+
+	for (int percent = 0; percent <= 100; ++percent) {
+		char outputPath[128]{};
+		char text[16]{};
+		std::snprintf(outputPath, sizeof(outputPath), "Resources/generated/text/field_percent_%03d.png", percent);
+		std::snprintf(text, sizeof(text), "%d%%", percent);
+
+		RuntimeTextTextureGenerator::TextTextureRequest request{};
+		request.id = "field_percent";
+		request.text = text;
+		request.font = "Resources/fonts/KiwiMaru-Medium.ttf";
+		request.output = outputPath;
+		request.fontSize = 24.0f;
+		request.color = { 1.0f, 1.0f, 0.92f, 1.0f };
+		request.shadowColor = { 0.0f, 0.0f, 0.0f, 0.85f };
+		request.shadowOffset = { 2.0f, 2.0f };
+		request.padding = { 10.0f, 7.0f };
+		request.overwriteIfExists = false;
+		RuntimeTextTextureGenerator::GenerateTextTexture(request);
+		hudPercentTextureHandles_[percent] = spriteCommon_->LoadTexture(outputPath);
+	}
+
+	auto makeSprite = [&](uint32_t textureHandle) {
+		auto sprite = std::make_unique<Sprite>();
+		sprite->Initialize(spriteCommon_.get(), textureHandle);
+		sprite->SetAnchorPoint({ 0.0f, 0.0f });
+		return sprite;
+	};
+
+	hudControlsPanelSprite_ = makeSprite(hudWhiteTextureHandle_);
+	hudControlsLine1Sprite_ = makeSprite(hudControlsLine1TextureHandle_);
+	hudControlsLine2Sprite_ = makeSprite(hudControlsLine2TextureHandle_);
+	hudStatusPanelSprite_ = makeSprite(hudWhiteTextureHandle_);
+	hudSelectedLabelSprite_ = makeSprite(hudSelectedLabelTextureHandle_);
+	hudStateValueSprite_ = makeSprite(hudStateTextureHandles_[0]);
+	hudGrowthLabelSprite_ = makeSprite(hudGrowthLabelTextureHandle_);
+	hudMoistureLabelSprite_ = makeSprite(hudMoistureLabelTextureHandle_);
+	hudGrowthBarBackgroundSprite_ = makeSprite(hudWhiteTextureHandle_);
+	hudGrowthBarFillSprite_ = makeSprite(hudWhiteTextureHandle_);
+	hudMoistureBarBackgroundSprite_ = makeSprite(hudWhiteTextureHandle_);
+	hudMoistureBarFillSprite_ = makeSprite(hudWhiteTextureHandle_);
+	hudStateAccentSprite_ = makeSprite(hudWhiteTextureHandle_);
+	hudNextActionSprite_ = makeSprite(hudNextTextureHandles_[0]);
+	hudGrowthPercentSprite_ = makeSprite(hudPercentTextureHandles_[0]);
+	hudMoisturePercentSprite_ = makeSprite(hudPercentTextureHandles_[0]);
+	hudActionMessageSprite_ = makeSprite(hudActionTextureHandles_[0]);
+	hudActionMessageSprite_->SetAnchorPoint({ 0.5f, 0.5f });
+}
+
+void Game::DrawGameplayEffectSprites() {
+	if (!floatingTextSystem_ || !floatingTextSystem_->IsReady() || !spriteCommon_) {
+		return;
+	}
+
+	Matrix4x4 viewProjectionMatrix = MatrixMath::MakeIdentity4x4();
+	const Matrix4x4* viewProjection = nullptr;
+	if (BaseScene* currentScene = SceneManager::GetInstance()->GetCurrentScene()) {
+		if (GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(currentScene)) {
+			if (playScene->camera_) {
+				viewProjectionMatrix = playScene->camera_->GetViewProjectionMatrix();
+				viewProjection = &viewProjectionMatrix;
+			}
+		}
+	}
+	if (!viewProjection) {
+		return;
+	}
+
+	// Sprites are rendered into SceneRenderTexture, so the projection target is
+	// the fixed virtual render size. The Game Viewport then scales this texture.
+	floatingTextSystem_->Draw(
+		{ 0.0f, 0.0f },
+		{ kVirtualScreenWidth, kVirtualScreenHeight },
+		viewProjection);
+}
+
+void Game::DrawGameplayHud(GamePlayScene* playScene) {
+	if (!showGameplayHud_ || !playScene || !playScene->fieldManager_ || !spriteCommon_) {
+		return;
+	}
+
+	const FieldTile* selectedTile = playScene->fieldManager_->GetSelectedTile();
+	if (!selectedTile) {
+		return;
+	}
+
+	spriteCommon_->PreDraw();
+
+	DrawHudSprite(
+		hudControlsPanelSprite_.get(),
+		{ 16.0f, 548.0f },
+		{ 910.0f, 148.0f },
+		{ 0.02f, 0.035f, 0.03f, 0.62f });
+	DrawHudSprite(
+		hudControlsLine1Sprite_.get(),
+		{ 28.0f, 566.0f },
+		{ 760.0f, 38.0f },
+		{ 1.0f, 1.0f, 1.0f, 1.0f });
+	DrawHudSprite(
+		hudControlsLine2Sprite_.get(),
+		{ 28.0f, 612.0f },
+		{ 860.0f, 38.0f },
+		{ 1.0f, 1.0f, 1.0f, 1.0f });
+
+	DrawHudSprite(
+		hudStatusPanelSprite_.get(),
+		{ 910.0f, 24.0f },
+		{ 342.0f, 176.0f },
+		{ 0.02f, 0.035f, 0.03f, 0.66f });
+	DrawHudSprite(
+		hudSelectedLabelSprite_.get(),
+		{ 928.0f, 38.0f },
+		{ 230.0f, 42.0f },
+		{ 1.0f, 1.0f, 1.0f, 1.0f });
+
+	const size_t stateIndex = GetFieldStateHudIndex(selectedTile->state);
+	const Vector4 stateColor = GetFieldStateHudColor(selectedTile->state);
+	DrawHudSprite(
+		hudStateAccentSprite_.get(),
+		{ 910.0f, 24.0f },
+		{ 8.0f, 176.0f },
+		{ stateColor.x, stateColor.y, stateColor.z, 0.95f });
+
+	if (stateIndex < hudStateTextureHandles_.size() && hudStateValueSprite_) {
+		hudStateValueSprite_->SetTexture(hudStateTextureHandles_[stateIndex]);
+	}
+	DrawHudSprite(
+		hudStateValueSprite_.get(),
+		{ 928.0f, 82.0f },
+		{ 230.0f, 36.0f },
+		stateColor);
+
+	if (stateIndex < hudNextTextureHandles_.size() && hudNextActionSprite_) {
+		hudNextActionSprite_->SetTexture(hudNextTextureHandles_[stateIndex]);
+	}
+	DrawHudSprite(
+		hudNextActionSprite_.get(),
+		{ 928.0f, 116.0f },
+		{ 292.0f, 32.0f },
+		{ 1.0f, 1.0f, 1.0f, 1.0f });
+
+	const float growth = std::clamp(selectedTile->growth, 0.0f, 1.0f);
+	const float moisture = std::clamp(selectedTile->moisture, 0.0f, 1.0f);
+	const int growthPercent = std::clamp(static_cast<int>(std::round(growth * 100.0f)), 0, 100);
+	const int moisturePercent = std::clamp(static_cast<int>(std::round(moisture * 100.0f)), 0, 100);
+	const Vector2 barPosition = { 1012.0f, 154.0f };
+	const Vector2 barSize = { 166.0f, 14.0f };
+
+	DrawHudSprite(
+		hudGrowthLabelSprite_.get(),
+		{ 928.0f, 144.0f },
+		{ 80.0f, 32.0f },
+		{ 1.0f, 1.0f, 1.0f, 1.0f });
+	if (hudGrowthPercentSprite_) {
+		hudGrowthPercentSprite_->SetTexture(hudPercentTextureHandles_[growthPercent]);
+	}
+	DrawHudSprite(
+		hudGrowthPercentSprite_.get(),
+		{ 1184.0f, 143.0f },
+		{ 48.0f, 30.0f },
+		{ 1.0f, 1.0f, 1.0f, 1.0f });
+	DrawHudSprite(
+		hudGrowthBarBackgroundSprite_.get(),
+		barPosition,
+		barSize,
+		{ 0.12f, 0.16f, 0.12f, 0.88f });
+	DrawHudSprite(
+		hudGrowthBarFillSprite_.get(),
+		barPosition,
+		{ barSize.x * growth, barSize.y },
+		GetGrowthBarColor(growth));
+
+	DrawHudSprite(
+		hudMoistureLabelSprite_.get(),
+		{ 928.0f, 176.0f },
+		{ 90.0f, 32.0f },
+		{ 1.0f, 1.0f, 1.0f, 1.0f });
+	if (hudMoisturePercentSprite_) {
+		hudMoisturePercentSprite_->SetTexture(hudPercentTextureHandles_[moisturePercent]);
+	}
+	DrawHudSprite(
+		hudMoisturePercentSprite_.get(),
+		{ 1184.0f, 175.0f },
+		{ 48.0f, 30.0f },
+		{ 1.0f, 1.0f, 1.0f, 1.0f });
+	DrawHudSprite(
+		hudMoistureBarBackgroundSprite_.get(),
+		{ barPosition.x, 186.0f },
+		barSize,
+		{ 0.10f, 0.13f, 0.16f, 0.88f });
+	DrawHudSprite(
+		hudMoistureBarFillSprite_.get(),
+		{ barPosition.x, 186.0f },
+		{ barSize.x * moisture, barSize.y },
+		GetMoistureBarColor(moisture));
+
+	if (hudActionMessageTimer_ > 0.0f &&
+		hudActionMessageIndex_ >= 0 &&
+		hudActionMessageIndex_ < static_cast<int>(hudActionTextureHandles_.size()) &&
+		hudActionMessageSprite_) {
+		const float normalized = std::clamp(hudActionMessageTimer_ / 0.85f, 0.0f, 1.0f);
+		hudActionMessageSprite_->SetTexture(hudActionTextureHandles_[hudActionMessageIndex_]);
+		DrawHudSprite(
+			hudActionMessageSprite_.get(),
+			{ 640.0f, 510.0f - (1.0f - normalized) * 26.0f },
+			{ 260.0f + (1.0f - normalized) * 28.0f, 74.0f + (1.0f - normalized) * 8.0f },
+			{ 1.0f, 1.0f, 1.0f, normalized });
+	}
+}
+
+void Game::ShowFieldActionMessage(FieldActionFeedbackType type) {
+	const int index = GetActionMessageIndex(type);
+	if (index < 0) {
+		return;
+	}
+	hudActionMessageIndex_ = index;
+	hudActionMessageTimer_ = 0.85f;
+}
+
+void Game::ApplyDemoRecordingModeSettings() {
+	demoRecordingMode_ = true;
+	hideDebugUI_ = true;
+	if (gameplayEffectManager_) {
+		gameplayEffectManager_->ApplyRecordingDemoDefaults();
+	}
+}
+
+void Game::StartAutoDemoSequence() {
+	ApplyDemoRecordingModeSettings();
+	autoDemoSequenceActive_ = true;
+	autoDemoStage_ = AutoDemoStage::NormalHarvest;
+	autoDemoTimer_ = 0.0f;
+}
+
+void Game::UpdateAutoDemoSequence(float deltaTime) {
+	if (!autoDemoSequenceActive_ || !gameplayEffectManager_) {
+		return;
+	}
+
+	autoDemoTimer_ += std::clamp(deltaTime, 0.0f, 0.25f);
+	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
+	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
+
+	switch (autoDemoStage_) {
+	case AutoDemoStage::NormalHarvest:
+		if (playScene && playScene->skyboxManager_) {
+			playScene->skyboxManager_->SetCurrentSkybox("Sunny");
+		}
+		PlayHarvestEffect(
+			gameplayEffectManager_->GetDebugHarvestPosition(),
+			gameplayEffectManager_->GetDebugHarvestPrice());
+		autoDemoStage_ = AutoDemoStage::WaitAfterHarvest;
+		autoDemoTimer_ = 0.0f;
+		break;
+	case AutoDemoStage::WaitAfterHarvest:
+		if (autoDemoTimer_ >= 1.55f) {
+			autoDemoStage_ = AutoDemoStage::DigitalRareHarvest;
+			autoDemoTimer_ = 0.0f;
+		}
+		break;
+	case AutoDemoStage::DigitalRareHarvest:
+		PlayHarvestEffect(
+			gameplayEffectManager_->GetDebugDigitalImpactPosition(),
+			gameplayEffectManager_->GetDebugHarvestPrice());
+		PlayDigitalImpactEffect(gameplayEffectManager_->GetDebugDigitalImpactPosition());
+		autoDemoStage_ = AutoDemoStage::SwitchSkybox;
+		autoDemoTimer_ = 0.0f;
+		break;
+	case AutoDemoStage::SwitchSkybox:
+		if (autoDemoTimer_ >= 0.45f) {
+			if (playScene && playScene->skyboxManager_) {
+				playScene->skyboxManager_->SetCurrentSkybox("Evening");
+			}
+			autoDemoStage_ = AutoDemoStage::Finished;
+			autoDemoTimer_ = 0.0f;
+		}
+		break;
+	case AutoDemoStage::Finished:
+		if (autoDemoTimer_ >= 1.20f) {
+			autoDemoSequenceActive_ = false;
+			autoDemoStage_ = AutoDemoStage::Idle;
+			autoDemoTimer_ = 0.0f;
+		}
+		break;
+	case AutoDemoStage::Idle:
+	default:
+		autoDemoSequenceActive_ = false;
+		break;
+	}
+}
+
+void Game::DrawDemoRecordingImGui(GamePlayScene* playScene) {
+	ImGui::Begin("Demo Recording");
+
+	if (ImGui::Checkbox("Demo Recording Mode", &demoRecordingMode_)) {
+		if (demoRecordingMode_) {
+			ApplyDemoRecordingModeSettings();
+		} else if (gameplayEffectManager_) {
+			gameplayEffectManager_->SetDemoMode(false);
+		}
+	}
+	ImGui::Checkbox("Hide Debug UI", &hideDebugUI_);
+
+	if (ImGui::Button("Auto Demo Sequence")) {
+		StartAutoDemoSequence();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Stop Auto Demo")) {
+		autoDemoSequenceActive_ = false;
+		autoDemoStage_ = AutoDemoStage::Idle;
+		autoDemoTimer_ = 0.0f;
+	}
+
+	if (gameplayEffectManager_) {
+		if (ImGui::Button("Play Normal Harvest")) {
+			PlayHarvestEffect(
+				gameplayEffectManager_->GetDebugHarvestPosition(),
+				gameplayEffectManager_->GetDebugHarvestPrice());
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Play Digital Rare Harvest")) {
+			PlayHarvestEffect(
+				gameplayEffectManager_->GetDebugDigitalImpactPosition(),
+				gameplayEffectManager_->GetDebugHarvestPrice());
+			PlayDigitalImpactEffect(gameplayEffectManager_->GetDebugDigitalImpactPosition());
+		}
+	}
+
+	ImGui::Separator();
+	ImGui::Text("Auto Demo: %s", autoDemoSequenceActive_ ? "Playing" : "Stopped");
+	ImGui::Text("Auto Timer: %.2f", autoDemoTimer_);
+	ImGui::Text("Borderless Fullscreen: %s", (winApp_ && winApp_->IsBorderlessFullscreen()) ? "ON" : "OFF");
+	ImGui::TextUnformatted("Keys: H=Harvest, J=Digital, F2=HUD, F5=Auto Demo, F1=Toggle Debug UI, F11=Borderless");
+	ImGui::Text("Gameplay HUD: %s", showGameplayHud_ ? "ON" : "OFF");
+	if (playScene && playScene->skyboxManager_) {
+		ImGui::Text("Current Skybox: %s", playScene->skyboxManager_->GetCurrentSkyboxName().c_str());
+	}
+	ImGui::TextUnformatted("Game Viewport Source: FinalDisplayTexture");
+	ImGui::TextUnformatted("GammaCorrection: LinearToSRGB once at final display");
+
+	ImGui::End();
 }
 
 void Game::Update() {
@@ -171,19 +664,30 @@ void Game::Update() {
 		fullscreenRandomNoiseTime_ += randomNoiseDeltaTime * std::clamp(fullscreenRandomNoiseTimeSpeed_, 0.0f, 10.0f);
 	}
 
-	ImGuiManager::GetInstance()->Begin();
-	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
-	if (input_ && input_->TriggerKey(DIK_H) && !ImGui::GetIO().WantCaptureKeyboard && gameplayEffectManager_) {
-		PlayHarvestEffect(
-			gameplayEffectManager_->GetDebugHarvestPosition(),
-			gameplayEffectManager_->GetDebugHarvestPrice());
-	}
-	if (input_ && input_->TriggerKey(DIK_J) && !ImGui::GetIO().WantCaptureKeyboard && gameplayEffectManager_) {
-		PlayDigitalImpactEffect(gameplayEffectManager_->GetDebugDigitalImpactPosition());
-	}
-
 	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
 	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
+
+	ImGuiManager::GetInstance()->Begin();
+	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+	if (input_ && !ImGui::GetIO().WantCaptureKeyboard) {
+		if (kAllowDebugUi && input_->TriggerKey(DIK_F1)) {
+			hideDebugUI_ = !hideDebugUI_;
+		}
+		if (input_->TriggerKey(DIK_F2)) {
+			showGameplayHud_ = !showGameplayHud_;
+		}
+		if (playScene && input_->TriggerKey(DIK_F5)) {
+			StartAutoDemoSequence();
+		}
+		if (input_->TriggerKey(DIK_F11) && winApp_) {
+			winApp_->ToggleBorderlessFullscreen();
+		}
+		if (playScene && input_->TriggerKey(DIK_J) && gameplayEffectManager_) {
+			PlayDigitalImpactEffect(gameplayEffectManager_->GetDebugDigitalImpactPosition());
+		}
+	}
+	UpdateAutoDemoSequence(randomNoiseDeltaTime);
+
 	if (playScene) {
 		playScene->viewportHovered_ = false;
 		playScene->viewportImageSize_ = { 0.0f, 0.0f };
@@ -192,11 +696,37 @@ void Game::Update() {
 	gameViewportImageSize_ = { 0.0f, 0.0f };
 
 	// Game Viewport displays the gamma-corrected final display texture.
+	ImGuiWindowFlags gameViewportWindowFlags = 0;
+	if (hideDebugUI_) {
+		ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+		// The swap chain and offscreen textures are still fixed at 1280x720.
+		// When the borderless window becomes monitor-sized, using WorkSize here
+		// makes ImGui generate 1920x1080 (or larger) vertices for a 1280x720
+		// back buffer, which clips the right/bottom side and looks left-biased.
+		// Keep the presentation window in virtual back-buffer coordinates until
+		// the engine has full resize support for swap chain and render textures.
+		const bool useFixedBackBufferViewport = winApp_ && winApp_->IsBorderlessFullscreen();
+		const ImVec2 viewportPos = useFixedBackBufferViewport ? mainViewport->Pos : mainViewport->WorkPos;
+		const ImVec2 viewportSize = useFixedBackBufferViewport
+			? ImVec2(kVirtualScreenWidth, kVirtualScreenHeight)
+			: mainViewport->WorkSize;
+		ImGui::SetNextWindowPos(viewportPos, ImGuiCond_Always);
+		ImGui::SetNextWindowSize(viewportSize, ImGuiCond_Always);
+		gameViewportWindowFlags =
+			ImGuiWindowFlags_NoTitleBar |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoCollapse |
+			ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_NoScrollWithMouse |
+			ImGuiWindowFlags_NoBringToFrontOnFocus |
+			ImGuiWindowFlags_NoDocking;
+	}
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-	if (ImGui::Begin("Game Viewport")) {
+	if (ImGui::Begin("Game Viewport", nullptr, gameViewportWindowFlags)) {
 		ImVec2 contentSize = ImGui::GetContentRegionAvail();
 		if (contentSize.x > 1.0f && contentSize.y > 1.0f) {
-			float targetAspect = 1280.0f / 720.0f;
+			float targetAspect = kVirtualScreenAspect;
 			ImVec2 displaySize = contentSize;
 			if (displaySize.x / displaySize.y > targetAspect) displaySize.x = displaySize.y * targetAspect;
 			else displaySize.y = displaySize.x / targetAspect;
@@ -213,8 +743,17 @@ void Game::Update() {
 
 				ImVec2 mousePos = ImGui::GetIO().MousePos;
 				ImVec2 imageTopLeft = ImGui::GetCursorScreenPos();
-				mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * 1280.0f;
-				mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
+				const bool mouseInsideImage =
+					mousePos.x >= imageTopLeft.x &&
+					mousePos.y >= imageTopLeft.y &&
+					mousePos.x < imageTopLeft.x + displaySize.x &&
+					mousePos.y < imageTopLeft.y + displaySize.y;
+				if (mouseInsideImage) {
+					mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * kVirtualScreenWidth;
+					mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * kVirtualScreenHeight;
+				} else {
+					mousePosInViewport_ = { -1.0f, -1.0f };
+				}
 
 				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(finalDisplayTextureSrvIndex_).ptr, displaySize);
 				const ImVec2 imageMin = ImGui::GetItemRectMin();
@@ -229,7 +768,7 @@ void Game::Update() {
 					playScene->viewportImageTopLeft_ = { imageMin.x, imageMin.y };
 					playScene->viewportImageSize_ = { imageSize.x, imageSize.y };
 					playScene->viewportMousePosition_ = { mousePos.x, mousePos.y };
-					playScene->viewportHovered_ = ImGui::IsItemHovered();
+					playScene->viewportHovered_ = ImGui::IsItemHovered() && mouseInsideImage;
 				}
 				DrawGameplayEffects();
 			}
@@ -238,13 +777,50 @@ void Game::Update() {
 	ImGui::End();
 	ImGui::PopStyleVar();
 
-	if (playScene) {
+	if (!hideDebugUI_) {
+		DrawDemoRecordingImGui(playScene);
+	}
+
+	if (!hideDebugUI_ && playScene) {
 		ImGui::Begin("Global Settings");
 		static const char* targets[] = { "None", "Sprite", "Object3D", "Particle", "Sphere" };
 		ImGui::Combo("Edit Focus", &playScene->selectedTarget_, targets, 5);
 		ImGui::Separator();
 		if (playScene->skyboxManager_) {
 			playScene->skyboxManager_->DrawImGui();
+		}
+		if (playScene->fieldManager_) {
+			playScene->fieldManager_->DrawImGui();
+		}
+		if (ImGui::CollapsingHeader("Mouse Picking Debug", ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::Text("Mouse Screen Pos: %.1f, %.1f",
+				playScene->viewportMousePosition_.x,
+				playScene->viewportMousePosition_.y);
+			ImGui::Text("Mouse Virtual Pos: %.1f, %.1f",
+				playScene->fieldMouseVirtualPosition_.x,
+				playScene->fieldMouseVirtualPosition_.y);
+			ImGui::Text("Mouse In Game Viewport: %s", playScene->fieldMouseInViewport_ ? "true" : "false");
+			ImGui::Text("Ray Valid: %s", playScene->fieldMouseRayValid_ ? "true" : "false");
+			ImGui::Text("Ray Origin: %.2f, %.2f, %.2f",
+				playScene->fieldMouseRayOrigin_.x,
+				playScene->fieldMouseRayOrigin_.y,
+				playScene->fieldMouseRayOrigin_.z);
+			ImGui::Text("Ray Direction: %.2f, %.2f, %.2f",
+				playScene->fieldMouseRayDirection_.x,
+				playScene->fieldMouseRayDirection_.y,
+				playScene->fieldMouseRayDirection_.z);
+			ImGui::Text("Hit Valid: %s", playScene->fieldMouseHit_ ? "true" : "false");
+			ImGui::Text("Hit Position: %.2f, %.2f, %.2f",
+				playScene->fieldMouseHitPosition_.x,
+				playScene->fieldMouseHitPosition_.y,
+				playScene->fieldMouseHitPosition_.z);
+			ImGui::Text("Selected Tile Index: %d", playScene->fieldMouseSelectedIndex_);
+			ImGui::Text("Fullscreen: %s", (winApp_ && winApp_->IsBorderlessFullscreen()) ? "true" : "false");
+			ImGui::Text("Game Viewport Rect: %.1f, %.1f, %.1f, %.1f",
+				playScene->viewportImageTopLeft_.x,
+				playScene->viewportImageTopLeft_.y,
+				playScene->viewportImageSize_.x,
+				playScene->viewportImageSize_.y);
 		}
 		ImGui::End();
 
@@ -651,6 +1227,25 @@ void Game::Update() {
 	}
 
 	SceneManager::GetInstance()->Update();
+	if (playScene) {
+		FieldActionFeedbackType actionType = FieldActionFeedbackType::None;
+		Vector3 actionPosition{};
+		if (playScene->fieldManager_ &&
+			playScene->fieldManager_->ConsumeActionFeedbackEvent(actionType, actionPosition)) {
+			(void)actionPosition;
+			ShowFieldActionMessage(actionType);
+		}
+
+		Vector3 harvestPosition{};
+		int32_t harvestPrice = 0;
+		bool rareHarvest = false;
+		if (playScene->ConsumeFieldHarvestEvent(harvestPosition, harvestPrice, rareHarvest)) {
+			PlayHarvestEffect(harvestPosition, harvestPrice);
+			if (rareHarvest) {
+				PlayDigitalImpactEffect(harvestPosition);
+			}
+		}
+	}
 	ImGuiManager::GetInstance()->End();
 }
 
@@ -660,6 +1255,8 @@ void Game::Draw() {
 
 	// Draw the scene into the offscreen RenderTexture.
 	SceneManager::GetInstance()->Draw();
+	DrawGameplayEffectSprites();
+	DrawGameplayHud(dynamic_cast<GamePlayScene*>(SceneManager::GetInstance()->GetCurrentScene()));
 
 	// Fullscreen post effect keeps linear values in PostEffectResultTexture.
 	// Gamma correction is applied once into FinalDisplayTexture for swapchain

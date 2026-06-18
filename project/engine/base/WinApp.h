@@ -20,6 +20,9 @@ public:
 
 	// 終了
 	void Finalize();
+	void ToggleBorderlessFullscreen();
+	void SetBorderlessFullscreen(bool enabled);
+	bool IsBorderlessFullscreen() const { return isBorderlessFullscreen_; }
 
 	static const int32_t kClientWidth = 1280;
 	static const int32_t kClientHeight = 720;
@@ -38,6 +41,10 @@ public:
 private:
 
 	HWND hwnd= nullptr;  // ← ウィンドウハンドルを保持するメンバ変数
+	bool isBorderlessFullscreen_ = false;
+	LONG_PTR windowedStyle_ = 0;
+	LONG_PTR windowedExStyle_ = 0;
+	RECT windowedRect_ = {};
 
 	WNDCLASS wc{};
 };

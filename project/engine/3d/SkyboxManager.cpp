@@ -14,6 +14,7 @@ void SkyboxManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) 
     srvManager_ = srvManager;
     skyboxes_.clear();
     currentSkyboxIndex_ = 0;
+    mode_ = SkyboxMode::SolidColor;
 }
 
 void SkyboxManager::LoadSkybox(const std::string& name, const std::string& texturePath) {
@@ -45,10 +46,50 @@ void SkyboxManager::SetCurrentSkybox(const std::string& name) {
         return;
     }
     currentSkyboxIndex_ = static_cast<uint32_t>(std::distance(skyboxes_.begin(), it));
+    if (name == "Sunny") {
+        mode_ = SkyboxMode::Sunny;
+    } else if (name == "Evening") {
+        mode_ = SkyboxMode::Evening;
+    } else if (name == "Night") {
+        mode_ = SkyboxMode::Night;
+    } else if (name == "Storm") {
+        mode_ = SkyboxMode::Storm;
+    }
+}
+
+void SkyboxManager::SetMode(SkyboxMode mode) {
+    mode_ = mode;
+    switch (mode_) {
+    case SkyboxMode::Sunny:
+        SetCurrentSkybox("Sunny");
+        break;
+    case SkyboxMode::Evening:
+        SetCurrentSkybox("Evening");
+        break;
+    case SkyboxMode::Night:
+        SetCurrentSkybox("Night");
+        break;
+    case SkyboxMode::Storm:
+        SetCurrentSkybox("Storm");
+        break;
+    case SkyboxMode::None:
+    case SkyboxMode::SolidColor:
+    default:
+        break;
+    }
+}
+
+void SkyboxManager::CycleMode() {
+    const int modeCount = static_cast<int>(SkyboxMode::Storm) + 1;
+    int next = static_cast<int>(mode_) + 1;
+    if (next >= modeCount) {
+        next = 0;
+    }
+    SetMode(static_cast<SkyboxMode>(next));
 }
 
 void SkyboxManager::Update(Camera* camera) {
-    if (!camera || skyboxes_.empty()) {
+    if (!camera || skyboxes_.empty() || mode_ == SkyboxMode::None || mode_ == SkyboxMode::SolidColor) {
         return;
     }
     SetCurrentSkybox(currentSkyboxIndex_);
@@ -56,7 +97,7 @@ void SkyboxManager::Update(Camera* camera) {
 }
 
 void SkyboxManager::Draw() {
-    if (skyboxes_.empty()) {
+    if (skyboxes_.empty() || mode_ == SkyboxMode::None || mode_ == SkyboxMode::SolidColor) {
         return;
     }
     SetCurrentSkybox(currentSkyboxIndex_);
@@ -64,8 +105,22 @@ void SkyboxManager::Draw() {
 }
 
 void SkyboxManager::DrawImGui() {
+    static const char* modeNames[] = { "None", "SolidColor", "Sunny", "Evening", "Night", "Storm" };
+    int mode = static_cast<int>(mode_);
+    if (ImGui::Combo("Skybox Mode", &mode, modeNames, _countof(modeNames))) {
+        mode = std::clamp(mode, 0, static_cast<int>(_countof(modeNames)) - 1);
+        SetMode(static_cast<SkyboxMode>(mode));
+    }
+
+    ImGui::Text("Current Mode: %s", GetModeName());
+    ImGui::Text("Clear Color: %.2f, %.2f, %.2f",
+        GetClearColor().x,
+        GetClearColor().y,
+        GetClearColor().z);
+    ImGui::TextUnformatted("F6: Cycle Skybox Mode");
+
     if (skyboxes_.empty()) {
-        ImGui::TextUnformatted("Skybox: none");
+        ImGui::TextUnformatted("Skybox texture list: none");
         return;
     }
 
@@ -98,4 +153,41 @@ uint32_t SkyboxManager::GetCurrentSrvIndex() const {
         return 0;
     }
     return skyboxes_[currentSkyboxIndex_].skybox->GetSrvIndex();
+}
+
+const char* SkyboxManager::GetModeName() const {
+    switch (mode_) {
+    case SkyboxMode::None:
+        return "None";
+    case SkyboxMode::SolidColor:
+        return "SolidColor";
+    case SkyboxMode::Sunny:
+        return "Sunny";
+    case SkyboxMode::Evening:
+        return "Evening";
+    case SkyboxMode::Night:
+        return "Night";
+    case SkyboxMode::Storm:
+        return "Storm";
+    default:
+        return "Unknown";
+    }
+}
+
+Vector4 SkyboxManager::GetClearColor() const {
+    switch (mode_) {
+    case SkyboxMode::None:
+        return { 0.08f, 0.11f, 0.12f, 1.0f };
+    case SkyboxMode::SolidColor:
+        return { 0.55f, 0.75f, 0.95f, 1.0f };
+    case SkyboxMode::Evening:
+        return { 0.68f, 0.48f, 0.34f, 1.0f };
+    case SkyboxMode::Night:
+        return { 0.04f, 0.06f, 0.12f, 1.0f };
+    case SkyboxMode::Storm:
+        return { 0.25f, 0.30f, 0.36f, 1.0f };
+    case SkyboxMode::Sunny:
+    default:
+        return { 0.52f, 0.72f, 0.95f, 1.0f };
+    }
 }

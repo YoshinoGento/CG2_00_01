@@ -48,6 +48,56 @@ void WinApp::Finalize() {
 	CoUninitialize();
 }
 
+void WinApp::ToggleBorderlessFullscreen() {
+	SetBorderlessFullscreen(!isBorderlessFullscreen_);
+}
+
+void WinApp::SetBorderlessFullscreen(bool enabled) {
+	if (!hwnd || isBorderlessFullscreen_ == enabled) {
+		return;
+	}
+
+	if (enabled) {
+		windowedStyle_ = GetWindowLongPtr(hwnd, GWL_STYLE);
+		windowedExStyle_ = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+		GetWindowRect(hwnd, &windowedRect_);
+
+		MONITORINFO monitorInfo{};
+		monitorInfo.cbSize = sizeof(MONITORINFO);
+		HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+		if (!GetMonitorInfo(monitor, &monitorInfo)) {
+			return;
+		}
+
+		SetWindowLongPtr(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+		SetWindowLongPtr(
+			hwnd,
+			GWL_EXSTYLE,
+			windowedExStyle_ & ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE));
+		SetWindowPos(
+			hwnd,
+			HWND_TOP,
+			monitorInfo.rcMonitor.left,
+			monitorInfo.rcMonitor.top,
+			monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+			monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+			SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+		isBorderlessFullscreen_ = true;
+	} else {
+		SetWindowLongPtr(hwnd, GWL_STYLE, windowedStyle_);
+		SetWindowLongPtr(hwnd, GWL_EXSTYLE, windowedExStyle_);
+		SetWindowPos(
+			hwnd,
+			nullptr,
+			windowedRect_.left,
+			windowedRect_.top,
+			windowedRect_.right - windowedRect_.left,
+			windowedRect_.bottom - windowedRect_.top,
+			SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+		isBorderlessFullscreen_ = false;
+	}
+}
+
 bool WinApp::ProcessMessage() {
 	MSG msg{};
 	if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {

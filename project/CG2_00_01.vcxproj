@@ -107,7 +107,7 @@ copy /Y "C:\Program Files (x86)\Windows Kits\10\Redist\D3D\x64\dxil.dll" "$(Targ
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;USE_IMGUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
@@ -120,8 +120,8 @@ copy /Y "C:\Program Files (x86)\Windows Kits\10\Redist\D3D\x64\dxil.dll" "$(Targ
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>assimp-vc143-mtd.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\$(Configuration);C:\CG\CG2_00_01\project\externals\assimp\lib\Debug\assimp-vc143-mtd.lib;"C:\CG\CG2_00_01\project\externals\assimp\lib\Debug\assimp-vc143-mtd.lib"</AdditionalLibraryDirectories>
+      <AdditionalDependencies>imgui.lib;assimp-vc143-mt.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\$(Configuration);$(ProjectDir)externals\assimp\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxcompiler.dll" "$(TargetDir)dxcompiler.dll"
@@ -134,7 +134,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;USE_IMGUI;DEVELOPMENT_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
@@ -175,6 +175,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\math\Matrix.cpp" />
     <ClCompile Include="engine\base\Framework.cpp" />
       <ClCompile Include="application\Game.cpp" />
+      <ClCompile Include="application\FieldManager.cpp" />
+      <ClCompile Include="application\FloatingTextSystem.cpp" />
       <ClCompile Include="application\GameplayEffectManager.cpp" />
       <ClCompile Include="application\scene\GamePlayScene.cpp" />
       <ClCompile Include="engine\effect\PostProcess.cpp" />
@@ -197,6 +199,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\SkyboxManager.cpp" />
     <ClCompile Include="engine\2d\Sprite.cpp" />
     <ClCompile Include="engine\2d\SpriteCommon.cpp" />
+    <ClCompile Include="engine\2d\RuntimeTextTextureGenerator.cpp" />
     <ClCompile Include="engine\base\SrvManager.cpp" />
     <ClCompile Include="application\scene\TitleScene.cpp" />
     <ClCompile Include="engine\base\WinApp.cpp" />
@@ -395,6 +398,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\math\Transform.h" />
     <ClInclude Include="engine\base\Framework.h" />
       <ClInclude Include="application\Game.h" />
+      <ClInclude Include="application\FieldManager.h" />
+      <ClInclude Include="application\FloatingTextSystem.h" />
       <ClInclude Include="application\GameplayEffectManager.h" />
       <ClInclude Include="application\scene\GamePlayScene.h" />
       <ClInclude Include="engine\effect\PostProcess.h" />
@@ -417,6 +422,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\3d\SkyboxManager.h" />
     <ClInclude Include="engine\2d\Sprite.h" />
     <ClInclude Include="engine\2d\SpriteCommon.h" />
+    <ClInclude Include="engine\2d\RuntimeTextTextureGenerator.h" />
     <ClInclude Include="engine\base\SrvManager.h" />
     <ClInclude Include="application\scene\TitleScene.h" />
     <ClInclude Include="engine\base\WinApp.h" />

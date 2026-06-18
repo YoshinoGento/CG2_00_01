@@ -15,6 +15,7 @@ class Sprite;
 class Object3d;
 class Camera;
 class Model;
+class FieldManager;
 
 class GamePlayScene : public BaseScene {
 	friend class Game;
@@ -45,13 +46,23 @@ public:
 	void RebuildCylinder();
 	// アニメーションモデルの動的切り替え（ImGuiからの呼び出し用）
 	void ChangeAnimationModel(int index);
+	bool ConsumeFieldHarvestEvent(Vector3& outPosition, int32_t& outPrice, bool& outRare);
 
 private:
+	struct Ray {
+		Vector3 origin = { 0.0f, 0.0f, 0.0f };
+		Vector3 direction = { 0.0f, 0.0f, 1.0f };
+	};
+
 	void AddLog(const std::string& message);
 	void UpdateSceneDeltaTime();
 	void HandleKeyboardMovement();
 	void HandleCameraInput(float deltaTime);
 	void ClampCameraPitch();
+	void HandleFieldMouseSelection();
+	bool ConvertMouseToVirtualScreen(const Vector2& mouseScreenPos, Vector2& outVirtualPos) const;
+	bool CreateRayFromVirtualScreen(const Vector2& virtualScreenPos, Ray& outRay) const;
+	bool IntersectRayPlaneY(const Ray& ray, float planeY, Vector3& outHitPosition) const;
 	void ResetCamera();
 	void SyncGPUParticleDebugModeChange();
 	void SetGPUParticleDebugMode(GPUParticleDebugMode mode);
@@ -96,6 +107,7 @@ private:
 	uint32_t ringTexHandle_ = 0;
 
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
+	std::unique_ptr<FieldManager> fieldManager_;
 
 	bool showTerrain_ = true;
 	bool showSphere_ = true;
@@ -137,6 +149,14 @@ private:
 	Vector2 viewportImageSize_ = { 0.0f, 0.0f };
 	Vector2 viewportMousePosition_ = { 0.0f, 0.0f };
 	bool viewportHovered_ = false;
+	bool fieldMouseInViewport_ = false;
+	bool fieldMouseRayValid_ = false;
+	bool fieldMouseHit_ = false;
+	Vector2 fieldMouseVirtualPosition_ = { -1.0f, -1.0f };
+	Vector3 fieldMouseRayOrigin_ = { 0.0f, 0.0f, 0.0f };
+	Vector3 fieldMouseRayDirection_ = { 0.0f, 0.0f, 1.0f };
+	Vector3 fieldMouseHitPosition_ = { 0.0f, 0.0f, 0.0f };
+	int fieldMouseSelectedIndex_ = -1;
 
 	// Cylinderパラメータ（ImGuiで操作可能）
 	float cylTopRadius_ = 1.0f;       // 上面の半径

@@ -17,11 +17,15 @@
 #include <dinput.h>
 #include "3d/SkyboxManager.h"
 #include "base/Logger.h" // 追加：外部ロガーツールのインクルード
+#include "FieldManager.h"
 #include <algorithm>
 #include <cmath>
 #include <random>
 
 namespace {
+constexpr float kVirtualScreenWidth = 1280.0f;
+constexpr float kVirtualScreenHeight = 720.0f;
+
 GPUParticleEmitSettings MakeAgricultureEmitSettings(
 	const Vector3& position,
 	float particleSize,
@@ -89,6 +93,13 @@ GPUParticleEmitSettings MakeAgricultureEmitSettings(
 GamePlayScene::GamePlayScene() = default;
 GamePlayScene::~GamePlayScene() = default;
 
+bool GamePlayScene::ConsumeFieldHarvestEvent(Vector3& outPosition, int32_t& outPrice, bool& outRare) {
+	if (!fieldManager_) {
+		return false;
+	}
+	return fieldManager_->ConsumeHarvestEvent(outPosition, outPrice, outRare);
+}
+
 /**
  * Initialize: シーン開始時に一度だけ呼ばれるセットアップ関数
  */
@@ -120,13 +131,16 @@ void GamePlayScene::Initialize() {
 	skyboxManager_->LoadSkybox("Evening", defaultSkyboxPath);
 	skyboxManager_->LoadSkybox("Night", defaultSkyboxPath);
 	skyboxManager_->LoadSkybox("Storm", defaultSkyboxPath);
-	skyboxManager_->SetCurrentSkybox("Sunny");
+	skyboxManager_->SetMode(SkyboxManager::SkyboxMode::SolidColor);
 
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
 
 	skeletonDebugger_ = std::make_unique<SkeletonDebugger>();
 	skeletonDebugger_->Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager());
 	skeletonDebugger_->SetEnvironmentMap(skyboxManager_->GetCurrentSrvIndex());
+
+	fieldManager_ = std::make_unique<FieldManager>();
+	fieldManager_->Initialize(framework_);
 
 	// ---------------------------------------------------------
 	// 3. モデルデータのロード
@@ -260,11 +274,16 @@ void GamePlayScene::Update() {
 	camera_->SetTranslate(cameraPos_);
 	camera_->SetRotate(cameraRot_);
 	camera_->Update();
+	HandleFieldMouseSelection();
 
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
 
 	if (skyboxManager_) {
+		if (framework_->GetInput() && framework_->GetInput()->TriggerKey(DIK_F6) && !ImGui::GetIO().WantCaptureKeyboard) {
+			skyboxManager_->CycleMode();
+		}
+		framework_->GetDxCommon()->SetSceneClearColor(skyboxManager_->GetClearColor());
 		skyboxManager_->Update(camera_.get());
 	}
 
@@ -295,6 +314,9 @@ void GamePlayScene::Update() {
 	UpdateObjectLights(terrainObj_.get(), 0.0f);
 	UpdateObjectLights(object3d_.get(), 0.0f);
 	UpdateObjectLights(animObj_.get(), 0.5f);
+	if (fieldManager_) {
+		fieldManager_->Update(sceneDeltaTime_, camera_.get());
+	}
 
 	if (sphereObj_) {
 		sphereObj_->SetPosition(spherePos_);
@@ -391,6 +413,7 @@ void GamePlayScene::Draw() {
 
 	if (modelPriority_ == 0) {
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
+		if (fieldManager_) fieldManager_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
@@ -409,6 +432,7 @@ void GamePlayScene::Draw() {
 
 		objCommon->CommonDrawSettings();
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
+		if (fieldManager_) fieldManager_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
@@ -470,7 +494,7 @@ void GamePlayScene::ResetCamera() {
 }
 
 void GamePlayScene::ClampCameraPitch() {
-	cameraRot_.x = std::clamp(cameraRot_.x, -1.5f, 1.5f);
+	cameraRot_.x = std::clamp(cameraRot_.x, -1.45f, 1.10f);
 }
 
 void GamePlayScene::HandleCameraInput(float deltaTime) {
@@ -492,30 +516,35 @@ void GamePlayScene::HandleCameraInput(float deltaTime) {
 			MatrixMath::MakeRotateYMatrix(cameraRot_.y),
 			MatrixMath::MakeRotateZMatrix(cameraRot_.z)));
 
-	Vector3 right = { rotateMatrix.m[0][0], rotateMatrix.m[0][1], rotateMatrix.m[0][2] };
 	Vector3 forward = { rotateMatrix.m[2][0], rotateMatrix.m[2][1], rotateMatrix.m[2][2] };
-	right = MatrixMath::Normalize(right);
+	forward.y = 0.0f;
+	if (MatrixMath::Length(forward) <= 0.0001f) {
+		forward = { std::sin(cameraRot_.y), 0.0f, std::cos(cameraRot_.y) };
+	}
 	forward = MatrixMath::Normalize(forward);
+	Vector3 right = MatrixMath::Normalize(MatrixMath::Cross({ 0.0f, 1.0f, 0.0f }, forward));
 
 	Vector3 move = { 0.0f, 0.0f, 0.0f };
 	if (input->PushKey(DIK_W)) { move += forward; }
 	if (input->PushKey(DIK_S)) { move -= forward; }
 	if (input->PushKey(DIK_D)) { move += right; }
 	if (input->PushKey(DIK_A)) { move -= right; }
-	if (input->PushKey(DIK_E)) { move.y += 1.0f; }
-	if (input->PushKey(DIK_Q)) { move.y -= 1.0f; }
+	if (input->PushKey(DIK_Q)) { move.y += 1.0f; }
+	if (input->PushKey(DIK_E)) { move.y -= 1.0f; }
 
 	const float moveLength = MatrixMath::Length(move);
 	if (moveLength > 0.0001f) {
 		const float moveStep = (std::max)(cameraMoveSpeed_, 0.0f) * deltaTime;
 		cameraPos_ += (move / moveLength) * moveStep;
+		cameraPos_.y = std::clamp(cameraPos_.y, 1.0f, 30.0f);
 	}
 
-	const float rotateStep = (std::max)(cameraRotateSpeed_, 0.0f) * deltaTime;
-	if (input->PushKey(DIK_UP)) { cameraRot_.x += rotateStep; }
-	if (input->PushKey(DIK_DOWN)) { cameraRot_.x -= rotateStep; }
-	if (input->PushKey(DIK_RIGHT)) { cameraRot_.y += rotateStep; }
-	if (input->PushKey(DIK_LEFT)) { cameraRot_.y -= rotateStep; }
+	if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+		const ImVec2 mouseDelta = ImGui::GetIO().MouseDelta;
+		const float rotateStep = (std::max)(cameraRotateSpeed_, 0.0f) * 0.01f;
+		cameraRot_.y += mouseDelta.x * rotateStep;
+		cameraRot_.x += mouseDelta.y * rotateStep;
+	}
 	ClampCameraPitch();
 }
 
@@ -539,6 +568,111 @@ void GamePlayScene::HandleKeyboardMovement() {
 /**
  * AddLog: デバッグログを記録する関数
  */
+void GamePlayScene::HandleFieldMouseSelection() {
+	fieldMouseInViewport_ = false;
+	fieldMouseRayValid_ = false;
+	fieldMouseHit_ = false;
+	fieldMouseVirtualPosition_ = { -1.0f, -1.0f };
+	fieldMouseSelectedIndex_ = fieldManager_ ? fieldManager_->GetSelectedIndex() : -1;
+
+	if (!fieldManager_ || !camera_ || gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
+		return;
+	}
+
+	Vector2 virtualPosition{};
+	fieldMouseInViewport_ = ConvertMouseToVirtualScreen(viewportMousePosition_, virtualPosition);
+	if (!fieldMouseInViewport_) {
+		return;
+	}
+	fieldMouseVirtualPosition_ = virtualPosition;
+
+	Ray ray{};
+	fieldMouseRayValid_ = CreateRayFromVirtualScreen(virtualPosition, ray);
+	fieldMouseRayOrigin_ = ray.origin;
+	fieldMouseRayDirection_ = ray.direction;
+	if (!fieldMouseRayValid_) {
+		return;
+	}
+
+	Vector3 hitPosition{};
+	fieldMouseHit_ = IntersectRayPlaneY(ray, fieldManager_->GetGroundY(), hitPosition);
+	if (!fieldMouseHit_) {
+		return;
+	}
+	fieldMouseHitPosition_ = hitPosition;
+
+	if (viewportHovered_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+		if (fieldManager_->TrySelectTileByWorldPosition(hitPosition)) {
+			fieldMouseSelectedIndex_ = fieldManager_->GetSelectedIndex();
+		}
+	}
+}
+
+bool GamePlayScene::ConvertMouseToVirtualScreen(const Vector2& mouseScreenPos, Vector2& outVirtualPos) const {
+	outVirtualPos = { -1.0f, -1.0f };
+	if (viewportImageSize_.x <= 1.0f || viewportImageSize_.y <= 1.0f) {
+		return false;
+	}
+
+	const float localX = mouseScreenPos.x - viewportImageTopLeft_.x;
+	const float localY = mouseScreenPos.y - viewportImageTopLeft_.y;
+	if (localX < 0.0f || localY < 0.0f ||
+		localX > viewportImageSize_.x || localY > viewportImageSize_.y) {
+		return false;
+	}
+
+	outVirtualPos.x = localX / viewportImageSize_.x * kVirtualScreenWidth;
+	outVirtualPos.y = localY / viewportImageSize_.y * kVirtualScreenHeight;
+	return std::isfinite(outVirtualPos.x) && std::isfinite(outVirtualPos.y);
+}
+
+bool GamePlayScene::CreateRayFromVirtualScreen(const Vector2& virtualScreenPos, Ray& outRay) const {
+	outRay = {};
+	if (!camera_ ||
+		!std::isfinite(virtualScreenPos.x) ||
+		!std::isfinite(virtualScreenPos.y)) {
+		return false;
+	}
+
+	const float ndcX = (virtualScreenPos.x / kVirtualScreenWidth) * 2.0f - 1.0f;
+	const float ndcY = 1.0f - (virtualScreenPos.y / kVirtualScreenHeight) * 2.0f;
+	const Matrix4x4 inverseViewProjection = MatrixMath::Inverse(camera_->GetViewProjectionMatrix());
+	const Vector3 nearPoint = MatrixMath::Transform({ ndcX, ndcY, 0.0f }, inverseViewProjection);
+	const Vector3 farPoint = MatrixMath::Transform({ ndcX, ndcY, 1.0f }, inverseViewProjection);
+	const Vector3 direction = MatrixMath::Normalize(farPoint - nearPoint);
+	if (MatrixMath::Length(direction) <= 0.0001f ||
+		!std::isfinite(nearPoint.x) ||
+		!std::isfinite(nearPoint.y) ||
+		!std::isfinite(nearPoint.z) ||
+		!std::isfinite(direction.x) ||
+		!std::isfinite(direction.y) ||
+		!std::isfinite(direction.z)) {
+		return false;
+	}
+
+	outRay.origin = nearPoint;
+	outRay.direction = direction;
+	return true;
+}
+
+bool GamePlayScene::IntersectRayPlaneY(const Ray& ray, float planeY, Vector3& outHitPosition) const {
+	outHitPosition = {};
+	if (std::abs(ray.direction.y) <= 0.0001f || !std::isfinite(planeY)) {
+		return false;
+	}
+
+	const float t = (planeY - ray.origin.y) / ray.direction.y;
+	if (t < 0.0f || !std::isfinite(t)) {
+		return false;
+	}
+
+	outHitPosition = ray.origin + ray.direction * t;
+	return
+		std::isfinite(outHitPosition.x) &&
+		std::isfinite(outHitPosition.y) &&
+		std::isfinite(outHitPosition.z);
+}
+
 void GamePlayScene::SyncGPUParticleDebugModeChange() {
 	if (gpuParticleDebugMode_ == previousGPUParticleDebugMode_) {
 		return;

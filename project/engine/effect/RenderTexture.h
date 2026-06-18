@@ -25,6 +25,7 @@ public:
     void CreateSRV(SrvManager* srvManager, DXGI_FORMAT srvFormat, UINT mipLevels = 1);
     void Transition(ID3D12GraphicsCommandList* commandList, D3D12_RESOURCE_STATES after);
     void Clear(ID3D12GraphicsCommandList* commandList);
+    void SetClearColor(const Vector4& clearColor) { clearColor_ = clearColor; }
 
     ID3D12Resource* GetResource() const { return resource_.Get(); }
     D3D12_CPU_DESCRIPTOR_HANDLE GetRTV() const { return rtvHandle_; }

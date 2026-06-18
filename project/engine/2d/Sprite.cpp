@@ -43,10 +43,13 @@ void Sprite::Initialize(SpriteCommon* spriteCommon, uint32_t textureHandle) {
 }
 
 void Sprite::Update() {
+    Matrix4x4 anchorMatrix = MatrixMath::MakeTranslateMatrix({ -anchorPoint_.x, -anchorPoint_.y, 0.0f });
     Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix({ size_.x, size_.y, 1.0f });
     Matrix4x4 rotateMatrix = MatrixMath::MakeRotateZMatrix(rotation_);
     Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix({ position_.x, position_.y, 0.0f });
-    Matrix4x4 worldMatrix = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
+    Matrix4x4 worldMatrix = MatrixMath::Multiply(
+        anchorMatrix,
+        MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix)));
 
     Matrix4x4 viewMatrix = MatrixMath::MakeIdentity4x4();
     Matrix4x4 projectionMatrix = MatrixMath::MakeOrthographicMatrix(0.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 100.0f);

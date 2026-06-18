@@ -2,6 +2,7 @@
 #include "base/Framework.h"
 #include "math/Matrix.h"	
 #include <chrono>
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -12,6 +13,9 @@ class SceneFactory;
 class SkinningDebugWindow;
 class PostEffectManager;
 class GameplayEffectManager;
+class FloatingTextSystem;
+class Sprite;
+enum class FieldActionFeedbackType;
 
 /**
  * Gameクラス
@@ -38,6 +42,25 @@ public:
 	static Vector2 GetMousePosInViewport() { return mousePosInViewport_; }
 
 private:
+	enum class AutoDemoStage {
+		Idle,
+		NormalHarvest,
+		WaitAfterHarvest,
+		DigitalRareHarvest,
+		SwitchSkybox,
+		Finished,
+	};
+
+	void ApplyDemoRecordingModeSettings();
+	void StartAutoDemoSequence();
+	void UpdateAutoDemoSequence(float deltaTime);
+	void DrawDemoRecordingImGui(class GamePlayScene* playScene);
+	void InitializeRuntimeTextTextures();
+	void InitializeGameplayHud();
+	void DrawGameplayEffectSprites();
+	void DrawGameplayHud(class GamePlayScene* playScene);
+	void ShowFieldActionMessage(FieldActionFeedbackType type);
+
 	std::unique_ptr<SceneFactory> sceneFactory_;
 
 	// RenderTexture / PostEffect result SRV indices.
@@ -92,6 +115,44 @@ private:
 	float fullscreenHSVValue_ = 0.0f;
 	Vector2 gameViewportImageTopLeft_ = { 0.0f, 0.0f };
 	Vector2 gameViewportImageSize_ = { 0.0f, 0.0f };
+
+	bool demoRecordingMode_ = false;
+	bool hideDebugUI_ = false;
+	bool showGameplayHud_ = true;
+	bool autoDemoSequenceActive_ = false;
+	AutoDemoStage autoDemoStage_ = AutoDemoStage::Idle;
+	float autoDemoTimer_ = 0.0f;
+	std::unique_ptr<FloatingTextSystem> floatingTextSystem_;
+
+	uint32_t hudWhiteTextureHandle_ = 0;
+	uint32_t hudControlsLine1TextureHandle_ = 0;
+	uint32_t hudControlsLine2TextureHandle_ = 0;
+	uint32_t hudSelectedLabelTextureHandle_ = 0;
+	uint32_t hudGrowthLabelTextureHandle_ = 0;
+	uint32_t hudMoistureLabelTextureHandle_ = 0;
+	std::array<uint32_t, 5> hudStateTextureHandles_{};
+	std::array<uint32_t, 5> hudNextTextureHandles_{};
+	std::array<uint32_t, 4> hudActionTextureHandles_{};
+	std::array<uint32_t, 101> hudPercentTextureHandles_{};
+	std::unique_ptr<Sprite> hudControlsPanelSprite_;
+	std::unique_ptr<Sprite> hudControlsLine1Sprite_;
+	std::unique_ptr<Sprite> hudControlsLine2Sprite_;
+	std::unique_ptr<Sprite> hudStatusPanelSprite_;
+	std::unique_ptr<Sprite> hudSelectedLabelSprite_;
+	std::unique_ptr<Sprite> hudStateValueSprite_;
+	std::unique_ptr<Sprite> hudGrowthLabelSprite_;
+	std::unique_ptr<Sprite> hudMoistureLabelSprite_;
+	std::unique_ptr<Sprite> hudGrowthBarBackgroundSprite_;
+	std::unique_ptr<Sprite> hudGrowthBarFillSprite_;
+	std::unique_ptr<Sprite> hudMoistureBarBackgroundSprite_;
+	std::unique_ptr<Sprite> hudMoistureBarFillSprite_;
+	std::unique_ptr<Sprite> hudStateAccentSprite_;
+	std::unique_ptr<Sprite> hudNextActionSprite_;
+	std::unique_ptr<Sprite> hudGrowthPercentSprite_;
+	std::unique_ptr<Sprite> hudMoisturePercentSprite_;
+	std::unique_ptr<Sprite> hudActionMessageSprite_;
+	float hudActionMessageTimer_ = 0.0f;
+	int hudActionMessageIndex_ = -1;
 
 	// 計算・補正されたマウス座標を保持
 	static Vector2 mousePosInViewport_;

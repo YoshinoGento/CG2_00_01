@@ -99,6 +99,7 @@ void GameplayEffectManager::PlayDigitalImpactEffect(const Vector3& worldPosition
     digitalTimer_ = 0.0f;
     digitalDuration_ = demoMode_ ? digitalDemoDuration_ : digitalNormalDuration_;
     digitalPosition_ = worldPosition;
+    pendingDigitalParticleEmit_ = enableDigitalParticles_;
 
     digitalParticles_.clear();
     digitalRays_.clear();
@@ -144,6 +145,45 @@ void GameplayEffectManager::PlayDigitalImpactEffect(const Vector3& worldPosition
         ray.delay = delayDist(engine);
         digitalRays_.push_back(ray);
     }
+}
+
+void GameplayEffectManager::SetDemoMode(bool enabled) {
+    demoMode_ = enabled;
+    if (demoMode_) {
+        showDigitalForceTestOverlay_ = false;
+    }
+    harvestDuration_ = demoMode_ ? demoDuration_ : normalDuration_;
+    digitalDuration_ = demoMode_ ? digitalDemoDuration_ : digitalNormalDuration_;
+}
+
+void GameplayEffectManager::ApplyRecordingDemoDefaults() {
+    demoMode_ = true;
+    enableScreenShake_ = true;
+    enableParticles_ = true;
+
+    normalDuration_ = 0.68f;
+    demoDuration_ = 1.18f;
+    popupDuration_ = 1.15f;
+    flashPower_ = 0.95f;
+    popupScale_ = 1.85f;
+    effectPower_ = 1.35f;
+    particleCount_ = 420;
+
+    enableDigitalParticles_ = true;
+    enableDigitalRing_ = true;
+    enableDigitalScreenPostEffect_ = true;
+    showDigitalForceTestOverlay_ = false;
+    digitalNormalDuration_ = 0.72f;
+    digitalDemoDuration_ = 1.0f;
+    digitalEffectPower_ = 1.45f;
+    digitalRingScale_ = 1.20f;
+    digitalRingThickness_ = 7.5f;
+    digitalParticleCount_ = 280;
+    digitalFlashPower_ = 1.30f;
+    digitalRadialBlurPower_ = 1.45f;
+
+    harvestDuration_ = demoDuration_;
+    digitalDuration_ = digitalDemoDuration_;
 }
 
 void GameplayEffectManager::Update(float deltaTime) {
@@ -257,6 +297,30 @@ float GameplayEffectManager::GetFlashPower() const {
     return flashPower_ * effectPower_ * demoFlashBoost * Squared(fade);
 }
 
+GameplayEffectManager::HarvestPopupSpriteState GameplayEffectManager::GetHarvestPopupSpriteState(const Vector2& textureSize) const {
+    HarvestPopupSpriteState state{};
+    if (!harvestActive_ || popupDuration_ <= 0.0f || textureSize.x <= 0.0f || textureSize.y <= 0.0f) {
+        return state;
+    }
+
+    const float popupT = GetNormalizedPopupTime();
+    const float alpha = Clamp01(1.0f - popupT);
+    if (alpha <= 0.0f) {
+        return state;
+    }
+
+    const float demoPopupBoost = demoMode_ ? 1.15f : 1.0f;
+    const float impactScale = 1.0f + std::sin(Clamp01(harvestTimer_ / 0.20f) * kPi) * 0.45f;
+    const float targetHeight = 92.0f * popupScale_ * demoPopupBoost * impactScale;
+    const float aspect = textureSize.x / textureSize.y;
+
+    state.visible = true;
+    state.position = { 1280.0f * 0.5f, 720.0f * 0.42f - 108.0f * popupT };
+    state.size = { targetHeight * aspect, targetHeight };
+    state.alpha = alpha;
+    return state;
+}
+
 GameplayEffectManager::ScreenPostEffectModifier GameplayEffectManager::GetScreenPostEffectModifier() const {
     ScreenPostEffectModifier modifier{};
     const float power = GetHarvestPower();
@@ -363,6 +427,32 @@ bool GameplayEffectManager::ConsumeHarvestParticleEmitSettings(GPUParticleEmitSe
     outSettings.count = static_cast<uint32_t>(std::clamp(gpuParticleCount, 1, 1024));
     outSettings.emit = 1;
     outSettings.preset = 2;
+    return true;
+}
+
+bool GameplayEffectManager::ConsumeDigitalParticleEmitSettings(GPUParticleEmitSettings& outSettings) {
+    if (!pendingDigitalParticleEmit_) {
+        return false;
+    }
+    pendingDigitalParticleEmit_ = false;
+
+    outSettings = {};
+    outSettings.translate = digitalPosition_;
+    outSettings.radius = demoMode_ ? 1.05f : 0.78f;
+    outSettings.color = { 0.22f, 0.86f, 1.0f, 1.0f };
+    outSettings.scale = demoMode_
+        ? Vector3{ 0.075f, 0.075f, 0.075f }
+        : Vector3{ 0.055f, 0.055f, 0.055f };
+    outSettings.lifeTime = demoMode_ ? 0.82f : 0.62f;
+    outSettings.baseVelocity = { 0.0f, 0.18f, 0.0f };
+    outSettings.speed = demoMode_ ? 1.25f : 0.95f;
+
+    const int requestedCount = demoMode_
+        ? static_cast<int>(static_cast<float>(digitalParticleCount_) * 0.45f)
+        : static_cast<int>(static_cast<float>(digitalParticleCount_) * 0.35f);
+    outSettings.count = static_cast<uint32_t>(std::clamp(requestedCount, 32, 128));
+    outSettings.emit = 1;
+    outSettings.preset = 100;
     return true;
 }
 
@@ -596,7 +686,7 @@ void GameplayEffectManager::DrawGameplayEffects(
                 48);
         }
 
-        if (alpha > 0.0f) {
+        if (drawHarvestPopupTextInDrawList_ && alpha > 0.0f) {
             char text[32]{};
             std::snprintf(text, sizeof(text), "+%dG", harvestPrice_);
 

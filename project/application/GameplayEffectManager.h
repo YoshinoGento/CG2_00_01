@@ -35,8 +35,19 @@ public:
         int randomNoiseMode = 1;
     };
 
+    struct HarvestPopupSpriteState {
+        bool visible = false;
+        Vector2 position = { 0.0f, 0.0f };
+        Vector2 size = { 0.0f, 0.0f };
+        float alpha = 0.0f;
+    };
+
     void PlayHarvestEffect(const Vector3& position, int32_t price);
     void PlayDigitalImpactEffect(const Vector3& worldPosition);
+    void SetDemoMode(bool enabled);
+    bool IsDemoMode() const { return demoMode_; }
+    void ApplyRecordingDemoDefaults();
+    void SetHarvestPopupDrawListEnabled(bool enabled) { drawHarvestPopupTextInDrawList_ = enabled; }
     void Update(float deltaTime);
     void DrawGameplayEffects(
         const Vector2& viewportTopLeft,
@@ -47,6 +58,7 @@ public:
     ScreenPostEffectModifier GetScreenPostEffectModifier() const;
     Vector2 GetViewportShakeOffset() const;
     bool ConsumeHarvestParticleEmitSettings(GPUParticleEmitSettings& outSettings);
+    bool ConsumeDigitalParticleEmitSettings(GPUParticleEmitSettings& outSettings);
     uint32_t GetHarvestBurstParticleCount() const;
 
     bool IsHarvestActive() const { return harvestActive_; }
@@ -58,6 +70,7 @@ public:
     float GetHarvestTimer() const { return harvestTimer_; }
     float GetHarvestDuration() const { return harvestDuration_; }
     float GetHarvestPower() const;
+    HarvestPopupSpriteState GetHarvestPopupSpriteState(const Vector2& textureSize) const;
     int32_t GetDebugHarvestPrice() const { return debugHarvestPrice_; }
     Vector3 GetDebugHarvestPosition() const { return debugHarvestPosition_; }
     Vector3 GetDebugDigitalImpactPosition() const { return debugDigitalPosition_; }
@@ -96,6 +109,7 @@ private:
     bool enableScreenShake_ = true;
     bool enableParticles_ = true;
     bool demoMode_ = false;
+    bool drawHarvestPopupTextInDrawList_ = true;
 
     float harvestTimer_ = 0.0f;
     float harvestDuration_ = 0.58f;
@@ -113,6 +127,7 @@ private:
     int32_t debugHarvestPrice_ = 120;
 
     bool digitalActive_ = false;
+    bool pendingDigitalParticleEmit_ = false;
     bool enableDigitalParticles_ = true;
     bool enableDigitalRing_ = true;
     bool enableDigitalScreenPostEffect_ = true;
