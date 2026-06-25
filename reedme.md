@@ -1,2 +1,3 @@
-# 主に使用した技術は
-## FieldManager、Mouse Picking、World Floating Text、GPU Particle、PostEffectChain、RenderTexture、Gamma Correction、Auto Demoです
+# README
+
+提出用の説明は `README.md` にまとめています。
