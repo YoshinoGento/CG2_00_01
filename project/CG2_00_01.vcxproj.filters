@@ -390,4 +390,15 @@
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp" />
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="application\farm\core\FarmGrid.cpp" />
+    <ClCompile Include="application\farm\debug\FarmDebugWindow.cpp" />
+    <ClCompile Include="application\farm\render\FarmRenderer.cpp" />
+    <ClInclude Include="application\farm\core\FarmGrid.h" />
+    <ClInclude Include="application\farm\core\FarmTile.h" />
+    <ClInclude Include="application\farm\core\FarmTypes.h" />
+    <ClInclude Include="application\farm\data\FarmRules.h" />
+    <ClInclude Include="application\farm\debug\FarmDebugWindow.h" />
+    <ClInclude Include="application\farm\render\FarmRenderer.h" />
+  </ItemGroup>
 </Project>
