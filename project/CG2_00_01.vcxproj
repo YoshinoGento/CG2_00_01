@@ -182,6 +182,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ClCompile Include="engine\effect\RenderTexture.cpp" />
       <ClCompile Include="test\hoge.cpp" />
     <ClCompile Include="engine\base\ImGuiManager.cpp" />
+    <ClCompile Include="engine\io\InputAction.cpp" />
     <ClCompile Include="engine\io\Input.cpp" />
     <ClCompile Include="engine\base\Logger.cpp" />
     <ClCompile Include="engine\3d\Model.cpp" />
@@ -400,6 +401,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ClInclude Include="engine\effect\RenderTexture.h" />
       <ClInclude Include="test\hoge.h" />
     <ClInclude Include="engine\base\ImGuiManager.h" />
+    <ClInclude Include="engine\io\InputAction.h" />
     <ClInclude Include="engine\io\Input.h" />
     <ClInclude Include="engine\base\Logger.h" />
     <ClInclude Include="engine\3d\Model.h" />

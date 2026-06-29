@@ -54,6 +54,9 @@
     <ClCompile Include="engine\io\Input.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
+    <ClCompile Include="engine\io\InputAction.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
+    </ClCompile>
     <ClCompile Include="engine\base\WinApp.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
@@ -190,6 +193,9 @@
     </ClInclude>
     <ClInclude Include="engine\io\Input.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\io\InputAction.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
     </ClInclude>
     <ClInclude Include="engine\base\WinApp.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
