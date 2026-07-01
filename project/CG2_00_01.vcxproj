@@ -402,7 +402,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ClInclude Include="test\hoge.h" />
     <ClInclude Include="engine\base\ImGuiManager.h" />
     <ClInclude Include="engine\io\InputAction.h" />
+    <ClInclude Include="engine\io\InputGamepadButton.h" />
     <ClInclude Include="engine\io\Input.h" />
+    <ClInclude Include="engine\io\InputKey.h" />
+    <ClInclude Include="engine\io\InputMouseButton.h" />
     <ClInclude Include="engine\base\Logger.h" />
     <ClInclude Include="engine\3d\Model.h" />
     <ClInclude Include="engine\3d\ModelManager.h" />

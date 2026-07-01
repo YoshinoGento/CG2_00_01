@@ -1,13 +1,28 @@
 #pragma once
 
+#include "InputGamepadButton.h"
+#include "InputKey.h"
+#include "InputMouseButton.h"
+
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
 
 class Input;
 
+enum class InputBindingType {
+	Keyboard,
+	DirectInputKeyCode,
+	MouseButton,
+	GamepadButton,
+};
+
 struct InputBinding {
-	int keyCode = 0;
+	InputBindingType type = InputBindingType::Keyboard;
+	InputKey key = InputKey::Unknown;
+	int keyCode = -1;
+	InputMouseButton mouseButton = InputMouseButton::Left;
+	InputGamepadButton gamepadButton = InputGamepadButton::A;
 };
 
 struct InputActionState {
@@ -19,7 +34,10 @@ struct InputActionState {
 
 class InputActionMap {
 public:
+	void BindKeyboard(uint32_t actionId, InputKey key);
 	void BindKeyboard(uint32_t actionId, int keyCode);
+	void BindMouseButton(uint32_t actionId, InputMouseButton button);
+	void BindGamepadButton(uint32_t actionId, InputGamepadButton button);
 	const std::vector<InputBinding>* FindBindings(uint32_t actionId) const;
 
 private:

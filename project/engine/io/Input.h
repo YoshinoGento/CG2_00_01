@@ -4,6 +4,9 @@
 #include <dinput.h> //DirectInput
 #include <wrl.h>
 #include "base/WinApp.h"
+#include "io/InputGamepadButton.h"
+#include "io/InputMouseButton.h"
+#include "math/Struct.h"
 
 using namespace Microsoft::WRL;
 
@@ -35,9 +38,33 @@ public:
 	/// <returns>トリガーか</returns>
 	bool TriggerKey(BYTE keyNumber); 
 
+	bool PushMouseButton(InputMouseButton button) const;
+	bool TriggerMouseButton(InputMouseButton button) const;
+	bool ReleaseMouseButton(InputMouseButton button) const;
+	Vector2 GetMousePosition() const;
+	Vector2 GetMouseDelta() const;
+	float GetMouseWheelDelta() const;
+	bool IsGamepadConnected() const;
+	bool PushGamepadButton(InputGamepadButton button) const;
+	bool TriggerGamepadButton(InputGamepadButton button) const;
+	bool ReleaseGamepadButton(InputGamepadButton button) const;
+	Vector2 GetLeftStick() const;
+	Vector2 GetRightStick() const;
+	float GetLeftTrigger() const;
+	float GetRightTrigger() const;
+
 private:
+	bool UpdateKeyboardState();
+	bool UpdateMouseState();
+	bool UpdateGamepadState();
+	void UpdateMousePosition();
+	void ClearKeyboardState();
+	void ClearMouseState();
+	void ClearGamepadState();
+
 	//キーボードデバイス
 	ComPtr<IDirectInputDevice8> keyboard;
+	ComPtr<IDirectInputDevice8> mouse;
 	
 	//DirectInputのインスタンスの生成
 	ComPtr<IDirectInput8> directInput = nullptr;
@@ -46,6 +73,20 @@ private:
 	BYTE keyPre[256] = {};
 
 	BYTE key[256] = {};
+
+	static constexpr int kMouseButtonCount = 5;
+	BYTE mouseButtonPre[kMouseButtonCount] = {};
+	BYTE mouseButton[kMouseButtonCount] = {};
+	Vector2 mousePosition_ = { 0.0f, 0.0f };
+	Vector2 mouseDelta_ = { 0.0f, 0.0f };
+	float mouseWheelDelta_ = 0.0f;
+	bool isGamepadConnected_ = false;
+	unsigned short gamepadButtonsPre_ = 0;
+	unsigned short gamepadButtons_ = 0;
+	Vector2 leftStick_ = { 0.0f, 0.0f };
+	Vector2 rightStick_ = { 0.0f, 0.0f };
+	float leftTrigger_ = 0.0f;
+	float rightTrigger_ = 0.0f;
 	
 	//WindowsAPI
 	WinApp* winApp_ = nullptr;
