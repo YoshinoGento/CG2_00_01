@@ -11,6 +11,8 @@
 
 namespace {
 	constexpr int kMaxAcquireAttempts = 8;
+	constexpr int kMinKeyboardKeyCode = 0;
+	constexpr int kMaxKeyboardKeyCode = 255;
 
 	bool IsRecoverableInputError(HRESULT result)
 	{
@@ -34,6 +36,11 @@ namespace {
 		}
 
 		return false;
+	}
+
+	bool IsKeyboardKeyCodeValid(int keyCode)
+	{
+		return keyCode >= kMinKeyboardKeyCode && keyCode <= kMaxKeyboardKeyCode;
 	}
 
 	int GetMouseButtonIndex(InputMouseButton button)
@@ -273,7 +280,7 @@ void Input::ClearGamepadState()
 	rightTrigger_ = 0.0f;
 }
 
-bool Input::PushKey(BYTE keyNumber)
+bool Input::PushKey(BYTE keyNumber) const
 {
 	if (key[keyNumber]) {
 		return true;
@@ -282,13 +289,40 @@ bool Input::PushKey(BYTE keyNumber)
 	return false;
 }
 
-bool Input::TriggerKey(BYTE keyNumber)
+bool Input::PushKey(InputKey inputKey) const
+{
+	const int keyCode = ToDirectInputKey(inputKey);
+	return IsKeyboardKeyCodeValid(keyCode) && PushKey(static_cast<BYTE>(keyCode));
+}
+
+bool Input::TriggerKey(BYTE keyNumber) const
 {
 	if (key[keyNumber] && !keyPre[keyNumber]) {
 		return true;
 	}
 
 	return false;
+}
+
+bool Input::TriggerKey(InputKey inputKey) const
+{
+	const int keyCode = ToDirectInputKey(inputKey);
+	return IsKeyboardKeyCodeValid(keyCode) && TriggerKey(static_cast<BYTE>(keyCode));
+}
+
+bool Input::ReleaseKey(BYTE keyNumber) const
+{
+	if (!key[keyNumber] && keyPre[keyNumber]) {
+		return true;
+	}
+
+	return false;
+}
+
+bool Input::ReleaseKey(InputKey inputKey) const
+{
+	const int keyCode = ToDirectInputKey(inputKey);
+	return IsKeyboardKeyCodeValid(keyCode) && ReleaseKey(static_cast<BYTE>(keyCode));
 }
 
 bool Input::PushMouseButton(InputMouseButton button) const

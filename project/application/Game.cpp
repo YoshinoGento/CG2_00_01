@@ -8,6 +8,7 @@
 #include "audio/Audio.h"
 #include "3d/Object3d.h"
 #include "2d/SpriteCommon.h"
+#include "debug/EngineDebugWindowManager.h"
 #include "debug/SkinningDebugWindow.h"
 #include "effect/ParticleManager.h"
 #include "effect/PostEffectManager.h"
@@ -75,6 +76,7 @@ void Game::Initialize() {
 		depthBufferSrvIndex_,
 		normalTextureSrvIndex_);
 	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
+	engineDebugWindowManager_ = std::make_unique<EngineDebugWindowManager>();
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
 	SceneManager::GetInstance()->SetSceneFactory(sceneFactory_.get());
@@ -84,6 +86,7 @@ void Game::Initialize() {
 void Game::Finalize() {
 	postEffectManager_.reset();
 	skinningDebugWindow_.reset();
+	engineDebugWindowManager_.reset();
 	SceneManager::DeleteInstance();
 	Framework::Finalize();
 }
@@ -103,6 +106,9 @@ void Game::Update() {
 
 	ImGuiManager::GetInstance()->Begin();
 	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+	if (engineDebugWindowManager_ && input_) {
+		engineDebugWindowManager_->Draw(*input_);
+	}
 
 	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
 	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
