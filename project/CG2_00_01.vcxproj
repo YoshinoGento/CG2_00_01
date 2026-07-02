@@ -163,6 +163,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\LineDrawer.cpp" />
     <ClCompile Include="engine\3d\Skeleton.cpp" />
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp" />
+    <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp" />
+    <ClCompile Include="engine\debug\InputDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\ResourceLeakChecker.cpp" />
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp" />
     <ClCompile Include="engine\audio\Audio.cpp" />
     <ClCompile Include="application\scene\BaseScene.cpp" />
@@ -184,6 +187,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\base\ImGuiManager.cpp" />
     <ClCompile Include="engine\io\InputAction.cpp" />
     <ClCompile Include="engine\io\Input.cpp" />
+    <ClCompile Include="engine\io\InputKey.cpp" />
     <ClCompile Include="engine\base\Logger.cpp" />
     <ClCompile Include="engine\3d\Model.cpp" />
     <ClCompile Include="engine\3d\ModelManager.cpp" />
@@ -384,6 +388,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\3d\LineDrawer.h" />
     <ClInclude Include="engine\3d\Skeleton.h" />
     <ClInclude Include="engine\3d\SkeletonDebugger.h" />
+    <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
+    <ClInclude Include="engine\debug\InputDebugWindow.h" />
+    <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
     <ClInclude Include="engine\audio\Audio.h" />
     <ClInclude Include="application\scene\BaseScene.h" />

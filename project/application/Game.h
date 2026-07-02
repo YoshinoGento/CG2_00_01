@@ -9,6 +9,7 @@
 
 class SceneFactory;
 class SkinningDebugWindow;
+class EngineDebugWindowManager;
 class PostEffectManager;
 
 /**
@@ -89,4 +90,5 @@ private:
 	std::unique_ptr<PostProcess> postProcess_;
 	std::unique_ptr<PostEffectManager> postEffectManager_;
 	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
+	std::unique_ptr<EngineDebugWindowManager> engineDebugWindowManager_;
 };

@@ -57,6 +57,9 @@
     <ClCompile Include="engine\io\InputAction.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
     </ClCompile>
+    <ClCompile Include="engine\io\InputKey.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
+    </ClCompile>
     <ClCompile Include="engine\base\WinApp.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
@@ -373,6 +376,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp" />
+    <ClCompile Include="engine\debug\InputDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\ResourceLeakChecker.cpp" />
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
+    <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
+    <ClInclude Include="engine\debug\InputDebugWindow.h" />
+    <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
   </ItemGroup>
 </Project>

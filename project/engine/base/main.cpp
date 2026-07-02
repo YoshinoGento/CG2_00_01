@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "debug/ResourceLeakChecker.h"
 #include <Windows.h>
 
 /**
@@ -8,6 +9,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	// 1. ゲーム本体（Gameクラス）を作成します。
 	// Framework（エンジン層）のポインタで持つことで、共通の Run() 関数を呼び出せるようにしています。
+#ifdef _DEBUG
+	ResourceLeakChecker resourceLeakChecker;
+#endif
 	std::unique_ptr<Framework> game = std::make_unique<Game>();
 
 	// 2. ゲームを実行します。
