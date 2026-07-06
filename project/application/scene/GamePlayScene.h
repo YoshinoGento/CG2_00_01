@@ -9,6 +9,7 @@
 #include "3d/Skybox.h"
 #include "3d/SkeletonDebugger.h"
 #include "effect/ParticleManager.h"
+#include "farm/ui/FarmHUD.h"
 
 class Framework;
 class Sprite;
@@ -61,6 +62,7 @@ private:
 	void EmitAgricultureParticle(AgricultureParticleType type);
 	uint32_t CalculateInteractionParticleCount() const;
 	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
+	void InitializeFarmHUD();
 
 	// エフェクト発生関数
 	void EmitSpark(const Vector3& position);
@@ -96,6 +98,8 @@ private:
 	uint32_t ringTexHandle_ = 0;
 
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
+	FarmHUD farmHud_;
+	bool farmHudInitialized_ = false;
 
 	bool showTerrain_ = true;
 	bool showSphere_ = true;
