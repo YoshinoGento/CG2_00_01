@@ -1,4 +1,5 @@
 #include "Sprite.h"
+#include <algorithm>
 #include <cassert>
 
 void Sprite::Initialize(SpriteCommon* spriteCommon, uint32_t textureHandle) {
@@ -71,7 +72,64 @@ void Sprite::SetTexture(uint32_t textureHandle) {
     AdjustTextureRect();
 }
 
+void Sprite::SetTextureRect(const Vector2& leftTop, const Vector2& size) {
+    textureLeftTop_ = leftTop;
+    textureSize_ = size;
+    UpdateTextureCoordinates();
+    size_ = textureSize_;
+}
+
 void Sprite::AdjustTextureRect() {
     D3D12_RESOURCE_DESC resDesc = spriteCommon_->GetTextureResourceDesc(textureHandle_);
-    size_ = { (float)resDesc.Width, (float)resDesc.Height };
+    if (resDesc.Width == 0 || resDesc.Height == 0) {
+        textureLeftTop_ = { 0.0f, 0.0f };
+        textureSize_ = { 1.0f, 1.0f };
+        size_ = textureSize_;
+        UpdateTextureCoordinates();
+        return;
+    }
+
+    textureLeftTop_ = { 0.0f, 0.0f };
+    textureSize_ = { static_cast<float>(resDesc.Width), static_cast<float>(resDesc.Height) };
+    size_ = textureSize_;
+    UpdateTextureCoordinates();
+}
+
+void Sprite::UpdateTextureCoordinates() {
+    if (spriteCommon_ == nullptr || vertexData_ == nullptr) {
+        return;
+    }
+
+    D3D12_RESOURCE_DESC resDesc = spriteCommon_->GetTextureResourceDesc(textureHandle_);
+    if (resDesc.Width == 0 || resDesc.Height == 0) {
+        textureLeftTop_ = { 0.0f, 0.0f };
+        textureSize_ = { 1.0f, 1.0f };
+
+        vertexData_[0].texcoord = { 0.0f, 1.0f, 0.0f, 0.0f };
+        vertexData_[1].texcoord = { 0.0f, 0.0f, 0.0f, 0.0f };
+        vertexData_[2].texcoord = { 1.0f, 1.0f, 0.0f, 0.0f };
+        vertexData_[3].texcoord = { 1.0f, 0.0f, 0.0f, 0.0f };
+        return;
+    }
+
+    const float textureWidth = static_cast<float>(resDesc.Width);
+    const float textureHeight = static_cast<float>(resDesc.Height);
+
+    const float left = std::clamp(textureLeftTop_.x, 0.0f, textureWidth - 1.0f);
+    const float top = std::clamp(textureLeftTop_.y, 0.0f, textureHeight - 1.0f);
+    const float width = std::clamp(textureSize_.x, 1.0f, textureWidth - left);
+    const float height = std::clamp(textureSize_.y, 1.0f, textureHeight - top);
+
+    textureLeftTop_ = { left, top };
+    textureSize_ = { width, height };
+
+    const float u0 = left / textureWidth;
+    const float v0 = top / textureHeight;
+    const float u1 = (left + width) / textureWidth;
+    const float v1 = (top + height) / textureHeight;
+
+    vertexData_[0].texcoord = { u0, v1, 0.0f, 0.0f };
+    vertexData_[1].texcoord = { u0, v0, 0.0f, 0.0f };
+    vertexData_[2].texcoord = { u1, v1, 0.0f, 0.0f };
+    vertexData_[3].texcoord = { u1, v0, 0.0f, 0.0f };
 }

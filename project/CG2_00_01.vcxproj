@@ -160,9 +160,11 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp" />
+    <ClCompile Include="application\farm\ui\FarmHUD.cpp" />
     <ClCompile Include="engine\3d\LineDrawer.cpp" />
     <ClCompile Include="engine\3d\Skeleton.cpp" />
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp" />
+    <ClCompile Include="engine\debug\Engine2DFeatureDebugWindow.cpp" />
     <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp" />
     <ClCompile Include="engine\debug\InputDebugWindow.cpp" />
     <ClCompile Include="engine\debug\ResourceLeakChecker.cpp" />
@@ -188,6 +190,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\io\InputAction.cpp" />
     <ClCompile Include="engine\io\Input.cpp" />
     <ClCompile Include="engine\io\InputKey.cpp" />
+    <ClCompile Include="engine\io\JsonFile.cpp" />
     <ClCompile Include="engine\base\Logger.cpp" />
     <ClCompile Include="engine\3d\Model.cpp" />
     <ClCompile Include="engine\3d\ModelManager.cpp" />
@@ -198,8 +201,11 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\scene\SceneFactory.cpp" />
     <ClCompile Include="application\scene\SceneManager.cpp" />
     <ClCompile Include="engine\3d\Skybox.cpp" />
+    <ClCompile Include="engine\2d\AnimatedSprite.cpp" />
+    <ClCompile Include="engine\2d\BitmapFont.cpp" />
     <ClCompile Include="engine\2d\Sprite.cpp" />
     <ClCompile Include="engine\2d\SpriteCommon.cpp" />
+    <ClCompile Include="engine\2d\SpriteText.cpp" />
     <ClCompile Include="engine\base\SrvManager.cpp" />
     <ClCompile Include="application\scene\TitleScene.cpp" />
     <ClCompile Include="engine\base\WinApp.cpp" />
@@ -384,10 +390,12 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application\scene\AbstractSceneFactory.h" />
+    <ClInclude Include="application\farm\ui\FarmHUD.h" />
     <ClInclude Include="engine\3d\Animation.h" />
     <ClInclude Include="engine\3d\LineDrawer.h" />
     <ClInclude Include="engine\3d\Skeleton.h" />
     <ClInclude Include="engine\3d\SkeletonDebugger.h" />
+    <ClInclude Include="engine\debug\Engine2DFeatureDebugWindow.h" />
     <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
     <ClInclude Include="engine\debug\InputDebugWindow.h" />
     <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
@@ -413,6 +421,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\io\Input.h" />
     <ClInclude Include="engine\io\InputKey.h" />
     <ClInclude Include="engine\io\InputMouseButton.h" />
+    <ClInclude Include="engine\io\JsonFile.h" />
     <ClInclude Include="engine\base\Logger.h" />
     <ClInclude Include="engine\3d\Model.h" />
     <ClInclude Include="engine\3d\ModelManager.h" />
@@ -423,8 +432,11 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\scene\SceneFactory.h" />
     <ClInclude Include="application\scene\SceneManager.h" />
     <ClInclude Include="engine\3d\Skybox.h" />
+    <ClInclude Include="engine\2d\AnimatedSprite.h" />
+    <ClInclude Include="engine\2d\BitmapFont.h" />
     <ClInclude Include="engine\2d\Sprite.h" />
     <ClInclude Include="engine\2d\SpriteCommon.h" />
+    <ClInclude Include="engine\2d\SpriteText.h" />
     <ClInclude Include="engine\base\SrvManager.h" />
     <ClInclude Include="application\scene\TitleScene.h" />
     <ClInclude Include="engine\base\WinApp.h" />
