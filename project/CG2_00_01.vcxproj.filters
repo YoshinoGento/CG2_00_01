@@ -37,6 +37,12 @@
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application">
       <UniqueIdentifier>{22f1cb47-f204-4718-b0e3-ff1b71e3f63f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm">
+      <UniqueIdentifier>{b3dd0b20-6409-4c99-a8ad-63d71d160a23}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\ui">
+      <UniqueIdentifier>{3df8a0bb-f0d2-4285-aed8-4fa841b6ba44}</UniqueIdentifier>
+    </Filter>
     <Filter Include="繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources">
       <UniqueIdentifier>{b1b01ead-a50b-431e-aab4-09931dab71f1}</UniqueIdentifier>
     </Filter>
@@ -45,6 +51,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="application\farm\ui\FarmHUD.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\ui</Filter>
+    </ClCompile>
     <ClCompile Include="engine\base\main.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\base</Filter>
     </ClCompile>
@@ -55,6 +64,12 @@
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\io\InputAction.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\io\InputKey.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\io\JsonFile.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
     </ClCompile>
     <ClCompile Include="engine\base\WinApp.cpp">
@@ -72,11 +87,17 @@
     <ClCompile Include="engine\2d\SpriteCommon.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
+    <ClCompile Include="engine\2d\AnimatedSprite.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\2d</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\2d\BitmapFont.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\2d</Filter>
+    </ClCompile>
     <ClCompile Include="engine\2d\Sprite.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
-    <ClCompile Include="engine\2d\RuntimeTextTextureGenerator.cpp">
-      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    <ClCompile Include="engine\2d\SpriteText.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\2d</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Object3dCommon.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
@@ -197,6 +218,9 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="application\farm\ui\FarmHUD.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\ui</Filter>
+    </ClInclude>
     <ClInclude Include="engine\math\Struct.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\math</Filter>
     </ClInclude>
@@ -221,6 +245,9 @@
     <ClInclude Include="engine\io\InputMouseButton.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
     </ClInclude>
+    <ClInclude Include="engine\io\JsonFile.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\io</Filter>
+    </ClInclude>
     <ClInclude Include="engine\base\WinApp.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
@@ -236,10 +263,16 @@
     <ClInclude Include="engine\2d\SpriteCommon.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
+    <ClInclude Include="engine\2d\AnimatedSprite.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\2d\BitmapFont.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
     <ClInclude Include="engine\2d\Sprite.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
-    <ClInclude Include="engine\2d\RuntimeTextTextureGenerator.h">
+    <ClInclude Include="engine\2d\SpriteText.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Object3dCommon.h">
@@ -403,7 +436,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\Engine2DFeatureDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp" />
+    <ClCompile Include="engine\debug\InputDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\ResourceLeakChecker.cpp" />
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
+    <ClInclude Include="engine\debug\Engine2DFeatureDebugWindow.h" />
+    <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
+    <ClInclude Include="engine\debug\InputDebugWindow.h" />
+    <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="application\farm\core\FarmGrid.cpp" />

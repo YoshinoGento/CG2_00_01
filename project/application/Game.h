@@ -12,9 +12,9 @@
 #include "GameplayEffectManager.h"
 
 class SceneFactory;
-class FloatingTextSystem;
-class Sprite;
-enum class FieldActionFeedbackType;
+class SkinningDebugWindow;
+class EngineDebugWindowManager;
+class PostEffectManager;
 
 /**
  * Main game application.
@@ -166,5 +166,6 @@ private:
 
 	std::unique_ptr<PostProcess> postProcess_;
 	std::unique_ptr<PostEffectManager> postEffectManager_;
-	std::unique_ptr<GameplayEffectManager> gameplayEffectManager_;
+	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
+	std::unique_ptr<EngineDebugWindowManager> engineDebugWindowManager_;
 };

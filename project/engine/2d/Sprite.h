@@ -46,6 +46,7 @@ public:
 private:
     // 頂点データの更新（サイズや切り取り範囲が変わったら呼ぶ）
     void AdjustTextureRect();
+    void UpdateTextureCoordinates();
 
 private:
     SpriteCommon* spriteCommon_ = nullptr;

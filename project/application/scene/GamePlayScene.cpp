@@ -90,6 +90,15 @@ GPUParticleEmitSettings MakeAgricultureEmitSettings(
 
 	return settings;
 }
+
+FarmHUDViewData MakeInitialFarmHUDViewData() {
+	FarmHUDViewData viewData;
+	viewData.day = 1;
+	viewData.money = 300;
+	viewData.rank = 1;
+	viewData.currentToolName = "Hoe";
+	return viewData;
+}
 }
 
 GamePlayScene::GamePlayScene() = default;
@@ -217,17 +226,7 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle_, ringModel_.get());
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
-	ApplyCleanDemoScene();
-	cropBurstEffectPosition_ = fieldManager_->GetDemoFieldWorldPosition(cropBurstSelectedIndex_);
-	if (particleManager_) {
-		Vector3 playPosition = cropBurstEffectPosition_;
-		playPosition.y += 0.8f;
-		particleManager_->PlayCropBurst(playPosition, CropBurstLevel::Rare);
-		cropBurstAutoPlayed_ = true;
-		cropBurstAutoTimer_ = 0.0f;
-		cropBurstLoopTimer_ = 0.0f;
-		AddLog("[CropBurst] initial release-visible play");
-	}
+	InitializeFarmHUD();
 
 }
 
@@ -295,6 +294,9 @@ void GamePlayScene::Update() {
 
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
+	if (farmHudInitialized_) {
+		farmHud_.Update(sceneDeltaTime_);
+	}
 
 	if (skyboxManager_) {
 		if (skyboxInputEnabled_ &&
@@ -501,9 +503,20 @@ void GamePlayScene::Draw() {
 		}
 	}
 
-	if (particleManager_) {
-		particleManager_->DrawAccentFX();
+	if (farmHudInitialized_) {
+		spriteCommon->PreDraw();
+		farmHud_.Draw();
 	}
+}
+
+void GamePlayScene::InitializeFarmHUD() {
+	farmHudInitialized_ = farmHud_.Initialize(framework_->GetSpriteCommon());
+	if (!farmHudInitialized_) {
+		AddLog("FarmHUD initialization failed.");
+		return;
+	}
+
+	farmHud_.SetViewData(MakeInitialFarmHUDViewData());
 }
 
 void GamePlayScene::UpdateSceneDeltaTime() {

@@ -9,6 +9,7 @@
 #include "3d/SkyboxManager.h"
 #include "3d/SkeletonDebugger.h"
 #include "effect/ParticleManager.h"
+#include "farm/ui/FarmHUD.h"
 
 class Framework;
 class Game;
@@ -89,6 +90,7 @@ private:
 	bool UpdateCropBurstDebugInput();
 	void UpdateCropBurstAutoPlayback(float deltaTime);
 	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
+	void InitializeFarmHUD();
 
 	// エフェクト発生関数
 	void EmitSpark(const Vector3& position);
@@ -125,7 +127,8 @@ private:
 	uint32_t ringTexHandle_ = 0;
 
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
-	std::unique_ptr<FieldManager> fieldManager_;
+	FarmHUD farmHud_;
+	bool farmHudInitialized_ = false;
 
 	bool showTerrain_ = false;
 	bool showSphere_ = false;

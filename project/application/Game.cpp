@@ -11,7 +11,7 @@
 #include "2d/RuntimeTextTextureGenerator.h"
 #include "2d/Sprite.h"
 #include "2d/SpriteCommon.h"
-#include "base/WinApp.h"
+#include "debug/EngineDebugWindowManager.h"
 #include "debug/SkinningDebugWindow.h"
 #include "FieldManager.h"
 #include "FloatingTextSystem.h"
@@ -202,8 +202,8 @@ void Game::Initialize() {
 		finalDisplayTextureSrvIndex_,
 		depthBufferSrvIndex_,
 		normalTextureSrvIndex_);
-	gameplayEffectManager_ = std::make_unique<GameplayEffectManager>();
-	gameplayEffectManager_->SetHarvestPopupDrawListEnabled(!floatingTextSystem_->IsReady());
+	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
+	engineDebugWindowManager_ = std::make_unique<EngineDebugWindowManager>();
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
 	SceneManager::GetInstance()->SetSceneFactory(sceneFactory_.get());
@@ -214,6 +214,8 @@ void Game::Finalize() {
 	gameplayEffectManager_.reset();
 	floatingTextSystem_.reset();
 	postEffectManager_.reset();
+	skinningDebugWindow_.reset();
+	engineDebugWindowManager_.reset();
 	SceneManager::DeleteInstance();
 	Framework::Finalize();
 }
@@ -844,36 +846,10 @@ void Game::Update() {
 	const bool isTitleScene = dynamic_cast<TitleScene*>(current) != nullptr;
 
 	ImGuiManager::GetInstance()->Begin();
-	if (playScene && !hideDebugUI_ && !presentationMode_) {
-		ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+	if (engineDebugWindowManager_ && input_) {
+		engineDebugWindowManager_->Draw(*input_);
 	}
-	if (input_ && !ImGui::GetIO().WantCaptureKeyboard) {
-#if defined(_DEBUG) || defined(DEVELOPMENT_BUILD)
-		if (input_->TriggerKey(DIK_F1)) {
-			hideDebugUI_ = !hideDebugUI_;
-		}
-#endif
-		if (input_->TriggerKey(DIK_F2)) {
-			showGameplayHud_ = !showGameplayHud_;
-		}
-		if (input_->TriggerKey(DIK_F7)) {
-			SetPresentationMode(!presentationMode_);
-		}
-		if (playScene && input_->TriggerKey(DIK_F5)) {
-			if (autoDemoSequenceActive_) {
-				StopAutoDemoSequence();
-			} else {
-				StartAutoDemoSequence();
-			}
-		}
-		if (input_->TriggerKey(DIK_F11) && winApp_) {
-			winApp_->ToggleBorderlessFullscreen();
-		}
-		if (!autoDemoSequenceActive_ && playScene && input_->TriggerKey(DIK_J) && gameplayEffectManager_) {
-			PlayDigitalImpactEffect(gameplayEffectManager_->GetDebugDigitalImpactPosition());
-		}
-	}
-	UpdateAutoDemoSequence(randomNoiseDeltaTime);
 
 	if (playScene) {
 		playScene->viewportHovered_ = false;

@@ -5,6 +5,7 @@
 #include <wrl.h>
 #include "base/WinApp.h"
 #include "io/InputGamepadButton.h"
+#include "io/InputKey.h"
 #include "io/InputMouseButton.h"
 #include "math/Struct.h"
 
@@ -28,7 +29,8 @@ public:
 	/// </summary>
 	/// <param name="keyNumber">キー番号</param>
 	/// <returns>押されているか</returns>
-	bool PushKey(BYTE keyNumber); //キーが押された瞬間
+	bool PushKey(BYTE keyNumber) const; //キーが押された瞬間
+	bool PushKey(InputKey key) const;
 
 
 	/// <summary>
@@ -36,7 +38,10 @@ public:
 	/// </summary>
 	/// <param name="keyNumber">キー番号</param>
 	/// <returns>トリガーか</returns>
-	bool TriggerKey(BYTE keyNumber); 
+	bool TriggerKey(BYTE keyNumber) const; 
+	bool TriggerKey(InputKey key) const;
+	bool ReleaseKey(BYTE keyNumber) const;
+	bool ReleaseKey(InputKey key) const;
 
 	bool PushMouseButton(InputMouseButton button) const;
 	bool TriggerMouseButton(InputMouseButton button) const;

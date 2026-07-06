@@ -95,17 +95,4 @@ void TitleScene::Draw() {
 		return;
 	}
 
-	spriteCommon_->PreDraw();
-	if (backgroundSprite_) {
-		backgroundSprite_->Update();
-		backgroundSprite_->Draw();
-	}
-	if (titleLogoSprite_) {
-		titleLogoSprite_->Update();
-		titleLogoSprite_->Draw();
-	}
-	if (pressSpaceSprite_) {
-		pressSpaceSprite_->Update();
-		pressSpaceSprite_->Draw();
-	}
-}
+void TitleScene::Draw() {}
