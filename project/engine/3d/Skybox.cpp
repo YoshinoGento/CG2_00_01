@@ -1,4 +1,5 @@
 #include "3d/Skybox.h"
+#include "base/Logger.h"
 #include "base/SrvManager.h"
 #include "3d/Camera.h"
 #include <cassert>
@@ -137,6 +138,16 @@ void Skybox::CreatePSO() {
 	ID3D12Device* device = dxCommon_->GetDevice();
 	auto vs = dxCommon_->CompileShader(L"Resources/shader/Skybox.VS.hlsl", L"vs_6_0");
 	auto ps = dxCommon_->CompileShader(L"Resources/shader/Skybox.PS.hlsl", L"ps_6_0");
+	if (vs == nullptr) {
+		Logger::Log("Skybox::CreatePSO failed: vertex shader compile failed.\n");
+		assert(false);
+		return;
+	}
+	if (ps == nullptr) {
+		Logger::Log("Skybox::CreatePSO failed: pixel shader compile failed.\n");
+		assert(false);
+		return;
+	}
 
 	D3D12_ROOT_PARAMETER rootParams[3] = {};
 	rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;

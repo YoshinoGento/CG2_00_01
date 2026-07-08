@@ -9,7 +9,14 @@
 #include "3d/SkyboxManager.h"
 #include "3d/SkeletonDebugger.h"
 #include "effect/ParticleManager.h"
+#include "farm/core/FarmGrid.h"
+#include "farm/system/FarmDateSystem.h"
+#include "farm/system/FarmToolActionSystem.h"
+#include "farm/system/FarmToolSystem.h"
 #include "farm/ui/FarmHUD.h"
+#ifdef _DEBUG
+#include "farm/debug/FarmDebugEditorWindow.h"
+#endif
 
 class Framework;
 class Game;
@@ -75,7 +82,7 @@ private:
 	void AddLog(const std::string& message);
 	void UpdateSceneDeltaTime();
 	void HandleKeyboardMovement();
-	void HandleCameraInput(float deltaTime);
+	void HandleCameraInput(float deltaTime, bool suppressArrowKeys);
 	void ClampCameraPitch();
 	void HandleFieldMouseSelection();
 	void SetCameraLookAt(const Vector3& eye, const Vector3& target);
@@ -90,7 +97,16 @@ private:
 	bool UpdateCropBurstDebugInput();
 	void UpdateCropBurstAutoPlayback(float deltaTime);
 	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
+	FarmHUDViewData BuildFarmHUDViewData() const;
+	void HandleFarmDateDebugInput();
+	void HandleFarmToolDebugInput();
+	void HandleFarmToolActionInput();
+	bool HandleFarmGridSelectionInput();
 	void InitializeFarmHUD();
+	void InitializeSkyboxIfNeeded();
+#ifdef _DEBUG
+	void DrawSceneDebugWindow();
+#endif
 
 	// エフェクト発生関数
 	void EmitSpark(const Vector3& position);
@@ -122,12 +138,22 @@ private:
 	std::unique_ptr<Model> ringModel_;
 	std::unique_ptr<Model> cylinderModel_;
 
-	std::unique_ptr<SkyboxManager> skyboxManager_;
+	std::unique_ptr<Skybox> skybox_;
+	bool skyboxEnabled_ = false;
+	bool skyboxEnvironmentEnabled_ = false;
+	int skyboxSelection_ = 0;
 	std::vector<uint32_t> textureHandles_;
 	uint32_t ringTexHandle_ = 0;
 
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
+	farm::FarmGrid farmGrid_;
+	FarmDateSystem farmDateSystem_;
+	FarmToolSystem farmToolSystem_;
+	FarmToolActionSystem farmToolActionSystem_;
 	FarmHUD farmHud_;
+#ifdef _DEBUG
+	farm::FarmDebugEditorWindow farmDebugEditorWindow_;
+#endif
 	bool farmHudInitialized_ = false;
 
 	bool showTerrain_ = false;

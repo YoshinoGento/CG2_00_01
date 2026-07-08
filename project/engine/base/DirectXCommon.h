@@ -140,6 +140,7 @@ public:
     void SetDissolveParameter(const DissolveParamForGPU& parameter);
     void SetRandomNoiseParameter(const RandomNoiseParamForGPU& parameter);
     void SetHSVFilterParameter(const HSVFilterParamForGPU& parameter);
+    void ResizeSwapChainIfNeeded();
     // 3. 蜈ｨ縺ｦ縺ｮ謠冗判繧堤ｵゆｺ・＠縲∫判髱｢繧定｡ｨ遉ｺ縺吶ｋ
     void PostDraw();
 
@@ -184,6 +185,7 @@ private:
     void InitializeFixFPS();
     void UpdateFixFPS();
     void SetFullscreenViewportAndScissor();
+    void SetSwapChainViewportAndScissor();
 
     WinApp* winApp_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Device> device_;
@@ -193,6 +195,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList_;
     Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain_;
     std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> backBuffers_;
+    uint32_t swapChainWidth_ = 0;
+    uint32_t swapChainHeight_ = 0;
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap_;
     UINT rtvDescriptorSize_ = 0;
@@ -209,7 +213,7 @@ private:
 
     static constexpr DXGI_FORMAT kRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     static constexpr DXGI_FORMAT kNormalTextureFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-    float renderTextureClearColor_[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+    float renderTextureClearColor_[4] = { 0.10f, 0.25f, 0.50f, 1.0f };
 
     Microsoft::WRL::ComPtr<ID3D12Resource> fullscreenPostEffectParameterResource_;
     FullscreenPostEffectParameter* mappedFullscreenPostEffectParameter_ = nullptr;

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "farm/core/FarmTile.h"
-#include "farm/data/FarmRules.h"
+#include "farm/core/FarmTypes.h"
 
 #include <vector>
 
@@ -9,11 +8,15 @@ namespace farm {
 
 class FarmGrid {
 public:
-	void Initialize(const FarmRules& rules = FarmRules{});
-	void Reset();
+	bool Initialize(int width, int height);
+	void MoveSelection(int dx, int dy);
+	bool RaiseSelectedTileHeight();
+	bool LowerSelectedTileHeight();
 
-	FarmActionResult ApplyAction(FarmAction action, int tileIndex);
-	FarmActionResult ApplyActionToSelected(FarmAction action);
+	int GetWidth() const { return width_; }
+	int GetHeight() const { return height_; }
+	int GetTileCount() const { return static_cast<int>(tiles_.size()); }
+	int GetSelectedIndex() const;
 
 	void UpdateGrowth(float deltaTime);
 	bool SelectTile(int index);
@@ -22,19 +25,21 @@ public:
 	const FarmTile* GetTile(int index) const;
 	FarmTile* GetSelectedTile();
 	const FarmTile* GetSelectedTile() const;
-
-	int GetSelectedIndex() const { return selectedIndex_; }
-	int GetTileCount() const { return static_cast<int>(tiles_.size()); }
-	int GetWidth() const { return rules_.gridWidth; }
-	int GetHeight() const { return rules_.gridHeight; }
-	const FarmRules& GetRules() const { return rules_; }
-	const std::vector<FarmTile>& GetTiles() const { return tiles_; }
+	const FarmTile* GetTile(int index) const;
+	FarmTile* GetMutableSelectedTile();
+	FarmTile* GetMutableTile(int index);
 
 private:
-	bool IsValidIndex(int index) const;
-	int ToIndex(int x, int z) const;
+	static constexpr int kMinHeightLevel = 0;
+	static constexpr int kMaxHeightLevel = 2;
 
-	FarmRules rules_{};
+	bool IsValid() const;
+
+private:
+	int width_ = 0;
+	int height_ = 0;
+	int selectedX_ = 0;
+	int selectedY_ = 0;
 	std::vector<FarmTile> tiles_;
 	int selectedIndex_ = 0;
 	int harvestCount_ = 0;

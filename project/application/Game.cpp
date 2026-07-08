@@ -894,7 +894,7 @@ void Game::Update() {
 	if (ImGui::Begin("Game Viewport", nullptr, gameViewportWindowFlags)) {
 		ImVec2 contentSize = ImGui::GetContentRegionAvail();
 		if (contentSize.x > 1.0f && contentSize.y > 1.0f) {
-			float targetAspect = kVirtualScreenAspect;
+			float targetAspect = static_cast<float>(WinApp::kClientWidth) / static_cast<float>(WinApp::kClientHeight);
 			ImVec2 displaySize = contentSize;
 			if (displaySize.x / displaySize.y > targetAspect) displaySize.x = displaySize.y * targetAspect;
 			else displaySize.y = displaySize.x / targetAspect;
@@ -909,35 +909,23 @@ void Game::Update() {
 					ImGui::GetCursorPos().y + offset.y + shakeOffset.y,
 					});
 
-				ImVec2 mousePos = ImGui::GetIO().MousePos;
-				ImVec2 imageTopLeft = ImGui::GetCursorScreenPos();
-				const bool mouseInsideImage =
-					mousePos.x >= imageTopLeft.x &&
-					mousePos.y >= imageTopLeft.y &&
-					mousePos.x < imageTopLeft.x + displaySize.x &&
-					mousePos.y < imageTopLeft.y + displaySize.y;
-				if (mouseInsideImage) {
-					mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * kVirtualScreenWidth;
-					mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * kVirtualScreenHeight;
-				} else {
-					mousePosInViewport_ = { -1.0f, -1.0f };
-				}
-
 				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(finalDisplayTextureSrvIndex_).ptr, displaySize);
-				const ImVec2 imageMin = ImGui::GetItemRectMin();
-				const ImVec2 imageMax = ImGui::GetItemRectMax();
-				const ImVec2 imageSize = {
-					imageMax.x - imageMin.x,
-					imageMax.y - imageMin.y,
+				ImVec2 mousePos = ImGui::GetIO().MousePos;
+				ImVec2 imageTopLeft = ImGui::GetItemRectMin();
+				ImVec2 imageBottomRight = ImGui::GetItemRectMax();
+				ImVec2 actualDisplaySize = {
+					imageBottomRight.x - imageTopLeft.x,
+					imageBottomRight.y - imageTopLeft.y
 				};
-				gameViewportImageTopLeft_ = { imageMin.x, imageMin.y };
-				gameViewportImageSize_ = { imageSize.x, imageSize.y };
+				mousePosInViewport_.x =
+					(mousePos.x - imageTopLeft.x) / actualDisplaySize.x * static_cast<float>(WinApp::kClientWidth);
+				mousePosInViewport_.y =
+					(mousePos.y - imageTopLeft.y) / actualDisplaySize.y * static_cast<float>(WinApp::kClientHeight);
 				if (playScene) {
-					playScene->SetViewportInfo(
-						{ imageMin.x, imageMin.y },
-						{ imageSize.x, imageSize.y },
-						{ mousePos.x, mousePos.y },
-						ImGui::IsItemHovered() && mouseInsideImage);
+					playScene->viewportImageTopLeft_ = { imageTopLeft.x, imageTopLeft.y };
+					playScene->viewportImageSize_ = { actualDisplaySize.x, actualDisplaySize.y };
+					playScene->viewportMousePosition_ = { mousePos.x, mousePos.y };
+					playScene->viewportHovered_ = ImGui::IsItemHovered();
 				}
 				DrawGameplayEffects();
 			}

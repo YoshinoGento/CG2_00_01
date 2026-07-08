@@ -722,6 +722,11 @@ void ParticleManager::CreateGPUParticleComputeRootSignature() {
 
 void ParticleManager::CreateGPUParticleComputePipelineState() {
     ComPtr<IDxcBlob> csBlob = dxCommon_->CompileShader(L"Resources/shader/InitializeParticle.CS.hlsl", L"cs_6_0");
+    if (csBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGPUParticleComputePipelineState failed: compute shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{};
     psoDesc.pRootSignature = gpuParticleComputeRootSignature_.Get();
@@ -790,6 +795,11 @@ void ParticleManager::CreateGPUParticleEmitComputeRootSignature() {
 
 void ParticleManager::CreateGPUParticleEmitComputePipelineState() {
     ComPtr<IDxcBlob> csBlob = dxCommon_->CompileShader(L"Resources/shader/EmitParticle.CS.hlsl", L"cs_6_0");
+    if (csBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGPUParticleEmitComputePipelineState failed: compute shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{};
     psoDesc.pRootSignature = gpuParticleEmitComputeRootSignature_.Get();
@@ -858,6 +868,11 @@ void ParticleManager::CreateGPUParticleUpdateComputeRootSignature() {
 
 void ParticleManager::CreateGPUParticleUpdateComputePipelineState() {
     ComPtr<IDxcBlob> csBlob = dxCommon_->CompileShader(L"Resources/shader/UpdateParticle.CS.hlsl", L"cs_6_0");
+    if (csBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGPUParticleUpdateComputePipelineState failed: compute shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{};
     psoDesc.pRootSignature = gpuParticleUpdateComputeRootSignature_.Get();
@@ -905,6 +920,16 @@ void ParticleManager::CreateGPUParticleInteractionComputeRootSignature() {
 void ParticleManager::CreateGPUParticleInteractionComputePipelineStates() {
     ComPtr<IDxcBlob> initializeCsBlob = dxCommon_->CompileShader(L"Resources/shader/InitializeInteractionParticle.CS.hlsl", L"cs_6_0");
     ComPtr<IDxcBlob> updateCsBlob = dxCommon_->CompileShader(L"Resources/shader/UpdateInteractionParticle.CS.hlsl", L"cs_6_0");
+    if (initializeCsBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGPUParticleInteractionComputePipelineStates failed: initialize compute shader compile failed.\n");
+        assert(false);
+        return;
+    }
+    if (updateCsBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGPUParticleInteractionComputePipelineStates failed: update compute shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{};
     psoDesc.pRootSignature = gpuParticleInteractionComputeRootSignature_.Get();
@@ -982,6 +1007,16 @@ void ParticleManager::CreateGPUParticleGraphicsRootSignature() {
 void ParticleManager::CreateGPUParticleGraphicsPipelineState() {
     ComPtr<IDxcBlob> vsBlob = dxCommon_->CompileShader(L"Resources/shader/GPUParticle.VS.hlsl", L"vs_6_0");
     ComPtr<IDxcBlob> psBlob = dxCommon_->CompileShader(L"Resources/shader/Particle.PS.hlsl", L"ps_6_0");
+    if (vsBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGPUParticleGraphicsPipelineState failed: vertex shader compile failed.\n");
+        assert(false);
+        return;
+    }
+    if (psBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGPUParticleGraphicsPipelineState failed: pixel shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -1525,6 +1560,16 @@ void ParticleManager::CreateRootSignature() {
 void ParticleManager::CreateGraphicsPipelineState() {
     ComPtr<IDxcBlob> vsBlob = dxCommon_->CompileShader(L"Resources/shader/Particle.VS.hlsl", L"vs_6_0");
     ComPtr<IDxcBlob> psBlob = dxCommon_->CompileShader(L"Resources/shader/Particle.PS.hlsl", L"ps_6_0");
+    if (vsBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGraphicsPipelineState failed: vertex shader compile failed.\n");
+        assert(false);
+        return;
+    }
+    if (psBlob == nullptr) {
+        Logger::Log("ParticleManager::CreateGraphicsPipelineState failed: pixel shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     // Input Layout のメモリ配置は Model::VertexData と同じ順序にする
     // position(float4) → normal(float3) → texcoord(float2)

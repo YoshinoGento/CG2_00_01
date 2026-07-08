@@ -4,7 +4,7 @@
 
 namespace farm {
 
-enum class FarmTileState : uint8_t {
+enum class FarmTileState {
 	Empty,
 	Tilled,
 	Watered,
@@ -12,28 +12,21 @@ enum class FarmTileState : uint8_t {
 	ReadyToHarvest,
 };
 
-enum class FarmAction : uint8_t {
+enum class CropType {
 	None,
-	Till,
-	Water,
-	Plant,
-	Harvest,
+	TestCrop,
 };
 
-struct FarmGridCoord {
-	int x = 0;
-	int z = 0;
+struct FarmTile {
+	int heightLevel = 0;
+	FarmTileState state = FarmTileState::Empty;
+	CropType crop = CropType::None;
+	float moisture = 0.0f;
+	float growth = 0.0f;
 };
 
-struct FarmActionResult {
-	bool accepted = false;
-	FarmAction action = FarmAction::None;
-	int tileIndex = -1;
-	bool harvestRare = false;
-	int harvestPrice = 0;
-};
-
-inline const char* ToString(FarmTileState state) {
+inline const char* ToString(FarmTileState state)
+{
 	switch (state) {
 	case FarmTileState::Empty:
 		return "Empty";
@@ -50,18 +43,13 @@ inline const char* ToString(FarmTileState state) {
 	}
 }
 
-inline const char* ToString(FarmAction action) {
-	switch (action) {
-	case FarmAction::None:
+inline const char* ToString(CropType crop)
+{
+	switch (crop) {
+	case CropType::None:
 		return "None";
-	case FarmAction::Till:
-		return "Till";
-	case FarmAction::Water:
-		return "Water";
-	case FarmAction::Plant:
-		return "Plant";
-	case FarmAction::Harvest:
-		return "Harvest";
+	case CropType::TestCrop:
+		return "TestCrop";
 	default:
 		return "Unknown";
 	}

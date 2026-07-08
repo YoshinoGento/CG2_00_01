@@ -2,6 +2,7 @@
 #include "math/Struct.h"
 #include <cstdint>
 #include <string>
+#include <vector>
 
 class SpriteCommon;
 
@@ -19,6 +20,7 @@ public:
     Vector2 GetGlyphSize() const { return glyphSize_; }
 
     bool TryGetGlyphRect(char c, Vector2& outLeftTop, Vector2& outSize) const;
+    bool TryGetGlyphRect(const std::string& glyph, Vector2& outLeftTop, Vector2& outSize) const;
 
 private:
     SpriteCommon* spriteCommon_ = nullptr;
@@ -26,4 +28,5 @@ private:
     Vector2 glyphSize_{};
     int columns_ = 0;
     std::string characters_;
+    std::vector<std::string> glyphs_;
 };

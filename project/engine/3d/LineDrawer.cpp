@@ -38,6 +38,16 @@ void LineDrawer::CreatePipeline() {
 	// シェーダーコンパイル
 	Microsoft::WRL::ComPtr<IDxcBlob> vsBlob = dxCommon_->CompileShader(L"Resources/shader/LineVS.hlsl", L"vs_6_0");
 	Microsoft::WRL::ComPtr<IDxcBlob> psBlob = dxCommon_->CompileShader(L"Resources/shader/LinePS.hlsl", L"ps_6_0");
+	if (vsBlob == nullptr) {
+		Logger::Log("LineDrawer::CreatePipeline failed: vertex shader compile failed.\n");
+		assert(false);
+		return;
+	}
+	if (psBlob == nullptr) {
+		Logger::Log("LineDrawer::CreatePipeline failed: pixel shader compile failed.\n");
+		assert(false);
+		return;
+	}
 
 	// ルートシグネチャ作成
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{};

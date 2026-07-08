@@ -1,58 +1,38 @@
 #include "farm/core/FarmGrid.h"
 
 #include <algorithm>
+#include <cstddef>
 
 namespace farm {
 
-void FarmGrid::Initialize(const FarmRules& rules) {
-	rules_ = rules;
-	Reset();
-}
-
-void FarmGrid::Reset() {
-	const int width = (std::max)(rules_.gridWidth, 1);
-	const int height = (std::max)(rules_.gridHeight, 1);
-
+bool FarmGrid::Initialize(int width, int height)
+{
+	width_ = 0;
+	height_ = 0;
+	selectedX_ = 0;
+	selectedY_ = 0;
 	tiles_.clear();
 	tiles_.resize(static_cast<size_t>(width * height));
 	selectedIndex_ = 0;
 	harvestCount_ = 0;
 
-	const float originOffsetX = (static_cast<float>(width - 1) * rules_.tileSpacing) * 0.5f;
-	const float originOffsetZ = (static_cast<float>(height - 1) * rules_.tileSpacing) * 0.5f;
-
-	for (int z = 0; z < height; ++z) {
-		for (int x = 0; x < width; ++x) {
-			FarmTile& tile = tiles_[ToIndex(x, z)];
-			tile = {};
-			tile.coord = { x, z };
-			tile.worldPosition = {
-				rules_.origin.x + static_cast<float>(x) * rules_.tileSpacing - originOffsetX,
-				rules_.origin.y,
-				rules_.origin.z + static_cast<float>(z) * rules_.tileSpacing - originOffsetZ,
-			};
-		}
+	if (width <= 0 || height <= 0) {
+		return false;
+	}
 	}
 }
 
-FarmActionResult FarmGrid::ApplyAction(FarmAction action, int tileIndex) {
-	FarmActionResult result{};
-	result.action = action;
-	result.tileIndex = tileIndex;
+	width_ = width;
+	height_ = height;
+	tiles_.assign(static_cast<std::size_t>(width_) * static_cast<std::size_t>(height_), FarmTile{});
+	return true;
+}
 
-	if (!IsValidIndex(tileIndex)) {
-		return result;
+void FarmGrid::MoveSelection(int dx, int dy)
+{
+	if (!IsValid()) {
+		return;
 	}
-
-	FarmTile& tile = tiles_[tileIndex];
-	switch (action) {
-	case FarmAction::Till:
-		if (tile.state == FarmTileState::Empty) {
-			tile.state = FarmTileState::Tilled;
-			tile.growth = 0.0f;
-			tile.moisture = 0.0f;
-			result.accepted = true;
-		}
 		break;
 	case FarmAction::Water:
 		if (tile.state == FarmTileState::Tilled || tile.state == FarmTileState::Planted) {
@@ -77,79 +57,74 @@ FarmActionResult FarmGrid::ApplyAction(FarmAction action, int tileIndex) {
 			result.harvestRare = rules_.rareHarvestInterval > 0 && (harvestCount_ % rules_.rareHarvestInterval) == 0;
 			result.harvestPrice = result.harvestRare ? rules_.rareHarvestPrice : rules_.normalHarvestPrice;
 
-			tile.state = FarmTileState::Tilled;
-			tile.growth = 0.0f;
-			tile.moisture = rules_.postHarvestMoisture;
-		}
-		break;
-	case FarmAction::None:
-	default:
-		break;
-	}
-
-	return result;
+	selectedX_ = std::clamp(selectedX_ + dx, 0, width_ - 1);
+	selectedY_ = std::clamp(selectedY_ + dy, 0, height_ - 1);
 }
 
-FarmActionResult FarmGrid::ApplyActionToSelected(FarmAction action) {
-	return ApplyAction(action, selectedIndex_);
-}
-
-void FarmGrid::UpdateGrowth(float deltaTime) {
-	const float safeDeltaTime = std::clamp(deltaTime, 0.0f, rules_.maxUpdateDeltaTime);
-	for (FarmTile& tile : tiles_) {
-		tile.moisture = (std::max)(tile.moisture - rules_.moistureDecayPerSecond * safeDeltaTime, 0.0f);
-		if (tile.state != FarmTileState::Planted) {
-			continue;
-		}
-
-		const float growthSpeed =
-			tile.moisture > rules_.wetGrowthMoistureThreshold
-			? rules_.growthPerSecondWet
-			: rules_.growthPerSecondDry;
-		tile.growth = std::clamp(tile.growth + growthSpeed * safeDeltaTime, 0.0f, rules_.maxCropGrowth);
-		if (tile.growth >= rules_.maxCropGrowth) {
-			tile.state = FarmTileState::ReadyToHarvest;
-			tile.moisture = (std::max)(tile.moisture, rules_.readyMoistureMinimum);
-		}
-	}
-}
-
-bool FarmGrid::SelectTile(int index) {
-	if (!IsValidIndex(index)) {
+bool FarmGrid::RaiseSelectedTileHeight()
+{
+	FarmTile* selectedTile = GetMutableSelectedTile();
+	if (selectedTile == nullptr) {
 		return false;
 	}
-	selectedIndex_ = index;
-	return true;
+
+	const int previousHeight = selectedTile->heightLevel;
+	selectedTile->heightLevel = std::clamp(selectedTile->heightLevel + 1, kMinHeightLevel, kMaxHeightLevel);
+	return selectedTile->heightLevel != previousHeight;
 }
 
-FarmTile* FarmGrid::GetTile(int index) {
-	if (!IsValidIndex(index)) {
+bool FarmGrid::LowerSelectedTileHeight()
+{
+	FarmTile* selectedTile = GetMutableSelectedTile();
+	if (selectedTile == nullptr) {
+		return false;
+	}
+
+	const int previousHeight = selectedTile->heightLevel;
+	selectedTile->heightLevel = std::clamp(selectedTile->heightLevel - 1, kMinHeightLevel, kMaxHeightLevel);
+	return selectedTile->heightLevel != previousHeight;
+}
+
+int FarmGrid::GetSelectedIndex() const
+{
+	if (!IsValid()) {
+		return -1;
+	}
+
+	return selectedY_ * width_ + selectedX_;
+}
+
+const FarmTile* FarmGrid::GetSelectedTile() const
+{
+	return GetTile(GetSelectedIndex());
+}
+
+const FarmTile* FarmGrid::GetTile(int index) const
+{
+	if (index < 0 || index >= GetTileCount()) {
 		return nullptr;
 	}
-	return &tiles_[index];
+
+	return &tiles_[static_cast<std::size_t>(index)];
 }
 
-const FarmTile* FarmGrid::GetTile(int index) const {
-	if (!IsValidIndex(index)) {
+bool FarmGrid::IsValid() const
+{
+	return width_ > 0 && height_ > 0 && !tiles_.empty();
+}
+
+FarmTile* FarmGrid::GetMutableSelectedTile()
+{
+	return GetMutableTile(GetSelectedIndex());
+}
+
+FarmTile* FarmGrid::GetMutableTile(int index)
+{
+	if (index < 0 || index >= GetTileCount()) {
 		return nullptr;
 	}
-	return &tiles_[index];
-}
 
-FarmTile* FarmGrid::GetSelectedTile() {
-	return GetTile(selectedIndex_);
-}
-
-const FarmTile* FarmGrid::GetSelectedTile() const {
-	return GetTile(selectedIndex_);
-}
-
-bool FarmGrid::IsValidIndex(int index) const {
-	return index >= 0 && index < static_cast<int>(tiles_.size());
-}
-
-int FarmGrid::ToIndex(int x, int z) const {
-	return z * (std::max)(rules_.gridWidth, 1) + x;
+	return &tiles_[static_cast<std::size_t>(index)];
 }
 
 } // namespace farm
