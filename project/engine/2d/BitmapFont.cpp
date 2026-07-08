@@ -3,6 +3,39 @@
 #include "base/Logger.h"
 #include "io/JsonFile.h"
 
+#include <algorithm>
+
+namespace {
+    std::size_t GetUtf8GlyphLength(unsigned char leadByte)
+    {
+        if ((leadByte & 0x80) == 0x00) {
+            return 1;
+        }
+        if ((leadByte & 0xE0) == 0xC0) {
+            return 2;
+        }
+        if ((leadByte & 0xF0) == 0xE0) {
+            return 3;
+        }
+        if ((leadByte & 0xF8) == 0xF0) {
+            return 4;
+        }
+        return 1;
+    }
+
+    std::vector<std::string> SplitUtf8Glyphs(const std::string& text)
+    {
+        std::vector<std::string> glyphs;
+        for (std::size_t index = 0; index < text.size();) {
+            const std::size_t glyphLength = GetUtf8GlyphLength(static_cast<unsigned char>(text[index]));
+            const std::size_t safeLength = (std::min)(glyphLength, text.size() - index);
+            glyphs.push_back(text.substr(index, safeLength));
+            index += safeLength;
+        }
+        return glyphs;
+    }
+}
+
 bool BitmapFont::Initialize(
     SpriteCommon* spriteCommon,
     const std::string& texturePath,
@@ -36,6 +69,11 @@ bool BitmapFont::Initialize(
     glyphSize_ = glyphSize;
     columns_ = columns;
     characters_ = characters;
+    glyphs_ = SplitUtf8Glyphs(characters_);
+    if (glyphs_.empty()) {
+        Logger::Log("BitmapFont::Initialize failed. glyph list is empty.");
+        return false;
+    }
 
     return true;
 }
@@ -104,20 +142,30 @@ bool BitmapFont::InitializeFromJson(SpriteCommon* spriteCommon, const std::strin
 }
 
 bool BitmapFont::TryGetGlyphRect(char c, Vector2& outLeftTop, Vector2& outSize) const {
+    return TryGetGlyphRect(std::string(1, c), outLeftTop, outSize);
+}
+
+bool BitmapFont::TryGetGlyphRect(const std::string& glyph, Vector2& outLeftTop, Vector2& outSize) const {
     if (columns_ <= 0 || glyphSize_.x <= 0.0f || glyphSize_.y <= 0.0f) {
         return false;
     }
-
-    const std::size_t index = characters_.find(c);
-    if (index == std::string::npos) {
+    if (glyph.empty()) {
         return false;
     }
 
-    const int glyphIndex = static_cast<int>(index);
-    outLeftTop = {
-        static_cast<float>(glyphIndex % columns_) * glyphSize_.x,
-        static_cast<float>(glyphIndex / columns_) * glyphSize_.y,
-    };
-    outSize = glyphSize_;
-    return true;
+    for (std::size_t index = 0; index < glyphs_.size(); ++index) {
+        if (glyphs_[index] != glyph) {
+            continue;
+        }
+
+        const int glyphIndex = static_cast<int>(index);
+        outLeftTop = {
+            static_cast<float>(glyphIndex % columns_) * glyphSize_.x,
+            static_cast<float>(glyphIndex / columns_) * glyphSize_.y,
+        };
+        outSize = glyphSize_;
+        return true;
+    }
+
+    return false;
 }

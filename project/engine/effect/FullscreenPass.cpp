@@ -103,6 +103,16 @@ void FullscreenPass::Initialize(
 
     auto vsBlob = dxCommon->CompileShader(L"Resources/shader/CopyImage.VS.hlsl", L"vs_6_0");
     auto psBlob = dxCommon->CompileShader(pixelShaderPath, L"ps_6_0");
+    if (vsBlob == nullptr) {
+        Logger::Log("FullscreenPass::Initialize failed: vertex shader compile failed.\n");
+        assert(false);
+        return;
+    }
+    if (psBlob == nullptr) {
+        Logger::Log("FullscreenPass::Initialize failed: pixel shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_BLEND_DESC blendDesc{};
     blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;

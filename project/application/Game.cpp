@@ -122,7 +122,7 @@ void Game::Update() {
 	if (ImGui::Begin("Game Viewport")) {
 		ImVec2 contentSize = ImGui::GetContentRegionAvail();
 		if (contentSize.x > 1.0f && contentSize.y > 1.0f) {
-			float targetAspect = 1280.0f / 720.0f;
+			float targetAspect = static_cast<float>(WinApp::kClientWidth) / static_cast<float>(WinApp::kClientHeight);
 			ImVec2 displaySize = contentSize;
 			if (displaySize.x / displaySize.y > targetAspect) displaySize.x = displaySize.y * targetAspect;
 			else displaySize.y = displaySize.x / targetAspect;
@@ -131,15 +131,21 @@ void Game::Update() {
 				ImVec2 offset = { (contentSize.x - displaySize.x) * 0.5f, (contentSize.y - displaySize.y) * 0.5f };
 				ImGui::SetCursorPos({ ImGui::GetCursorPos().x + offset.x, ImGui::GetCursorPos().y + offset.y });
 
-				ImVec2 mousePos = ImGui::GetIO().MousePos;
-				ImVec2 imageTopLeft = ImGui::GetCursorScreenPos();
-				mousePosInViewport_.x = (mousePos.x - imageTopLeft.x) / displaySize.x * 1280.0f;
-				mousePosInViewport_.y = (mousePos.y - imageTopLeft.y) / displaySize.y * 720.0f;
-
 				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(finalDisplayTextureSrvIndex_).ptr, displaySize);
+				ImVec2 mousePos = ImGui::GetIO().MousePos;
+				ImVec2 imageTopLeft = ImGui::GetItemRectMin();
+				ImVec2 imageBottomRight = ImGui::GetItemRectMax();
+				ImVec2 actualDisplaySize = {
+					imageBottomRight.x - imageTopLeft.x,
+					imageBottomRight.y - imageTopLeft.y
+				};
+				mousePosInViewport_.x =
+					(mousePos.x - imageTopLeft.x) / actualDisplaySize.x * static_cast<float>(WinApp::kClientWidth);
+				mousePosInViewport_.y =
+					(mousePos.y - imageTopLeft.y) / actualDisplaySize.y * static_cast<float>(WinApp::kClientHeight);
 				if (playScene) {
 					playScene->viewportImageTopLeft_ = { imageTopLeft.x, imageTopLeft.y };
-					playScene->viewportImageSize_ = { displaySize.x, displaySize.y };
+					playScene->viewportImageSize_ = { actualDisplaySize.x, actualDisplaySize.y };
 					playScene->viewportMousePosition_ = { mousePos.x, mousePos.y };
 					playScene->viewportHovered_ = ImGui::IsItemHovered();
 				}

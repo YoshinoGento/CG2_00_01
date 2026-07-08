@@ -22,6 +22,12 @@
 #include <random>
 
 namespace {
+constexpr float kMouseLookSensitivity = 0.005f;
+constexpr float kMousePanSensitivity = 0.01f;
+constexpr float kMouseWheelZoomSpeed = 2.0f;
+constexpr float kEditorCameraFastMultiplier = 3.0f;
+constexpr const char* kRostockSkyboxPath = "Resources/rostock_laage_airport_4k.dds";
+
 GPUParticleEmitSettings MakeAgricultureEmitSettings(
 	const Vector3& position,
 	float particleSize,
@@ -85,14 +91,44 @@ GPUParticleEmitSettings MakeAgricultureEmitSettings(
 	return settings;
 }
 
-FarmHUDViewData MakeInitialFarmHUDViewData() {
-	FarmHUDViewData viewData;
-	viewData.day = 1;
-	viewData.money = 300;
-	viewData.rank = 1;
-	viewData.currentToolName = "Hoe";
-	return viewData;
+std::string BuildSelectedTileInfo(const farm::FarmGrid& grid)
+{
+	const farm::FarmTile* selectedTile = grid.GetSelectedTile();
+	if (selectedTile == nullptr) {
+		return "Tile Invalid";
+	}
+
+	const float clampedMoisture = std::clamp(selectedTile->moisture, 0.0f, 1.0f);
+	const int moisturePercent = static_cast<int>(clampedMoisture * 100.0f + 0.5f);
+	return "Tile " + std::to_string(grid.GetSelectedIndex()) +
+		" H" + std::to_string(selectedTile->heightLevel) +
+		" " + farm::ToString(selectedTile->state) +
+		" Water " + std::to_string(moisturePercent) + "%" +
+		" Crop " + farm::ToString(selectedTile->crop);
 }
+
+void BuildCameraGroundMoveAxes(float yaw, Vector3& right, Vector3& forward)
+{
+	const float sinYaw = std::sin(yaw);
+	const float cosYaw = std::cos(yaw);
+
+	right = { cosYaw, 0.0f, -sinYaw };
+	forward = { sinYaw, 0.0f, cosYaw };
+}
+
+void BuildCameraViewAxes(const Vector3& rotate, Vector3& right, Vector3& up, Vector3& forward)
+{
+	const Matrix4x4 rotateMatrix = MatrixMath::Multiply(
+		MatrixMath::MakeRotateXMatrix(rotate.x),
+		MatrixMath::Multiply(
+			MatrixMath::MakeRotateYMatrix(rotate.y),
+			MatrixMath::MakeRotateZMatrix(rotate.z)));
+
+	right = MatrixMath::Normalize({ rotateMatrix.m[0][0], rotateMatrix.m[0][1], rotateMatrix.m[0][2] });
+	up = MatrixMath::Normalize({ rotateMatrix.m[1][0], rotateMatrix.m[1][1], rotateMatrix.m[1][2] });
+	forward = MatrixMath::Normalize({ rotateMatrix.m[2][0], rotateMatrix.m[2][1], rotateMatrix.m[2][2] });
+}
+
 }
 
 GamePlayScene::GamePlayScene() = default;
@@ -103,6 +139,12 @@ GamePlayScene::~GamePlayScene() = default;
  */
 void GamePlayScene::Initialize() {
 	framework_ = Framework::GetInstance();
+	farmGrid_.Initialize(5, 4);
+	farmDateSystem_.Initialize();
+	farmToolSystem_.Initialize();
+#ifdef _DEBUG
+	farmDebugEditorWindow_.LoadSettings();
+#endif
 
 	// ログ記録：UIと外部出力の両方に行われます
 	AddLog("Scene: GamePlay Initialized.");
@@ -122,14 +164,10 @@ void GamePlayScene::Initialize() {
 	// 2. システム・環境の初期化
 	// ---------------------------------------------------------
 	camera_ = std::make_unique<Camera>();
-	skybox_ = std::make_unique<Skybox>();
-	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), "Resources/rostock_laage_airport_4k.dds");
-
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
 
 	skeletonDebugger_ = std::make_unique<SkeletonDebugger>();
 	skeletonDebugger_->Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager());
-	skeletonDebugger_->SetEnvironmentMap(skybox_->GetSrvIndex());
 
 	// ---------------------------------------------------------
 	// 3. モデルデータのロード
@@ -168,12 +206,10 @@ void GamePlayScene::Initialize() {
 	terrainObj_->SetModel(tModel);
 	terrainObj_->SetPosition({ 0.0f, -2.0f, 0.0f });
 	terrainObj_->SetScale({ 2.0f, 2.0f, 2.0f });
-	terrainObj_->SetEnvironmentMap(skybox_->GetSrvIndex());
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize(framework_->GetObject3dCommon());
 	object3d_->SetModel(planeModel);
-	object3d_->SetEnvironmentMap(skybox_->GetSrvIndex());
 
 	// デフォルトで simpleSkin.gltf (配布データ) をアニメーション表示オブジェクトとしてロード
 	currentAnimModelIdx_ = 1;
@@ -257,9 +293,16 @@ void GamePlayScene::EmitCylinderEffect(const Vector3& position) {
 
 void GamePlayScene::Update() {
 	UpdateSceneDeltaTime();
-	HandleCameraInput(sceneDeltaTime_);
+	const bool farmGridInputConsumed = HandleFarmGridSelectionInput();
+	HandleCameraInput(sceneDeltaTime_, farmGridInputConsumed);
 	ClampCameraPitch();
-	HandleKeyboardMovement();
+	if (!farmGridInputConsumed) {
+		HandleKeyboardMovement();
+	}
+	HandleFarmDateDebugInput();
+	HandleFarmToolDebugInput();
+	HandleFarmToolActionInput();
+	farmDateSystem_.Update(sceneDeltaTime_);
 
 	camera_->SetTranslate(cameraPos_);
 	camera_->SetRotate(cameraRot_);
@@ -268,10 +311,20 @@ void GamePlayScene::Update() {
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
 	if (farmHudInitialized_) {
+		farmHud_.SetViewData(BuildFarmHUDViewData());
 		farmHud_.Update(sceneDeltaTime_);
 	}
+#ifdef _DEBUG
+	farmDebugEditorWindow_.Draw(farmGrid_, farmToolActionSystem_);
+	DrawSceneDebugWindow();
+#endif
 
-	skybox_->Update(camera_.get());
+	if (skyboxEnabled_) {
+		InitializeSkyboxIfNeeded();
+		if (skybox_) {
+			skybox_->Update(camera_.get());
+		}
+	}
 
 	Vector3 normSpotDir = MatrixMath::Normalize(spotLightDir_);
 
@@ -291,8 +344,12 @@ void GamePlayScene::Update() {
 		obj->SetSpotLightAngle(spotLightAngle_);
 		obj->SetSpotLightFalloff(spotLightFalloff_);
 
-		obj->SetEnvironmentMap(skybox_->GetSrvIndex());
-		obj->SetEnvironmentCoefficient(envCoef);
+		if (skybox_ && skyboxEnvironmentEnabled_) {
+			obj->SetEnvironmentMap(skybox_->GetSrvIndex());
+			obj->SetEnvironmentCoefficient(envCoef);
+		} else {
+			obj->SetEnvironmentCoefficient(0.0f);
+		}
 
 		obj->Update(camera_.get());
 		};
@@ -399,7 +456,7 @@ void GamePlayScene::Draw() {
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
-		if (skybox_) skybox_->Draw();
+		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
 		if (showSkeleton_ && animObj_ && animObj_->GetSkeleton()) {
 			// 【修正】モデルルート行列の二重掛けを防ぐため、GetWorldMatrix() ではなくルートを含まない GetObjectWorldMatrix() を渡します
@@ -417,7 +474,7 @@ void GamePlayScene::Draw() {
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
-		if (skybox_) skybox_->Draw();
+		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
 		if (showSkeleton_ && animObj_ && animObj_->GetSkeleton()) {
 			// 【修正】モデルルート行列の二重掛けを防ぐため、GetWorldMatrix() ではなくルートを含まない GetObjectWorldMatrix() を渡します
@@ -463,6 +520,107 @@ void GamePlayScene::Draw() {
 	}
 }
 
+FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
+	FarmHUDViewData viewData;
+	viewData.day = farmDateSystem_.GetDay();
+	viewData.money = 300;
+	viewData.rank = 1;
+	viewData.timeScale = farmDateSystem_.GetTimeScale();
+	viewData.currentToolName = farmToolSystem_.GetCurrentToolName();
+	viewData.selectedTileInfo = BuildSelectedTileInfo(farmGrid_);
+	return viewData;
+}
+
+void GamePlayScene::HandleFarmDateDebugInput() {
+	Input* input = framework_->GetInput();
+	if (!input) {
+		return;
+	}
+
+	if (input->TriggerKey(InputKey::T)) {
+		farmDateSystem_.CycleTimeScale();
+	}
+	if (input->TriggerKey(InputKey::Y)) {
+		farmDateSystem_.AdvanceOneDay();
+	}
+}
+
+void GamePlayScene::HandleFarmToolDebugInput() {
+	Input* input = framework_->GetInput();
+	if (!input) {
+		return;
+	}
+	if (viewportHovered_ && input->PushMouseButton(InputMouseButton::Right)) {
+		return;
+	}
+
+	if (input->TriggerKey(InputKey::E)) {
+		farmToolSystem_.SelectNextTool();
+	}
+	if (input->TriggerKey(InputKey::Q)) {
+		farmToolSystem_.SelectPreviousTool();
+	}
+}
+
+void GamePlayScene::HandleFarmToolActionInput() {
+	if (!framework_ || !viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) {
+		return;
+	}
+
+	Input* input = framework_->GetInput();
+	if (!input) {
+		return;
+	}
+
+	if (input->TriggerKey(InputKey::Enter)) {
+		farmToolActionSystem_.ApplyTool(farmGrid_, farmToolSystem_.GetCurrentTool());
+	}
+}
+
+bool GamePlayScene::HandleFarmGridSelectionInput() {
+	if (!framework_ || !viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) {
+		return false;
+	}
+
+	Input* input = framework_->GetInput();
+	if (!input) {
+		return false;
+	}
+
+	const bool isArrowPressed =
+		input->PushKey(InputKey::ArrowUp) ||
+		input->PushKey(InputKey::ArrowDown) ||
+		input->PushKey(InputKey::ArrowLeft) ||
+		input->PushKey(InputKey::ArrowRight);
+
+	if (input->TriggerKey(InputKey::ArrowUp)) {
+		farmGrid_.MoveSelection(0, -1);
+		return true;
+	}
+	if (input->TriggerKey(InputKey::ArrowDown)) {
+		farmGrid_.MoveSelection(0, 1);
+		return true;
+	}
+	if (input->TriggerKey(InputKey::ArrowLeft)) {
+		farmGrid_.MoveSelection(-1, 0);
+		return true;
+	}
+	if (input->TriggerKey(InputKey::ArrowRight)) {
+		farmGrid_.MoveSelection(1, 0);
+		return true;
+	}
+	if (input->TriggerKey(InputKey::PageUp)) {
+		farmGrid_.RaiseSelectedTileHeight();
+		return true;
+	}
+	if (input->TriggerKey(InputKey::PageDown)) {
+		farmGrid_.LowerSelectedTileHeight();
+		return true;
+	}
+
+	return isArrowPressed;
+}
+
 void GamePlayScene::InitializeFarmHUD() {
 	farmHudInitialized_ = farmHud_.Initialize(framework_->GetSpriteCommon());
 	if (!farmHudInitialized_) {
@@ -470,8 +628,34 @@ void GamePlayScene::InitializeFarmHUD() {
 		return;
 	}
 
-	farmHud_.SetViewData(MakeInitialFarmHUDViewData());
+	farmHud_.SetViewData(BuildFarmHUDViewData());
 }
+
+void GamePlayScene::InitializeSkyboxIfNeeded() {
+	if (skybox_) {
+		return;
+	}
+
+	skybox_ = std::make_unique<Skybox>();
+	skybox_->Initialize(framework_->GetDxCommon(), framework_->GetSrvManager(), kRostockSkyboxPath);
+}
+
+#ifdef _DEBUG
+void GamePlayScene::DrawSceneDebugWindow() {
+	if (ImGui::Begin("Scene Debug")) {
+		ImGui::TextUnformatted("Rendering");
+		ImGui::Checkbox("Skybox", &skyboxEnabled_);
+		ImGui::Checkbox("Skybox Environment Map", &skyboxEnvironmentEnabled_);
+		ImGui::Text("Skybox Loaded: %s", skybox_ ? "Yes" : "No");
+		ImGui::Separator();
+		ImGui::Checkbox("Terrain", &showTerrain_);
+		ImGui::Checkbox("Sphere", &showSphere_);
+		ImGui::Checkbox("Plane", &showPlane_);
+		ImGui::Checkbox("Particles", &showParticles_);
+	}
+	ImGui::End();
+}
+#endif
 
 void GamePlayScene::UpdateSceneDeltaTime() {
 	const auto now = std::chrono::steady_clock::now();
@@ -493,7 +677,7 @@ void GamePlayScene::ClampCameraPitch() {
 	cameraRot_.x = std::clamp(cameraRot_.x, -1.5f, 1.5f);
 }
 
-void GamePlayScene::HandleCameraInput(float deltaTime) {
+void GamePlayScene::HandleCameraInput(float deltaTime, bool suppressArrowKeys) {
 	if (!framework_ || !viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) {
 		return;
 	}
@@ -505,37 +689,56 @@ void GamePlayScene::HandleCameraInput(float deltaTime) {
 	if (!input) {
 		return;
 	}
+	(void)suppressArrowKeys;
 
-	const Matrix4x4 rotateMatrix = MatrixMath::Multiply(
-		MatrixMath::MakeRotateXMatrix(cameraRot_.x),
-		MatrixMath::Multiply(
-			MatrixMath::MakeRotateYMatrix(cameraRot_.y),
-			MatrixMath::MakeRotateZMatrix(cameraRot_.z)));
+	Vector3 right{};
+	Vector3 forward{};
+	BuildCameraGroundMoveAxes(cameraRot_.y, right, forward);
 
-	Vector3 right = { rotateMatrix.m[0][0], rotateMatrix.m[0][1], rotateMatrix.m[0][2] };
-	Vector3 forward = { rotateMatrix.m[2][0], rotateMatrix.m[2][1], rotateMatrix.m[2][2] };
-	right = MatrixMath::Normalize(right);
-	forward = MatrixMath::Normalize(forward);
+	Vector3 viewRight{};
+	Vector3 viewUp{};
+	Vector3 viewForward{};
+	BuildCameraViewAxes(cameraRot_, viewRight, viewUp, viewForward);
 
-	Vector3 move = { 0.0f, 0.0f, 0.0f };
-	if (input->PushKey(DIK_W)) { move += forward; }
-	if (input->PushKey(DIK_S)) { move -= forward; }
-	if (input->PushKey(DIK_D)) { move += right; }
-	if (input->PushKey(DIK_A)) { move -= right; }
-	if (input->PushKey(DIK_E)) { move.y += 1.0f; }
-	if (input->PushKey(DIK_Q)) { move.y -= 1.0f; }
+	const bool isFastMove =
+		input->PushKey(InputKey::LeftShift) ||
+		input->PushKey(InputKey::RightShift);
+	const float speedMultiplier = isFastMove ? kEditorCameraFastMultiplier : 1.0f;
 
-	const float moveLength = MatrixMath::Length(move);
-	if (moveLength > 0.0001f) {
-		const float moveStep = (std::max)(cameraMoveSpeed_, 0.0f) * deltaTime;
-		cameraPos_ += (move / moveLength) * moveStep;
+	const bool isRightMouseDown = input->PushMouseButton(InputMouseButton::Right);
+	const bool isMiddleMouseDown = input->PushMouseButton(InputMouseButton::Middle);
+	const Vector2 mouseDelta = input->GetMouseDelta();
+
+	if (isRightMouseDown) {
+		cameraRot_.y += mouseDelta.x * kMouseLookSensitivity;
+		cameraRot_.x += mouseDelta.y * kMouseLookSensitivity;
+
+		Vector3 move = { 0.0f, 0.0f, 0.0f };
+		if (input->PushKey(InputKey::W)) { move += forward; }
+		if (input->PushKey(InputKey::S)) { move -= forward; }
+		if (input->PushKey(InputKey::D)) { move += right; }
+		if (input->PushKey(InputKey::A)) { move -= right; }
+		if (input->PushKey(InputKey::E)) { move.y += 1.0f; }
+		if (input->PushKey(InputKey::Q)) { move.y -= 1.0f; }
+
+		const float moveLength = MatrixMath::Length(move);
+		if (moveLength > 0.0001f) {
+			const float moveStep = (std::max)(cameraMoveSpeed_, 0.0f) * speedMultiplier * deltaTime;
+			cameraPos_ += (move / moveLength) * moveStep;
+		}
 	}
 
-	const float rotateStep = (std::max)(cameraRotateSpeed_, 0.0f) * deltaTime;
-	if (input->PushKey(DIK_UP)) { cameraRot_.x += rotateStep; }
-	if (input->PushKey(DIK_DOWN)) { cameraRot_.x -= rotateStep; }
-	if (input->PushKey(DIK_RIGHT)) { cameraRot_.y += rotateStep; }
-	if (input->PushKey(DIK_LEFT)) { cameraRot_.y -= rotateStep; }
+	if (isMiddleMouseDown) {
+		const float panScale = kMousePanSensitivity * speedMultiplier;
+		cameraPos_ += viewRight * (mouseDelta.x * panScale);
+		cameraPos_ -= viewUp * (mouseDelta.y * panScale);
+	}
+
+	const float wheelDelta = input->GetMouseWheelDelta();
+	if (std::abs(wheelDelta) > 0.0f) {
+		const float wheelStep = kMouseWheelZoomSpeed * speedMultiplier * deltaTime * wheelDelta;
+		cameraPos_ += viewForward * wheelStep;
+	}
 	ClampCameraPitch();
 }
 
@@ -746,7 +949,9 @@ void GamePlayScene::ChangeAnimationModel(int index) {
 		}
 		
 		// 環境マップ設定の引き継ぎ
-		animObj_->SetEnvironmentMap(skybox_->GetSrvIndex());
+		if (skybox_ && skyboxEnvironmentEnabled_) {
+			animObj_->SetEnvironmentMap(skybox_->GetSrvIndex());
+		}
 		
 		// アニメーションデータをアセットフォルダから読み込んでオブジェクトにセット
 		Animation anim = animModel->LoadAnimation("Resources/" + animModels[index].first, animModels[index].second);

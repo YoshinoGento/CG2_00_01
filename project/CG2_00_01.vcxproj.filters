@@ -40,6 +40,15 @@
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm">
       <UniqueIdentifier>{b3dd0b20-6409-4c99-a8ad-63d71d160a23}</UniqueIdentifier>
     </Filter>
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\core">
+      <UniqueIdentifier>{65a1dd8c-4ab5-4305-8d66-a2e492f420a1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\debug">
+      <UniqueIdentifier>{39dce9e7-57ad-4bfe-a3dd-4e355cd8eda1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system">
+      <UniqueIdentifier>{9cfdf7c0-968f-4c8f-997b-c218333385ad}</UniqueIdentifier>
+    </Filter>
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\ui">
       <UniqueIdentifier>{3df8a0bb-f0d2-4285-aed8-4fa841b6ba44}</UniqueIdentifier>
     </Filter>
@@ -51,6 +60,24 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="application\farm\core\FarmGrid.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\core</Filter>
+    </ClCompile>
+    <ClCompile Include="application\farm\debug\FarmDebugEditorWindow.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="application\farm\debug\FarmDebugWindow.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="application\farm\system\FarmDateSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
+    <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
+    <ClCompile Include="application\farm\system\FarmToolSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
     <ClCompile Include="application\farm\ui\FarmHUD.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\ui</Filter>
     </ClCompile>
@@ -206,6 +233,27 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="application\farm\core\FarmGrid.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\core</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\core\FarmTypes.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\core</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\debug\FarmDebugEditorWindow.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\debug\FarmDebugWindow.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmDateSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmToolActionSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmToolSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
     <ClInclude Include="application\farm\ui\FarmHUD.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\ui</Filter>
     </ClInclude>

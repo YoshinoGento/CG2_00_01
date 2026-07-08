@@ -130,10 +130,18 @@ void SpriteCommon::CreateGraphicsPipelineState() {
     ID3D12Device* device = dxCommon_->GetDevice();
 
     Microsoft::WRL::ComPtr<IDxcBlob> vertexShaderBlob = dxCommon_->CompileShader(L"Resources/shader/Sprite2D.VS.hlsl", L"vs_6_0");
-    assert(vertexShaderBlob != nullptr);
+    if (vertexShaderBlob == nullptr) {
+        Logger::Log("SpriteCommon::CreateGraphicsPipelineState failed. Vertex shader compilation failed.");
+        assert(false);
+        return;
+    }
 
     Microsoft::WRL::ComPtr<IDxcBlob> pixelShaderBlob = dxCommon_->CompileShader(L"Resources/shader/Sprite2D.PS.hlsl", L"ps_6_0");
-    assert(pixelShaderBlob != nullptr);
+    if (pixelShaderBlob == nullptr) {
+        Logger::Log("SpriteCommon::CreateGraphicsPipelineState failed. Pixel shader compilation failed.");
+        assert(false);
+        return;
+    }
 
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
