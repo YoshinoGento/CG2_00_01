@@ -2,6 +2,39 @@
 #include "2d/BitmapFont.h"
 #include "base/Logger.h"
 
+#include <algorithm>
+
+namespace {
+    std::size_t GetUtf8GlyphLength(unsigned char leadByte)
+    {
+        if ((leadByte & 0x80) == 0x00) {
+            return 1;
+        }
+        if ((leadByte & 0xE0) == 0xC0) {
+            return 2;
+        }
+        if ((leadByte & 0xF0) == 0xE0) {
+            return 3;
+        }
+        if ((leadByte & 0xF8) == 0xF0) {
+            return 4;
+        }
+        return 1;
+    }
+
+    std::vector<std::string> SplitUtf8Glyphs(const std::string& text)
+    {
+        std::vector<std::string> glyphs;
+        for (std::size_t index = 0; index < text.size();) {
+            const std::size_t glyphLength = GetUtf8GlyphLength(static_cast<unsigned char>(text[index]));
+            const std::size_t safeLength = (std::min)(glyphLength, text.size() - index);
+            glyphs.push_back(text.substr(index, safeLength));
+            index += safeLength;
+        }
+        return glyphs;
+    }
+}
+
 void SpriteText::Initialize(SpriteCommon* spriteCommon, const BitmapFont* font) {
     if (spriteCommon == nullptr) {
         Logger::Log("SpriteText::Initialize failed. spriteCommon is null.");
@@ -88,12 +121,12 @@ void SpriteText::RebuildGlyphs() {
     }
 
     bool loggedUnsupported = false;
-    for (std::size_t textIndex = 0; textIndex < text_.size(); ++textIndex) {
-        const char c = text_[textIndex];
+    const std::vector<std::string> glyphs = SplitUtf8Glyphs(text_);
+    for (const std::string& glyph : glyphs) {
         Vector2 glyphLeftTop{};
         Vector2 glyphSize{};
-        if (!font_->TryGetGlyphRect(c, glyphLeftTop, glyphSize)) {
-            if (c != '\n' && !loggedUnsupported) {
+        if (!font_->TryGetGlyphRect(glyph, glyphLeftTop, glyphSize)) {
+            if (glyph != "\n" && !loggedUnsupported) {
                 Logger::Log("SpriteText::SetText skipped unsupported character.");
                 loggedUnsupported = true;
             }
@@ -118,11 +151,16 @@ void SpriteText::ApplyLayout() {
 
     const Vector2 glyphSize = font_->GetGlyphSize();
     const float glyphAdvance = glyphSize.x * scale_ + characterSpacing_;
+    const std::vector<std::string> glyphs = SplitUtf8Glyphs(text_);
     std::size_t glyphIndex = 0;
-    for (std::size_t textIndex = 0; textIndex < text_.size() && glyphIndex < activeGlyphCount_; ++textIndex) {
+    for (const std::string& glyph : glyphs) {
+        if (glyphIndex >= activeGlyphCount_) {
+            break;
+        }
+
         Vector2 glyphLeftTop{};
         Vector2 glyphRectSize{};
-        if (!font_->TryGetGlyphRect(text_[textIndex], glyphLeftTop, glyphRectSize)) {
+        if (!font_->TryGetGlyphRect(glyph, glyphLeftTop, glyphRectSize)) {
             continue;
         }
 

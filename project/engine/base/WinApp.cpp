@@ -1,5 +1,6 @@
 #include "WinApp.h"
 #include "audio/Audio.h"
+#include <algorithm>
 #pragma comment(lib, "winmm.lib")
 
 // ★ImGui用ウィンドウプロシージャの extern 宣言
@@ -17,6 +18,14 @@ LRESULT WinApp::WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 #endif
 
 	switch (msg) {
+	case WM_KEYDOWN:
+		if (wparam == VK_F11) {
+			if (WinApp* winApp = reinterpret_cast<WinApp*>(GetWindowLongPtr(hwnd, GWLP_USERDATA))) {
+				winApp->ToggleBorderlessFullscreen();
+				return 0;
+			}
+		}
+		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0;
@@ -33,11 +42,10 @@ void WinApp::Initialize() {
 	wc.hInstance = GetModuleHandle(nullptr);
 	wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 	RegisterClass(&wc);
-	const int32_t kClientWidth = 1280;
-	const int32_t kClientHeight = 720;
-	RECT wrc = { 0, 0, kClientWidth, kClientHeight };
+	RECT wrc = { 0, 0, WinApp::kClientWidth, WinApp::kClientHeight };
 	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 	hwnd = CreateWindow(wc.lpszClassName, L"CG2", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, wrc.right - wrc.left, wrc.bottom - wrc.top, nullptr, nullptr, wc.hInstance, nullptr);
+	SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 	ShowWindow(hwnd, SW_SHOW);
 }
 
@@ -58,4 +66,71 @@ bool WinApp::ProcessMessage() {
 		return true;
 	}
 	return false;
+}
+
+uint32_t WinApp::GetClientWidth() const {
+	if (!hwnd) {
+		return WinApp::kClientWidth;
+	}
+
+	RECT clientRect{};
+	if (!GetClientRect(hwnd, &clientRect)) {
+		return WinApp::kClientWidth;
+	}
+
+	return static_cast<uint32_t>((std::max)(clientRect.right - clientRect.left, 0L));
+}
+
+uint32_t WinApp::GetClientHeight() const {
+	if (!hwnd) {
+		return WinApp::kClientHeight;
+	}
+
+	RECT clientRect{};
+	if (!GetClientRect(hwnd, &clientRect)) {
+		return WinApp::kClientHeight;
+	}
+
+	return static_cast<uint32_t>((std::max)(clientRect.bottom - clientRect.top, 0L));
+}
+
+void WinApp::ToggleBorderlessFullscreen() {
+	if (!hwnd) {
+		return;
+	}
+
+	if (!isBorderlessFullscreen_) {
+		windowedStyle_ = static_cast<DWORD>(GetWindowLong(hwnd, GWL_STYLE));
+		GetWindowRect(hwnd, &windowedRect_);
+
+		HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+		MONITORINFO monitorInfo{};
+		monitorInfo.cbSize = sizeof(monitorInfo);
+		if (!GetMonitorInfo(monitor, &monitorInfo)) {
+			return;
+		}
+
+		SetWindowLong(hwnd, GWL_STYLE, static_cast<LONG>(windowedStyle_ & ~WS_OVERLAPPEDWINDOW));
+		SetWindowPos(
+			hwnd,
+			HWND_TOP,
+			monitorInfo.rcMonitor.left,
+			monitorInfo.rcMonitor.top,
+			monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+			monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+			SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+		isBorderlessFullscreen_ = true;
+		return;
+	}
+
+	SetWindowLong(hwnd, GWL_STYLE, static_cast<LONG>(windowedStyle_));
+	SetWindowPos(
+		hwnd,
+		nullptr,
+		windowedRect_.left,
+		windowedRect_.top,
+		windowedRect_.right - windowedRect_.left,
+		windowedRect_.bottom - windowedRect_.top,
+		SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+	isBorderlessFullscreen_ = false;
 }

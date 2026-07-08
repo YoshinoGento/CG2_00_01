@@ -267,6 +267,21 @@ void Object3dCommon::CreateGraphicsPipelineStates() {
     auto vs = dxCommon_->CompileShader(L"Resources/shader/Object3D.VS.hlsl", L"vs_6_0");
     auto skinningVs = dxCommon_->CompileShader(L"Resources/shader/Object3D.Skinning.VS.hlsl", L"vs_6_0");
     auto ps = dxCommon_->CompileShader(L"Resources/shader/Object3D.PS.hlsl", L"ps_6_0");
+    if (vs == nullptr) {
+        Logger::Log("Object3dCommon::CreateGraphicsPipelineStates failed: vertex shader compile failed.\n");
+        assert(false);
+        return;
+    }
+    if (skinningVs == nullptr) {
+        Logger::Log("Object3dCommon::CreateGraphicsPipelineStates failed: skinning vertex shader compile failed.\n");
+        assert(false);
+        return;
+    }
+    if (ps == nullptr) {
+        Logger::Log("Object3dCommon::CreateGraphicsPipelineStates failed: pixel shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -323,6 +338,11 @@ void Object3dCommon::CreateGraphicsPipelineStates() {
 void Object3dCommon::CreateSkinningComputePipelineState() {
     ID3D12Device* device = dxCommon_->GetDevice();
     auto cs = dxCommon_->CompileShader(L"Resources/shader/Skinning.CS.hlsl", L"cs_6_0");
+    if (cs == nullptr) {
+        Logger::Log("Object3dCommon::CreateSkinningComputePipelineState failed: compute shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{};
     psoDesc.pRootSignature = skinningComputeRootSignature_.Get();

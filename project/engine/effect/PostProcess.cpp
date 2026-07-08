@@ -1,4 +1,5 @@
 #include "PostProcess.h"
+#include "base/Logger.h"
 #include "base/SrvManager.h"
 #include <cassert>
 
@@ -73,6 +74,16 @@ void PostProcess::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
     // --- 4. パイプラインステート ---
     auto vsBlob = dxCommon_->CompileShader(L"Resources/shader/PostProcess.VS.hlsl", L"vs_6_0");
     auto psBlob = dxCommon_->CompileShader(L"Resources/shader/SinglePassBloom.PS.hlsl", L"ps_6_0");
+    if (vsBlob == nullptr) {
+        Logger::Log("PostProcess::Initialize failed: vertex shader compile failed.\n");
+        assert(false);
+        return;
+    }
+    if (psBlob == nullptr) {
+        Logger::Log("PostProcess::Initialize failed: pixel shader compile failed.\n");
+        assert(false);
+        return;
+    }
 
     D3D12_BLEND_DESC blend{};
     blend.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;

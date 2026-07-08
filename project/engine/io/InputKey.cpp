@@ -86,6 +86,20 @@ int ToDirectInputKey(InputKey key) noexcept
 		return DIK_RETURN;
 	case InputKey::Tab:
 		return DIK_TAB;
+	case InputKey::ArrowUp:
+		return DIK_UP;
+	case InputKey::ArrowDown:
+		return DIK_DOWN;
+	case InputKey::ArrowLeft:
+		return DIK_LEFT;
+	case InputKey::ArrowRight:
+		return DIK_RIGHT;
+	case InputKey::PageUp:
+		return DIK_PRIOR;
+	case InputKey::PageDown:
+		return DIK_NEXT;
+	case InputKey::F11:
+		return DIK_F11;
 	case InputKey::LeftShift:
 		return DIK_LSHIFT;
 	case InputKey::RightShift:

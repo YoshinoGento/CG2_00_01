@@ -92,5 +92,6 @@ void Framework::Update() {
 	if (winApp_->ProcessMessage()) {
 		endRequest_ = true;
 	}
+	dxCommon_->ResizeSwapChainIfNeeded();
 	input_->Update();
 }

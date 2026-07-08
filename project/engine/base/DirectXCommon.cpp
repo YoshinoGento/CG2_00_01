@@ -78,7 +78,9 @@ void DirectXCommon::InitializeCommand() {
 
 void DirectXCommon::InitializeSwapChain(WinApp* winApp) {
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
-    swapChainDesc.Width = WinApp::kClientWidth; swapChainDesc.Height = WinApp::kClientHeight;
+    swapChainWidth_ = (std::max)(winApp->GetClientWidth(), 1u);
+    swapChainHeight_ = (std::max)(winApp->GetClientHeight(), 1u);
+    swapChainDesc.Width = swapChainWidth_; swapChainDesc.Height = swapChainHeight_;
     swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; swapChainDesc.BufferCount = 2;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; swapChainDesc.SampleDesc.Count = 1;
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -206,6 +208,56 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     SetRandomNoiseParameter(randomNoiseParameter);
     HSVFilterParamForGPU hsvFilterParameter{};
     SetHSVFilterParameter(hsvFilterParameter);
+}
+
+void DirectXCommon::ResizeSwapChainIfNeeded() {
+    if (!winApp_ || !swapChain_) {
+        return;
+    }
+
+    const uint32_t clientWidth = winApp_->GetClientWidth();
+    const uint32_t clientHeight = winApp_->GetClientHeight();
+    if (clientWidth == 0 || clientHeight == 0) {
+        return;
+    }
+    if (clientWidth == swapChainWidth_ && clientHeight == swapChainHeight_) {
+        return;
+    }
+
+    commandList_->Close();
+    ID3D12CommandList* commandLists[] = { commandList_.Get() };
+    commandQueue_->ExecuteCommandLists(1, commandLists);
+    fenceValue_++;
+    commandQueue_->Signal(fence_.Get(), fenceValue_);
+    if (fence_->GetCompletedValue() < fenceValue_) {
+        fence_->SetEventOnCompletion(fenceValue_, fenceEvent_);
+        WaitForSingleObject(fenceEvent_, INFINITE);
+    }
+
+    for (ComPtr<ID3D12Resource>& backBuffer : backBuffers_) {
+        backBuffer.Reset();
+    }
+
+    HRESULT hr = swapChain_->ResizeBuffers(
+        static_cast<UINT>(backBuffers_.size()),
+        clientWidth,
+        clientHeight,
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        0);
+    assert(SUCCEEDED(hr));
+
+    swapChainWidth_ = clientWidth;
+    swapChainHeight_ = clientHeight;
+
+    for (uint32_t i = 0; i < backBuffers_.size(); ++i) {
+        swapChain_->GetBuffer(i, IID_PPV_ARGS(&backBuffers_[i]));
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
+        rtvHandle.ptr += static_cast<size_t>(i) * rtvDescriptorSize_;
+        device_->CreateRenderTargetView(backBuffers_[i].Get(), nullptr, rtvHandle);
+    }
+
+    commandAllocator_->Reset();
+    commandList_->Reset(commandAllocator_.Get(), nullptr);
 }
 
 void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter) {
@@ -420,6 +472,13 @@ void DirectXCommon::SetFullscreenViewportAndScissor() {
     commandList_->RSSetScissorRects(1, &scissor);
 }
 
+void DirectXCommon::SetSwapChainViewportAndScissor() {
+    D3D12_VIEWPORT viewport{ 0.0f, 0.0f, static_cast<FLOAT>(swapChainWidth_), static_cast<FLOAT>(swapChainHeight_), 0.0f, 1.0f };
+    commandList_->RSSetViewports(1, &viewport);
+    D3D12_RECT scissor{ 0, 0, static_cast<LONG>(swapChainWidth_), static_cast<LONG>(swapChainHeight_) };
+    commandList_->RSSetScissorRects(1, &scissor);
+}
+
 void DirectXCommon::BeginPostEffectResultRenderTarget() {
     assert(postEffectResultTexture_.GetResource());
     TransitionPostEffectResult(D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -455,7 +514,7 @@ void DirectXCommon::BeginSwapChainRenderTarget() {
 
     const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
     commandList_->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-    SetFullscreenViewportAndScissor();
+    SetSwapChainViewportAndScissor();
 }
 
 void DirectXCommon::PostDraw() {
@@ -487,22 +546,44 @@ void DirectXCommon::PostDraw() {
 Microsoft::WRL::ComPtr<IDxcBlob> DirectXCommon::CompileShader(const std::wstring& filePath, const std::wstring& profile) {
     std::wstring directory = filePath.substr(0, filePath.find_last_of(L"\\/"));
     std::wstring includePath = L"-I" + directory;
-    IDxcBlobEncoding* shaderSource = nullptr;
-    dxcUtils_->LoadFile(filePath.c_str(), nullptr, &shaderSource);
+    ComPtr<IDxcBlobEncoding> shaderSource;
+    HRESULT hr = dxcUtils_->LoadFile(filePath.c_str(), nullptr, &shaderSource);
+    if (FAILED(hr) || shaderSource == nullptr || shaderSource->GetBufferSize() == 0) {
+        Logger::Log("CompileShader failed: shader file not found or empty.");
+        Logger::Log("Shader path: " + ConvertString(filePath));
+        assert(false);
+        return nullptr;
+    }
+
     DxcBuffer shaderSourceBuffer{ shaderSource->GetBufferPointer(), shaderSource->GetBufferSize(), DXC_CP_UTF8 };
     LPCWSTR arguments[] = { filePath.c_str(), L"-E", L"main", L"-T", profile.c_str(), L"-Zi", L"-Qembed_debug", L"-Od", L"-Zpr", includePath.c_str() };
-    IDxcResult* shaderResult = nullptr;
-    dxcCompiler_->Compile(&shaderSourceBuffer, arguments, _countof(arguments), includeHandler_.Get(), IID_PPV_ARGS(&shaderResult));
-    IDxcBlobEncoding* shaderError = nullptr;
-    shaderResult->GetOutput(DXC_OUT_ERRORS, __uuidof(IDxcBlobEncoding), (void**)&shaderError, nullptr);
+    ComPtr<IDxcResult> shaderResult;
+    hr = dxcCompiler_->Compile(&shaderSourceBuffer, arguments, _countof(arguments), includeHandler_.Get(), IID_PPV_ARGS(&shaderResult));
+    if (FAILED(hr) || shaderResult == nullptr) {
+        Logger::Log("CompileShader failed: DXC compile request failed.");
+        Logger::Log("Shader path: " + ConvertString(filePath));
+        assert(false);
+        return nullptr;
+    }
+
+    ComPtr<IDxcBlobEncoding> shaderError;
+    shaderResult->GetOutput(DXC_OUT_ERRORS, __uuidof(IDxcBlobEncoding), reinterpret_cast<void**>(shaderError.GetAddressOf()), nullptr);
     if (shaderError != nullptr && shaderError->GetBufferSize() != 0) {
         Logger::Log((char*)shaderError->GetBufferPointer());
         assert(false);
+        return nullptr;
     }
-    IDxcBlob* shaderBlob = nullptr;
-    shaderResult->GetOutput(DXC_OUT_OBJECT, __uuidof(IDxcBlob), (void**)&shaderBlob, nullptr);
-    shaderSource->Release(); shaderResult->Release(); shaderError->Release();
-    return ComPtr<IDxcBlob>(shaderBlob);
+
+    ComPtr<IDxcBlob> shaderBlob;
+    hr = shaderResult->GetOutput(DXC_OUT_OBJECT, __uuidof(IDxcBlob), reinterpret_cast<void**>(shaderBlob.GetAddressOf()), nullptr);
+    if (FAILED(hr) || shaderBlob == nullptr) {
+        Logger::Log("CompileShader failed: compiled shader object is null.");
+        Logger::Log("Shader path: " + ConvertString(filePath));
+        assert(false);
+        return nullptr;
+    }
+
+    return shaderBlob;
 }
 
 DirectX::ScratchImage DirectXCommon::LoadTexture(const std::string& filePath) {
