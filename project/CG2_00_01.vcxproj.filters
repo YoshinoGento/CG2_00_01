@@ -470,4 +470,10 @@
     <ClInclude Include="engine\debug\InputDebugWindow.h" />
     <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="application\level\LevelLoader.cpp" />
+    <ClInclude Include="application\level\LevelLoader.h" />
+    <ClCompile Include="application\level\LevelGameplaySystem.cpp" />
+    <ClInclude Include="application\level\LevelGameplaySystem.h" />
+  </ItemGroup>
 </Project>

@@ -585,6 +585,14 @@ void Model::LoadTextures(SpriteCommon* spriteCommon) {
  * 描画
  */
 void Model::Draw(DirectXCommon* dxCommon) {
+	DrawGeometry(dxCommon, true);
+}
+
+void Model::DrawDepth(DirectXCommon* dxCommon) {
+	DrawGeometry(dxCommon, false);
+}
+
+void Model::DrawGeometry(DirectXCommon* dxCommon, bool bindMaterialTextures) {
 	ID3D12GraphicsCommandList* commandList = dxCommon->GetCommandList();
 	if (UseComputeSkinning()) {
 		commandList->IASetVertexBuffers(0, 1, &skinCluster_.skinnedVertexBufferView);
@@ -601,10 +609,12 @@ void Model::Draw(DirectXCommon* dxCommon) {
 	}
 	else {
 		for (const auto& mesh : meshes_) {
-			auto it = modelMaterials_.find(mesh.materialName);
-			if (it != modelMaterials_.end()) {
-				D3D12_GPU_DESCRIPTOR_HANDLE handle = modelManager_->GetSrvManager()->GetGPUDescriptorHandle(it->second.textureHandle);
-				commandList->SetGraphicsRootDescriptorTable(5, handle);
+			if (bindMaterialTextures) {
+				auto it = modelMaterials_.find(mesh.materialName);
+				if (it != modelMaterials_.end() && !it->second.textureFilePath.empty()) {
+					D3D12_GPU_DESCRIPTOR_HANDLE handle = modelManager_->GetSrvManager()->GetGPUDescriptorHandle(it->second.textureHandle);
+					commandList->SetGraphicsRootDescriptorTable(5, handle);
+				}
 			}
 			commandList->DrawIndexedInstanced(mesh.count, 1, mesh.start, 0, 0);
 		}

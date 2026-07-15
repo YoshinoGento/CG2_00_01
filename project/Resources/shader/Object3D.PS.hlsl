@@ -34,15 +34,68 @@ cbuffer cbSpotLight : register(b3)
     SpotLight gSpotLight;
 };
 
+struct ShadowScene
+{
+    float4x4 lightViewProjection;
+    float2 texelSize;
+    float depthBias;
+    float normalBias;
+    float strength;
+    float3 padding;
+};
+cbuffer cbShadowScene : register(b4)
+{
+    ShadowScene gShadowScene;
+};
+
 Texture2D<float4> gTexture : register(t0); // Index 5
 TextureCube<float4> gEnvironmentTexture : register(t1); // ★追加
+Texture2D<float> gDirectionalShadowMap : register(t3);
 SamplerState gSampler : register(s0);
+SamplerComparisonState gShadowSampler : register(s1);
 
 struct PixelShaderOutput
 {
     float4 color : SV_TARGET0;
     float4 normal : SV_TARGET1;
 };
+
+float EvaluateDirectionalShadow(float3 worldPosition, float3 normal, float3 lightDirection)
+{
+    float4 lightClipPosition = mul(float4(worldPosition, 1.0f), gShadowScene.lightViewProjection);
+    if (lightClipPosition.w <= 0.0f)
+    {
+        return 1.0f;
+    }
+
+    float3 lightNdc = lightClipPosition.xyz / lightClipPosition.w;
+    if (lightNdc.x < -1.0f || lightNdc.x > 1.0f ||
+        lightNdc.y < -1.0f || lightNdc.y > 1.0f ||
+        lightNdc.z <= 0.0f || lightNdc.z >= 1.0f)
+    {
+        return 1.0f;
+    }
+
+    float2 shadowUv = float2(lightNdc.x * 0.5f + 0.5f, -lightNdc.y * 0.5f + 0.5f);
+    float slopeBias = gShadowScene.normalBias * (1.0f - saturate(dot(normal, lightDirection)));
+    float receiverDepth = lightNdc.z - max(gShadowScene.depthBias, slopeBias);
+    float visibility = 0.0f;
+
+    [unroll]
+    for (int y = -1; y <= 1; ++y)
+    {
+        [unroll]
+        for (int x = -1; x <= 1; ++x)
+        {
+            float2 offset = float2((float)x, (float)y) * gShadowScene.texelSize;
+            visibility += gDirectionalShadowMap.SampleCmpLevelZero(
+                gShadowSampler, shadowUv + offset, receiverDepth);
+        }
+    }
+
+    visibility /= 9.0f;
+    return lerp(1.0f, visibility, saturate(gShadowScene.strength));
+}
 
 PixelShaderOutput main(VertexShaderOutput input)
 {
@@ -65,10 +118,12 @@ PixelShaderOutput main(VertexShaderOutput input)
     float3 L_dir = normalize(-gDirectionalLight.direction);
     float3 H_dir = normalize(L_dir + V);
     float NdotL_dir = saturate(dot(N, L_dir));
-    float cos_dir = pow(NdotL_dir * 0.5f + 0.5f, 2.0f);
-    float3 diffuse_dir = gMaterial.color.rgb * textureColor.rgb * gDirectionalLight.color.rgb * cos_dir * gDirectionalLight.intensity;
+    float directionalShadow = EvaluateDirectionalShadow(input.worldPosition, N, L_dir);
+    float3 baseColor = gMaterial.color.rgb * textureColor.rgb;
+    float3 ambient_dir = baseColor * gDirectionalLight.color.rgb * 0.18f * gDirectionalLight.intensity;
+    float3 diffuse_dir = baseColor * gDirectionalLight.color.rgb * (NdotL_dir * 0.82f) * gDirectionalLight.intensity * directionalShadow;
     float spec_dir = pow(saturate(dot(N, H_dir)), gMaterial.shininess);
-    float3 specular_dir = gDirectionalLight.color.rgb * gDirectionalLight.intensity * spec_dir;
+    float3 specular_dir = gDirectionalLight.color.rgb * gDirectionalLight.intensity * spec_dir * directionalShadow;
 
     // --- 2. スポットライト ---
     float3 lightVec = input.worldPosition - gSpotLight.position;
@@ -95,7 +150,7 @@ PixelShaderOutput main(VertexShaderOutput input)
 
 
     // 全てを合成
-    output.color.rgb = diffuse_dir + specular_dir + diffuse_spot + specular_spot;
+    output.color.rgb = ambient_dir + diffuse_dir + specular_dir + diffuse_spot + specular_spot;
     // 環境マップの色を係数に従って加算
     output.color.rgb += environmentColor * gMaterial.environmentCoefficient;
     

@@ -19,6 +19,8 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 
 	transformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
 	transformationMatrixResource_->Map(0, nullptr, (void**)&transformationMatrixData_);
+	shadowTransformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
+	shadowTransformationMatrixResource_->Map(0, nullptr, (void**)&shadowTransformationMatrixData_);
 
 	directionalLightResource_ = dxCommon->CreateBufferResource(sizeof(DirectionalLight));
 	directionalLightResource_->Map(0, nullptr, (void**)&directionalLightData_);
@@ -43,6 +45,7 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 
 void Object3d::Update(Camera* camera) {
 	assert(camera);
+	computeSkinningPrepared_ = false;
 
 	if (isAnimationPlaying_ && animation_.duration > 0.0f) {
 		animationTime_ += (1.0f / 60.0f) * animationSpeed_;
@@ -104,8 +107,9 @@ void Object3d::Draw() {
 	const bool useComputeSkinning = model_->UseComputeSkinning();
 	const bool useVertexShaderSkinning = isSkinned && !useComputeSkinning;
 
-	if (useComputeSkinning) {
+	if (useComputeSkinning && !computeSkinningPrepared_) {
 		model_->DispatchComputeSkinning(object3dCommon_);
+		computeSkinningPrepared_ = true;
 	}
 
 	// 3Dオブジェクト用のルートシグネチャを明示的にセットする
@@ -127,6 +131,10 @@ void Object3d::Draw() {
 
 	D3D12_GPU_DESCRIPTOR_HANDLE environmentMapSrvHandle = srvManager->GetGPUDescriptorHandle(environmentMapHandle_);
 	commandList->SetGraphicsRootDescriptorTable(6, environmentMapSrvHandle);
+	if (object3dCommon_->IsShadowReady()) {
+		commandList->SetGraphicsRootConstantBufferView(7, object3dCommon_->GetShadowSceneBufferAddress());
+		commandList->SetGraphicsRootDescriptorTable(8, object3dCommon_->GetShadowMapSrvHandle());
+	}
 
 	if (useVertexShaderSkinning) {
 		const Model::SkinCluster& skinCluster = model_->GetSkinCluster();
@@ -135,13 +143,51 @@ void Object3d::Draw() {
 			assert(false && "Skinned mesh has invalid MatrixPalette SRV handle.");
 			return;
 		}
-		commandList->SetGraphicsRootDescriptorTable(7, srvManager->GetGPUDescriptorHandle(skinCluster.paletteSrvHandle));
+		commandList->SetGraphicsRootDescriptorTable(9, srvManager->GetGPUDescriptorHandle(skinCluster.paletteSrvHandle));
 	}
 
 	// モデルの描画実行
 	object3dCommon_->GetDxCommon()->SetSceneRenderTargetsWithNormal();
 	model_->Draw(object3dCommon_->GetDxCommon());
 	object3dCommon_->GetDxCommon()->SetSceneRenderTarget();
+}
+
+void Object3d::DrawShadow() {
+	if (!model_ || !object3dCommon_ || !object3dCommon_->IsShadowReady()) {
+		return;
+	}
+
+	ID3D12GraphicsCommandList* commandList = object3dCommon_->GetDxCommon()->GetCommandList();
+	const bool isSkinned = model_->HasSkinCluster();
+	const bool useComputeSkinning = model_->UseComputeSkinning();
+	const bool useVertexShaderSkinning = isSkinned && !useComputeSkinning;
+	if (useComputeSkinning && !computeSkinningPrepared_) {
+		model_->DispatchComputeSkinning(object3dCommon_);
+		computeSkinningPrepared_ = true;
+	}
+
+	const Matrix4x4& matrixForRendering = isSkinned ? objectWorldMatrix_ : worldMatrix_;
+	shadowTransformationMatrixData_->WVP = MatrixMath::Multiply(
+		matrixForRendering, object3dCommon_->GetLightViewProjectionMatrix());
+	shadowTransformationMatrixData_->World = matrixForRendering;
+
+	commandList->SetGraphicsRootSignature(object3dCommon_->GetShadowRootSignature());
+	commandList->SetPipelineState(object3dCommon_->GetShadowPipelineState(useVertexShaderSkinning));
+	commandList->SetGraphicsRootConstantBufferView(
+		0, shadowTransformationMatrixResource_->GetGPUVirtualAddress());
+
+	if (useVertexShaderSkinning) {
+		const Model::SkinCluster& skinCluster = model_->GetSkinCluster();
+		if (skinCluster.paletteSrvHandle == Model::SkinCluster::kInvalidSrvHandle) {
+			OutputDebugStringA("Shadow pass skipped: invalid MatrixPalette SRV handle.\n");
+			assert(false && "Skinned shadow caster has invalid MatrixPalette SRV handle.");
+			return;
+		}
+		commandList->SetGraphicsRootDescriptorTable(
+			1, object3dCommon_->GetSrvManager()->GetGPUDescriptorHandle(skinCluster.paletteSrvHandle));
+	}
+
+	model_->DrawDepth(object3dCommon_->GetDxCommon());
 }
 
 void Object3d::SetModel(Model* model) {
