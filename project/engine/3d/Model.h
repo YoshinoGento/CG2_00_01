@@ -125,6 +125,7 @@ public:
 	void LoadTextures(SpriteCommon* spriteCommon);
 	// 通常描画（1つだけ描画）
 	void Draw(DirectXCommon* dxCommon);
+	void DrawDepth(DirectXCommon* dxCommon);
 	// インスタンシング描画（複数一括描画）
 	void Draw(ID3D12GraphicsCommandList* commandList, uint32_t instanceCount);
 
@@ -142,6 +143,7 @@ public:
 
 
 private:
+	void DrawGeometry(DirectXCommon* dxCommon, bool bindMaterialTextures);
 	// Assimp を使った読み込み関数
 	void LoadModelFile(const std::string& directoryPath, const std::string& filename);
 

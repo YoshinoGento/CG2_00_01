@@ -31,6 +31,7 @@ public:
 	void Initialize(Object3dCommon* object3dCommon);
 	void Update(Camera* camera);
 	void Draw();
+	void DrawShadow();
 	void SetModel(Model* model);
 	void InitializeSkeleton();
 
@@ -44,6 +45,8 @@ public:
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
 	void SetScale(const Vector3& scale) { transform_.scale = scale; }
 	void SetTexture(uint32_t textureHandle) { textureHandle_ = textureHandle; }
+	void SetColor(const Vector4& color) { materialData_->color = color; }
+	void SetEnableLighting(bool enabled) { materialData_->enableLighting = enabled ? 1 : 0; }
 	// 環境マップ用のテクスチャハンドルをセット
 	void SetEnvironmentMap(uint32_t handle) { environmentMapHandle_ = handle; }
 	// 反射強度のセット
@@ -89,6 +92,7 @@ private:
 	Matrix4x4 worldMatrix_ = MatrixMath::MakeIdentity4x4();
 	// ：ルートノードのローカル行列を含まない、オブジェクト自身のワールド変換行列
 	Matrix4x4 objectWorldMatrix_ = MatrixMath::MakeIdentity4x4();
+	bool computeSkinningPrepared_ = false;
 
 	struct Material {
 		Vector4 color;
@@ -116,6 +120,8 @@ private:
 	Material* materialData_ = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> transformationMatrixResource_;
 	TransformationMatrix* transformationMatrixData_ = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> shadowTransformationMatrixResource_;
+	TransformationMatrix* shadowTransformationMatrixData_ = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> directionalLightResource_;
 	DirectionalLight* directionalLightData_ = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> cameraResource_;

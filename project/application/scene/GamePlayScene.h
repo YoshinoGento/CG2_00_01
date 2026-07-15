@@ -1,6 +1,10 @@
 #pragma once
+
+#include "application/level/LevelGameplaySystem.h"
 #include "BaseScene.h"
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 #include <string>
 #include <cstdint>
@@ -23,6 +27,10 @@ class Sprite;
 class Object3d;
 class Camera;
 class Model;
+
+namespace level {
+struct LevelData;
+}
 
 class GamePlayScene : public BaseScene {
 	friend class Game;
@@ -55,12 +63,16 @@ public:
 	void ChangeAnimationModel(int index);
 
 private:
+	enum class PlayerAnimationMode;
 	void AddLog(const std::string& message);
 	void UpdateSceneDeltaTime();
 	void HandleKeyboardMovement();
 	void HandleCameraInput(float deltaTime, bool suppressArrowKeys);
 	void ClampCameraPitch();
 	void ResetCamera();
+	void SetUsePlayerCamera(bool usePlayerCamera);
+	void ToggleCameraMode();
+	void UpdatePlayerCamera();
 	void SyncGPUParticleDebugModeChange();
 	void SetGPUParticleDebugMode(GPUParticleDebugMode mode);
 	void HandleGPUParticleDebugModeInput();
@@ -76,6 +88,18 @@ private:
 	bool HandleFarmGridSelectionInput();
 	void InitializeFarmHUD();
 	void InitializeSkyboxIfNeeded();
+	void LoadSceneLevel();
+	void CreateLevelObjectsFromLevel();
+	void UpdateLevelGameplay();
+	void UpdateLevelPlayerVisual();
+	void ConfigureLevelPlayerAnimation(std::size_t playerRenderIndex, PlayerAnimationMode mode);
+	void CollectLevelRuntimeData();
+	void ApplyLevelCamera();
+	void DrawLevelDebugGizmos() const;
+	void DrawLevelCollisionGizmos() const;
+	void DrawLevelBox(const Vector3& center, const Vector3& size, const Vector4& color) const;
+	void DrawLevelCameraGizmo(const Vector3& position, const Vector4& color) const;
+	Vector3 EvaluateLevelRoutePoint(float normalizedTime) const;
 #ifdef _DEBUG
 	void DrawSceneDebugWindow();
 #endif
@@ -86,6 +110,31 @@ private:
 	void EmitCylinderEffect(const Vector3& position);
 
 private:
+	struct LevelObjectRuntime {
+		std::unique_ptr<Object3d> object;
+		std::string name;
+		std::string gameplayRole;
+		Vector3 basePosition{};
+		float animationPhase = 0.0f;
+		bool visible = true;
+	};
+
+	enum class PlayerAnimationMode {
+		Walk,
+		Sneak,
+	};
+	struct PlayerAnimationClip {
+		const char* fileName = nullptr;
+		float playbackSpeed = 1.0f;
+	};
+	enum class PlayerAnimationState {
+		Idle,
+		Walk,
+		Sneak,
+		Airborne,
+	};
+	static const PlayerAnimationClip& GetPlayerAnimationClip(PlayerAnimationMode mode);
+
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Sprite> sprite_;
 	std::unique_ptr<Object3d> object3d_;
@@ -93,6 +142,10 @@ private:
 
 	Vector3 cameraPos_ = { 0.0f, 5.0f, -15.0f };
 	Vector3 cameraRot_ = { 0.3f, 0.0f, 0.0f };
+	Vector3 debugCameraPos_ = { 0.0f, 5.0f, -15.0f };
+	Vector3 debugCameraRot_ = { 0.3f, 0.0f, 0.0f };
+	Vector3 levelCameraPos_ = { 0.0f, 5.0f, -15.0f };
+	Vector3 levelCameraRot_ = { 0.3f, 0.0f, 0.0f };
 	float cameraMoveSpeed_ = 5.0f;
 	float cameraRotateSpeed_ = 1.5f;
 	float sceneDeltaTime_ = 1.0f / 60.0f;
@@ -104,6 +157,18 @@ private:
 	std::unique_ptr<Object3d> terrainObj_;
 
 	std::unique_ptr<Object3d> animObj_;
+	std::unique_ptr<level::LevelData> levelData_;
+	std::vector<LevelObjectRuntime> levelObjects_;
+	level::LevelGameplaySystem levelGameplay_;
+	uint32_t levelWhiteTextureHandle_ = 0;
+	PlayerAnimationMode playerAnimationMode_ = PlayerAnimationMode::Walk;
+	PlayerAnimationState playerAnimationState_ = PlayerAnimationState::Idle;
+	float playerAnimationSpeed_ = 0.0f;
+	bool playerVisualConfigured_ = false;
+	bool directionalShadowsEnabled_ = true;
+	float directionalShadowStrength_ = 0.82f;
+	std::vector<Vector3> levelRoutePoints_;
+	float levelRouteTimer_ = 0.0f;
 
 	// エフェクト用モデル
 	std::unique_ptr<Model> ringModel_;
@@ -133,6 +198,11 @@ private:
 	bool showSprite_ = true;
 	bool showParticles_ = true;
 	bool showAnimModel_ = true;
+	bool showLevelObjects_ = true;
+	bool showLevelGizmos_ = true;
+	bool showLevelCollisionGizmos_ = true;
+	bool usePlayerCamera_ = true;
+	bool hasLevelCamera_ = false;
 	bool showSkeleton_ = false;
 
 	Vector2 spritePos_ = { 640.0f, 360.0f };
@@ -181,7 +251,7 @@ private:
 	float lightIntensity_ = 1.0f;
 	Vector3 spotLightColor_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 spotLightPos_ = { 0.0f, 4.0f, 10.0f };
-	float spotLightIntensity_ = 2.0f;
+	float spotLightIntensity_ = 0.0f;
 	Vector3 spotLightDir_ = { 0.0f, -1.0f, 0.0f };
 	float spotLightDistance_ = 15.0f;
 	float spotLightDecay_ = 1.0f;

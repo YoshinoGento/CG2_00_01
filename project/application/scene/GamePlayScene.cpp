@@ -14,12 +14,17 @@
 #include "Game.h"
 #include "3d/PrimitiveGenerator.h"
 #include "3d/LineDrawer.h"
+#include "level/LevelLoader.h"
 #include <dinput.h>
 #include "3d/Skybox.h"
 #include "base/Logger.h" // 追加：外部ロガーツールのインクルード
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <random>
+#include <system_error>
+#include <unordered_set>
+#include <utility>
 
 namespace {
 constexpr float kMouseLookSensitivity = 0.005f;
@@ -27,6 +32,64 @@ constexpr float kMousePanSensitivity = 0.01f;
 constexpr float kMouseWheelZoomSpeed = 2.0f;
 constexpr float kEditorCameraFastMultiplier = 3.0f;
 constexpr const char* kRostockSkyboxPath = "Resources/rostock_laage_airport_4k.dds";
+constexpr const char* kSceneLevelName = "scene";
+constexpr const char* kMeshTypeName = "MESH";
+constexpr const char* kCameraTypeName = "CAMERA";
+constexpr const char* kLightTypeName = "LIGHT";
+constexpr const char* kSpawnPointTypeName = "SPAWN_POINT";
+constexpr const char* kEventTriggerTypeName = "EVENT_TRIGGER";
+constexpr const char* kGimmickTypeName = "GIMMICK";
+constexpr const char* kPatrolPointTypeName = "PATROL_POINT";
+constexpr const char* kPlayerRoleName = "PLAYER";
+constexpr const char* kCollectibleRoleName = "COLLECTIBLE";
+constexpr const char* kGroundRoleName = "GROUND";
+constexpr Vector3 kPlayerCameraOffset = { 0.0f, 3.5f, -8.0f };
+constexpr Vector3 kPlayerCameraLookOffset = { 0.0f, 0.7f, 0.0f };
+constexpr Vector3 kDefaultPlayerColliderCenterOffset = { 0.0f, 0.9f, 0.0f };
+constexpr Vector3 kDefaultPlayerColliderHalfExtents = { 0.45f, 0.9f, 0.45f };
+constexpr float kColliderCenterEpsilon = 0.0001f;
+constexpr float kPlayerAnimationStopBlendSeconds = 0.20f;
+
+Vector4 GetLevelRoleColor(const std::string& gameplayRole)
+{
+	if (gameplayRole == kPlayerRoleName) {
+		return { 0.15f, 0.75f, 1.0f, 1.0f };
+	}
+	if (gameplayRole == kCollectibleRoleName) {
+		return { 1.0f, 0.82f, 0.12f, 1.0f };
+	}
+	if (gameplayRole == kGroundRoleName) {
+		return { 0.22f, 0.62f, 0.28f, 1.0f };
+	}
+	return { 0.85f, 0.85f, 0.85f, 1.0f };
+}
+
+float GetLevelObjectRadius(const Vector3& scale)
+{
+	return (std::max)(0.5f, 0.5f * (std::max)({ std::abs(scale.x), std::abs(scale.y), std::abs(scale.z) }));
+}
+
+Vector3 AddVector3(const Vector3& a, const Vector3& b)
+{
+	return { a.x + b.x, a.y + b.y, a.z + b.z };
+}
+
+Vector3 LerpVector3(const Vector3& a, const Vector3& b, float t)
+{
+	return {
+		a.x + (b.x - a.x) * t,
+		a.y + (b.y - a.y) * t,
+		a.z + (b.z - a.z) * t,
+	};
+}
+
+float MoveTowards(float current, float target, float maxDelta)
+{
+	if (current < target) {
+		return (std::min)(current + maxDelta, target);
+	}
+	return (std::max)(current - maxDelta, target);
+}
 
 GPUParticleEmitSettings MakeAgricultureEmitSettings(
 	const Vector3& position,
@@ -91,6 +154,12 @@ GPUParticleEmitSettings MakeAgricultureEmitSettings(
 	return settings;
 }
 
+bool FileExistsNoThrow(const std::filesystem::path& path)
+{
+	std::error_code error;
+	return std::filesystem::exists(path, error) && !error;
+}
+
 std::string BuildSelectedTileInfo(const farm::FarmGrid& grid)
 {
 	const farm::FarmTile* selectedTile = grid.GetSelectedTile();
@@ -129,6 +198,37 @@ void BuildCameraViewAxes(const Vector3& rotate, Vector3& right, Vector3& up, Vec
 	forward = MatrixMath::Normalize({ rotateMatrix.m[2][0], rotateMatrix.m[2][1], rotateMatrix.m[2][2] });
 }
 
+std::string ResolveModelFilename(const std::string& fileName)
+{
+	const std::filesystem::path resourceRoot = "Resources";
+	const std::filesystem::path sourcePath = fileName;
+
+	if (sourcePath.has_extension() && FileExistsNoThrow(resourceRoot / sourcePath)) {
+		return fileName;
+	}
+
+	const std::filesystem::path parentPath = sourcePath.parent_path();
+	const std::string stem = sourcePath.filename().string();
+	const std::filesystem::path relativeStemPath = parentPath / stem;
+	const std::filesystem::path folderStemPath = sourcePath / stem;
+	const std::filesystem::path candidates[] = {
+		relativeStemPath.string() + ".obj",
+		relativeStemPath.string() + ".gltf",
+		relativeStemPath.string() + ".fbx",
+		folderStemPath.string() + ".obj",
+		folderStemPath.string() + ".gltf",
+		folderStemPath.string() + ".fbx",
+	};
+
+	for (const std::filesystem::path& candidate : candidates) {
+		if (FileExistsNoThrow(resourceRoot / candidate)) {
+			return candidate.generic_string();
+		}
+	}
+
+	return fileName;
+}
+
 }
 
 GamePlayScene::GamePlayScene() = default;
@@ -157,6 +257,7 @@ void GamePlayScene::Initialize() {
 	for (const auto& name : textureNames) {
 		textureHandles_.push_back(framework_->GetSpriteCommon()->LoadTexture("Resources/" + name));
 	}
+	levelWhiteTextureHandle_ = framework_->GetSpriteCommon()->LoadTexture("Resources/human/white.png");
 	uint32_t circle2Handle = framework_->GetSpriteCommon()->LoadTexture("Resources/circle2.png");
 	ringTexHandle_ = framework_->GetSpriteCommon()->LoadTexture("Resources/gradationLine.png");
 
@@ -211,9 +312,9 @@ void GamePlayScene::Initialize() {
 	object3d_->Initialize(framework_->GetObject3dCommon());
 	object3d_->SetModel(planeModel);
 
-	// デフォルトで simpleSkin.gltf (配布データ) をアニメーション表示オブジェクトとしてロード
-	currentAnimModelIdx_ = 1;
-	ChangeAnimationModel(currentAnimModelIdx_);
+	// The human animation is assigned to the level PLAYER object, not shown as a separate sample object.
+	showAnimModel_ = false;
+	LoadSceneLevel();
 
 	sprite_ = std::make_unique<Sprite>();
 	sprite_->Initialize(framework_->GetSpriteCommon(), textureHandles_[0]);
@@ -227,8 +328,6 @@ void GamePlayScene::Initialize() {
 		cylTopRadius_ ,cylBottomRadius_, cylHeight_,
 		static_cast<uint32_t>(cylSegments_),
 		static_cast<uint32_t>(cylVertDivisions_));
-
-
 	// ---------------------------------------------------------
 	// 5. パーティクルの設定
 	// ---------------------------------------------------------
@@ -293,12 +392,31 @@ void GamePlayScene::EmitCylinderEffect(const Vector3& position) {
 
 void GamePlayScene::Update() {
 	UpdateSceneDeltaTime();
+	levelRouteTimer_ += sceneDeltaTime_;
+
+	bool levelReloadRequested = framework_ && framework_->GetInput() && framework_->GetInput()->TriggerKey(DIK_R);
+	bool cameraModeToggleRequested = framework_ && framework_->GetInput() && framework_->GetInput()->TriggerKey(DIK_F1);
+#ifdef _DEBUG
+	if (ImGui::GetIO().WantCaptureKeyboard) {
+		levelReloadRequested = false;
+		cameraModeToggleRequested = false;
+	}
+#endif
+	if (levelReloadRequested) {
+		LoadSceneLevel();
+	}
+	if (cameraModeToggleRequested) {
+		ToggleCameraMode();
+	}
+
 	const bool farmGridInputConsumed = HandleFarmGridSelectionInput();
 	HandleCameraInput(sceneDeltaTime_, farmGridInputConsumed);
 	ClampCameraPitch();
 	if (!farmGridInputConsumed) {
 		HandleKeyboardMovement();
 	}
+	UpdateLevelGameplay();
+	UpdatePlayerCamera();
 	HandleFarmDateDebugInput();
 	HandleFarmToolDebugInput();
 	HandleFarmToolActionInput();
@@ -326,12 +444,16 @@ void GamePlayScene::Update() {
 		}
 	}
 
+	Vector3 normLightDir = MatrixMath::Normalize(lightDirection_);
+	if (MatrixMath::Length(normLightDir) < 0.0001f) {
+		normLightDir = MatrixMath::Normalize(Vector3{ 0.0f, -1.0f, 1.0f });
+	}
 	Vector3 normSpotDir = MatrixMath::Normalize(spotLightDir_);
 
 	auto UpdateObjectLights = [&](Object3d* obj, float envCoef) {
 		if (!obj) return;
 		obj->SetCullMode(cullMode_);
-		obj->SetLightDirection(lightDirection_);
+		obj->SetLightDirection(normLightDir);
 		obj->SetLightColor({ lightColor_.x, lightColor_.y, lightColor_.z, 1.0f });
 		obj->SetLightIntensity(lightIntensity_);
 
@@ -357,6 +479,19 @@ void GamePlayScene::Update() {
 	UpdateObjectLights(terrainObj_.get(), 0.0f);
 	UpdateObjectLights(object3d_.get(), 0.0f);
 	UpdateObjectLights(animObj_.get(), 0.5f);
+	for (LevelObjectRuntime& levelObject : levelObjects_) {
+		if (!levelObject.object || !levelObject.visible) {
+			continue;
+		}
+		if (levelObject.gameplayRole == kCollectibleRoleName) {
+			const float animationTime = levelRouteTimer_ * 2.0f + levelObject.animationPhase;
+			Vector3 position = levelObject.basePosition;
+			position.y += std::sin(animationTime) * 0.2f;
+			levelObject.object->SetPosition(position);
+			levelObject.object->SetRotation({ 0.0f, animationTime, 0.0f });
+		}
+		UpdateObjectLights(levelObject.object.get(), 0.0f);
+	}
 
 	if (sphereObj_) {
 		sphereObj_->SetPosition(spherePos_);
@@ -401,6 +536,479 @@ void GamePlayScene::CreateSphere(float radius) {
 	sphereObj_->SetShininess(40.0f);
 }
 
+void GamePlayScene::LoadSceneLevel() {
+	levelData_ = level::LevelLoader::Load(kSceneLevelName);
+	levelObjects_.clear();
+	levelGameplay_.Reset();
+
+	if (!levelData_) {
+		AddLog("Level load failed: Resources/levels/scene.json");
+		return;
+	}
+
+	CollectLevelRuntimeData();
+	ApplyLevelCamera();
+	CreateLevelObjectsFromLevel();
+	AddLog("Level MESH objects: " + std::to_string(levelObjects_.size()));
+}
+
+void GamePlayScene::CreateLevelObjectsFromLevel() {
+	levelObjects_.clear();
+	levelGameplay_.Reset();
+	playerVisualConfigured_ = false;
+	playerAnimationState_ = PlayerAnimationState::Idle;
+	playerAnimationSpeed_ = 0.0f;
+	if (!framework_ || !levelData_) {
+		return;
+	}
+
+	ModelManager* modelManager = framework_->GetModelManager();
+	if (!modelManager) {
+		AddLog("Level object creation failed: ModelManager is null.");
+		return;
+	}
+
+	std::size_t meshCount = 0;
+	for (const level::ObjectData& objectData : levelData_->objects) {
+		if (objectData.type == kMeshTypeName && !objectData.disabled) {
+			++meshCount;
+		}
+	}
+	levelObjects_.reserve(meshCount);
+
+	std::unordered_set<std::string> loadedModelNames;
+	for (const level::ObjectData& objectData : levelData_->objects) {
+		if (objectData.type != kMeshTypeName) {
+			continue;
+		}
+		if (objectData.disabled) {
+			AddLog("Level MESH disabled: " + objectData.name);
+			continue;
+		}
+		if (objectData.fileName.empty()) {
+			AddLog("Level MESH skipped. file_name is empty.");
+			continue;
+		}
+
+		const std::string modelFileName = ResolveModelFilename(objectData.fileName);
+		if (!FileExistsNoThrow(std::filesystem::path("Resources") / modelFileName)) {
+			AddLog("Level MESH skipped. Model file not found: " + modelFileName);
+			continue;
+		}
+
+		modelManager->LoadModel(modelFileName);
+		Model* model = modelManager->GetModel(modelFileName);
+		if (!model) {
+			AddLog("Level MESH skipped. Model load failed: " + modelFileName);
+			continue;
+		}
+
+		if (loadedModelNames.insert(modelFileName).second) {
+			model->LoadTextures(framework_->GetSpriteCommon());
+		}
+
+		std::unique_ptr<Object3d> object = std::make_unique<Object3d>();
+		object->Initialize(framework_->GetObject3dCommon());
+		object->SetModel(model);
+		object->SetPosition(objectData.transform.translation);
+		object->SetRotation(objectData.transform.rotation);
+		object->SetScale(objectData.transform.scaling);
+		object->SetTexture(levelWhiteTextureHandle_);
+		object->SetColor(GetLevelRoleColor(objectData.gameplayRole));
+		object->SetShininess(20.0f);
+
+		const std::size_t renderIndex = levelObjects_.size();
+		LevelObjectRuntime runtime{};
+		runtime.object = std::move(object);
+		runtime.name = objectData.name;
+		runtime.gameplayRole = objectData.gameplayRole;
+		runtime.basePosition = objectData.transform.translation;
+		runtime.animationPhase = static_cast<float>(renderIndex) * 0.7f;
+		levelObjects_.push_back(std::move(runtime));
+
+		if (objectData.gameplayRole == kPlayerRoleName) {
+			Vector3 colliderCenterOffset = kDefaultPlayerColliderCenterOffset;
+			Vector3 colliderHalfExtents = kDefaultPlayerColliderHalfExtents;
+			if (objectData.hasCollider && objectData.collider.type == "BOX") {
+				colliderCenterOffset = objectData.collider.center;
+				colliderHalfExtents = {
+					std::abs(objectData.collider.size.x) * 0.5f,
+					std::abs(objectData.collider.size.y) * 0.5f,
+					std::abs(objectData.collider.size.z) * 0.5f,
+				};
+				if (std::abs(colliderCenterOffset.y) <= kColliderCenterEpsilon) {
+					colliderCenterOffset.y = colliderHalfExtents.y;
+				}
+			}
+			levelGameplay_.ConfigurePlayer(
+				renderIndex,
+				objectData.transform.translation,
+				colliderCenterOffset,
+				colliderHalfExtents);
+		} else if (objectData.gameplayRole == kCollectibleRoleName) {
+			levelGameplay_.AddCollectible(renderIndex, objectData.transform.translation, GetLevelObjectRadius(objectData.transform.scaling));
+		} else if (objectData.gameplayRole == kGroundRoleName) {
+			const Vector3& scale = objectData.transform.scaling;
+			levelGameplay_.ConfigureGround(
+				objectData.transform.translation,
+				{ (std::max)(std::abs(scale.x), 0.5f), 0.05f, (std::max)(std::abs(scale.z), 0.5f) });
+		} else {
+			const Vector3& scale = objectData.transform.scaling;
+			levelGameplay_.AddObstacle(
+				objectData.transform.translation,
+				{ (std::max)(std::abs(scale.x), 0.25f),
+				  (std::max)(std::abs(scale.y), 0.25f),
+				  (std::max)(std::abs(scale.z), 0.25f) });
+		}
+	}
+
+	if (levelGameplay_.HasPlayer()) {
+		const std::size_t playerIndex = levelGameplay_.GetPlayerRenderIndex();
+		if (playerIndex < levelObjects_.size() && levelObjects_[playerIndex].object) {
+			levelObjects_[playerIndex].object->SetPosition(levelGameplay_.GetPlayerPosition());
+		}
+		UpdateLevelPlayerVisual();
+		UpdatePlayerCamera();
+	} else if (usePlayerCamera_ && hasLevelCamera_) {
+		cameraPos_ = levelCameraPos_;
+		cameraRot_ = levelCameraRot_;
+		AddLog("PLAYER role not found. Using Blender camera as fallback.");
+	}
+}
+
+void GamePlayScene::UpdateLevelGameplay()
+{
+	if (!framework_ || !levelGameplay_.HasPlayer()) {
+		return;
+	}
+#ifdef _DEBUG
+	if (ImGui::GetIO().WantCaptureKeyboard) {
+		return;
+	}
+#endif
+
+	Input* input = framework_->GetInput();
+	if (!input) {
+		return;
+	}
+	if (!usePlayerCamera_ && input->PushMouseButton(InputMouseButton::Right)) {
+		return;
+	}
+
+	Vector3 direction{};
+	if (input->PushKey(InputKey::W)) { direction.z += 1.0f; }
+	if (input->PushKey(InputKey::S)) { direction.z -= 1.0f; }
+	if (input->PushKey(InputKey::D)) { direction.x += 1.0f; }
+	if (input->PushKey(InputKey::A)) { direction.x -= 1.0f; }
+	const bool jumpRequested = input->TriggerKey(DIK_SPACE);
+	const bool sneakRequested =
+		input->PushKey(InputKey::LeftShift) ||
+		input->PushKey(InputKey::RightShift);
+	levelGameplay_.UpdatePlayer(direction, jumpRequested, sneakRequested, sceneDeltaTime_);
+	UpdateLevelPlayerVisual();
+
+	for (const std::size_t renderIndex : levelGameplay_.ConsumeCollectedRenderIndices()) {
+		if (renderIndex >= levelObjects_.size()) {
+			continue;
+		}
+		LevelObjectRuntime& collectible = levelObjects_[renderIndex];
+		if (!collectible.visible) {
+			continue;
+		}
+		collectible.visible = false;
+		EmitSpark(collectible.basePosition);
+		AddLog("Collected: " + collectible.name);
+	}
+}
+
+void GamePlayScene::UpdateLevelPlayerVisual()
+{
+	if (!levelGameplay_.HasPlayer()) {
+		return;
+	}
+
+	const std::size_t playerIndex = levelGameplay_.GetPlayerRenderIndex();
+	if (playerIndex >= levelObjects_.size() || !levelObjects_[playerIndex].object) {
+		return;
+	}
+
+	if (!levelGameplay_.IsPlayerGrounded()) {
+		playerAnimationState_ = PlayerAnimationState::Airborne;
+	} else if (!levelGameplay_.IsPlayerMoving()) {
+		playerAnimationState_ = PlayerAnimationState::Idle;
+	} else if (levelGameplay_.IsPlayerSneaking()) {
+		playerAnimationState_ = PlayerAnimationState::Sneak;
+	} else {
+		playerAnimationState_ = PlayerAnimationState::Walk;
+	}
+
+	PlayerAnimationMode desiredMode = playerAnimationMode_;
+	if (playerAnimationState_ == PlayerAnimationState::Walk) {
+		desiredMode = PlayerAnimationMode::Walk;
+	} else if (playerAnimationState_ == PlayerAnimationState::Sneak) {
+		desiredMode = PlayerAnimationMode::Sneak;
+	}
+	if (!playerVisualConfigured_ || desiredMode != playerAnimationMode_) {
+		ConfigureLevelPlayerAnimation(playerIndex, desiredMode);
+	}
+
+	Object3d* playerObject = levelObjects_[playerIndex].object.get();
+	playerObject->SetPosition(levelGameplay_.GetPlayerPosition());
+	if (levelGameplay_.IsPlayerMoving()) {
+		const Vector3& facing = levelGameplay_.GetPlayerFacingDirection();
+		playerObject->SetRotation({ 0.0f, std::atan2(facing.x, facing.z), 0.0f });
+	}
+	const PlayerAnimationClip& clip = GetPlayerAnimationClip(playerAnimationMode_);
+	float targetSpeed = clip.playbackSpeed;
+	if (playerAnimationState_ == PlayerAnimationState::Idle) {
+		targetSpeed = 0.0f;
+	} else if (playerAnimationState_ == PlayerAnimationState::Airborne) {
+		targetSpeed *= 0.35f;
+	}
+	const float maxSpeedChange = sceneDeltaTime_ / kPlayerAnimationStopBlendSeconds;
+	playerAnimationSpeed_ = MoveTowards(playerAnimationSpeed_, targetSpeed, maxSpeedChange);
+	playerObject->GetAnimationSpeed() = playerAnimationSpeed_;
+	playerObject->GetIsAnimationPlaying() = playerAnimationSpeed_ > 0.001f;
+
+}
+
+const GamePlayScene::PlayerAnimationClip& GamePlayScene::GetPlayerAnimationClip(PlayerAnimationMode mode)
+{
+	static constexpr PlayerAnimationClip walk{ "walk.gltf", 0.65f };
+	static constexpr PlayerAnimationClip sneak{ "sneakWalk.gltf", 0.45f };
+	return mode == PlayerAnimationMode::Sneak ? sneak : walk;
+}
+
+void GamePlayScene::ConfigureLevelPlayerAnimation(std::size_t playerRenderIndex, PlayerAnimationMode mode)
+{
+	if (!framework_ || playerRenderIndex >= levelObjects_.size() || !levelObjects_[playerRenderIndex].object) {
+		return;
+	}
+
+	const PlayerAnimationClip& clip = GetPlayerAnimationClip(mode);
+	const char* animationFileName = clip.fileName;
+	Model* playerModel = framework_->GetModelManager()->GetModel(std::string("human/") + animationFileName);
+	if (!playerModel) {
+		AddLog("Player model is not loaded: " + std::string(animationFileName));
+		return;
+	}
+
+	Object3d* playerObject = levelObjects_[playerRenderIndex].object.get();
+	float normalizedTime = 0.0f;
+	if (playerVisualConfigured_ && playerObject->GetAnimation().duration > 0.0f) {
+		normalizedTime = playerObject->GetAnimationTime() / playerObject->GetAnimation().duration;
+	}
+	playerObject->SetModel(playerModel);
+	playerObject->SetTexture(levelWhiteTextureHandle_);
+	playerObject->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	playerObject->SetScale({ 0.75f, 0.75f, 0.75f });
+	playerObject->SetAnimation(playerModel->LoadAnimation("Resources/human", animationFileName));
+	playerObject->GetAnimationTime() = playerObject->GetAnimation().duration * std::clamp(normalizedTime, 0.0f, 1.0f);
+	playerObject->GetIsAnimationPlaying() = true;
+	playerAnimationMode_ = mode;
+	playerVisualConfigured_ = true;
+	AddLog(std::string("Player animation: ") + (mode == PlayerAnimationMode::Sneak ? "sneak walk" : "walk"));
+}
+
+void GamePlayScene::CollectLevelRuntimeData() {
+	levelRoutePoints_.clear();
+	if (!levelData_) {
+		return;
+	}
+
+	for (const level::ObjectData& objectData : levelData_->objects) {
+		if (objectData.disabled) {
+			continue;
+		}
+		if (objectData.type == kPatrolPointTypeName) {
+			levelRoutePoints_.push_back(objectData.transform.translation);
+		}
+	}
+}
+
+void GamePlayScene::ApplyLevelCamera() {
+	hasLevelCamera_ = false;
+	if (!levelData_) {
+		return;
+	}
+
+	for (const level::ObjectData& objectData : levelData_->objects) {
+		if (objectData.disabled || objectData.type != kCameraTypeName) {
+			continue;
+		}
+
+		levelCameraPos_ = objectData.transform.translation;
+		levelCameraRot_ = objectData.transform.rotation;
+		levelCameraRot_.x = std::clamp(levelCameraRot_.x, -1.5f, 1.5f);
+		hasLevelCamera_ = true;
+		AddLog("Blender camera loaded as fallback: " + objectData.name);
+		return;
+	}
+
+	AddLog("Blender camera not found. PLAYER camera requires a PLAYER role.");
+}
+
+void GamePlayScene::DrawLevelBox(const Vector3& center, const Vector3& size, const Vector4& color) const {
+	const Vector3 half = {
+		size.x * 0.5f,
+		size.y * 0.5f,
+		size.z * 0.5f,
+	};
+	const Vector3 v[8] = {
+		{ center.x - half.x, center.y - half.y, center.z - half.z },
+		{ center.x + half.x, center.y - half.y, center.z - half.z },
+		{ center.x + half.x, center.y + half.y, center.z - half.z },
+		{ center.x - half.x, center.y + half.y, center.z - half.z },
+		{ center.x - half.x, center.y - half.y, center.z + half.z },
+		{ center.x + half.x, center.y - half.y, center.z + half.z },
+		{ center.x + half.x, center.y + half.y, center.z + half.z },
+		{ center.x - half.x, center.y + half.y, center.z + half.z },
+	};
+	const int edges[12][2] = {
+		{0, 1}, {1, 2}, {2, 3}, {3, 0},
+		{4, 5}, {5, 6}, {6, 7}, {7, 4},
+		{0, 4}, {1, 5}, {2, 6}, {3, 7},
+	};
+
+	LineDrawer* lineDrawer = LineDrawer::GetInstance();
+	for (const auto& edge : edges) {
+		lineDrawer->DrawLine(v[edge[0]], v[edge[1]], color);
+	}
+}
+
+void GamePlayScene::DrawLevelCameraGizmo(const Vector3& position, const Vector4& color) const {
+	const Vector3 nearCenter = AddVector3(position, { 0.0f, 0.0f, 0.6f });
+	const Vector3 farCenter = AddVector3(position, { 0.0f, 0.0f, 1.8f });
+	const Vector3 farCorners[4] = {
+		{ farCenter.x - 0.8f, farCenter.y + 0.5f, farCenter.z },
+		{ farCenter.x + 0.8f, farCenter.y + 0.5f, farCenter.z },
+		{ farCenter.x + 0.8f, farCenter.y - 0.5f, farCenter.z },
+		{ farCenter.x - 0.8f, farCenter.y - 0.5f, farCenter.z },
+	};
+
+	LineDrawer* lineDrawer = LineDrawer::GetInstance();
+	lineDrawer->DrawWireSphere(position, 0.25f, color, 12);
+	for (const Vector3& corner : farCorners) {
+		lineDrawer->DrawLine(position, corner, color);
+	}
+	lineDrawer->DrawLine(farCorners[0], farCorners[1], color);
+	lineDrawer->DrawLine(farCorners[1], farCorners[2], color);
+	lineDrawer->DrawLine(farCorners[2], farCorners[3], color);
+	lineDrawer->DrawLine(farCorners[3], farCorners[0], color);
+	lineDrawer->DrawLine(position, nearCenter, color);
+}
+
+void GamePlayScene::DrawLevelCollisionGizmos() const {
+	if (!showLevelCollisionGizmos_) {
+		return;
+	}
+
+	LineDrawer* lineDrawer = LineDrawer::GetInstance();
+	if (levelGameplay_.HasPlayer()) {
+		const Vector3& half = levelGameplay_.GetPlayerColliderHalfExtents();
+		DrawLevelBox(
+			levelGameplay_.GetPlayerColliderCenter(),
+			{ half.x * 2.0f, half.y * 2.0f, half.z * 2.0f },
+			{ 0.1f, 1.0f, 1.0f, 1.0f });
+	}
+	if (levelGameplay_.HasGround()) {
+		const Vector3& half = levelGameplay_.GetGroundHalfExtents();
+		DrawLevelBox(levelGameplay_.GetGroundCenter(), { half.x * 2.0f, half.y * 2.0f, half.z * 2.0f }, { 0.2f, 1.0f, 0.25f, 1.0f });
+	}
+	for (const level::LevelGameplaySystem::ObstacleCollider& obstacle : levelGameplay_.GetObstacleColliders()) {
+		DrawLevelBox(obstacle.center, { obstacle.halfExtents.x * 2.0f, obstacle.halfExtents.y * 2.0f, obstacle.halfExtents.z * 2.0f }, { 1.0f, 0.2f, 0.2f, 1.0f });
+	}
+	for (const level::LevelGameplaySystem::CollectibleCollider& collectible : levelGameplay_.GetCollectibleColliders()) {
+		if (!collectible.collected) {
+			lineDrawer->DrawWireSphere(collectible.position, collectible.radius, { 1.0f, 0.85f, 0.1f, 1.0f }, 16);
+		}
+	}
+}
+
+Vector3 GamePlayScene::EvaluateLevelRoutePoint(float normalizedTime) const {
+	if (levelRoutePoints_.empty()) {
+		return { 0.0f, 0.0f, 0.0f };
+	}
+	if (levelRoutePoints_.size() == 1) {
+		return levelRoutePoints_.front();
+	}
+
+	const float clampedTime = normalizedTime - std::floor(normalizedTime);
+	const float scaledTime = clampedTime * static_cast<float>(levelRoutePoints_.size());
+	const std::size_t currentIndex = static_cast<std::size_t>(std::floor(scaledTime)) % levelRoutePoints_.size();
+	const std::size_t nextIndex = (currentIndex + 1) % levelRoutePoints_.size();
+	const float localTime = scaledTime - std::floor(scaledTime);
+	return LerpVector3(levelRoutePoints_[currentIndex], levelRoutePoints_[nextIndex], localTime);
+}
+
+void GamePlayScene::DrawLevelDebugGizmos() const {
+	if (!showLevelGizmos_ || !levelData_) {
+		return;
+	}
+
+	const Vector4 meshColliderColor = { 0.1f, 0.75f, 1.0f, 1.0f };
+	const Vector4 spawnColor = { 0.1f, 1.0f, 0.35f, 1.0f };
+	const Vector4 triggerColor = { 1.0f, 0.55f, 0.05f, 1.0f };
+	const Vector4 gimmickColor = { 0.85f, 0.35f, 1.0f, 1.0f };
+	const Vector4 disabledColor = { 1.0f, 0.1f, 0.1f, 1.0f };
+	const Vector4 routeColor = { 0.15f, 0.9f, 1.0f, 1.0f };
+	const Vector4 routeActorColor = { 1.0f, 0.9f, 0.15f, 1.0f };
+	const Vector4 cameraColor = { 1.0f, 0.35f, 0.9f, 1.0f };
+	const Vector4 lightColor = { 1.0f, 0.95f, 0.2f, 1.0f };
+
+	LineDrawer* lineDrawer = LineDrawer::GetInstance();
+	for (const level::ObjectData& objectData : levelData_->objects) {
+		const Vector3 position = objectData.transform.translation;
+		if (objectData.disabled) {
+			DrawLevelBox(position, { 1.2f, 1.2f, 1.2f }, disabledColor);
+			lineDrawer->DrawLine(
+				AddVector3(position, { -0.8f, -0.8f, -0.8f }),
+				AddVector3(position, { 0.8f, 0.8f, 0.8f }),
+				disabledColor);
+			lineDrawer->DrawLine(
+				AddVector3(position, { -0.8f, 0.8f, -0.8f }),
+				AddVector3(position, { 0.8f, -0.8f, 0.8f }),
+				disabledColor);
+			continue;
+		}
+
+		if (objectData.hasCollider) {
+			DrawLevelBox(AddVector3(position, objectData.collider.center), objectData.collider.size, meshColliderColor);
+		}
+		if (objectData.type == kSpawnPointTypeName) {
+			lineDrawer->DrawWireSphere(position, 0.5f, spawnColor, 16);
+			lineDrawer->DrawLine(position, AddVector3(position, { 0.0f, 1.6f, 0.0f }), spawnColor);
+		} else if (objectData.type == kEventTriggerTypeName) {
+			const Vector3 size = objectData.hasCollider ? objectData.collider.size : Vector3{ 2.0f, 2.0f, 2.0f };
+			const Vector3 center = objectData.hasCollider ? AddVector3(position, objectData.collider.center) : position;
+			DrawLevelBox(center, size, triggerColor);
+		} else if (objectData.type == kGimmickTypeName) {
+			const Vector3 size = objectData.hasCollider ? objectData.collider.size : Vector3{ 1.0f, 2.5f, 0.3f };
+			const Vector3 center = objectData.hasCollider ? AddVector3(position, objectData.collider.center) : position;
+			DrawLevelBox(center, size, gimmickColor);
+		} else if (objectData.type == kPatrolPointTypeName) {
+			lineDrawer->DrawWireSphere(position, 0.25f, routeColor, 12);
+		} else if (objectData.type == kCameraTypeName) {
+			DrawLevelCameraGizmo(position, cameraColor);
+		} else if (objectData.type == kLightTypeName) {
+			lineDrawer->DrawWireSphere(position, 0.35f, lightColor, 12);
+			lineDrawer->DrawLine(position, AddVector3(position, { 0.0f, -1.0f, 0.0f }), lightColor);
+		}
+	}
+
+	if (levelRoutePoints_.size() >= 2) {
+		for (std::size_t i = 0; i < levelRoutePoints_.size(); ++i) {
+			const Vector3& current = levelRoutePoints_[i];
+			const Vector3& next = levelRoutePoints_[(i + 1) % levelRoutePoints_.size()];
+			lineDrawer->DrawLine(current, next, routeColor);
+		}
+
+		const Vector3 actorPosition = EvaluateLevelRoutePoint(levelRouteTimer_ * 0.12f);
+		lineDrawer->DrawWireSphere(actorPosition, 0.45f, routeActorColor, 16);
+		lineDrawer->DrawLine(actorPosition, AddVector3(actorPosition, { 0.0f, 1.0f, 0.0f }), routeActorColor);
+	}
+}
+
 /**
  * RebuildCylinder: Cylinderメッシュの再生成
  * ImGuiでパラメータを変更したときに呼ばれる
@@ -423,6 +1031,43 @@ void GamePlayScene::Draw() {
 	auto objCommon = framework_->GetObject3dCommon();
 	auto spriteCommon = framework_->GetSpriteCommon();
 
+	auto DrawLevelObjects = [&]() {
+		if (!showLevelObjects_) {
+			return;
+		}
+		for (const LevelObjectRuntime& levelObject : levelObjects_) {
+			if (levelObject.visible && levelObject.object) {
+				levelObject.object->Draw();
+			}
+		}
+		};
+	auto DrawLevelObjectShadows = [&]() {
+		if (!showLevelObjects_) {
+			return;
+		}
+		for (const LevelObjectRuntime& levelObject : levelObjects_) {
+			if (levelObject.visible && levelObject.object) {
+				levelObject.object->DrawShadow();
+			}
+		}
+		};
+
+	objCommon->SetShadowStrength(directionalShadowsEnabled_ ? directionalShadowStrength_ : 0.0f);
+	if (directionalShadowsEnabled_) {
+		Vector3 shadowFocus = levelGameplay_.HasPlayer()
+			? levelGameplay_.GetPlayerPosition()
+			: Vector3{ 0.0f, 0.0f, 0.0f };
+		shadowFocus.y += 4.0f;
+		objCommon->UpdateDirectionalShadow(lightDirection_, shadowFocus);
+		if (objCommon->BeginShadowPass()) {
+			if (showTerrain_ && terrainObj_) terrainObj_->DrawShadow();
+			if (showSphere_ && sphereObj_) sphereObj_->DrawShadow();
+			if (showPlane_ && object3d_) object3d_->DrawShadow();
+			if (showAnimModel_ && animObj_) animObj_->DrawShadow();
+			DrawLevelObjectShadows();
+			objCommon->EndShadowPass();
+		}
+	}
 	objCommon->CommonDrawSettings();
 
 	// === 地面のグリッド（格子線）の描画 ===
@@ -451,11 +1096,15 @@ void GamePlayScene::Draw() {
 			24);
 	}
 
+	DrawLevelDebugGizmos();
+	DrawLevelCollisionGizmos();
+
 	if (modelPriority_ == 0) {
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
+		DrawLevelObjects();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
 		if (showSkeleton_ && animObj_ && animObj_->GetSkeleton()) {
@@ -474,6 +1123,7 @@ void GamePlayScene::Draw() {
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
+		DrawLevelObjects();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
 		if (showSkeleton_ && animObj_ && animObj_->GetSkeleton()) {
@@ -651,6 +1301,24 @@ void GamePlayScene::DrawSceneDebugWindow() {
 		ImGui::Checkbox("Terrain", &showTerrain_);
 		ImGui::Checkbox("Sphere", &showSphere_);
 		ImGui::Checkbox("Plane", &showPlane_);
+		ImGui::Checkbox("Level Objects", &showLevelObjects_);
+		ImGui::Checkbox("Level Gizmos", &showLevelGizmos_);
+		ImGui::Checkbox("Collision Gizmos", &showLevelCollisionGizmos_);
+		ImGui::Checkbox("Directional Shadows", &directionalShadowsEnabled_);
+		ImGui::SliderFloat("Shadow Strength", &directionalShadowStrength_, 0.0f, 1.0f, "%.2f");
+		ImGui::DragFloat3("Sun Direction", &lightDirection_.x, 0.01f, -1.0f, 1.0f, "%.2f");
+		bool usePlayerCamera = usePlayerCamera_;
+		if (ImGui::Checkbox("Use Player Camera (Third Person)", &usePlayerCamera)) {
+			SetUsePlayerCamera(usePlayerCamera);
+		}
+		ImGui::TextUnformatted("F1: Toggle player/debug camera");
+		ImGui::TextUnformatted("Debug: hold right mouse + WASD, Q/E, wheel");
+		if (ImGui::Button("Reload Level (R)")) {
+			LoadSceneLevel();
+		}
+		ImGui::Text("Level Object3d: %zu", levelObjects_.size());
+		ImGui::Text("Collected: %zu / %zu", levelGameplay_.GetCollectedCount(), levelGameplay_.GetCollectibleCount());
+		ImGui::Text("Patrol Points: %zu", levelRoutePoints_.size());
 		ImGui::Checkbox("Particles", &showParticles_);
 	}
 	ImGui::End();
@@ -669,8 +1337,64 @@ void GamePlayScene::UpdateSceneDeltaTime() {
 }
 
 void GamePlayScene::ResetCamera() {
-	cameraPos_ = { 0.0f, 5.0f, -15.0f };
-	cameraRot_ = { 0.3f, 0.0f, 0.0f };
+	debugCameraPos_ = { 0.0f, 5.0f, -15.0f };
+	debugCameraRot_ = { 0.3f, 0.0f, 0.0f };
+	if (usePlayerCamera_ && levelGameplay_.HasPlayer()) {
+		UpdatePlayerCamera();
+	} else if (hasLevelCamera_) {
+		cameraPos_ = levelCameraPos_;
+		cameraRot_ = levelCameraRot_;
+	} else {
+		cameraPos_ = debugCameraPos_;
+		cameraRot_ = debugCameraRot_;
+	}
+}
+
+void GamePlayScene::SetUsePlayerCamera(bool usePlayerCamera) {
+	if (usePlayerCamera == usePlayerCamera_) {
+		return;
+	}
+
+	if (usePlayerCamera) {
+		if (!levelGameplay_.HasPlayer()) {
+			AddLog("Player camera is not available. PLAYER role is required.");
+			return;
+		}
+		debugCameraPos_ = cameraPos_;
+		debugCameraRot_ = cameraRot_;
+		usePlayerCamera_ = true;
+		UpdatePlayerCamera();
+		AddLog("Camera mode: player third-person camera");
+	} else {
+		cameraPos_ = debugCameraPos_;
+		cameraRot_ = debugCameraRot_;
+		usePlayerCamera_ = false;
+		AddLog("Camera mode: debug camera");
+	}
+	ClampCameraPitch();
+}
+
+void GamePlayScene::ToggleCameraMode() {
+	SetUsePlayerCamera(!usePlayerCamera_);
+}
+
+void GamePlayScene::UpdatePlayerCamera() {
+	if (!usePlayerCamera_ || !levelGameplay_.HasPlayer()) {
+		return;
+	}
+
+	const Vector3 target = levelGameplay_.GetPlayerPosition() + kPlayerCameraLookOffset;
+	cameraPos_ = target + kPlayerCameraOffset;
+	const Vector3 toTarget = target - cameraPos_;
+	const float distance = MatrixMath::Length(toTarget);
+	if (distance <= 0.0001f) {
+		return;
+	}
+
+	const float normalizedY = std::clamp(toTarget.y / distance, -1.0f, 1.0f);
+	cameraRot_.x = -std::asin(normalizedY);
+	cameraRot_.y = std::atan2(toTarget.x, toTarget.z);
+	cameraRot_.z = 0.0f;
 }
 
 void GamePlayScene::ClampCameraPitch() {
@@ -678,7 +1402,7 @@ void GamePlayScene::ClampCameraPitch() {
 }
 
 void GamePlayScene::HandleCameraInput(float deltaTime, bool suppressArrowKeys) {
-	if (!framework_ || !viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) {
+	if (usePlayerCamera_ || !framework_ || !viewportHovered_ || ImGui::GetIO().WantCaptureKeyboard) {
 		return;
 	}
 	if (!std::isfinite(deltaTime) || deltaTime <= 0.0f) {
@@ -740,6 +1464,8 @@ void GamePlayScene::HandleCameraInput(float deltaTime, bool suppressArrowKeys) {
 		cameraPos_ += viewForward * wheelStep;
 	}
 	ClampCameraPitch();
+	debugCameraPos_ = cameraPos_;
+	debugCameraRot_ = cameraRot_;
 }
 
 void GamePlayScene::HandleKeyboardMovement() {
