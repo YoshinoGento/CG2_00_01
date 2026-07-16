@@ -1,19 +1,22 @@
 #include "Object3dCommon.h"
 #include "base/Logger.h"
 #include "base/SrvManager.h"
+#include "3d/LightingSystem.h"
 #include "math/Matrix.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 
-void Object3dCommon::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
-	if (dxCommon == nullptr || srvManager == nullptr) {
+void Object3dCommon::Initialize(
+	DirectXCommon* dxCommon, SrvManager* srvManager, LightingSystem* lightingSystem) {
+	if (dxCommon == nullptr || srvManager == nullptr || lightingSystem == nullptr) {
 		Logger::Log("Object3dCommon::Initialize failed: null dependency.\n");
-		assert(false && "Object3dCommon requires DirectXCommon and SrvManager.");
+		assert(false && "Object3dCommon requires DirectXCommon, SrvManager, and LightingSystem.");
 		return;
 	}
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
+	lightingSystem_ = lightingSystem;
     CreateRootSignature();
     CreateSkinningRootSignature();
     CreateSkinningComputeRootSignature();
@@ -28,6 +31,27 @@ void Object3dCommon::CommonDrawSettings() {
     ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
     commandList->SetGraphicsRootSignature(rootSignature_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+}
+
+void Object3dCommon::BeginObjectPass() {
+	if (objectPassActive_) {
+		Logger::Log("Object3dCommon::BeginObjectPass rejected a nested pass.");
+		assert(false && "Nested Object3d pass");
+		return;
+	}
+	dxCommon_->SetSceneRenderTargetsWithNormal();
+	CommonDrawSettings();
+	objectPassActive_ = true;
+}
+
+void Object3dCommon::EndObjectPass() {
+	if (!objectPassActive_) {
+		Logger::Log("Object3dCommon::EndObjectPass rejected because no pass is active.");
+		assert(false && "Object3d pass is not active");
+		return;
+	}
+	dxCommon_->SetSceneRenderTarget();
+	objectPassActive_ = false;
 }
 
 void Object3dCommon::UpdateDirectionalShadow(const Vector3& lightDirection, const Vector3& focusPosition) {
@@ -593,19 +617,28 @@ void Object3dCommon::CreateShadowPipelineStates() {
 	desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 	desc.SampleDesc.Count = 1;
 
-	HRESULT hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&shadowPipelineState_));
-	if (FAILED(hr)) {
-		Logger::Log("Object3dCommon::CreateShadowPipelineStates failed for static geometry.\n");
-		assert(false);
-		return;
-	}
+	const D3D12_CULL_MODE shadowCullModes[] = { D3D12_CULL_MODE_BACK, D3D12_CULL_MODE_FRONT };
+	for (std::size_t orientation = 0; orientation < std::size(shadowCullModes); ++orientation) {
+		desc.RasterizerState.CullMode = shadowCullModes[orientation];
+		desc.InputLayout = { inputLayout, _countof(inputLayout) };
+		desc.VS = { vertexShader->GetBufferPointer(), vertexShader->GetBufferSize() };
+		HRESULT hr = device->CreateGraphicsPipelineState(
+			&desc, IID_PPV_ARGS(&shadowPipelineStates_[orientation]));
+		if (FAILED(hr)) {
+			Logger::Log("Object3dCommon::CreateShadowPipelineStates failed for static geometry.\n");
+			assert(false);
+			return;
+		}
 
-	desc.InputLayout = { skinningInputLayout, _countof(skinningInputLayout) };
-	desc.VS = { skinningVertexShader->GetBufferPointer(), skinningVertexShader->GetBufferSize() };
-	hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&shadowSkinningPipelineState_));
-	if (FAILED(hr)) {
-		Logger::Log("Object3dCommon::CreateShadowPipelineStates failed for skinned geometry.\n");
-		assert(false);
+		desc.InputLayout = { skinningInputLayout, _countof(skinningInputLayout) };
+		desc.VS = { skinningVertexShader->GetBufferPointer(), skinningVertexShader->GetBufferSize() };
+		hr = device->CreateGraphicsPipelineState(
+			&desc, IID_PPV_ARGS(&shadowSkinningPipelineStates_[orientation]));
+		if (FAILED(hr)) {
+			Logger::Log("Object3dCommon::CreateShadowPipelineStates failed for skinned geometry.\n");
+			assert(false);
+			return;
+		}
 	}
 }
 

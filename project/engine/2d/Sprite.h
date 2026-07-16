@@ -1,11 +1,13 @@
 #pragma once
 #include "2d/SpriteCommon.h"
+#include "2d/TextureManager.h"
 #include "math/Matrix.h"
+#include <string>
 
 class Sprite {
 public:
-    // 初期化（テクスチャ番号を指定）
-    void Initialize(SpriteCommon* spriteCommon, uint32_t textureHandle = 0);
+    // The path-based entry point guarantees that every Sprite resolves assets through TextureManager.
+    bool Initialize(SpriteCommon* spriteCommon, const std::string& texturePath);
 
     // 更新
     void Update();
@@ -32,7 +34,7 @@ public:
     void SetColor(const Vector4& color) { materialData_->color = color; }
 
     // テクスチャ変更
-    void SetTexture(uint32_t textureHandle);
+    void SetTexture(Texture2DHandle textureHandle);
 
     // テクスチャ切り出し範囲（左上座標、サイズ）
     void SetTextureRect(const Vector2& leftTop, const Vector2& size);
@@ -94,7 +96,7 @@ private:
     bool isFlipY_ = false;
 
     // テクスチャ関連
-    uint32_t textureHandle_ = 0; // 使っているテクスチャの番号
+    Texture2DHandle textureHandle_{};
     Vector2 textureLeftTop_ = { 0.0f, 0.0f }; // テクスチャの左上オフセット
     Vector2 textureSize_ = { 100.0f, 100.0f }; // テクスチャの切り出しサイズ
 };

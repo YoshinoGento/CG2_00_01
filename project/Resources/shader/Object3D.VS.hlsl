@@ -4,6 +4,7 @@ struct TransformationMatrix
 {
     float4x4 WVP;
     float4x4 World;
+    float4x4 WorldInverseTranspose;
 };
 
 cbuffer cbTransformationMatrix : register(b0)
@@ -30,8 +31,12 @@ VertexShaderOutput main(VertexShaderInput input)
     
     output.texcoord = input.texcoord;
     
-    // 法線の変換（ワールド行列の回転成分を適用）
-    output.normal = normalize(mul(input.normal, (float3x3) gTransformationMatrix.World));
+    // Positions and normals require different transforms when scale is non-uniform.
+    float3 worldNormal = mul(input.normal, (float3x3) gTransformationMatrix.WorldInverseTranspose);
+    float worldNormalLengthSquared = dot(worldNormal, worldNormal);
+    output.normal = worldNormalLengthSquared > 1.0e-10f
+        ? worldNormal * rsqrt(worldNormalLengthSquared)
+        : float3(0.0f, 1.0f, 0.0f);
     
     return output;
 }

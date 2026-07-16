@@ -27,7 +27,7 @@ struct SpotLight
     float decay;
     float cosAngle;
     float cosFalloffStart;
-    float padding[2];
+    float padding;
 };
 cbuffer cbSpotLight : register(b3)
 {
@@ -59,6 +59,26 @@ struct PixelShaderOutput
     float4 color : SV_TARGET0;
     float4 normal : SV_TARGET1;
 };
+
+float3 SafeNormalize(float3 value, float3 fallbackValue)
+{
+    const float lengthSquared = dot(value, value);
+    return lengthSquared > 1.0e-10f ? value * rsqrt(lengthSquared) : fallbackValue;
+}
+
+float EvaluateBlinnPhongSpecular(float3 normal, float3 lightDirection, float3 toEye, float shininess)
+{
+    const float NdotL = dot(normal, lightDirection);
+    const float3 halfVectorSum = lightDirection + toEye;
+    const float halfVectorLengthSquared = dot(halfVectorSum, halfVectorSum);
+    if (NdotL <= 0.0f || halfVectorLengthSquared <= 1.0e-10f)
+    {
+        return 0.0f;
+    }
+
+    const float3 halfVector = halfVectorSum * rsqrt(halfVectorLengthSquared);
+    return pow(saturate(dot(normal, halfVector)), max(shininess, 1.0f));
+}
 
 float EvaluateDirectionalShadow(float3 worldPosition, float3 normal, float3 lightDirection)
 {
@@ -112,38 +132,38 @@ PixelShaderOutput main(VertexShaderOutput input)
     }
 
     // --- 準備 ---
-    float3 V = normalize(gCamera.worldPosition - input.worldPosition);
+    float3 V = SafeNormalize(gCamera.worldPosition - input.worldPosition, N);
 
     // --- 1. 平行光源 ---
-    float3 L_dir = normalize(-gDirectionalLight.direction);
-    float3 H_dir = normalize(L_dir + V);
+    float3 L_dir = SafeNormalize(-gDirectionalLight.direction, float3(0.0f, 1.0f, 0.0f));
     float NdotL_dir = saturate(dot(N, L_dir));
     float directionalShadow = EvaluateDirectionalShadow(input.worldPosition, N, L_dir);
     float3 baseColor = gMaterial.color.rgb * textureColor.rgb;
     float3 ambient_dir = baseColor * gDirectionalLight.color.rgb * 0.18f * gDirectionalLight.intensity;
     float3 diffuse_dir = baseColor * gDirectionalLight.color.rgb * (NdotL_dir * 0.82f) * gDirectionalLight.intensity * directionalShadow;
-    float spec_dir = pow(saturate(dot(N, H_dir)), gMaterial.shininess);
+    float spec_dir = EvaluateBlinnPhongSpecular(N, L_dir, V, gMaterial.shininess);
     float3 specular_dir = gDirectionalLight.color.rgb * gDirectionalLight.intensity * spec_dir * directionalShadow;
 
     // --- 2. スポットライト ---
     float3 lightVec = input.worldPosition - gSpotLight.position;
     float dist = length(lightVec);
-    float3 L_spot = normalize(-lightVec);
+    float3 L_spot = SafeNormalize(-lightVec, N);
     
     // 距離減衰
-    float distAtten = pow(saturate(1.0f - dist / gSpotLight.distance), gSpotLight.decay);
+    float distAtten = pow(saturate(1.0f - dist / max(gSpotLight.distance, 1.0e-4f)), max(gSpotLight.decay, 0.0f));
     // 角度減衰
-    float cosTheta = dot(normalize(lightVec), gSpotLight.direction);
-    float angleAtten = saturate((cosTheta - gSpotLight.cosAngle) / (gSpotLight.cosFalloffStart - gSpotLight.cosAngle));
+    float cosTheta = dot(SafeNormalize(lightVec, -N), SafeNormalize(gSpotLight.direction, float3(0.0f, -1.0f, 0.0f)));
+    float angleRange = max(gSpotLight.cosFalloffStart - gSpotLight.cosAngle, 1.0e-4f);
+    float angleAtten = saturate((cosTheta - gSpotLight.cosAngle) / angleRange);
     
     float spotFactor = gSpotLight.intensity * distAtten * angleAtten;
-    float3 H_spot = normalize(L_spot + V);
-    float3 diffuse_spot = gMaterial.color.rgb * textureColor.rgb * gSpotLight.color.rgb * saturate(dot(N, L_spot)) * spotFactor;
-    float3 specular_spot = gSpotLight.color.rgb * spotFactor * pow(saturate(dot(N, H_spot)), gMaterial.shininess);
+    float NdotL_spot = saturate(dot(N, L_spot));
+    float3 diffuse_spot = gMaterial.color.rgb * textureColor.rgb * gSpotLight.color.rgb * NdotL_spot * spotFactor;
+    float3 specular_spot = gSpotLight.color.rgb * spotFactor * EvaluateBlinnPhongSpecular(N, L_spot, V, gMaterial.shininess);
     
      // --- 3. 環境マップ (★追加) ---
     // カメラから点への入射ベクトルを法線で反射させる
-    float3 cameraToPosition = normalize(input.worldPosition - gCamera.worldPosition);
+    float3 cameraToPosition = SafeNormalize(input.worldPosition - gCamera.worldPosition, -N);
     float3 reflectedVector = reflect(cameraToPosition, N);
     // 反射した方向の景色をサンプリング
     float3 environmentColor = gEnvironmentTexture.Sample(gSampler, reflectedVector).rgb;

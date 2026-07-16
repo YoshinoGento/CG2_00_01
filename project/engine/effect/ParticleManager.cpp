@@ -1,5 +1,7 @@
 #include "effect/ParticleManager.h"
+#include "2d/TextureManager.h"
 #include "base/DirectXCommon.h"
+#include "base/FrameClock.h"
 #include "base/Logger.h"
 #include "base/SrvManager.h"
 #include "3d/Camera.h"
@@ -147,30 +149,34 @@ void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager
     materialData_->alphaReference = 0.0f; // 初期値: 0（従来と同じ動作）
 }
 
-void ParticleManager::Update(Camera* camera) {
+void ParticleManager::Update(Camera* camera, float deltaTime) {
     camera_ = camera;
-    float deltaTime = 1.0f / 60.0f;
+	if (!std::isfinite(deltaTime)) {
+		deltaTime = 0.0f;
+	}
+	frameDeltaTime_ = std::clamp(deltaTime, 0.0f, FrameClock::kMaximumFrameDeltaSeconds);
+	const float legacyFrameScale = frameDeltaTime_ / FrameClock::kDefaultFixedDeltaSeconds;
 
     for (auto& groupPair : particleGroups_) {
         for (auto it = groupPair.second.particles.begin(); it != groupPair.second.particles.end();) {
             Particle& p = *it;
-            p.currentTime += deltaTime;
+            p.currentTime += frameDeltaTime_;
 
             if (p.currentTime >= p.lifeTime) {
                 it = groupPair.second.particles.erase(it);
                 continue;
             }
 
-            p.velocity.x += p.acceleration.x;
-            p.velocity.y += p.acceleration.y;
-            p.velocity.z += p.acceleration.z;
-            p.transform.translate.x += p.velocity.x;
-            p.transform.translate.y += p.velocity.y;
-            p.transform.translate.z += p.velocity.z;
+            p.velocity.x += p.acceleration.x * legacyFrameScale;
+            p.velocity.y += p.acceleration.y * legacyFrameScale;
+            p.velocity.z += p.acceleration.z * legacyFrameScale;
+            p.transform.translate.x += p.velocity.x * legacyFrameScale;
+            p.transform.translate.y += p.velocity.y * legacyFrameScale;
+            p.transform.translate.z += p.velocity.z * legacyFrameScale;
 
 			// UVスクロールのアニメーション
-			p.uvOffset.x += p.uvVelocity.x * deltaTime;
-			p.uvOffset.y += p.uvVelocity.y * deltaTime;
+			p.uvOffset.x += p.uvVelocity.x * frameDeltaTime_;
+			p.uvOffset.y += p.uvVelocity.y * frameDeltaTime_;
 
             float t = p.currentTime / p.lifeTime;
             // 寿命でアルファ値を減衰させる (PS側で色の強さに反映される)
@@ -331,7 +337,7 @@ void ParticleManager::Draw(bool drawDefaultGPUParticles) {
             instanceIndex++;
         }
         if (instanceIndex == 0) continue;
-        commandList->SetGraphicsRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(group.textureHandle));
+        commandList->SetGraphicsRootDescriptorTable(0, TextureManager::GetInstance()->GetGpuHandle(group.textureHandle));
 
         if (group.model) {
             group.model->Draw(commandList, instanceIndex);
@@ -891,7 +897,7 @@ void ParticleManager::EmitGPUParticles() {
 
 void ParticleManager::UpdateGPUParticles() {
     assert(gpuParticleUpdateInfo_);
-    gpuParticleUpdateInfo_->deltaTime = 1.0f / 60.0f;
+	gpuParticleUpdateInfo_->deltaTime = frameDeltaTime_;
     gpuParticleUpdateInfo_->particleCount = kMaxGPUParticleCount;
     gpuParticleUpdateInfo_->timeScale = 1.0f;
     gpuParticleUpdateInfo_->padding = 0;
@@ -996,7 +1002,7 @@ void ParticleManager::DrawGPUParticleBuffer() {
         return;
     }
 
-    uint32_t textureHandle = 0;
+    Texture2DHandle textureHandle{};
     if (!TryGetGPUParticleTextureHandle(textureHandle)) {
         return;
     }
@@ -1022,7 +1028,7 @@ void ParticleManager::DrawGPUParticleBuffer() {
     commandList->SetPipelineState(gpuParticleGraphicsPipelineState_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
-    commandList->SetGraphicsRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(textureHandle));
+    commandList->SetGraphicsRootDescriptorTable(0, TextureManager::GetInstance()->GetGpuHandle(textureHandle));
     commandList->SetGraphicsRootConstantBufferView(1, materialResource_->GetGPUVirtualAddress());
     commandList->SetGraphicsRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(gpuParticleSrvHandle_));
     commandList->SetGraphicsRootConstantBufferView(3, gpuParticleViewResource_->GetGPUVirtualAddress());
@@ -1036,7 +1042,7 @@ void ParticleManager::DrawGPUParticles() {
     DrawGPUParticleBuffer();
 }
 
-bool ParticleManager::TryGetGPUParticleTextureHandle(uint32_t& textureHandle) const {
+bool ParticleManager::TryGetGPUParticleTextureHandle(Texture2DHandle& textureHandle) const {
     for (const auto& groupPair : particleGroups_) {
         if (!groupPair.second.model) {
             textureHandle = groupPair.second.textureHandle;
@@ -1052,7 +1058,7 @@ bool ParticleManager::TryGetGPUParticleTextureHandle(uint32_t& textureHandle) co
     return false;
 }
 
-void ParticleManager::CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model) {
+void ParticleManager::CreateParticleGroup(const std::string& name, Texture2DHandle textureHandle, Model* model) {
     ParticleGroup& group = particleGroups_[name];
     group.name = name;
     group.textureHandle = textureHandle;

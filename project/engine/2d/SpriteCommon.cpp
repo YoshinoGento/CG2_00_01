@@ -2,12 +2,9 @@
 #include "base/Logger.h"
 #include <cassert>
 
-// ★修正: SrvManagerを受け取る
-void SpriteCommon::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
+void SpriteCommon::Initialize(DirectXCommon* dxCommon) {
     assert(dxCommon);
-    assert(srvManager);
     dxCommon_ = dxCommon;
-    srvManager_ = srvManager;
 
     CreateRootSignature();
     CreateGraphicsPipelineState();
@@ -25,45 +22,6 @@ void SpriteCommon::PreDraw() {
     // main.cpp の srvManager->PreDraw() で一括設定するため、ここで上書きするとバグになります。
     // ID3D12DescriptorHeap* ppHeaps[] = { dxCommon_->GetSrvHeap() };
     // commandList->SetDescriptorHeaps(1, ppHeaps);
-}
-
-uint32_t SpriteCommon::LoadTexture(const std::string& filePath) {
-    if (textureMap_.contains(filePath)) {
-        return textureMap_[filePath];
-    }
-
-    // 1. テクスチャファイルを読み込む
-    DirectX::ScratchImage mipImages = dxCommon_->LoadTexture(filePath);
-    const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
-
-    // 2. リソースを作成
-    Microsoft::WRL::ComPtr<ID3D12Resource> textureResource = dxCommon_->CreateTextureResource(metadata);
-
-    // 3. データを転送
-    dxCommon_->UploadTextureData(textureResource.Get(), mipImages);
-
-    // 4. ★SRVを作成 (SrvManagerを使用)
-    uint32_t srvIndex = srvManager_->Allocate();
-    srvManager_->CreateSRVforTexture2D(srvIndex, textureResource.Get(), metadata.format, UINT(metadata.mipLevels));
-
-    // 5. 管理リストに追加
-    textureMap_[filePath] = srvIndex;
-    textureResources_[srvIndex] = textureResource;
-    textureDescs_[srvIndex] = textureResource->GetDesc();
-
-    return srvIndex;
-}
-
-// ★追加: SrvManagerからハンドルを取得
-D3D12_GPU_DESCRIPTOR_HANDLE SpriteCommon::GetSrvHandleGPU(uint32_t textureIndex) {
-    return srvManager_->GetGPUDescriptorHandle(textureIndex);
-}
-
-D3D12_RESOURCE_DESC SpriteCommon::GetTextureResourceDesc(uint32_t textureIndex) {
-    if (!textureDescs_.contains(textureIndex)) {
-        return {};
-    }
-    return textureDescs_[textureIndex];
 }
 
 void SpriteCommon::CreateRootSignature() {

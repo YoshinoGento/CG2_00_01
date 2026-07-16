@@ -3,6 +3,7 @@
 #include "base/DirectXCommon.h"
 #include "effect/FullscreenPass.h"
 #include "effect/RenderTexture.h"
+#include "2d/TextureManager.h"
 
 #include <array>
 #include <cstdint>
@@ -23,6 +24,7 @@ public:
         uint32_t finalDisplaySrvIndex,
         uint32_t depthSrvIndex,
         uint32_t normalSrvIndex);
+	void Finalize();
 
     void Execute(
         DirectXCommon::FullscreenPostEffectType postEffectType,
@@ -43,8 +45,7 @@ private:
         static_cast<size_t>(DirectXCommon::FullscreenPostEffectType::Count);
 
     struct DummyTexture {
-        Microsoft::WRL::ComPtr<ID3D12Resource> resource;
-        uint32_t srvIndex = 0;
+        Texture2DHandle handle{};
         D3D12_GPU_DESCRIPTOR_HANDLE srv{};
     };
 

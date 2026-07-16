@@ -47,6 +47,10 @@ public:
 	/// </summary>
 	void Draw();
 
+	// Gameplay input queries this boundary instead of depending on ImGui types.
+	[[nodiscard]] bool WantsCaptureKeyboard() const noexcept;
+	[[nodiscard]] bool WantsCaptureMouse() const noexcept;
+
 private:
 	// コンストラクタを private にして外部からの生成を禁止（シングルトン）
 	ImGuiManager() = default;

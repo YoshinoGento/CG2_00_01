@@ -1,56 +1,159 @@
 #pragma once
-#include <wrl.h>
-#include <xaudio2.h>
-#include <vector>
-#include <string>
-#include <map>
 
-/**
- * Audioクラス
- * WAV, MP3, AAC などの読み込み、再生、停止を管理します。
- * 内部で Media Foundation を使用しているため、圧縮音源も再生可能です。
- */
-class Audio {
+#include <xaudio2.h>
+#include <wrl.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <map>
+#include <string>
+#include <thread>
+#include <vector>
+
+struct AudioClipHandle final {
+	static constexpr uint32_t kInvalidValue = 0;
+
+	uint32_t value = kInvalidValue;
+
+	[[nodiscard]] constexpr bool IsValid() const noexcept { return value != kInvalidValue; }
+	explicit constexpr operator bool() const noexcept { return IsValid(); }
+
+	friend constexpr bool operator==(AudioClipHandle lhs, AudioClipHandle rhs) noexcept = default;
+};
+
+struct AudioVoiceHandle final {
+	static constexpr uint32_t kInvalidValue = 0;
+
+	uint32_t value = kInvalidValue;
+
+	[[nodiscard]] constexpr bool IsValid() const noexcept { return value != kInvalidValue; }
+	explicit constexpr operator bool() const noexcept { return IsValid(); }
+
+	friend constexpr bool operator==(AudioVoiceHandle lhs, AudioVoiceHandle rhs) noexcept = default;
+};
+
+enum class AudioPlaybackDirection : uint8_t {
+	Forward,
+	Reverse,
+};
+
+class Audio final {
 public:
-	// 音声ファイル1つ分のデータを保持する構造体
-	struct SoundData {
-		WAVEFORMATEX wfex;              // 波形フォーマット（サンプリングレート等）
-		std::vector<byte> pBuffer;      // 音声データ本体（デコード済みのPCM）
-		uint32_t bufferSize;            // データのバイト数
-		IXAudio2SourceVoice* pSourceVoice; // この音専用の再生機（ボイス）
+	struct PlaySettings final {
+		bool loop = false;
+		bool startPaused = false;
+		float volume = 1.0f;
+		float playbackRate = 1.0f;
+		AudioPlaybackDirection direction = AudioPlaybackDirection::Forward;
 	};
 
-	// --- 基本機能 ---
+	struct Statistics final {
+		std::size_t loadedClipCount = 0;
+		std::size_t activeVoiceCount = 0;
+		std::size_t decodedPcmBytes = 0;
+		float temporalPlaybackRate = 1.0f;
+		float targetTemporalPlaybackRate = 1.0f;
+		AudioPlaybackDirection temporalDirection = AudioPlaybackDirection::Forward;
+	};
 
-	// 初期化：エンジンの起動時に一度だけ呼ぶ
-	void Initialize();
-	// 終了処理：エンジンの終了時に一度だけ呼ぶ
+	Audio() = default;
+	~Audio();
+	Audio(const Audio&) = delete;
+	Audio& operator=(const Audio&) = delete;
+	Audio(Audio&&) = delete;
+	Audio& operator=(Audio&&) = delete;
+
+	[[nodiscard]] bool Initialize();
 	void Finalize();
+	void Update(float realDeltaSeconds);
 
-	/**
-	 * 音声ファイルの読み込み（一度読み込めばメモリに保持されます）
-	 * @param filename ファイルパス（例："Resources/bgm.mp3"）
-	 * @return 管理用のハンドル（ID）
-	 */
-	uint32_t LoadAudio(const std::string& filename);
+	[[nodiscard]] AudioClipHandle LoadAudio(const std::string& filename);
+	[[nodiscard]] bool UnloadAudio(AudioClipHandle clipHandle);
+	void UnloadAllAudio();
 
-	/**
-	 * 音声の再生
-	 * @param handle LoadAudioで取得したハンドル
-	 * @param loop trueでループ再生、falseで1回再生
-	 */
-	void PlayWave(uint32_t handle, bool loop = false);
+	[[nodiscard]] AudioVoiceHandle PlayWave(AudioClipHandle clipHandle, bool loop = false);
+	[[nodiscard]] AudioVoiceHandle Play(AudioClipHandle clipHandle, const PlaySettings& settings);
+	[[nodiscard]] bool StopVoice(AudioVoiceHandle voiceHandle);
+	[[nodiscard]] bool PauseVoice(AudioVoiceHandle voiceHandle);
+	[[nodiscard]] bool ResumeVoice(AudioVoiceHandle voiceHandle);
+	[[nodiscard]] bool SetVoiceVolume(AudioVoiceHandle voiceHandle, float volume);
+	[[nodiscard]] bool SetVoicePlaybackRate(
+		AudioVoiceHandle voiceHandle,
+		float playbackRate,
+		float transitionSeconds = 0.0f);
+	[[nodiscard]] bool SetVoiceDirection(
+		AudioVoiceHandle voiceHandle,
+		AudioPlaybackDirection direction);
+	[[nodiscard]] bool IsVoiceActive(AudioVoiceHandle voiceHandle) const;
+	void StopAllVoices();
 
-	/**
-	 * 音声の停止
-	 * @param handle 止めたい音のハンドル
-	 */
-	void StopWave(uint32_t handle);
+	// Temporal settings affect active voices and voices created after this call.
+	void SetGlobalTemporalState(
+		AudioPlaybackDirection direction,
+		float playbackRate,
+		float transitionSeconds = 0.0f);
+	[[nodiscard]] Statistics GetStatistics() const;
 
 private:
-	Microsoft::WRL::ComPtr<IXAudio2> xAudio2_; // XAudio2本体
-	IXAudio2MasteringVoice* masterVoice_ = nullptr; // 最終的な音の出口
+	struct Clip final {
+		std::wstring canonicalPath;
+		WAVEFORMATEXTENSIBLE waveFormat{};
+		std::vector<uint8_t> forwardPcm;
+		std::vector<uint8_t> reversePcm;
+		uint32_t frameCount = 0;
+	};
 
-	std::map<uint32_t, SoundData> soundDatas_; // 読み込んだデータの管理用
-	uint32_t nextHandle_ = 0; // 次に発行するハンドルの番号
+	struct Voice final {
+		AudioClipHandle clipHandle{};
+		IXAudio2SourceVoice* sourceVoice = nullptr;
+		AudioPlaybackDirection baseDirection = AudioPlaybackDirection::Forward;
+		AudioPlaybackDirection appliedDirection = AudioPlaybackDirection::Forward;
+		bool loop = false;
+		bool paused = false;
+		float volume = 1.0f;
+		float currentBasePlaybackRate = 1.0f;
+		float targetBasePlaybackRate = 1.0f;
+		float baseRateRampStart = 1.0f;
+		float baseRateRampDuration = 0.0f;
+		float baseRateRampElapsed = 0.0f;
+		uint32_t submittedDirectionFrame = 0;
+		uint64_t samplesPlayedAtSubmit = 0;
+	};
+
+	[[nodiscard]] bool IsOwnerThread(const char* operation) const;
+	[[nodiscard]] bool DecodeAudioFile(const std::wstring& filename, Clip& outputClip) const;
+	[[nodiscard]] std::wstring ResolveCanonicalPath(const std::string& filename) const;
+	[[nodiscard]] AudioClipHandle AllocateClipHandle();
+	[[nodiscard]] AudioVoiceHandle AllocateVoiceHandle();
+	[[nodiscard]] Voice* FindVoice(AudioVoiceHandle voiceHandle);
+	[[nodiscard]] const Voice* FindVoice(AudioVoiceHandle voiceHandle) const;
+	[[nodiscard]] AudioPlaybackDirection ResolveAppliedDirection(const Voice& voice) const;
+	[[nodiscard]] uint32_t GetCurrentOriginalFrame(const Voice& voice, const Clip& clip) const;
+	[[nodiscard]] bool ResubmitVoice(
+		Voice& voice,
+		const Clip& clip,
+		AudioPlaybackDirection direction,
+		uint32_t originalFrame);
+	[[nodiscard]] bool ApplyVoiceFrequencyRatio(Voice& voice) const;
+	void DestroyVoice(Voice& voice) noexcept;
+	void UpdateTemporalRate(float realDeltaSeconds);
+	void UpdateBaseRate(Voice& voice, float realDeltaSeconds) const;
+
+	Microsoft::WRL::ComPtr<IXAudio2> xAudio2_;
+	IXAudio2MasteringVoice* masterVoice_ = nullptr;
+	std::map<uint32_t, Clip> clips_;
+	std::map<uint32_t, Voice> voices_;
+	std::map<std::wstring, AudioClipHandle> clipCache_;
+	uint32_t nextClipId_ = 1;
+	uint32_t nextVoiceId_ = 1;
+	AudioPlaybackDirection temporalDirection_ = AudioPlaybackDirection::Forward;
+	float currentTemporalPlaybackRate_ = 1.0f;
+	float targetTemporalPlaybackRate_ = 1.0f;
+	float temporalRateRampStart_ = 1.0f;
+	float temporalRateRampDuration_ = 0.0f;
+	float temporalRateRampElapsed_ = 0.0f;
+	std::thread::id ownerThread_{};
+	bool mediaFoundationStarted_ = false;
+	bool initialized_ = false;
 };

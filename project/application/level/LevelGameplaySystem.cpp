@@ -124,28 +124,29 @@ void LevelGameplaySystem::AddObstacle(const Vector3& center, const Vector3& half
 	});
 }
 
-void LevelGameplaySystem::UpdatePlayer(const Vector3& direction, bool jumpRequested, bool sneakRequested, float deltaTime)
+void LevelGameplaySystem::UpdatePlayer(const PlayerCommand& command, float fixedDeltaTime)
 {
-	if (!hasPlayer_ || !std::isfinite(deltaTime) || deltaTime <= 0.0f) {
+	if (!hasPlayer_ || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f) {
 		return;
 	}
 
+	const Vector3& direction = command.moveDirection;
 	const float horizontalLength = std::sqrt(direction.x * direction.x + direction.z * direction.z);
 	isPlayerMoving_ = horizontalLength > 0.0001f;
-	isPlayerSneaking_ = isPlayerMoving_ && sneakRequested;
+	isPlayerSneaking_ = isPlayerMoving_ && command.sneakHeld;
 	if (horizontalLength > 0.0001f) {
 		playerFacingDirection_ = { direction.x / horizontalLength, 0.0f, direction.z / horizontalLength };
 		const float moveSpeed = isPlayerSneaking_ ? sneakMoveSpeed_ : walkMoveSpeed_;
-		const float step = moveSpeed * deltaTime / horizontalLength;
+		const float step = moveSpeed * fixedDeltaTime / horizontalLength;
 		MovePlayerHorizontal({ direction.x * step, 0.0f, direction.z * step });
 	}
 
-	if (jumpRequested && isPlayerGrounded_) {
+	if (command.jumpPressed && isPlayerGrounded_) {
 		verticalVelocity_ = jumpSpeed_;
 		isPlayerGrounded_ = false;
 	}
-	verticalVelocity_ -= gravity_ * deltaTime;
-	playerPosition_.y += verticalVelocity_ * deltaTime;
+	verticalVelocity_ -= gravity_ * fixedDeltaTime;
+	playerPosition_.y += verticalVelocity_ * fixedDeltaTime;
 	SnapPlayerToGround();
 	CollectOverlappingObjects();
 }
@@ -160,6 +161,51 @@ std::vector<std::size_t> LevelGameplaySystem::ConsumeCollectedRenderIndices()
 	std::vector<std::size_t> result = std::move(collectedRenderIndices_);
 	collectedRenderIndices_.clear();
 	return result;
+}
+
+void LevelGameplaySystem::CaptureSnapshot(Snapshot& snapshot) const
+{
+	snapshot.playerPosition = playerPosition_;
+	snapshot.playerFacingDirection = playerFacingDirection_;
+	snapshot.verticalVelocity = verticalVelocity_;
+	snapshot.isPlayerMoving = isPlayerMoving_;
+	snapshot.isPlayerSneaking = isPlayerSneaking_;
+	snapshot.isPlayerGrounded = isPlayerGrounded_;
+	snapshot.collectibleStates.resize(collectibles_.size());
+	for (std::size_t i = 0; i < collectibles_.size(); ++i) {
+		snapshot.collectibleStates[i] = collectibles_[i].collected ? uint8_t{ 1 } : uint8_t{ 0 };
+	}
+	snapshot.collectedCount = collectedCount_;
+}
+
+bool LevelGameplaySystem::RestoreSnapshot(const Snapshot& snapshot)
+{
+	const auto isFiniteVector = [](const Vector3& value) {
+		return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+	};
+	const std::size_t collectedStateCount = static_cast<std::size_t>(std::count_if(
+		snapshot.collectibleStates.begin(), snapshot.collectibleStates.end(),
+		[](uint8_t state) { return state != 0; }));
+	if (!hasPlayer_ || snapshot.collectibleStates.size() != collectibles_.size() ||
+		snapshot.collectedCount > collectibles_.size() ||
+		snapshot.collectedCount != collectedStateCount ||
+		!isFiniteVector(snapshot.playerPosition) ||
+		!isFiniteVector(snapshot.playerFacingDirection) ||
+		!std::isfinite(snapshot.verticalVelocity)) {
+		return false;
+	}
+	playerPosition_ = snapshot.playerPosition;
+	playerFacingDirection_ = snapshot.playerFacingDirection;
+	verticalVelocity_ = snapshot.verticalVelocity;
+	isPlayerMoving_ = snapshot.isPlayerMoving;
+	isPlayerSneaking_ = snapshot.isPlayerSneaking;
+	isPlayerGrounded_ = snapshot.isPlayerGrounded;
+	for (std::size_t i = 0; i < collectibles_.size(); ++i) {
+		collectibles_[i].collected = snapshot.collectibleStates[i] != 0;
+	}
+	collectedCount_ = snapshot.collectedCount;
+	collectedRenderIndices_.clear();
+	return true;
 }
 
 void LevelGameplaySystem::SnapPlayerToGround()

@@ -1,12 +1,12 @@
 #pragma once
 #include "base/DirectXCommon.h"
+#include "2d/TextureManager.h"
 #include "math/Matrix.h"
 #include <wrl.h>
 #include <d3d12.h>
 #include <string>
 #include <vector>
 
-class SrvManager;
 class Camera;
 
 /**
@@ -15,20 +15,18 @@ class Camera;
  */
 class Skybox {
 public:
-	void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager, const std::string& ddsFilePath);
+	void Initialize(DirectXCommon* dxCommon, const std::string& ddsFilePath);
 	void Update(Camera* camera);
 	void Draw();
 
 	// ★追加：環境マップ（映り込み）として利用するために、テクスチャの番号を取得する関数
-	uint32_t GetSrvIndex() const { return srvIndex_; }
+	TextureCubeHandle GetTextureHandle() const { return textureHandle_; }
 
 private:
 	void CreateMesh(); // 資料スライド 11: 箱の作成
-	void LoadDDS(const std::string& filePath); // 資料スライド 9: DDSの読み込み
 	void CreatePSO(); // 資料スライド 15: 専用PSOの作成
 
 	DirectXCommon* dxCommon_ = nullptr;
-	SrvManager* srvManager_ = nullptr;
 
 	// メッシュ情報
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertResource_;
@@ -46,8 +44,7 @@ private:
 	Material* materialData_ = nullptr;
 
 	// テクスチャ
-	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource_;
-	uint32_t srvIndex_ = 0;
+	TextureCubeHandle textureHandle_{};
 
 	// 描画設定
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;

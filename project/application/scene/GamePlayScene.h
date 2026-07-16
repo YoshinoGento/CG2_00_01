@@ -8,17 +8,18 @@
 #include <vector>
 #include <string>
 #include <cstdint>
-#include <chrono>
 #include "math/Matrix.h"
 #include "3d/Skybox.h"
+#include "2d/TextureManager.h"
 #include "3d/SkeletonDebugger.h"
 #include "effect/ParticleManager.h"
+#include "time/SnapshotTimeline.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmDateSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
 #include "farm/ui/FarmHUD.h"
-#ifdef _DEBUG
+#ifdef USE_IMGUI
 #include "farm/debug/FarmDebugEditorWindow.h"
 #endif
 
@@ -54,6 +55,8 @@ public:
 
 	void Initialize() override;
 	void Finalize() override;
+	void PrepareFixedUpdate() override;
+	void FixedUpdate(float fixedDeltaTime) override;
 	void Update() override;
 	void Draw() override;
 	void CreateSphere(float radius);
@@ -64,6 +67,7 @@ public:
 
 private:
 	enum class PlayerAnimationMode;
+	struct GameplaySnapshot;
 	void AddLog(const std::string& message);
 	void UpdateSceneDeltaTime();
 	void HandleKeyboardMovement();
@@ -83,6 +87,7 @@ private:
 	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
 	FarmHUDViewData BuildFarmHUDViewData() const;
 	void HandleFarmDateDebugInput();
+	void HandleFarmHistoryInput();
 	void HandleFarmToolDebugInput();
 	void HandleFarmToolActionInput();
 	bool HandleFarmGridSelectionInput();
@@ -90,7 +95,10 @@ private:
 	void InitializeSkyboxIfNeeded();
 	void LoadSceneLevel();
 	void CreateLevelObjectsFromLevel();
-	void UpdateLevelGameplay();
+	void SyncLevelGameplayPresentation();
+	void InitializeTimeline();
+	void CaptureTimelineSnapshot(GameplaySnapshot& output) const;
+	bool RestoreTimelineSnapshot(const GameplaySnapshot& snapshot);
 	void UpdateLevelPlayerVisual();
 	void ConfigureLevelPlayerAnimation(std::size_t playerRenderIndex, PlayerAnimationMode mode);
 	void CollectLevelRuntimeData();
@@ -100,7 +108,7 @@ private:
 	void DrawLevelBox(const Vector3& center, const Vector3& size, const Vector4& color) const;
 	void DrawLevelCameraGizmo(const Vector3& position, const Vector4& color) const;
 	Vector3 EvaluateLevelRoutePoint(float normalizedTime) const;
-#ifdef _DEBUG
+#ifdef USE_IMGUI
 	void DrawSceneDebugWindow();
 #endif
 
@@ -117,6 +125,15 @@ private:
 		Vector3 basePosition{};
 		float animationPhase = 0.0f;
 		bool visible = true;
+	};
+	struct GameplaySnapshot {
+		level::LevelGameplaySystem::Snapshot levelGameplay;
+		farm::FarmGrid::Snapshot farmGrid;
+		FarmDateSystem::Snapshot farmDate;
+		FarmTool farmTool = FarmTool::Hoe;
+		float levelRouteTimer = 0.0f;
+		float playerAnimationTime = 0.0f;
+		float playerAnimationSpeed = 0.0f;
 	};
 
 	enum class PlayerAnimationMode {
@@ -149,7 +166,6 @@ private:
 	float cameraMoveSpeed_ = 5.0f;
 	float cameraRotateSpeed_ = 1.5f;
 	float sceneDeltaTime_ = 1.0f / 60.0f;
-	std::chrono::steady_clock::time_point previousFrameTime_{};
 
 	std::unique_ptr<Model> sphereModel_;
 	std::unique_ptr<Object3d> sphereObj_;
@@ -160,7 +176,15 @@ private:
 	std::unique_ptr<level::LevelData> levelData_;
 	std::vector<LevelObjectRuntime> levelObjects_;
 	level::LevelGameplaySystem levelGameplay_;
-	uint32_t levelWhiteTextureHandle_ = 0;
+	level::LevelGameplaySystem::PlayerCommand pendingPlayerCommand_{};
+	SnapshotTimeline<GameplaySnapshot> timeline_;
+	GameplaySnapshot timelineScratch_{};
+	bool timelineRewindHeld_ = false;
+	bool timelineForwardHeld_ = false;
+	bool timelineScrubbing_ = false;
+	bool timelineStepBackwardRequested_ = false;
+	bool timelineStepForwardRequested_ = false;
+	Texture2DHandle levelWhiteTextureHandle_{};
 	PlayerAnimationMode playerAnimationMode_ = PlayerAnimationMode::Walk;
 	PlayerAnimationState playerAnimationState_ = PlayerAnimationState::Idle;
 	float playerAnimationSpeed_ = 0.0f;
@@ -178,8 +202,8 @@ private:
 	bool skyboxEnabled_ = false;
 	bool skyboxEnvironmentEnabled_ = false;
 	int skyboxSelection_ = 0;
-	std::vector<uint32_t> textureHandles_;
-	uint32_t ringTexHandle_ = 0;
+	std::vector<Texture2DHandle> textureHandles_;
+	Texture2DHandle ringTexHandle_{};
 
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
 	farm::FarmGrid farmGrid_;
@@ -187,7 +211,7 @@ private:
 	FarmToolSystem farmToolSystem_;
 	FarmToolActionSystem farmToolActionSystem_;
 	FarmHUD farmHud_;
-#ifdef _DEBUG
+#ifdef USE_IMGUI
 	farm::FarmDebugEditorWindow farmDebugEditorWindow_;
 #endif
 	bool farmHudInitialized_ = false;

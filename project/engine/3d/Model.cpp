@@ -3,7 +3,7 @@
 #include "3d/Object3dCommon.h"
 #include "3d/Skeleton.h"
 #include "base/SrvManager.h"
-#include "2d/SpriteCommon.h" 
+#include "2d/TextureManager.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -573,10 +573,10 @@ Model::Node Model::ReadNode(aiNode* node) {
 /**
  * テクスチャの一括読み込み
  */
-void Model::LoadTextures(SpriteCommon* spriteCommon) {
+void Model::LoadTextures() {
 	for (auto& pair : modelMaterials_) {
 		if (!pair.second.textureFilePath.empty()) {
-			pair.second.textureHandle = spriteCommon->LoadTexture(pair.second.textureFilePath);
+			pair.second.textureHandle = TextureManager::GetInstance()->LoadTexture2D(pair.second.textureFilePath);
 		}
 	}
 }
@@ -612,7 +612,7 @@ void Model::DrawGeometry(DirectXCommon* dxCommon, bool bindMaterialTextures) {
 			if (bindMaterialTextures) {
 				auto it = modelMaterials_.find(mesh.materialName);
 				if (it != modelMaterials_.end() && !it->second.textureFilePath.empty()) {
-					D3D12_GPU_DESCRIPTOR_HANDLE handle = modelManager_->GetSrvManager()->GetGPUDescriptorHandle(it->second.textureHandle);
+					D3D12_GPU_DESCRIPTOR_HANDLE handle = TextureManager::GetInstance()->GetGpuHandle(it->second.textureHandle);
 					commandList->SetGraphicsRootDescriptorTable(5, handle);
 				}
 			}

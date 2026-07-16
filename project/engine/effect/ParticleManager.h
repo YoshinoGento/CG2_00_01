@@ -10,6 +10,7 @@
 #include <map>
 #include "math/Matrix.h"
 #include "math/Transform.h"
+#include "2d/TextureManager.h"
 
 // 前方宣言
 class DirectXCommon;
@@ -46,7 +47,7 @@ struct Particle {
 struct ParticleGroup {
     std::string name;
     std::list<Particle> particles;
-    uint32_t textureHandle;
+    Texture2DHandle textureHandle{};
 	Model* model = nullptr;
 };
 
@@ -110,7 +111,7 @@ static_assert(offsetof(GPUParticleInteractionSettings, damping) == 64, "GPUParti
 class ParticleManager {
 public:
     void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager);
-    void Update(Camera* camera);
+	void Update(Camera* camera, float deltaTime);
     void Draw(bool drawDefaultGPUParticles = true);
     void InitializeGPUParticleInteraction(const GPUParticleInteractionSettings& settings);
     void UpdateGPUParticleInteraction(const GPUParticleInteractionSettings& settings);
@@ -120,7 +121,7 @@ public:
     void ResetGPUParticles();
 
     // グループ作成
-    void CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model = nullptr);
+    void CreateParticleGroup(const std::string& name, Texture2DHandle textureHandle, Model* model = nullptr);
 
     // ★新機能：パーティクルを1つ追加して、その参照を返す
     // 火花など、1粒ずつのパラメータを細かく設定したい時用
@@ -163,12 +164,13 @@ private:
     void EmitGPUParticles();
     void UpdateGPUParticles();
     void DrawGPUParticles();
-    bool TryGetGPUParticleTextureHandle(uint32_t& textureHandle) const;
+    bool TryGetGPUParticleTextureHandle(Texture2DHandle& textureHandle) const;
 
 private:
     DirectXCommon* dxCommon_ = nullptr;
     SrvManager* srvManager_ = nullptr;
     Camera* camera_ = nullptr;
+	float frameDeltaTime_ = 1.0f / 60.0f;
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;

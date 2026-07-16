@@ -26,6 +26,9 @@ public:
 	static void DeleteInstance();
 
 	void Update();
+	void BeginFrame();
+	void PrepareFixedUpdate();
+	void FixedUpdate(float fixedDeltaTime);
 	void Draw();
 
 	// ★追加: 現在実行中のシーンを取得する（GameクラスでのUI表示に必要）

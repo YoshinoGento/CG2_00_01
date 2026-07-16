@@ -72,6 +72,19 @@ void RenderTexture::CreateSRV(SrvManager* srvManager, DXGI_FORMAT srvFormat, UIN
     srvGpuHandle_ = srvManager->GetGPUDescriptorHandle(srvIndex_);
 }
 
+void RenderTexture::Finalize(SrvManager* srvManager) {
+	if (srvManager != nullptr && srvIndex_ != kInvalidSrvIndex && srvManager->IsAllocated(srvIndex_)) {
+		srvManager->Release(srvIndex_);
+	}
+	srvIndex_ = kInvalidSrvIndex;
+	srvGpuHandle_ = {};
+	rtvHandle_ = {};
+	resource_.Reset();
+	state_ = D3D12_RESOURCE_STATE_COMMON;
+	width_ = 0;
+	height_ = 0;
+}
+
 void RenderTexture::Transition(ID3D12GraphicsCommandList* commandList, D3D12_RESOURCE_STATES after) {
     assert(commandList);
     if (!resource_ || state_ == after) {

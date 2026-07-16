@@ -18,6 +18,8 @@ public:
 	// 各シーンで必ず実装する関数
 	virtual void Initialize() = 0;
 	virtual void Finalize() = 0;
+	virtual void PrepareFixedUpdate() {}
+	virtual void FixedUpdate(float fixedDeltaTime) { (void)fixedDeltaTime; }
 	virtual void Update() = 0;
 	virtual void Draw() = 0;
 

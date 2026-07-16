@@ -1,11 +1,15 @@
 #include "Sprite.h"
+#include "base/Logger.h"
 #include <algorithm>
 #include <cassert>
 
-void Sprite::Initialize(SpriteCommon* spriteCommon, uint32_t textureHandle) {
-    assert(spriteCommon);
+bool Sprite::Initialize(SpriteCommon* spriteCommon, const std::string& texturePath) {
+    if (spriteCommon == nullptr || texturePath.empty()) {
+        Logger::Log("Sprite::Initialize failed. SpriteCommon and a texture path are required.");
+        return false;
+    }
     spriteCommon_ = spriteCommon;
-    textureHandle_ = textureHandle;
+    textureHandle_ = TextureManager::GetInstance()->LoadTexture2D(texturePath);
 
     vertexResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(VertexData) * 4);
     vertexBufferView_.BufferLocation = vertexResource_->GetGPUVirtualAddress();
@@ -41,6 +45,7 @@ void Sprite::Initialize(SpriteCommon* spriteCommon, uint32_t textureHandle) {
     transformationMatrixResource_->Map(0, nullptr, (void**)&transformationMatrixData_);
 
     AdjustTextureRect();
+    return true;
 }
 
 void Sprite::Update() {
@@ -62,12 +67,12 @@ void Sprite::Draw() {
     commandList->IASetIndexBuffer(&indexBufferView_);
     commandList->SetGraphicsRootConstantBufferView(0, materialResource_->GetGPUVirtualAddress());
     commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResource_->GetGPUVirtualAddress());
-    D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle = spriteCommon_->GetSrvHandleGPU(textureHandle_);
+    D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle = TextureManager::GetInstance()->GetGpuHandle(textureHandle_);
     commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandle);
     commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 }
 
-void Sprite::SetTexture(uint32_t textureHandle) {
+void Sprite::SetTexture(Texture2DHandle textureHandle) {
     textureHandle_ = textureHandle;
     AdjustTextureRect();
 }
@@ -80,7 +85,7 @@ void Sprite::SetTextureRect(const Vector2& leftTop, const Vector2& size) {
 }
 
 void Sprite::AdjustTextureRect() {
-    D3D12_RESOURCE_DESC resDesc = spriteCommon_->GetTextureResourceDesc(textureHandle_);
+    D3D12_RESOURCE_DESC resDesc = TextureManager::GetInstance()->GetResourceDesc(textureHandle_);
     if (resDesc.Width == 0 || resDesc.Height == 0) {
         textureLeftTop_ = { 0.0f, 0.0f };
         textureSize_ = { 1.0f, 1.0f };
@@ -100,7 +105,7 @@ void Sprite::UpdateTextureCoordinates() {
         return;
     }
 
-    D3D12_RESOURCE_DESC resDesc = spriteCommon_->GetTextureResourceDesc(textureHandle_);
+    D3D12_RESOURCE_DESC resDesc = TextureManager::GetInstance()->GetResourceDesc(textureHandle_);
     if (resDesc.Width == 0 || resDesc.Height == 0) {
         textureLeftTop_ = { 0.0f, 0.0f };
         textureSize_ = { 1.0f, 1.0f };

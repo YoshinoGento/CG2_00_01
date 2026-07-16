@@ -14,10 +14,10 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include "2d/TextureManager.h"
 
 class ModelManager;
 class Object3dCommon;
-class SpriteCommon;
 struct Skeleton;
 
 /**
@@ -122,7 +122,7 @@ public:
 
 	void Initialize(ModelManager* modelManager, const std::string& directoryPath, const std::string& filename);
 	void InitializeWithData(ModelManager* modelManager, const std::vector<VertexData>& vertices, const std::vector<uint32_t>& indices);
-	void LoadTextures(SpriteCommon* spriteCommon);
+	void LoadTextures();
 	// 通常描画（1つだけ描画）
 	void Draw(DirectXCommon* dxCommon);
 	void DrawDepth(DirectXCommon* dxCommon);
@@ -166,7 +166,7 @@ private:
 
 	struct ModelMaterialData {
 		std::string textureFilePath;
-		uint32_t textureHandle = 0;
+		Texture2DHandle textureHandle{};
 	};
 	std::map<std::string, ModelMaterialData> modelMaterials_;
 	std::vector<Mesh> meshes_;
