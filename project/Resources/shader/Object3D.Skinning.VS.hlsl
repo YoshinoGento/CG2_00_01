@@ -4,6 +4,7 @@ struct TransformationMatrix
 {
     float4x4 WVP;
     float4x4 World;
+    float4x4 WorldInverseTranspose;
 };
 
 cbuffer cbTransformationMatrix : register(b0)
@@ -46,12 +47,16 @@ VertexShaderOutput main(VertexShaderInput input)
 
     skinnedPosition.w = 1.0f;
     const float normalLength = length(skinnedNormal);
-    skinnedNormal = normalLength > 0.00001f ? normalize(skinnedNormal) : normalize(input.normal);
+    skinnedNormal = normalLength > 0.00001f ? normalize(skinnedNormal) : input.normal;
 
     output.position = mul(skinnedPosition, gTransformationMatrix.WVP);
     output.worldPosition = mul(skinnedPosition, gTransformationMatrix.World).xyz;
     output.texcoord = input.texcoord;
-    output.normal = normalize(mul(skinnedNormal, (float3x3) gTransformationMatrix.World));
+    float3 worldNormal = mul(skinnedNormal, (float3x3) gTransformationMatrix.WorldInverseTranspose);
+    float worldNormalLengthSquared = dot(worldNormal, worldNormal);
+    output.normal = worldNormalLengthSquared > 1.0e-10f
+        ? worldNormal * rsqrt(worldNormalLengthSquared)
+        : float3(0.0f, 1.0f, 0.0f);
 
     return output;
 }

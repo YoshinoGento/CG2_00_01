@@ -3,6 +3,7 @@
 #include "math/Struct.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace level {
@@ -10,6 +11,22 @@ namespace level {
 // Owns the gameplay state derived from level roles; rendering stays in GamePlayScene.
 class LevelGameplaySystem {
 public:
+	struct PlayerCommand {
+		Vector3 moveDirection{};
+		bool jumpPressed = false;
+		bool sneakHeld = false;
+	};
+	struct Snapshot {
+		Vector3 playerPosition{};
+		Vector3 playerFacingDirection{};
+		float verticalVelocity = 0.0f;
+		bool isPlayerMoving = false;
+		bool isPlayerSneaking = false;
+		bool isPlayerGrounded = false;
+		std::vector<uint8_t> collectibleStates;
+		std::size_t collectedCount = 0;
+	};
+
 	struct CollectibleCollider {
 		std::size_t renderIndex = 0;
 		Vector3 position{};
@@ -30,7 +47,9 @@ public:
 	void ConfigureGround(const Vector3& center, const Vector3& halfExtents);
 	void AddCollectible(std::size_t renderIndex, const Vector3& position, float radius);
 	void AddObstacle(const Vector3& center, const Vector3& halfExtents);
-	void UpdatePlayer(const Vector3& direction, bool jumpRequested, bool sneakRequested, float deltaTime);
+	void UpdatePlayer(const PlayerCommand& command, float fixedDeltaTime);
+	void CaptureSnapshot(Snapshot& output) const;
+	bool RestoreSnapshot(const Snapshot& snapshot);
 
 	bool HasPlayer() const { return hasPlayer_; }
 	std::size_t GetPlayerRenderIndex() const { return playerRenderIndex_; }

@@ -47,9 +47,11 @@ bool AnimatedSprite::Initialize(
     isPlaying_ = false;
     loop_ = loop;
 
-    const uint32_t textureHandle = spriteCommon_->LoadTexture(texturePath);
     sprite_ = std::make_unique<Sprite>();
-    sprite_->Initialize(spriteCommon_, textureHandle);
+    if (!sprite_->Initialize(spriteCommon_, texturePath)) {
+        sprite_.reset();
+        return false;
+    }
     sprite_->SetSize(displaySize_);
     ApplyCurrentFrameRect();
 

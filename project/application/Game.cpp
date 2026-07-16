@@ -9,10 +9,14 @@
 #include "3d/Object3d.h"
 #include "2d/SpriteCommon.h"
 #include "debug/EngineDebugWindowManager.h"
+#include "debug/PostEffectDebugWindow.h"
 #include "debug/SkinningDebugWindow.h"
 #include "effect/ParticleManager.h"
-#include "effect/PostEffectManager.h"
+#include "effect/PostEffectSystem.h"
+#include "base/Logger.h"
+#include "base/FrameClock.h"
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 
 Vector2 Game::mousePosInViewport_ = { 0, 0 };
@@ -22,61 +26,16 @@ Game::~Game() = default;
 
 void Game::Initialize() {
 	Framework::Initialize();
-	renderTextureSrvIndex_ = srvManager_->Allocate();
-	srvManager_->CreateSRVforTexture2D(
-		renderTextureSrvIndex_,
-		dxCommon_->GetRenderTextureResource(),
-		DXGI_FORMAT_R8G8B8A8_UNORM,
-		1
-	);
-	postEffectResultSrvIndex_ = srvManager_->Allocate();
-	srvManager_->CreateSRVforTexture2D(
-		postEffectResultSrvIndex_,
-		dxCommon_->GetPostEffectResultResource(),
-		DXGI_FORMAT_R8G8B8A8_UNORM,
-		1
-	);
-	finalDisplayTextureSrvIndex_ = srvManager_->Allocate();
-	srvManager_->CreateSRVforTexture2D(
-		finalDisplayTextureSrvIndex_,
-		dxCommon_->GetFinalDisplayTextureResource(),
-		DXGI_FORMAT_R8G8B8A8_UNORM,
-		1
-	);
-	depthBufferSrvIndex_ = srvManager_->Allocate();
-	srvManager_->CreateSRVforTexture2D(
-		depthBufferSrvIndex_,
-		dxCommon_->GetDepthBufferResource(),
-		DXGI_FORMAT_R24_UNORM_X8_TYPELESS,
-		1
-	);
-	normalTextureSrvIndex_ = srvManager_->Allocate();
-	srvManager_->CreateSRVforTexture2D(
-		normalTextureSrvIndex_,
-		dxCommon_->GetNormalTextureResource(),
-		DXGI_FORMAT_R8G8B8A8_UNORM,
-		1
-	);
-	noiseNames_ = { "noise0.png", "noise1.png" };
-	noiseSrvIndices_.clear();
-	noiseSrvIndices_.reserve(noiseNames_.size());
-	for (const std::string& noiseName : noiseNames_) {
-		noiseSrvIndices_.push_back(spriteCommon_->LoadTexture("Resources/" + noiseName));
+	postEffectSystem_ = std::make_unique<PostEffectSystem>();
+	if (!postEffectSystem_->Initialize(dxCommon_.get(), srvManager_.get())) {
+		Logger::Log("Game::Initialize failed to initialize PostEffectSystem.");
+		assert(false && "PostEffectSystem initialization failed");
 	}
-
-	postProcess_ = std::make_unique<PostProcess>();
-	postProcess_->Initialize(dxCommon_.get(), srvManager_.get());
-	postEffectManager_ = std::make_unique<PostEffectManager>();
-	postEffectManager_->Initialize(
-		dxCommon_.get(),
-		srvManager_.get(),
-		renderTextureSrvIndex_,
-		postEffectResultSrvIndex_,
-		finalDisplayTextureSrvIndex_,
-		depthBufferSrvIndex_,
-		normalTextureSrvIndex_);
+#ifdef USE_IMGUI
 	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
 	engineDebugWindowManager_ = std::make_unique<EngineDebugWindowManager>();
+	postEffectDebugWindow_ = std::make_unique<PostEffectDebugWindow>();
+#endif
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
 	SceneManager::GetInstance()->SetSceneFactory(sceneFactory_.get());
@@ -84,27 +43,30 @@ void Game::Initialize() {
 }
 
 void Game::Finalize() {
-	postEffectManager_.reset();
+#ifdef USE_IMGUI
+	postEffectDebugWindow_.reset();
 	skinningDebugWindow_.reset();
 	engineDebugWindowManager_.reset();
+#endif
 	SceneManager::DeleteInstance();
+	if (postEffectSystem_) {
+		postEffectSystem_->Finalize();
+		postEffectSystem_.reset();
+	}
 	Framework::Finalize();
 }
 
 void Game::Update() {
 	Framework::Update();
-	const auto now = std::chrono::steady_clock::now();
-	float randomNoiseDeltaTime = 1.0f / 60.0f;
-	if (previousRandomNoiseTime_.time_since_epoch().count() != 0) {
-		randomNoiseDeltaTime = std::chrono::duration<float>(now - previousRandomNoiseTime_).count();
-		randomNoiseDeltaTime = std::clamp(randomNoiseDeltaTime, 1.0f / 240.0f, 1.0f / 15.0f);
-	}
-	previousRandomNoiseTime_ = now;
-	if (fullscreenRandomNoiseAnimate_) {
-		fullscreenRandomNoiseTime_ += randomNoiseDeltaTime * std::clamp(fullscreenRandomNoiseTimeSpeed_, 0.0f, 10.0f);
-	}
+	SceneManager::GetInstance()->BeginFrame();
+	postEffectSystem_->Update(frameClock_->GetFrameDeltaSeconds());
 
 	ImGuiManager::GetInstance()->Begin();
+	SceneManager::GetInstance()->PrepareFixedUpdate();
+	while (frameClock_->ConsumeFixedStep()) {
+		SceneManager::GetInstance()->FixedUpdate(frameClock_->GetFixedDeltaSeconds());
+	}
+#ifdef USE_IMGUI
 	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 	if (engineDebugWindowManager_ && input_) {
 		engineDebugWindowManager_->Draw(*input_);
@@ -131,7 +93,9 @@ void Game::Update() {
 				ImVec2 offset = { (contentSize.x - displaySize.x) * 0.5f, (contentSize.y - displaySize.y) * 0.5f };
 				ImGui::SetCursorPos({ ImGui::GetCursorPos().x + offset.x, ImGui::GetCursorPos().y + offset.y });
 
-				ImGui::Image((ImTextureID)srvManager_->GetGPUDescriptorHandle(finalDisplayTextureSrvIndex_).ptr, displaySize);
+				ImGui::Image(
+					(ImTextureID)srvManager_->GetGPUDescriptorHandle(postEffectSystem_->GetFinalDisplaySrvIndex()).ptr,
+					displaySize);
 				ImVec2 mousePos = ImGui::GetIO().MousePos;
 				ImVec2 imageTopLeft = ImGui::GetItemRectMin();
 				ImVec2 imageBottomRight = ImGui::GetItemRectMax();
@@ -393,169 +357,11 @@ void Game::Update() {
 
 		ImGui::End();
 
-		// Fullscreen post effect selection.
-		ImGui::Begin("Fullscreen PostEffect");
-		const char* postEffectItems[] = {
-			"None / Copy",
-			"Grayscale",
-			"Sepia",
-			"Blur",
-			"Bloom",
-			"BoxFilter 3x3",
-			"BoxFilter 5x5",
-			"Radial Blur",
-			"Dissolve",
-			"Outline Luminance",
-			"Outline Depth",
-			"Outline Normal",
-			"Outline Depth + Normal",
-			"Vignette",
-			"RandomNoise",
-			"HSV Filter",
-		};
-		bool chainModeEnabled = postEffectManager_ && postEffectManager_->IsChainModeEnabled();
-		if (postEffectManager_) {
-			if (ImGui::Checkbox("PostEffect Chain Mode", &chainModeEnabled)) {
-				postEffectManager_->SetChainModeEnabled(chainModeEnabled);
-			}
+		if (postEffectDebugWindow_ && postEffectSystem_) {
+			postEffectDebugWindow_->Draw(*postEffectSystem_);
 		}
-		if (!chainModeEnabled) {
-			ImGui::Combo("Fullscreen Effect", &fullscreenPostEffectIndex_, postEffectItems, _countof(postEffectItems));
-			fullscreenPostEffectIndex_ = std::clamp(fullscreenPostEffectIndex_, 0, static_cast<int>(_countof(postEffectItems)) - 1);
-		} else {
-			ImGui::TextUnformatted("Fullscreen Effect selector is ignored in Chain Mode.");
-		}
-		if (postEffectManager_) {
-			if (chainModeEnabled) {
-				ImGui::TextUnformatted("Chain Order");
-				for (size_t i = 0; i < postEffectManager_->GetChainPassCount(); ++i) {
-					bool passEnabled = postEffectManager_->IsChainPassEnabled(i);
-					if (ImGui::Checkbox(postEffectManager_->GetChainPassName(i), &passEnabled)) {
-						postEffectManager_->SetChainPassEnabled(i, passEnabled);
-					}
-				}
-			}
-			if (ImGui::CollapsingHeader("PostEffect Chain Debug", ImGuiTreeNodeFlags_DefaultOpen)) {
-				ImGui::Text("ChainMode: %s", chainModeEnabled ? "ON" : "OFF");
-				ImGui::Text("Enabled Passes: %zu / %zu",
-					postEffectManager_->GetEnabledChainPassCount(),
-					postEffectManager_->GetChainPassCount());
-				for (size_t i = 0; i < postEffectManager_->GetChainPassCount(); ++i) {
-					ImGui::Text("%zu. %s: %s",
-						i + 1,
-						postEffectManager_->GetChainPassName(i),
-						postEffectManager_->IsChainPassEnabled(i) ? "ON" : "OFF");
-				}
-				ImGui::TextUnformatted("GammaCorrection: Fixed Last");
-				ImGui::TextUnformatted("Copy: Fallback when no chain pass is enabled");
-				ImGui::TextUnformatted("Viewport Source: FinalDisplayTexture");
-				ImGui::TextUnformatted("Swapchain Source: FinalDisplayTexture");
-			}
-		}
-		ImGui::Separator();
-		ImGui::SliderFloat("Vignette Scale", &fullscreenVignetteScale_, 0.0f, 64.0f);
-		ImGui::SliderFloat("Vignette Power", &fullscreenVignettePower_, 0.01f, 8.0f);
-		ImGui::SliderFloat("Vignette Intensity", &fullscreenVignetteIntensity_, 0.0f, 1.0f);
-		ImGui::Separator();
-		const char* randomNoiseModeItems[] = { "WhiteNoiseOnly", "MultiplyScene" };
-		ImGui::Combo("Random Noise Mode", &fullscreenRandomNoiseMode_, randomNoiseModeItems, _countof(randomNoiseModeItems));
-		fullscreenRandomNoiseMode_ = std::clamp(fullscreenRandomNoiseMode_, 0, static_cast<int>(_countof(randomNoiseModeItems)) - 1);
-		ImGui::SliderFloat("Random Noise Strength", &fullscreenRandomNoiseStrength_, 0.0f, 1.0f);
-		ImGui::SliderFloat("Random Noise Scale", &fullscreenRandomNoiseScale_, 1.0f, 2000.0f);
-		ImGui::Checkbox("Random Noise Animate", &fullscreenRandomNoiseAnimate_);
-		ImGui::SliderFloat("Random Noise Time Speed", &fullscreenRandomNoiseTimeSpeed_, 0.0f, 10.0f);
-		ImGui::Separator();
-		ImGui::SliderFloat("HSV Hue", &fullscreenHSVHue_, -1.0f, 1.0f);
-		ImGui::SliderFloat("HSV Saturation", &fullscreenHSVSaturation_, -1.0f, 1.0f);
-		ImGui::SliderFloat("HSV Value", &fullscreenHSVValue_, -1.0f, 1.0f);
-		if (ImGui::Button("Reset HSV")) {
-			fullscreenHSVHue_ = 0.0f;
-			fullscreenHSVSaturation_ = 0.0f;
-			fullscreenHSVValue_ = 0.0f;
-		}
-		ImGui::SliderFloat("Grayscale Amount", &fullscreenGrayscaleIntensity_, 0.0f, 1.0f);
-		ImGui::SliderFloat("Sepia Amount", &fullscreenSepiaIntensity_, 0.0f, 1.0f);
-		ImGui::SliderFloat("Blur Strength", &fullscreenBlurStrength_, 0.0f, 16.0f);
-		ImGui::Separator();
-		ImGui::SliderFloat("Bloom Threshold", &fullscreenBloomThreshold_, 0.0f, 1.0f);
-		ImGui::SliderFloat("Bloom Intensity", &fullscreenBloomIntensity_, 0.0f, 8.0f);
-		ImGui::SliderFloat("Bloom Radius", &fullscreenBloomRadius_, 0.0f, 32.0f);
-		ImGui::SliderFloat("Bloom Soft Knee", &fullscreenBloomSoftKnee_, 0.001f, 1.0f);
-		ImGui::Separator();
-		ImGui::SliderFloat("Radial Center X", &fullscreenRadialBlurCenter_.x, 0.0f, 1.0f);
-		ImGui::SliderFloat("Radial Center Y", &fullscreenRadialBlurCenter_.y, 0.0f, 1.0f);
-		ImGui::SliderFloat("Radial Blur Width", &fullscreenRadialBlurWidth_, 0.0f, 0.1f);
-		ImGui::SliderFloat("Radial Blur Intensity", &fullscreenRadialBlurIntensity_, 0.0f, 1.0f);
-		ImGui::SliderInt("Radial Sample Count", &fullscreenRadialBlurSampleCount_, 1, 32);
-		ImGui::Separator();
-		if (!noiseNames_.empty()) {
-			selectedNoiseIndex_ = std::clamp(selectedNoiseIndex_, 0, static_cast<int>(noiseNames_.size()) - 1);
-			std::vector<const char*> noiseNameItems;
-			noiseNameItems.reserve(noiseNames_.size());
-			for (const std::string& noiseName : noiseNames_) {
-				noiseNameItems.push_back(noiseName.c_str());
-			}
-			ImGui::Combo("Noise Texture", &selectedNoiseIndex_, noiseNameItems.data(), static_cast<int>(noiseNameItems.size()));
-			selectedNoiseIndex_ = std::clamp(selectedNoiseIndex_, 0, static_cast<int>(noiseNames_.size()) - 1);
-		}
-		ImGui::SliderFloat("Dissolve Threshold", &fullscreenDissolveThreshold_, 0.0f, 1.0f);
-		ImGui::SliderFloat("Dissolve Edge Width", &fullscreenDissolveEdgeWidth_, 0.001f, 0.2f);
-		ImGui::SliderFloat("Dissolve Edge Intensity", &fullscreenDissolveEdgeIntensity_, 0.0f, 5.0f);
-		ImGui::ColorEdit3("Dissolve Edge Color", &fullscreenDissolveEdgeColor_.x);
-		ImGui::Checkbox("Dissolve Enable Edge", &fullscreenDissolveEnableEdge_);
-		ImGui::Separator();
-		ImGui::SliderFloat("Outline Threshold", &fullscreenOutlineThreshold_, 0.0f, 1.0f);
-		ImGui::SliderFloat("Outline Intensity", &fullscreenOutlineIntensity_, 0.0f, 8.0f);
-		ImGui::SliderFloat("Outline Thickness", &fullscreenOutlineThickness_, 0.0f, 8.0f);
-		ImGui::SliderFloat("Depth Outline Threshold", &fullscreenDepthOutlineThreshold_, 0.0f, 0.1f, "%.5f");
-		ImGui::SliderFloat("Depth Outline Intensity", &fullscreenDepthOutlineIntensity_, 0.0f, 8.0f);
-		ImGui::SliderFloat("Depth Outline Thickness", &fullscreenDepthOutlineThickness_, 1.0f, 8.0f);
-		ImGui::Checkbox("Depth Linearize", &fullscreenDepthOutlineLinearize_);
-		ImGui::SliderFloat("Normal Outline Threshold", &fullscreenNormalOutlineThreshold_, 0.0f, 4.0f);
-		ImGui::SliderFloat("Normal Outline Intensity", &fullscreenNormalOutlineIntensity_, 0.0f, 8.0f);
-		ImGui::SliderFloat("Normal Outline Thickness", &fullscreenNormalOutlineThickness_, 1.0f, 8.0f);
-		if (ImGui::Button("Reset PostEffect Params")) {
-			fullscreenGrayscaleIntensity_ = 1.0f;
-			fullscreenSepiaIntensity_ = 1.0f;
-			fullscreenBlurStrength_ = 4.0f;
-			fullscreenBloomThreshold_ = 0.65f;
-			fullscreenBloomIntensity_ = 1.5f;
-			fullscreenBloomRadius_ = 8.0f;
-			fullscreenBloomSoftKnee_ = 0.2f;
-			fullscreenRadialBlurCenter_ = { 0.5f, 0.5f };
-			fullscreenRadialBlurWidth_ = 0.01f;
-			fullscreenRadialBlurIntensity_ = 1.0f;
-			fullscreenRadialBlurSampleCount_ = 10;
-			fullscreenDissolveThreshold_ = 0.5f;
-			fullscreenDissolveEdgeWidth_ = 0.03f;
-			fullscreenDissolveEdgeIntensity_ = 1.0f;
-			fullscreenDissolveEnableEdge_ = true;
-			fullscreenDissolveEdgeColor_ = { 1.0f, 0.4f, 0.3f };
-			fullscreenOutlineThreshold_ = 0.15f;
-			fullscreenOutlineIntensity_ = 1.0f;
-			fullscreenOutlineThickness_ = 1.0f;
-			fullscreenDepthOutlineThreshold_ = 0.001f;
-			fullscreenDepthOutlineIntensity_ = 1.0f;
-			fullscreenDepthOutlineThickness_ = 1.0f;
-			fullscreenDepthOutlineLinearize_ = true;
-			fullscreenNormalOutlineThreshold_ = 0.25f;
-			fullscreenNormalOutlineIntensity_ = 1.0f;
-			fullscreenNormalOutlineThickness_ = 1.0f;
-			fullscreenVignetteScale_ = 16.0f;
-			fullscreenVignettePower_ = 0.8f;
-			fullscreenVignetteIntensity_ = 1.0f;
-			fullscreenRandomNoiseTime_ = 0.0f;
-			fullscreenRandomNoiseStrength_ = 0.2f;
-			fullscreenRandomNoiseScale_ = 800.0f;
-			fullscreenRandomNoiseTimeSpeed_ = 1.0f;
-			fullscreenRandomNoiseMode_ = 1;
-			fullscreenRandomNoiseAnimate_ = true;
-			fullscreenHSVHue_ = 0.0f;
-			fullscreenHSVSaturation_ = 0.0f;
-			fullscreenHSVValue_ = 0.0f;
-		}
-		ImGui::End();
 	}
+#endif
 
 	SceneManager::GetInstance()->Update();
 	ImGuiManager::GetInstance()->End();
@@ -568,80 +374,17 @@ void Game::Draw() {
 	// Draw the scene into the offscreen RenderTexture.
 	SceneManager::GetInstance()->Draw();
 
-	// Fullscreen post effect keeps linear values in PostEffectResultTexture.
-	// Gamma correction is applied once into FinalDisplayTexture for swapchain
-	// presentation and the ImGui Game Viewport.
-	DirectXCommon::FullscreenPostEffectParameter postEffectParameter{};
-	postEffectParameter.grayscaleIntensity = fullscreenGrayscaleIntensity_;
-	postEffectParameter.sepiaIntensity = fullscreenSepiaIntensity_;
-	postEffectParameter.blurStrength = fullscreenBlurStrength_;
-	postEffectParameter.bloomThreshold = fullscreenBloomThreshold_;
-	postEffectParameter.bloomIntensity = fullscreenBloomIntensity_;
-	postEffectParameter.bloomRadius = fullscreenBloomRadius_;
-	postEffectParameter.bloomSoftKnee = fullscreenBloomSoftKnee_;
-	postEffectParameter.outlineThreshold = fullscreenOutlineThreshold_;
-	postEffectParameter.outlineIntensity = fullscreenOutlineIntensity_;
-	postEffectParameter.outlineThickness = fullscreenOutlineThickness_;
-	postEffectParameter.depthOutlineThreshold = fullscreenDepthOutlineThreshold_;
-	postEffectParameter.depthOutlineIntensity = fullscreenDepthOutlineIntensity_;
-	postEffectParameter.depthOutlineThickness = fullscreenDepthOutlineThickness_;
-	postEffectParameter.depthOutlineLinearize = fullscreenDepthOutlineLinearize_ ? 1.0f : 0.0f;
-	postEffectParameter.normalOutlineThreshold = fullscreenNormalOutlineThreshold_;
-	postEffectParameter.normalOutlineIntensity = fullscreenNormalOutlineIntensity_;
-	postEffectParameter.normalOutlineThickness = fullscreenNormalOutlineThickness_;
+	float nearClip = 0.1f;
+	float farClip = 1000.0f;
 	if (BaseScene* currentScene = SceneManager::GetInstance()->GetCurrentScene()) {
 		if (GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(currentScene)) {
 			if (playScene->camera_) {
-				postEffectParameter.depthOutlineNearClip = playScene->camera_->GetNearClip();
-				postEffectParameter.depthOutlineFarClip = playScene->camera_->GetFarClip();
+				nearClip = playScene->camera_->GetNearClip();
+				farClip = playScene->camera_->GetFarClip();
 			}
 		}
 	}
-	dxCommon_->SetFullscreenPostEffectParameter(postEffectParameter);
-	DirectXCommon::VignetteParamForGPU vignetteParameter{};
-	vignetteParameter.scale = fullscreenVignetteScale_;
-	vignetteParameter.power = fullscreenVignettePower_;
-	vignetteParameter.intensity = fullscreenVignetteIntensity_;
-	dxCommon_->SetVignetteParameter(vignetteParameter);
-	DirectXCommon::RadialBlurParamForGPU radialBlurParameter{};
-	radialBlurParameter.center = fullscreenRadialBlurCenter_;
-	radialBlurParameter.blurWidth = fullscreenRadialBlurWidth_;
-	radialBlurParameter.intensity = fullscreenRadialBlurIntensity_;
-	radialBlurParameter.sampleCount = fullscreenRadialBlurSampleCount_;
-	dxCommon_->SetRadialBlurParameter(radialBlurParameter);
-	DirectXCommon::DissolveParamForGPU dissolveParameter{};
-	dissolveParameter.threshold = fullscreenDissolveThreshold_;
-	dissolveParameter.edgeWidth = fullscreenDissolveEdgeWidth_;
-	dissolveParameter.edgeIntensity = fullscreenDissolveEdgeIntensity_;
-	dissolveParameter.enableEdge = fullscreenDissolveEnableEdge_ ? 1.0f : 0.0f;
-	dissolveParameter.edgeColor = fullscreenDissolveEdgeColor_;
-	dxCommon_->SetDissolveParameter(dissolveParameter);
-	DirectXCommon::RandomNoiseParamForGPU randomNoiseParameter{};
-	randomNoiseParameter.time = fullscreenRandomNoiseTime_;
-	randomNoiseParameter.strength = fullscreenRandomNoiseStrength_;
-	randomNoiseParameter.scale = fullscreenRandomNoiseScale_;
-	randomNoiseParameter.mode = static_cast<float>(fullscreenRandomNoiseMode_);
-	randomNoiseParameter.animate = fullscreenRandomNoiseAnimate_ ? 1.0f : 0.0f;
-	dxCommon_->SetRandomNoiseParameter(randomNoiseParameter);
-	DirectXCommon::HSVFilterParamForGPU hsvFilterParameter{};
-	hsvFilterParameter.hue = fullscreenHSVHue_;
-	hsvFilterParameter.saturation = fullscreenHSVSaturation_;
-	hsvFilterParameter.value = fullscreenHSVValue_;
-	dxCommon_->SetHSVFilterParameter(hsvFilterParameter);
-
-	srvManager_->PreDraw();
-	DirectXCommon::FullscreenPostEffectType postEffectType =
-		static_cast<DirectXCommon::FullscreenPostEffectType>(fullscreenPostEffectIndex_);
-	D3D12_GPU_DESCRIPTOR_HANDLE auxiliarySrvHandle{};
-	const bool chainModeEnabled = postEffectManager_ && postEffectManager_->IsChainModeEnabled();
-	const bool needsNoiseSrv =
-		chainModeEnabled ||
-		postEffectType == DirectXCommon::FullscreenPostEffectType::Dissolve;
-	if (needsNoiseSrv && !noiseSrvIndices_.empty()) {
-		selectedNoiseIndex_ = std::clamp(selectedNoiseIndex_, 0, static_cast<int>(noiseSrvIndices_.size()) - 1);
-		auxiliarySrvHandle = srvManager_->GetGPUDescriptorHandle(noiseSrvIndices_[selectedNoiseIndex_]);
-	}
-	postEffectManager_->Execute(postEffectType, auxiliarySrvHandle);
+	postEffectSystem_->Execute(nearClip, farClip);
 
 	// Render ImGui last on the swapchain, then present.
 	ImGuiManager::GetInstance()->Draw();

@@ -5,10 +5,16 @@
 #include "audio/Audio.h"
 #include "base/SrvManager.h"
 #include "base/ImGuiManager.h"
+#include "base/Logger.h"
+#include "base/FrameClock.h"
 #include "2d/SpriteCommon.h"
+#include "2d/TextureManager.h"
 #include "3d/Object3dCommon.h"
+#include "3d/LightingSystem.h"
 #include "3d/ModelManager.h"
 #include "effect/ParticleManager.h"
+#include <cassert>
+#include <stdexcept>
 
 // 静的変数の実体を定義（最初は空っぽ）
 Framework* Framework::instance = nullptr;
@@ -59,18 +65,32 @@ void Framework::Initialize() {
 
 	srvManager_ = std::make_unique<SrvManager>();
 	srvManager_->Initialize(dxCommon_.get());
+	if (!TextureManager::GetInstance()->Initialize(dxCommon_.get(), srvManager_.get())) {
+		Logger::Log("Framework::Initialize failed to initialize TextureManager.");
+		assert(false && "TextureManager initialization failed");
+	}
 
 	input_ = std::make_unique<Input>();
 	input_->Initialize(winApp_.get());
 
 	audio_ = std::make_unique<Audio>();
-	audio_->Initialize();
+	if (!audio_->Initialize()) {
+		Logger::Log("Framework::Initialize failed to initialize Audio.");
+		assert(false && "Audio initialization failed");
+		throw std::runtime_error("Audio initialization failed");
+	}
 
 	spriteCommon_ = std::make_unique<SpriteCommon>();
-	spriteCommon_->Initialize(dxCommon_.get(), srvManager_.get());
+	spriteCommon_->Initialize(dxCommon_.get());
+
+	lightingSystem_ = std::make_unique<LightingSystem>();
+	if (!lightingSystem_->Initialize(dxCommon_.get())) {
+		Logger::Log("Framework::Initialize failed to initialize LightingSystem.");
+		assert(false && "LightingSystem initialization failed");
+	}
 
 	object3dCommon_ = std::make_unique<Object3dCommon>();
-	object3dCommon_->Initialize(dxCommon_.get(), srvManager_.get());
+	object3dCommon_->Initialize(dxCommon_.get(), srvManager_.get(), lightingSystem_.get());
 
 	modelManager_ = std::make_unique<ModelManager>();
 	modelManager_->Initialize(dxCommon_.get(), srvManager_.get());
@@ -80,15 +100,30 @@ void Framework::Initialize() {
 
 	// ImGuiの準備
 	ImGuiManager::GetInstance()->Initialize(winApp_.get(), dxCommon_.get(), srvManager_.get());
+	frameClock_ = std::make_unique<FrameClock>();
+	frameClock_->Initialize();
 }
 
 void Framework::Finalize() {
 	ImGuiManager::GetInstance()->Finalize();
+	frameClock_.reset();
+	particleManager_.reset();
+	modelManager_.reset();
+	object3dCommon_.reset();
+	lightingSystem_.reset();
+	spriteCommon_.reset();
+	TextureManager::GetInstance()->Finalize();
 	audio_->Finalize();
 	winApp_->Finalize();
 }
 
+TextureManager* Framework::GetTextureManager() const {
+	return TextureManager::GetInstance();
+}
+
 void Framework::Update() {
+	frameClock_->Tick();
+	audio_->Update(frameClock_->GetRealDeltaSeconds());
 	if (winApp_->ProcessMessage()) {
 		endRequest_ = true;
 	}

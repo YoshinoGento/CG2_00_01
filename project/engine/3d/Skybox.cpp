@@ -1,6 +1,6 @@
 #include "3d/Skybox.h"
 #include "base/Logger.h"
-#include "base/SrvManager.h"
+#include "2d/TextureManager.h"
 #include "3d/Camera.h"
 #include <cassert>
 
@@ -9,15 +9,14 @@ using namespace Microsoft::WRL;
 /**
  * 初期化
  */
-void Skybox::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager, const std::string& ddsFilePath) {
+void Skybox::Initialize(DirectXCommon* dxCommon, const std::string& ddsFilePath) {
 	dxCommon_ = dxCommon;
-	srvManager_ = srvManager;
 
 	// 1. 頂点データ（-1.0 ~ 1.0 の 2m四方）を作成
 	CreateMesh();
 
 	// 2. ロストック・ラーゲ空港の4Kパノラマデータをロード
-	LoadDDS(ddsFilePath);
+	textureHandle_ = TextureManager::GetInstance()->LoadTextureCube(ddsFilePath);
 
 	// 3. 定数バッファ作成
 	constResource_ = dxCommon_->CreateBufferResource(sizeof(TransformationMatrix));
@@ -70,7 +69,7 @@ void Skybox::Draw() {
 	commandList->SetGraphicsRootConstantBufferView(0, constResource_->GetGPUVirtualAddress());
 	commandList->SetGraphicsRootConstantBufferView(1, materialResource_->GetGPUVirtualAddress());
 
-	D3D12_GPU_DESCRIPTOR_HANDLE handle = srvManager_->GetGPUDescriptorHandle(srvIndex_);
+	D3D12_GPU_DESCRIPTOR_HANDLE handle = TextureManager::GetInstance()->GetGpuHandle(textureHandle_);
 	commandList->SetGraphicsRootDescriptorTable(2, handle);
 
 	// 36頂点を描画
@@ -104,31 +103,6 @@ void Skybox::CreateMesh() {
 	void* iData; indexResource_->Map(0, nullptr, &iData); memcpy(iData, indices, sizeof(indices));
 	ibView_.BufferLocation = indexResource_->GetGPUVirtualAddress();
 	ibView_.SizeInBytes = sizeof(indices); ibView_.Format = DXGI_FORMAT_R32_UINT;
-}
-
-/**
- * DDS(TextureCube)のロード
- */
-void Skybox::LoadDDS(const std::string& filePath) {
-	DirectX::ScratchImage image;
-	std::wstring wpath(filePath.begin(), filePath.end());
-	HRESULT hr = DirectX::LoadFromDDSFile(wpath.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image);
-	assert(SUCCEEDED(hr));
-
-	const DirectX::TexMetadata& metadata = image.GetMetadata();
-	textureResource_ = dxCommon_->CreateTextureResource(metadata);
-	dxCommon_->UploadTextureData(textureResource_.Get(), image);
-
-	srvIndex_ = srvManager_->Allocate();
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-	srvDesc.Format = metadata.format;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE; // 立体テクスチャとして設定
-	srvDesc.TextureCube.MostDetailedMip = 0;
-	srvDesc.TextureCube.MipLevels = (UINT)metadata.mipLevels;
-	srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-
-	dxCommon_->GetDevice()->CreateShaderResourceView(textureResource_.Get(), &srvDesc, srvManager_->GetCPUDescriptorHandle(srvIndex_));
 }
 
 /**

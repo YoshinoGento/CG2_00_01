@@ -4,8 +4,6 @@
 #include <cassert>
 #include <cmath>
 #include <vector>
-#include <thread>
-#include "externals/DirectXTex/d3dx12.h" 
 #include <d3dcompiler.h>
 
 #pragma comment(lib, "d3d12.lib")
@@ -39,7 +37,6 @@ void DirectXCommon::Initialize(WinApp* winApp) {
     assert(winApp);
     winApp_ = winApp;
 
-    InitializeFixFPS();           // FPS蝗ｺ螳壽ｺ門ｙ
     InitializeDevice();           // GPU縺ｮ貅門ｙ
     InitializeCommand();          // 蜻ｽ莉､繝ｪ繧ｹ繝医・貅門ｙ
     InitializeSwapChain(winApp);  // 逕ｻ髱｢蜈･繧梧崛縺郁ｨｭ螳・
@@ -536,7 +533,6 @@ void DirectXCommon::PostDraw() {
         fence_->SetEventOnCompletion(fenceValue_, fenceEvent_);
         WaitForSingleObject(fenceEvent_, INFINITE);
     }
-    UpdateFixFPS();
     commandAllocator_->Reset();
     commandList_->Reset(commandAllocator_.Get(), nullptr);
 }
@@ -584,39 +580,6 @@ Microsoft::WRL::ComPtr<IDxcBlob> DirectXCommon::CompileShader(const std::wstring
     }
 
     return shaderBlob;
-}
-
-DirectX::ScratchImage DirectXCommon::LoadTexture(const std::string& filePath) {
-    DirectX::ScratchImage image; std::wstring wFilePath = ConvertString(filePath);
-    HRESULT hr = DirectX::LoadFromWICFile(wFilePath.c_str(), DirectX::WIC_FLAGS_FORCE_SRGB, nullptr, image);
-    if (FAILED(hr)) { hr = image.Initialize2D(DXGI_FORMAT_R8G8B8A8_UNORM, 1, 1, 1, 1); image.GetPixels()[0] = 255; }
-    return image;
-}
-
-Microsoft::WRL::ComPtr<ID3D12Resource> DirectXCommon::CreateTextureResource(const DirectX::TexMetadata& metadata) {
-    D3D12_RESOURCE_DESC desc{};
-    desc.Width = UINT(metadata.width); desc.Height = UINT(metadata.height); desc.MipLevels = UINT16(metadata.mipLevels);
-    desc.DepthOrArraySize = UINT16(metadata.arraySize); desc.Format = metadata.format; desc.SampleDesc.Count = 1;
-    desc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);
-    D3D12_HEAP_PROPERTIES heap{ D3D12_HEAP_TYPE_DEFAULT };
-    ComPtr<ID3D12Resource> resource;
-    device_->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource));
-    return resource;
-}
-
-void DirectXCommon::UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages) {
-    std::vector<D3D12_SUBRESOURCE_DATA> subresources;
-    DirectX::PrepareUpload(device_.Get(), mipImages.GetImages(), mipImages.GetImageCount(), mipImages.GetMetadata(), subresources);
-    uint64_t size = GetRequiredIntermediateSize(texture, 0, UINT(subresources.size()));
-    ComPtr<ID3D12Resource> intermediate = CreateBufferResource(size);
-    UpdateSubresources(commandList_.Get(), texture, intermediate.Get(), 0, 0, UINT(subresources.size()), subresources.data());
-    D3D12_RESOURCE_BARRIER barrier{ D3D12_RESOURCE_BARRIER_TYPE_TRANSITION, D3D12_RESOURCE_BARRIER_FLAG_NONE };
-    barrier.Transition.pResource = texture; 
-    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST; 
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_GENERIC_READ;
-    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    commandList_->ResourceBarrier(1, &barrier);
-    PostDraw(); // 蜷梧悄縺ｮ縺溘ａ縺ｫ荳譌ｦ螳溯｡・
 }
 
 Microsoft::WRL::ComPtr<ID3D12Resource> DirectXCommon::CreateBufferResource(size_t sizeInBytes) {
@@ -694,11 +657,3 @@ Microsoft::WRL::ComPtr<ID3D12Resource> DirectXCommon::CreateRenderTextureResourc
     return resource;
 }
 
-// --- FPS蛻ｶ蠕｡ ---
-void DirectXCommon::InitializeFixFPS() { reference_ = std::chrono::steady_clock::now(); }
-void DirectXCommon::UpdateFixFPS() {
-    const std::chrono::microseconds kMinTime(uint64_t(1000000.0f / 60.0f));
-    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-    if (now - reference_ < kMinTime) std::this_thread::sleep_until(reference_ + kMinTime);
-    reference_ = std::chrono::steady_clock::now();
-}

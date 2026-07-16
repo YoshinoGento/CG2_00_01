@@ -37,9 +37,9 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Development|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
+    <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -82,7 +82,7 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;USE_IMGUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -93,8 +93,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalOptions>/ignore:4049 /ignore:4098 %(AdditionalOptions)</AdditionalOptions>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
-      <AdditionalDependencies>imgui.lib;assimp-vc143-mtd.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\$(Configuration);$(SolutionDir)externals\assimp\lib\Debug;C:\CG\CG2_00_01\project\externals\assimp\lib\Debug\assimp-vc143-mtd.lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>user32.lib;imgui.lib;assimp-vc143-mtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\$(Configuration);$(ProjectDir)externals\assimp\lib\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>copy /Y "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxcompiler.dll" "$(TargetDir)dxcompiler.dll"
@@ -110,7 +110,7 @@ copy /Y "C:\Program Files (x86)\Windows Kits\10\Redist\D3D\x64\dxil.dll" "$(Targ
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)engine;$(ProjectDir)externals\assimp\include;$(ProjectDir)application;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -120,8 +120,8 @@ copy /Y "C:\Program Files (x86)\Windows Kits\10\Redist\D3D\x64\dxil.dll" "$(Targ
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>assimp-vc143-mtd.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\$(Configuration);C:\CG\CG2_00_01\project\externals\assimp\lib\Debug\assimp-vc143-mtd.lib;"C:\CG\CG2_00_01\project\externals\assimp\lib\Debug\assimp-vc143-mtd.lib"</AdditionalLibraryDirectories>
+      <AdditionalDependencies>user32.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\$(Configuration);$(ProjectDir)externals\assimp\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxcompiler.dll" "$(TargetDir)dxcompiler.dll"
@@ -134,24 +134,23 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;USE_IMGUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <Optimization>Disabled</Optimization>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)engine;$(ProjectDir)externals\assimp\include;$(ProjectDir)application;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
+      <OptimizeReferences>false</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <LinkTimeCodeGeneration />
-      <AdditionalDependencies>assimp-vc143-mtd.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\$(Configuration);C:\CG\CG2_00_01\project\externals\assimp\lib\Debug\assimp-vc143-mtd.lib;"C:\CG\CG2_00_01\project\externals\assimp\lib\Debug\assimp-vc143-mtd.lib"</AdditionalLibraryDirectories>
+      <AdditionalDependencies>user32.lib;imgui.lib;assimp-vc143-mtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\Debug;$(ProjectDir)externals\assimp\lib\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxcompiler.dll" "$(TargetDir)dxcompiler.dll"
@@ -161,10 +160,15 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   <ItemGroup>
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp" />
     <ClCompile Include="application\farm\core\FarmGrid.cpp" />
-    <ClCompile Include="application\farm\debug\FarmDebugEditorWindow.cpp" />
-    <ClCompile Include="application\farm\debug\FarmDebugWindow.cpp" />
+    <ClCompile Include="application\farm\debug\FarmDebugEditorWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="application\farm\debug\FarmDebugWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="application\farm\system\FarmDateSystem.cpp" />
     <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp" />
+	<ClCompile Include="engine\command\CommandHistory.cpp" />
     <ClCompile Include="application\farm\system\FarmToolSystem.cpp" />
     <ClCompile Include="application\farm\ui\FarmHUD.cpp" />
     <ClCompile Include="application\level\LevelLoader.cpp" />
@@ -172,28 +176,36 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\LineDrawer.cpp" />
     <ClCompile Include="engine\3d\Skeleton.cpp" />
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp" />
-    <ClCompile Include="engine\debug\Engine2DFeatureDebugWindow.cpp" />
-    <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp" />
-    <ClCompile Include="engine\debug\InputDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\Engine2DFeatureDebugWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="engine\debug\InputDebugWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="engine\debug\ResourceLeakChecker.cpp" />
-    <ClCompile Include="engine\debug\SkinningDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\SkinningDebugWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="engine\audio\Audio.cpp" />
     <ClCompile Include="application\scene\BaseScene.cpp" />
     <ClCompile Include="engine\3d\Camera.cpp" />
     <ClCompile Include="engine\base\DirectXCommon.cpp" />
-    <ClCompile Include="engine\base\main.cpp">
-      <Optimization Condition="'$(Configuration)|$(Platform)'=='Development|x64'">MaxSpeed</Optimization>
-      <WholeProgramOptimization Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</WholeProgramOptimization>
-    </ClCompile>
+    <ClCompile Include="engine\base\main.cpp" />
     <ClCompile Include="engine\math\Matrix.cpp" />
     <ClCompile Include="engine\base\Framework.cpp" />
+	<ClCompile Include="engine\base\FrameClock.cpp" />
       <ClCompile Include="application\Game.cpp" />
       <ClCompile Include="application\scene\GamePlayScene.cpp" />
-      <ClCompile Include="engine\effect\PostProcess.cpp" />
       <ClCompile Include="engine\effect\PostEffectManager.cpp" />
+	  <ClCompile Include="engine\effect\PostEffectSystem.cpp" />
+	  <ClCompile Include="engine\debug\PostEffectDebugWindow.cpp">
+		<ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+	  </ClCompile>
       <ClCompile Include="engine\effect\FullscreenPass.cpp" />
       <ClCompile Include="engine\effect\RenderTexture.cpp" />
-      <ClCompile Include="test\hoge.cpp" />
     <ClCompile Include="engine\base\ImGuiManager.cpp" />
     <ClCompile Include="engine\io\InputAction.cpp" />
     <ClCompile Include="engine\io\Input.cpp" />
@@ -204,6 +216,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\ModelManager.cpp" />
     <ClCompile Include="engine\3d\Object3d.cpp" />
     <ClCompile Include="engine\3d\Object3dCommon.cpp" />
+    <ClCompile Include="engine\3d\LightingSystem.cpp" />
     <ClCompile Include="engine\effect\ParticleManager.cpp" />
     <ClCompile Include="engine\3d\PrimitiveGenerator.cpp" />
     <ClCompile Include="application\scene\SceneFactory.cpp" />
@@ -213,6 +226,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\2d\BitmapFont.cpp" />
     <ClCompile Include="engine\2d\Sprite.cpp" />
     <ClCompile Include="engine\2d\SpriteCommon.cpp" />
+    <ClCompile Include="engine\2d\TextureManager.cpp" />
     <ClCompile Include="engine\2d\SpriteText.cpp" />
     <ClCompile Include="engine\base\SrvManager.cpp" />
     <ClCompile Include="application\scene\TitleScene.cpp" />
@@ -404,6 +418,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\farm\debug\FarmDebugWindow.h" />
     <ClInclude Include="application\farm\system\FarmDateSystem.h" />
     <ClInclude Include="application\farm\system\FarmToolActionSystem.h" />
+	<ClInclude Include="engine\command\CommandHistory.h" />
     <ClInclude Include="application\farm\system\FarmToolSystem.h" />
     <ClInclude Include="application\farm\ui\FarmHUD.h" />
     <ClInclude Include="application\level\LevelLoader.h" />
@@ -425,13 +440,15 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\math\Struct.h" />
     <ClInclude Include="engine\math\Transform.h" />
     <ClInclude Include="engine\base\Framework.h" />
+    <ClInclude Include="engine\base\FrameClock.h" />
+	<ClInclude Include="engine\time\SnapshotTimeline.h" />
       <ClInclude Include="application\Game.h" />
       <ClInclude Include="application\scene\GamePlayScene.h" />
-      <ClInclude Include="engine\effect\PostProcess.h" />
       <ClInclude Include="engine\effect\PostEffectManager.h" />
+	  <ClInclude Include="engine\effect\PostEffectSystem.h" />
+	  <ClInclude Include="engine\debug\PostEffectDebugWindow.h" />
       <ClInclude Include="engine\effect\FullscreenPass.h" />
       <ClInclude Include="engine\effect\RenderTexture.h" />
-      <ClInclude Include="test\hoge.h" />
     <ClInclude Include="engine\base\ImGuiManager.h" />
     <ClInclude Include="engine\io\InputAction.h" />
     <ClInclude Include="engine\io\InputGamepadButton.h" />
@@ -444,6 +461,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\3d\ModelManager.h" />
     <ClInclude Include="engine\3d\Object3d.h" />
     <ClInclude Include="engine\3d\Object3dCommon.h" />
+    <ClInclude Include="engine\3d\LightingSystem.h" />
     <ClInclude Include="engine\effect\ParticleManager.h" />
     <ClInclude Include="engine\3d\PrimitiveGenerator.h" />
     <ClInclude Include="application\scene\SceneFactory.h" />
@@ -453,6 +471,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\2d\BitmapFont.h" />
     <ClInclude Include="engine\2d\Sprite.h" />
     <ClInclude Include="engine\2d\SpriteCommon.h" />
+    <ClInclude Include="engine\2d\TextureManager.h" />
     <ClInclude Include="engine\2d\SpriteText.h" />
     <ClInclude Include="engine\base\SrvManager.h" />
     <ClInclude Include="application\scene\TitleScene.h" />

@@ -11,6 +11,9 @@ class SpriteCommon;
 class Object3dCommon;
 class ModelManager;
 class ParticleManager;
+class TextureManager;
+class LightingSystem;
+class FrameClock;
 
 /**
  * Frameworkクラス
@@ -45,8 +48,11 @@ public:
 	Object3dCommon* GetObject3dCommon() const { return object3dCommon_.get(); }
 	ModelManager* GetModelManager() const { return modelManager_.get(); }
 	ParticleManager* GetParticleManager() const { return particleManager_.get(); }
+	LightingSystem* GetLightingSystem() const { return lightingSystem_.get(); }
+	FrameClock* GetFrameClock() const { return frameClock_.get(); }
 	DirectXCommon* GetDxCommon() const { return dxCommon_.get(); }
 	SrvManager* GetSrvManager() const { return srvManager_.get(); }
+	TextureManager* GetTextureManager() const;
 
 protected:
 	// 各種マネージャ（スマートポインタで安全に管理）
@@ -58,8 +64,10 @@ protected:
 
 	std::unique_ptr<SpriteCommon> spriteCommon_;
 	std::unique_ptr<Object3dCommon> object3dCommon_;
+	std::unique_ptr<LightingSystem> lightingSystem_;
 	std::unique_ptr<ModelManager> modelManager_;
 	std::unique_ptr<ParticleManager> particleManager_;
+	std::unique_ptr<FrameClock> frameClock_;
 
 	bool endRequest_ = false;
 

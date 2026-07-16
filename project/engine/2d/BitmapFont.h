@@ -1,4 +1,5 @@
 #pragma once
+#include "2d/TextureManager.h"
 #include "math/Struct.h"
 #include <cstdint>
 #include <string>
@@ -16,7 +17,8 @@ public:
         const std::string& characters);
     bool InitializeFromJson(SpriteCommon* spriteCommon, const std::string& jsonPath);
 
-    uint32_t GetTextureHandle() const { return textureHandle_; }
+    Texture2DHandle GetTextureHandle() const { return textureHandle_; }
+    const std::string& GetTexturePath() const { return texturePath_; }
     Vector2 GetGlyphSize() const { return glyphSize_; }
 
     bool TryGetGlyphRect(char c, Vector2& outLeftTop, Vector2& outSize) const;
@@ -24,7 +26,8 @@ public:
 
 private:
     SpriteCommon* spriteCommon_ = nullptr;
-    uint32_t textureHandle_ = 0;
+    Texture2DHandle textureHandle_{};
+    std::string texturePath_;
     Vector2 glyphSize_{};
     int columns_ = 0;
     std::string characters_;

@@ -105,7 +105,9 @@ void SpriteText::EnsureGlyphSprite(std::size_t index) {
 
     while (glyphSprites_.size() <= index) {
         auto sprite = std::make_unique<Sprite>();
-        sprite->Initialize(spriteCommon_, font_->GetTextureHandle());
+        if (!sprite->Initialize(spriteCommon_, font_->GetTexturePath())) {
+            return;
+        }
         glyphSprites_.push_back(std::move(sprite));
     }
 }

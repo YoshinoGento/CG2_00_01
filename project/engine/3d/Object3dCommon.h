@@ -8,28 +8,39 @@
 #include <wrl.h>
 
 class SrvManager;
+class LightingSystem;
 
 class Object3dCommon {
 public:
-	void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager);
+	void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager, LightingSystem* lightingSystem);
 
 	void CommonDrawSettings();
+	void BeginObjectPass();
+	void EndObjectPass();
+	[[nodiscard]] bool IsObjectPassActive() const noexcept { return objectPassActive_; }
 	void UpdateDirectionalShadow(const Vector3& lightDirection, const Vector3& focusPosition);
 	bool BeginShadowPass();
 	void EndShadowPass();
 	void SetShadowStrength(float strength);
 
 	// 0: None, 1: Front, 2: Back
-	ID3D12PipelineState* GetPipelineState(int cullMode, bool isSkinned = false) { return isSkinned ? skinningPipelineStates_[cullMode].Get() : pipelineStates_[cullMode].Get(); }
+	ID3D12PipelineState* GetPipelineState(int cullMode, bool isSkinned = false) {
+		const int safeCullMode = (cullMode >= 0 && cullMode < 3) ? cullMode : 2;
+		return isSkinned ? skinningPipelineStates_[safeCullMode].Get() : pipelineStates_[safeCullMode].Get();
+	}
 
 	DirectXCommon* GetDxCommon() const { return dxCommon_; }
 	SrvManager* GetSrvManager() const { return srvManager_; }
+	LightingSystem* GetLightingSystem() const { return lightingSystem_; }
 
 	ID3D12RootSignature* GetRootSignature(bool isSkinned = false) const { return isSkinned ? skinningRootSignature_.Get() : rootSignature_.Get(); }
 	ID3D12RootSignature* GetSkinningComputeRootSignature() const { return skinningComputeRootSignature_.Get(); }
 	ID3D12PipelineState* GetSkinningComputePipelineState() const { return skinningComputePipelineState_.Get(); }
 	ID3D12RootSignature* GetShadowRootSignature() const { return shadowRootSignature_.Get(); }
-	ID3D12PipelineState* GetShadowPipelineState(bool isSkinned) const { return isSkinned ? shadowSkinningPipelineState_.Get() : shadowPipelineState_.Get(); }
+	ID3D12PipelineState* GetShadowPipelineState(bool isSkinned, bool isMirrored) const {
+		const std::size_t orientation = isMirrored ? 1u : 0u;
+		return isSkinned ? shadowSkinningPipelineStates_[orientation].Get() : shadowPipelineStates_[orientation].Get();
+	}
 	D3D12_GPU_VIRTUAL_ADDRESS GetShadowSceneBufferAddress() const;
 	D3D12_GPU_DESCRIPTOR_HANDLE GetShadowMapSrvHandle() const;
 	const Matrix4x4& GetLightViewProjectionMatrix() const { return lightViewProjectionMatrix_; }
@@ -64,6 +75,7 @@ private:
 
 	DirectXCommon* dxCommon_ = nullptr;
 	SrvManager* srvManager_ = nullptr;
+	LightingSystem* lightingSystem_ = nullptr;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> skinningRootSignature_;
@@ -72,8 +84,8 @@ private:
 	std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, 3> pipelineStates_;
 	std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, 3> skinningPipelineStates_;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> skinningComputePipelineState_;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> shadowPipelineState_;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> shadowSkinningPipelineState_;
+	std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, 2> shadowPipelineStates_;
+	std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, 2> shadowSkinningPipelineStates_;
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> shadowMapResource_;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> shadowDsvHeap_;
@@ -84,4 +96,5 @@ private:
 	D3D12_RESOURCE_STATES shadowMapState_ = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	float shadowStrength_ = 0.82f;
 	bool shadowReady_ = false;
+	bool objectPassActive_ = false;
 };

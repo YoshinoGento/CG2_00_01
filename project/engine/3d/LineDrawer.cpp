@@ -1,8 +1,8 @@
 #include "3d/LineDrawer.h"
 #include "base/DirectXCommon.h"
 #include "base/Logger.h"
-#include "base/Logger.h"
 #include <cassert>
+#include <cmath>
 #include <d3dcompiler.h>
 
 #pragma comment(lib, "d3dcompiler.lib")

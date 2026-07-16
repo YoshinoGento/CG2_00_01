@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
 
 namespace farm {
 
 bool FarmGrid::Initialize(int width, int height)
 {
+	++generation_;
 	width_ = 0;
 	height_ = 0;
 	selectedX_ = 0;
@@ -31,30 +33,6 @@ void FarmGrid::MoveSelection(int dx, int dy)
 
 	selectedX_ = std::clamp(selectedX_ + dx, 0, width_ - 1);
 	selectedY_ = std::clamp(selectedY_ + dy, 0, height_ - 1);
-}
-
-bool FarmGrid::RaiseSelectedTileHeight()
-{
-	FarmTile* selectedTile = GetMutableSelectedTile();
-	if (selectedTile == nullptr) {
-		return false;
-	}
-
-	const int previousHeight = selectedTile->heightLevel;
-	selectedTile->heightLevel = std::clamp(selectedTile->heightLevel + 1, kMinHeightLevel, kMaxHeightLevel);
-	return selectedTile->heightLevel != previousHeight;
-}
-
-bool FarmGrid::LowerSelectedTileHeight()
-{
-	FarmTile* selectedTile = GetMutableSelectedTile();
-	if (selectedTile == nullptr) {
-		return false;
-	}
-
-	const int previousHeight = selectedTile->heightLevel;
-	selectedTile->heightLevel = std::clamp(selectedTile->heightLevel - 1, kMinHeightLevel, kMaxHeightLevel);
-	return selectedTile->heightLevel != previousHeight;
 }
 
 int FarmGrid::GetSelectedIndex() const
@@ -97,6 +75,43 @@ FarmTile* FarmGrid::GetMutableTile(int index)
 	}
 
 	return &tiles_[static_cast<std::size_t>(index)];
+}
+
+bool FarmGrid::SetTile(int index, const FarmTile& tile)
+{
+	FarmTile* destination = GetMutableTile(index);
+	if (destination == nullptr) {
+		return false;
+	}
+	*destination = tile;
+	return true;
+}
+
+void FarmGrid::CaptureSnapshot(Snapshot& snapshot) const
+{
+	snapshot.width = width_;
+	snapshot.height = height_;
+	snapshot.selectedX = selectedX_;
+	snapshot.selectedY = selectedY_;
+	snapshot.tiles = tiles_;
+}
+
+bool FarmGrid::RestoreSnapshot(const Snapshot& snapshot)
+{
+	if (snapshot.width != width_ || snapshot.height != height_ ||
+		snapshot.tiles.size() != tiles_.size() || !IsValid()) {
+		return false;
+	}
+	for (const FarmTile& tile : snapshot.tiles) {
+		if (tile.heightLevel < 0 || tile.heightLevel > 2 ||
+			!std::isfinite(tile.moisture) || !std::isfinite(tile.growth)) {
+			return false;
+		}
+	}
+	selectedX_ = std::clamp(snapshot.selectedX, 0, width_ - 1);
+	selectedY_ = std::clamp(snapshot.selectedY, 0, height_ - 1);
+	tiles_ = snapshot.tiles;
+	return true;
 }
 
 } // namespace farm

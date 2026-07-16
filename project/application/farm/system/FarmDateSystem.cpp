@@ -37,7 +37,7 @@ void FarmDateSystem::Initialize()
 
 void FarmDateSystem::Update(float deltaTime)
 {
-	if (deltaTime <= 0.0f) {
+	if (!std::isfinite(deltaTime) || deltaTime <= 0.0f) {
 		return;
 	}
 
@@ -86,4 +86,22 @@ float FarmDateSystem::GetDayProgress() const
 	}
 
 	return std::clamp(elapsedSecondsInDay_ / dayLengthSeconds_, 0.0f, 1.0f);
+}
+
+FarmDateSystem::Snapshot FarmDateSystem::CaptureSnapshot() const noexcept
+{
+	return { day_, elapsedSecondsInDay_, timeScale_ };
+}
+
+bool FarmDateSystem::RestoreSnapshot(const Snapshot& snapshot)
+{
+	if (snapshot.day < kInitialDay || !std::isfinite(snapshot.elapsedSecondsInDay) ||
+		snapshot.elapsedSecondsInDay < 0.0f || snapshot.elapsedSecondsInDay >= dayLengthSeconds_ ||
+		!IsSupportedTimeScale(snapshot.timeScale)) {
+		return false;
+	}
+	day_ = snapshot.day;
+	elapsedSecondsInDay_ = snapshot.elapsedSecondsInDay;
+	timeScale_ = snapshot.timeScale;
+	return true;
 }

@@ -1,12 +1,38 @@
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
+#include "3d/LightingSystem.h"
 #include "base/SrvManager.h"
 #include "base/DirectXCommon.h"
+#include "2d/TextureManager.h"
+#include "base/Logger.h"
+#include "base/FrameClock.h"
+#include <algorithm>
 #include <cassert>
+#include <cmath>
+
+namespace {
+	constexpr float kMinimumScaleMagnitude = 1.0e-4f;
+
+	float Determinant3x3(const Matrix4x4& matrix) {
+		return
+			matrix.m[0][0] * (matrix.m[1][1] * matrix.m[2][2] - matrix.m[1][2] * matrix.m[2][1]) -
+			matrix.m[0][1] * (matrix.m[1][0] * matrix.m[2][2] - matrix.m[1][2] * matrix.m[2][0]) +
+			matrix.m[0][2] * (matrix.m[1][0] * matrix.m[2][1] - matrix.m[1][1] * matrix.m[2][0]);
+	}
+
+	int ResolveCullMode(int requestedCullMode, bool isMirrored) {
+		if (!isMirrored || requestedCullMode == 0) {
+			return requestedCullMode;
+		}
+		return requestedCullMode == 1 ? 2 : 1;
+	}
+}
 
 void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	assert(object3dCommon);
 	object3dCommon_ = object3dCommon;
+	textureHandle_ = TextureManager::GetInstance()->GetFallback2D();
+	environmentMapHandle_ = TextureManager::GetInstance()->GetFallbackCube();
 	DirectXCommon* dxCommon = object3dCommon_->GetDxCommon();
 
 	materialResource_ = dxCommon->CreateBufferResource(sizeof(Material));
@@ -21,34 +47,22 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	transformationMatrixResource_->Map(0, nullptr, (void**)&transformationMatrixData_);
 	shadowTransformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
 	shadowTransformationMatrixResource_->Map(0, nullptr, (void**)&shadowTransformationMatrixData_);
+	const Matrix4x4 identity = MatrixMath::MakeIdentity4x4();
+	*transformationMatrixData_ = { identity, identity, identity };
+	*shadowTransformationMatrixData_ = { identity, identity, identity };
 
-	directionalLightResource_ = dxCommon->CreateBufferResource(sizeof(DirectionalLight));
-	directionalLightResource_->Map(0, nullptr, (void**)&directionalLightData_);
-	directionalLightData_->color = { 1.0f, 1.0f, 1.0f, 1.0f };
-	directionalLightData_->direction = { 0.0f, -1.0f, 1.0f };
-	directionalLightData_->intensity = 1.0f;
-
-	cameraResource_ = dxCommon->CreateBufferResource(sizeof(CameraForGPU));
-	cameraResource_->Map(0, nullptr, (void**)&cameraData_);
-
-	spotLightResource_ = dxCommon->CreateBufferResource(sizeof(SpotLightData));
-	spotLightResource_->Map(0, nullptr, (void**)&spotLightData_);
-	spotLightData_->color = { 1.0f, 1.0f, 1.0f, 1.0f };
-	spotLightData_->position = { 0.0f, 4.0f, 0.0f };
-	spotLightData_->intensity = 0.0f;
-	spotLightData_->direction = { 0.0f, -1.0f, 0.0f };
-	spotLightData_->distance = 10.0f;
-	spotLightData_->decay = 1.0f;
-	spotLightData_->cosAngle = std::cos(0.5f);
-	spotLightData_->cosFalloffStart = std::cos(0.3f);
 }
 
-void Object3d::Update(Camera* camera) {
+void Object3d::Update(Camera* camera, float deltaTime) {
 	assert(camera);
 	computeSkinningPrepared_ = false;
+	if (!std::isfinite(deltaTime)) {
+		deltaTime = 0.0f;
+	}
+	deltaTime = std::clamp(deltaTime, 0.0f, FrameClock::kMaximumFrameDeltaSeconds);
 
 	if (isAnimationPlaying_ && animation_.duration > 0.0f) {
-		animationTime_ += (1.0f / 60.0f) * animationSpeed_;
+		animationTime_ += deltaTime * animationSpeed_;
 		animationTime_ = std::fmod(animationTime_, animation_.duration);
 		if (animationTime_ < 0.0f) {
 			animationTime_ += animation_.duration;
@@ -90,18 +104,26 @@ void Object3d::Update(Camera* camera) {
 	const Matrix4x4& matrixForRendering = (model_ && model_->HasSkinCluster()) ? objectWorldMatrix_ : worldMatrix_;
 	transformationMatrixData_->WVP = MatrixMath::Multiply(matrixForRendering, camera->GetViewProjectionMatrix());
 	transformationMatrixData_->World = matrixForRendering;
+	const float worldDeterminant = Determinant3x3(matrixForRendering);
+	transformationMatrixData_->WorldInverseTranspose = std::abs(worldDeterminant) >= 1.0e-8f
+		? MatrixMath::Transpose(MatrixMath::Inverse(matrixForRendering))
+		: MatrixMath::MakeIdentity4x4();
+	isMirrored_ = worldDeterminant < 0.0f;
 
 	// カメラ座標の更新
-	cameraData_->worldPosition = camera->GetTranslate();
 
 	// --- 4. スポットライトの更新 (正規化の追加) ---
 	// ImGuiなどで方向が変更された場合、計算に使う前に必ず長さを 1 にします
 	// これを行わないと、シェーダー側で角度による減衰計算が破綻します
-	spotLightData_->direction = MatrixMath::Normalize(spotLightData_->direction);
 }
 
 void Object3d::Draw() {
 	if (!model_) return;
+	if (!object3dCommon_->IsObjectPassActive()) {
+		Logger::Log("Object3d::Draw rejected because BeginObjectPass was not called.");
+		assert(false && "Object3d draw outside object pass");
+		return;
+	}
 	ID3D12GraphicsCommandList* commandList = object3dCommon_->GetDxCommon()->GetCommandList();
 	const bool isSkinned = model_->HasSkinCluster();
 	const bool useComputeSkinning = model_->UseComputeSkinning();
@@ -116,20 +138,23 @@ void Object3d::Draw() {
 	commandList->SetGraphicsRootSignature(object3dCommon_->GetRootSignature(useVertexShaderSkinning));
 
 	// パイプラインをセット
-	commandList->SetPipelineState(object3dCommon_->GetPipelineState(cullMode_, useVertexShaderSkinning));
+	commandList->SetPipelineState(object3dCommon_->GetPipelineState(
+		ResolveCullMode(cullMode_, isMirrored_), useVertexShaderSkinning));
 
 	// RootSignature の Index に合わせて定数バッファをセット
 	commandList->SetGraphicsRootConstantBufferView(0, materialResource_->GetGPUVirtualAddress());
 	commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResource_->GetGPUVirtualAddress());
-	commandList->SetGraphicsRootConstantBufferView(2, directionalLightResource_->GetGPUVirtualAddress());
-	commandList->SetGraphicsRootConstantBufferView(3, cameraResource_->GetGPUVirtualAddress());
-	commandList->SetGraphicsRootConstantBufferView(4, spotLightResource_->GetGPUVirtualAddress());
+	LightingSystem* lightingSystem = object3dCommon_->GetLightingSystem();
+	assert(lightingSystem != nullptr);
+	commandList->SetGraphicsRootConstantBufferView(2, lightingSystem->GetDirectionalLightAddress());
+	commandList->SetGraphicsRootConstantBufferView(3, lightingSystem->GetCameraAddress());
+	commandList->SetGraphicsRootConstantBufferView(4, lightingSystem->GetSpotLightAddress());
 
 	SrvManager* srvManager = object3dCommon_->GetSrvManager();
-	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle = srvManager->GetGPUDescriptorHandle(textureHandle_);
+	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandle = TextureManager::GetInstance()->GetGpuHandle(textureHandle_);
 	commandList->SetGraphicsRootDescriptorTable(5, textureSrvHandle);
 
-	D3D12_GPU_DESCRIPTOR_HANDLE environmentMapSrvHandle = srvManager->GetGPUDescriptorHandle(environmentMapHandle_);
+	D3D12_GPU_DESCRIPTOR_HANDLE environmentMapSrvHandle = TextureManager::GetInstance()->GetGpuHandle(environmentMapHandle_);
 	commandList->SetGraphicsRootDescriptorTable(6, environmentMapSrvHandle);
 	if (object3dCommon_->IsShadowReady()) {
 		commandList->SetGraphicsRootConstantBufferView(7, object3dCommon_->GetShadowSceneBufferAddress());
@@ -147,9 +172,7 @@ void Object3d::Draw() {
 	}
 
 	// モデルの描画実行
-	object3dCommon_->GetDxCommon()->SetSceneRenderTargetsWithNormal();
 	model_->Draw(object3dCommon_->GetDxCommon());
-	object3dCommon_->GetDxCommon()->SetSceneRenderTarget();
 }
 
 void Object3d::DrawShadow() {
@@ -170,9 +193,13 @@ void Object3d::DrawShadow() {
 	shadowTransformationMatrixData_->WVP = MatrixMath::Multiply(
 		matrixForRendering, object3dCommon_->GetLightViewProjectionMatrix());
 	shadowTransformationMatrixData_->World = matrixForRendering;
+	const float shadowWorldDeterminant = Determinant3x3(matrixForRendering);
+	shadowTransformationMatrixData_->WorldInverseTranspose = std::abs(shadowWorldDeterminant) >= 1.0e-8f
+		? MatrixMath::Transpose(MatrixMath::Inverse(matrixForRendering))
+		: MatrixMath::MakeIdentity4x4();
 
 	commandList->SetGraphicsRootSignature(object3dCommon_->GetShadowRootSignature());
-	commandList->SetPipelineState(object3dCommon_->GetShadowPipelineState(useVertexShaderSkinning));
+	commandList->SetPipelineState(object3dCommon_->GetShadowPipelineState(useVertexShaderSkinning, isMirrored_));
 	commandList->SetGraphicsRootConstantBufferView(
 		0, shadowTransformationMatrixResource_->GetGPUVirtualAddress());
 
@@ -195,6 +222,21 @@ void Object3d::SetModel(Model* model) {
 	if (model_) {
 		InitializeSkeleton();
 	}
+}
+
+bool Object3d::SetScale(const Vector3& scale) {
+	if (std::abs(scale.x) < kMinimumScaleMagnitude ||
+		std::abs(scale.y) < kMinimumScaleMagnitude ||
+		std::abs(scale.z) < kMinimumScaleMagnitude) {
+		Logger::Log("Object3d::SetScale rejected a near-zero component because its normal matrix would be singular.");
+		return false;
+	}
+	transform_.scale = scale;
+	return true;
+}
+
+void Object3d::SetCullMode(int cullMode) {
+	cullMode_ = std::clamp(cullMode, 0, 2);
 }
 
 void Object3d::InitializeSkeleton() {

@@ -96,3 +96,19 @@ void ImGuiManager::Draw() {
 	}
 #endif
 }
+
+bool ImGuiManager::WantsCaptureKeyboard() const noexcept {
+#ifdef USE_IMGUI
+	return ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard;
+#else
+	return false;
+#endif
+}
+
+bool ImGuiManager::WantsCaptureMouse() const noexcept {
+#ifdef USE_IMGUI
+	return ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse;
+#else
+	return false;
+#endif
+}

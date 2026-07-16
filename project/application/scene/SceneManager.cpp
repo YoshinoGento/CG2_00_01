@@ -1,5 +1,6 @@
 #include "SceneManager.h"
 #include "AbstractSceneFactory.h"
+#include "2d/TextureManager.h"
 #include <cassert>
 
 SceneManager* SceneManager::instance = nullptr;
@@ -22,10 +23,12 @@ SceneManager::~SceneManager() {
  * 更新処理
  * 予約された次のシーン（nextScene_）がある場合、入れ替えを行います。
  */
-void SceneManager::Update() {
+void SceneManager::BeginFrame() {
 	if (nextScene_) {
 		if (scene_) {
 			scene_->Finalize();
+			// PostDraw waits for the previous frame fence, so Update is the safe descriptor/resource release boundary.
+			TextureManager::GetInstance()->ReleaseSceneTextures();
 		}
 
 		// ★所有権を移動。この代入の瞬間に古い scene_ は自動で破棄されます。
@@ -35,7 +38,21 @@ void SceneManager::Update() {
 		scene_->SetSceneManager(this);
 		scene_->Initialize();
 	}
+}
 
+void SceneManager::FixedUpdate(float fixedDeltaTime) {
+	if (scene_) {
+		scene_->FixedUpdate(fixedDeltaTime);
+	}
+}
+
+void SceneManager::PrepareFixedUpdate() {
+	if (scene_) {
+		scene_->PrepareFixedUpdate();
+	}
+}
+
+void SceneManager::Update() {
 	if (scene_) {
 		scene_->Update();
 	}

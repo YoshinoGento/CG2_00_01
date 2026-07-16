@@ -23,7 +23,7 @@ public:
 	void Draw(const Skeleton& skeleton, const Matrix4x4& worldMatrix, LineDrawer* lineDrawer, Camera* camera);
 
 	// 環境マップのハンドル（以前の互換性のために残すか空にする）
-	void SetEnvironmentMap(uint32_t handle) {
+	void SetEnvironmentMap(TextureCubeHandle handle) {
 		// ワイヤーフレーム描画では環境マップを使用しないため何もしない
 		(void)handle;
 	}

@@ -1,5 +1,6 @@
 #include "BitmapFont.h"
 #include "2d/SpriteCommon.h"
+#include "2d/TextureManager.h"
 #include "base/Logger.h"
 #include "io/JsonFile.h"
 
@@ -65,7 +66,8 @@ bool BitmapFont::Initialize(
     }
 
     spriteCommon_ = spriteCommon;
-    textureHandle_ = spriteCommon_->LoadTexture(texturePath);
+    texturePath_ = texturePath;
+    textureHandle_ = TextureManager::GetInstance()->LoadTexture2D(texturePath_);
     glyphSize_ = glyphSize;
     columns_ = columns;
     characters_ = characters;
