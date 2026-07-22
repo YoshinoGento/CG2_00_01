@@ -54,6 +54,8 @@ Texture2D<float> gDirectionalShadowMap : register(t3);
 SamplerState gSampler : register(s0);
 SamplerComparisonState gShadowSampler : register(s1);
 
+static const int kSpecularTypePhong = 0;
+
 struct PixelShaderOutput
 {
     float4 color : SV_TARGET0;
@@ -78,6 +80,27 @@ float EvaluateBlinnPhongSpecular(float3 normal, float3 lightDirection, float3 to
 
     const float3 halfVector = halfVectorSum * rsqrt(halfVectorLengthSquared);
     return pow(saturate(dot(normal, halfVector)), max(shininess, 1.0f));
+}
+
+float EvaluatePhongSpecular(float3 normal, float3 lightDirection, float3 toEye, float shininess)
+{
+    const float NdotL = dot(normal, lightDirection);
+    if (NdotL <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    const float3 reflectedLight = reflect(-lightDirection, normal);
+    return pow(saturate(dot(reflectedLight, toEye)), max(shininess, 1.0f));
+}
+
+float EvaluateSpecular(float3 normal, float3 lightDirection, float3 toEye, float shininess)
+{
+    if (gMaterial.specularType == kSpecularTypePhong)
+    {
+        return EvaluatePhongSpecular(normal, lightDirection, toEye, shininess);
+    }
+    return EvaluateBlinnPhongSpecular(normal, lightDirection, toEye, shininess);
 }
 
 float EvaluateDirectionalShadow(float3 worldPosition, float3 normal, float3 lightDirection)
@@ -141,7 +164,7 @@ PixelShaderOutput main(VertexShaderOutput input)
     float3 baseColor = gMaterial.color.rgb * textureColor.rgb;
     float3 ambient_dir = baseColor * gDirectionalLight.color.rgb * 0.18f * gDirectionalLight.intensity;
     float3 diffuse_dir = baseColor * gDirectionalLight.color.rgb * (NdotL_dir * 0.82f) * gDirectionalLight.intensity * directionalShadow;
-    float spec_dir = EvaluateBlinnPhongSpecular(N, L_dir, V, gMaterial.shininess);
+    float spec_dir = EvaluateSpecular(N, L_dir, V, gMaterial.shininess);
     float3 specular_dir = gDirectionalLight.color.rgb * gDirectionalLight.intensity * spec_dir * directionalShadow;
 
     // --- 2. スポットライト ---
@@ -159,7 +182,7 @@ PixelShaderOutput main(VertexShaderOutput input)
     float spotFactor = gSpotLight.intensity * distAtten * angleAtten;
     float NdotL_spot = saturate(dot(N, L_spot));
     float3 diffuse_spot = gMaterial.color.rgb * textureColor.rgb * gSpotLight.color.rgb * NdotL_spot * spotFactor;
-    float3 specular_spot = gSpotLight.color.rgb * spotFactor * EvaluateBlinnPhongSpecular(N, L_spot, V, gMaterial.shininess);
+    float3 specular_spot = gSpotLight.color.rgb * spotFactor * EvaluateSpecular(N, L_spot, V, gMaterial.shininess);
     
      // --- 3. 環境マップ (★追加) ---
     // カメラから点への入射ベクトルを法線で反射させる

@@ -538,5 +538,7 @@
     <ClInclude Include="application\level\LevelLoader.h" />
     <ClCompile Include="application\level\LevelGameplaySystem.cpp" />
     <ClInclude Include="application\level\LevelGameplaySystem.h" />
+    <ClCompile Include="application\level\ui\StageClearHUD.cpp" />
+    <ClInclude Include="application\level\ui\StageClearHUD.h" />
   </ItemGroup>
 </Project>
