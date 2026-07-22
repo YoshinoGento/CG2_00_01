@@ -24,7 +24,9 @@ public:
 		bool isPlayerSneaking = false;
 		bool isPlayerGrounded = false;
 		std::vector<uint8_t> collectibleStates;
+		std::vector<uint8_t> eventTriggerStates;
 		std::size_t collectedCount = 0;
+		bool stageCleared = false;
 	};
 
 	struct CollectibleCollider {
@@ -37,6 +39,14 @@ public:
 		Vector3 center{};
 		Vector3 halfExtents{};
 	};
+	struct EventTriggerCollider {
+		Vector3 center{};
+		Vector3 halfExtents{};
+		int32_t eventId = -1;
+		bool activated = false;
+	};
+
+	static constexpr int32_t kStageClearEventId = 1;
 
 	void Reset();
 	void ConfigurePlayer(
@@ -47,6 +57,7 @@ public:
 	void ConfigureGround(const Vector3& center, const Vector3& halfExtents);
 	void AddCollectible(std::size_t renderIndex, const Vector3& position, float radius);
 	void AddObstacle(const Vector3& center, const Vector3& halfExtents);
+	bool AddEventTrigger(const Vector3& center, const Vector3& halfExtents, int32_t eventId);
 	void UpdatePlayer(const PlayerCommand& command, float fixedDeltaTime);
 	void CaptureSnapshot(Snapshot& output) const;
 	bool RestoreSnapshot(const Snapshot& snapshot);
@@ -72,15 +83,19 @@ public:
 	const Vector3& GetGroundHalfExtents() const { return groundHalfExtents_; }
 	const std::vector<CollectibleCollider>& GetCollectibleColliders() const { return collectibles_; }
 	const std::vector<ObstacleCollider>& GetObstacleColliders() const { return obstacles_; }
+	const std::vector<EventTriggerCollider>& GetEventTriggerColliders() const { return eventTriggers_; }
 	std::size_t GetCollectedCount() const { return collectedCount_; }
 	std::size_t GetCollectibleCount() const { return collectibles_.size(); }
+	bool IsStageCleared() const { return stageCleared_; }
 	std::vector<std::size_t> ConsumeCollectedRenderIndices();
+	std::vector<int32_t> ConsumeTriggeredEventIds();
 
 private:
 	void SnapPlayerToGround();
 	bool OverlapsObstacle(const Vector3& position) const;
 	void MovePlayerHorizontal(const Vector3& displacement);
 	void CollectOverlappingObjects();
+	void ActivateOverlappingEventTriggers();
 
 	std::size_t playerRenderIndex_ = 0;
 	Vector3 playerPosition_{};
@@ -103,8 +118,11 @@ private:
 	float gravity_ = 18.0f;
 	std::vector<CollectibleCollider> collectibles_;
 	std::vector<ObstacleCollider> obstacles_;
+	std::vector<EventTriggerCollider> eventTriggers_;
 	std::vector<std::size_t> collectedRenderIndices_;
+	std::vector<int32_t> triggeredEventIds_;
 	std::size_t collectedCount_ = 0;
+	bool stageCleared_ = false;
 };
 
 } // namespace level

@@ -177,6 +177,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\farm\ui\FarmHUD.cpp" />
     <ClCompile Include="application\level\LevelLoader.cpp" />
     <ClCompile Include="application\level\LevelGameplaySystem.cpp" />
+    <ClCompile Include="application\level\ui\StageClearHUD.cpp" />
     <ClCompile Include="engine\3d\LineDrawer.cpp" />
     <ClCompile Include="engine\3d\Skeleton.cpp" />
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp" />
@@ -449,6 +450,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\farm\ui\FarmHUD.h" />
     <ClInclude Include="application\level\LevelLoader.h" />
     <ClInclude Include="application\level\LevelGameplaySystem.h" />
+    <ClInclude Include="application\level\ui\StageClearHUD.h" />
     <ClInclude Include="engine\3d\Animation.h" />
     <ClInclude Include="engine\3d\LineDrawer.h" />
     <ClInclude Include="engine\3d\Skeleton.h" />

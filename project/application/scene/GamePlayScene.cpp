@@ -52,6 +52,7 @@ constexpr const char* kPatrolPointTypeName = "PATROL_POINT";
 constexpr const char* kPlayerRoleName = "PLAYER";
 constexpr const char* kCollectibleRoleName = "COLLECTIBLE";
 constexpr const char* kGroundRoleName = "GROUND";
+constexpr const char* kBoxColliderTypeName = "BOX";
 constexpr Vector3 kPlayerCameraOffset = { 0.0f, 3.5f, -8.0f };
 constexpr Vector3 kPlayerCameraLookOffset = { 0.0f, 0.7f, 0.0f };
 constexpr Vector3 kDefaultPlayerColliderCenterOffset = { 0.0f, 0.9f, 0.0f };
@@ -64,6 +65,11 @@ constexpr farm::FarmVisualLayout kFarmVisualLayout = {
 	0.18f,
 	0.18f,
 };
+
+Object3d::SpecularType ResolveSpecularType(int selection)
+{
+	return selection == 0 ? Object3d::SpecularType::Phong : Object3d::SpecularType::BlinnPhong;
+}
 
 Vector4 GetLevelRoleColor(const std::string& gameplayRole)
 {
@@ -385,6 +391,7 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
 	InitializeFarmHUD();
+	InitializeStageClearHUD();
 
 }
 
@@ -496,6 +503,10 @@ void GamePlayScene::Update() {
 		farmHud_.SetViewData(BuildFarmHUDViewData());
 		farmHud_.Update(sceneDeltaTime_);
 	}
+	if (stageClearHudInitialized_) {
+		stageClearHud_.SetVisible(levelGameplay_.IsStageCleared());
+		stageClearHud_.Update();
+	}
 	if (skyboxEnabled_) {
 		InitializeSkyboxIfNeeded();
 		if (skybox_) {
@@ -524,6 +535,7 @@ void GamePlayScene::Update() {
 	auto UpdateObjectState = [&](Object3d* obj, float envCoef) {
 		if (!obj) return;
 		obj->SetCullMode(cullMode_);
+		obj->SetSpecularType(ResolveSpecularType(specularTypeSelection_));
 
 		if (skybox_ && skyboxEnvironmentEnabled_) {
 			obj->SetEnvironmentMap(skybox_->GetTextureHandle());
@@ -621,6 +633,9 @@ void GamePlayScene::LoadSceneLevel() {
 	levelData_ = level::LevelLoader::Load(kSceneLevelName);
 	levelObjects_.clear();
 	levelGameplay_.Reset();
+	if (stageClearHudInitialized_) {
+		stageClearHud_.SetVisible(false);
+	}
 
 	if (!levelData_) {
 		timeline_.Clear();
@@ -650,6 +665,26 @@ void GamePlayScene::CreateLevelObjectsFromLevel() {
 	if (!modelManager) {
 		AddLog("Level object creation failed: ModelManager is null.");
 		return;
+	}
+
+	for (const level::ObjectData& objectData : levelData_->objects) {
+		if (objectData.type != kEventTriggerTypeName || objectData.disabled) {
+			continue;
+		}
+		if (!objectData.hasCollider || objectData.collider.type != kBoxColliderTypeName) {
+			AddLog("EVENT_TRIGGER skipped. BOX collider is required: " + objectData.name);
+			continue;
+		}
+
+		const Vector3 triggerCenter = AddVector3(objectData.transform.translation, objectData.collider.center);
+		const Vector3 triggerHalfExtents = {
+			std::abs(objectData.collider.size.x) * 0.5f,
+			std::abs(objectData.collider.size.y) * 0.5f,
+			std::abs(objectData.collider.size.z) * 0.5f,
+		};
+		if (!levelGameplay_.AddEventTrigger(triggerCenter, triggerHalfExtents, objectData.eventId)) {
+			AddLog("EVENT_TRIGGER skipped. Invalid collider or event_id: " + objectData.name);
+		}
 	}
 
 	std::size_t meshCount = 0;
@@ -839,6 +874,14 @@ void GamePlayScene::SyncLevelGameplayPresentation()
 		collectible.visible = false;
 		EmitSpark(collectible.basePosition);
 		AddLog("Collected: " + collectible.name);
+	}
+
+	for (const int32_t eventId : levelGameplay_.ConsumeTriggeredEventIds()) {
+		if (eventId == level::LevelGameplaySystem::kStageClearEventId) {
+			AddLog("Stage clear trigger activated.");
+		} else {
+			AddLog("Event trigger activated: " + std::to_string(eventId));
+		}
 	}
 }
 
@@ -1108,6 +1151,15 @@ void GamePlayScene::DrawLevelCollisionGizmos() const {
 			lineDrawer->DrawWireSphere(collectible.position, collectible.radius, { 1.0f, 0.85f, 0.1f, 1.0f }, 16);
 		}
 	}
+	for (const level::LevelGameplaySystem::EventTriggerCollider& trigger : levelGameplay_.GetEventTriggerColliders()) {
+		const Vector4 color = trigger.activated
+			? Vector4{ 0.35f, 0.35f, 0.35f, 1.0f }
+			: Vector4{ 0.2f, 1.0f, 0.45f, 1.0f };
+		DrawLevelBox(
+			trigger.center,
+			{ trigger.halfExtents.x * 2.0f, trigger.halfExtents.y * 2.0f, trigger.halfExtents.z * 2.0f },
+			color);
+	}
 }
 
 Vector3 GamePlayScene::EvaluateLevelRoutePoint(float normalizedTime) const {
@@ -1355,9 +1407,14 @@ void GamePlayScene::Draw() {
 		}
 	}
 
-	if (farmHudInitialized_) {
+	if (farmHudInitialized_ || stageClearHudInitialized_) {
 		spriteCommon->PreDraw();
-		farmHud_.Draw();
+		if (farmHudInitialized_) {
+			farmHud_.Draw();
+		}
+		if (stageClearHudInitialized_) {
+			stageClearHud_.Draw();
+		}
 	}
 }
 
@@ -1489,6 +1546,15 @@ void GamePlayScene::InitializeFarmHUD() {
 	farmHud_.SetViewData(BuildFarmHUDViewData());
 }
 
+void GamePlayScene::InitializeStageClearHUD() {
+	stageClearHudInitialized_ = stageClearHud_.Initialize(framework_->GetSpriteCommon());
+	if (!stageClearHudInitialized_) {
+		AddLog("StageClearHUD initialization failed.");
+		return;
+	}
+	stageClearHud_.SetVisible(levelGameplay_.IsStageCleared());
+}
+
 void GamePlayScene::InitializeSkyboxIfNeeded() {
 	if (skybox_) {
 		return;
@@ -1515,6 +1581,8 @@ void GamePlayScene::DrawSceneDebugWindow() {
 		ImGui::Checkbox("Directional Shadows", &directionalShadowsEnabled_);
 		ImGui::SliderFloat("Shadow Strength", &directionalShadowStrength_, 0.0f, 1.0f, "%.2f");
 		ImGui::DragFloat3("Sun Direction", &lightDirection_.x, 0.01f, -1.0f, 1.0f, "%.2f");
+		const char* specularItems[] = { "Phong", "Blinn-Phong" };
+		ImGui::Combo("Specular Type", &specularTypeSelection_, specularItems, IM_ARRAYSIZE(specularItems));
 		bool usePlayerCamera = usePlayerCamera_;
 		if (ImGui::Checkbox("Use Player Camera (Third Person)", &usePlayerCamera)) {
 			SetUsePlayerCamera(usePlayerCamera);

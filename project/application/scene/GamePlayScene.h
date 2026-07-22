@@ -24,6 +24,7 @@
 #include "farm/system/FarmToolSystem.h"
 #include "farm/system/FarmVisualSystem.h"
 #include "farm/ui/FarmHUD.h"
+#include "level/ui/StageClearHUD.h"
 
 class Framework;
 class Sprite;
@@ -97,6 +98,7 @@ private:
 	bool TryBuildViewportRay(Vector3& outOrigin, Vector3& outDirection) const;
 	bool TrySelectFarmTileFromViewport();
 	void InitializeFarmHUD();
+	void InitializeStageClearHUD();
 	void InitializeSkyboxIfNeeded();
 	void LoadSceneLevel();
 	void CreateLevelObjectsFromLevel();
@@ -222,6 +224,8 @@ private:
 	editor::GamePlayEditorBridge gamePlayEditorBridge_;
 	FarmHUD farmHud_;
 	bool farmHudInitialized_ = false;
+	StageClearHUD stageClearHud_;
+	bool stageClearHudInitialized_ = false;
 
 	bool showTerrain_ = true;
 	bool showSphere_ = true;
@@ -246,6 +250,7 @@ private:
 	int activeParticleType_ = 0; // これを Game.cpp と同期
 	int currentAnimModelIdx_ = 1; // 現在のアニメーションモデルのインデックス（0: AnimatedCube, 1: simpleSkin, 2: human/walk, 3: human/sneakWalk）
 	int cullMode_ = 2;
+	int specularTypeSelection_ = 1;
 	int modelPriority_ = 0;
 
 	GPUParticleDebugMode gpuParticleDebugMode_ = GPUParticleDebugMode::Off;
