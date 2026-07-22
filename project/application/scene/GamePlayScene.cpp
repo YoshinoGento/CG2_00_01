@@ -40,6 +40,7 @@ constexpr float kTimelineScrubAudioRate = 0.55f;
 constexpr float kTimelineAudioEnterTransitionSeconds = 0.08f;
 constexpr float kTimelineAudioExitTransitionSeconds = 0.75f;
 constexpr const char* kRostockSkyboxPath = "Resources/rostock_laage_airport_4k.dds";
+constexpr const char* kFarmDocumentDirectory = "Settings/farm";
 constexpr const char* kSceneLevelName = "scene";
 constexpr const char* kMeshTypeName = "MESH";
 constexpr const char* kCameraTypeName = "CAMERA";
@@ -57,6 +58,12 @@ constexpr Vector3 kDefaultPlayerColliderCenterOffset = { 0.0f, 0.9f, 0.0f };
 constexpr Vector3 kDefaultPlayerColliderHalfExtents = { 0.45f, 0.9f, 0.45f };
 constexpr float kColliderCenterEpsilon = 0.0001f;
 constexpr float kPlayerAnimationStopBlendSeconds = 0.20f;
+constexpr farm::FarmVisualLayout kFarmVisualLayout = {
+	{ 0.0f, 0.05f, 8.0f },
+	1.25f,
+	0.18f,
+	0.18f,
+};
 
 Vector4 GetLevelRoleColor(const std::string& gameplayRole)
 {
@@ -176,12 +183,36 @@ std::string BuildSelectedTileInfo(const farm::FarmGrid& grid)
 	}
 
 	const float clampedMoisture = std::clamp(selectedTile->moisture, 0.0f, 1.0f);
+	const float clampedGrowth = std::clamp(selectedTile->growth, 0.0f, 1.0f);
 	const int moisturePercent = static_cast<int>(clampedMoisture * 100.0f + 0.5f);
+	const int growthPercent = static_cast<int>(clampedGrowth * 100.0f + 0.5f);
+	const char* stateName = farm::IsHarvestReady(*selectedTile)
+		? "Ready" : farm::ToString(selectedTile->state);
 	return "Tile " + std::to_string(grid.GetSelectedIndex()) +
 		" H" + std::to_string(selectedTile->heightLevel) +
-		" " + farm::ToString(selectedTile->state) +
+		" " + stateName +
 		" Water " + std::to_string(moisturePercent) + "%" +
-		" Crop " + farm::ToString(selectedTile->crop);
+		" Growth " + std::to_string(growthPercent) + "%";
+}
+
+std::string BuildSelectedTileHint(const farm::FarmGrid& grid)
+{
+	const farm::FarmTile* selectedTile = grid.GetSelectedTile();
+	if (selectedTile == nullptr) {
+		return "NEXT SELECT TILE";
+	}
+	if (selectedTile->state == farm::FarmTileState::Empty) {
+		return "NEXT 1 HOE";
+	}
+	if (selectedTile->state == farm::FarmTileState::Tilled) {
+		return selectedTile->moisture < 0.5f
+			? "NEXT 2 WATER / 3 SEED" : "NEXT 3 SEED";
+	}
+	if (farm::IsHarvestReady(*selectedTile)) {
+		return "NEXT 4 HARVEST";
+	}
+	return selectedTile->moisture < 0.25f
+		? "GROWING - 2 WATER" : "GROWING";
 }
 
 void BuildCameraGroundMoveAxes(float yaw, Vector3& right, Vector3& forward)
@@ -256,9 +287,13 @@ void GamePlayScene::Initialize() {
 	farmGrid_.Initialize(5, 4);
 	farmDateSystem_.Initialize();
 	farmToolSystem_.Initialize();
-#ifdef USE_IMGUI
-	farmDebugEditorWindow_.LoadSettings();
-#endif
+	farmVisualSystem_.Initialize(kFarmVisualLayout);
+	if (!farmDocumentSystem_.Initialize(kFarmDocumentDirectory, farmGrid_)) {
+		AddLog("Farm document initialization failed: " + farmDocumentSystem_.GetStatusMessage());
+	}
+	farmToolActionSystem_.ClearHistory();
+	gamePlayEditorBridge_.Bind(
+		*this, farmGrid_, farmToolActionSystem_, farmDocumentSystem_);
 
 	// ログ記録：UIと外部出力の両方に行われます
 	AddLog("Scene: GamePlay Initialized.");
@@ -410,6 +445,7 @@ void GamePlayScene::Update() {
 #ifndef USE_IMGUI
 	// A production build receives mouse coordinates from the game window because no editor viewport exists.
 	viewportHovered_ = true;
+	viewportFocused_ = true;
 	viewportImageTopLeft_ = { 0.0f, 0.0f };
 	viewportImageSize_ = {
 		static_cast<float>(WinApp::kClientWidth),
@@ -436,7 +472,7 @@ void GamePlayScene::Update() {
 		ToggleCameraMode();
 	}
 
-	const bool farmGridInputConsumed = HandleFarmGridSelectionInput();
+	const bool farmGridInputConsumed = HandleFarmInput();
 	HandleCameraInput(sceneDeltaTime_, farmGridInputConsumed);
 	ClampCameraPitch();
 	if (!farmGridInputConsumed) {
@@ -444,10 +480,11 @@ void GamePlayScene::Update() {
 	}
 	SyncLevelGameplayPresentation();
 	UpdatePlayerCamera();
+
+#ifndef USE_IMGUI
 	HandleFarmHistoryInput();
+#endif
 	HandleFarmDateDebugInput();
-	HandleFarmToolDebugInput();
-	HandleFarmToolActionInput();
 
 	camera_->SetTranslate(cameraPos_);
 	camera_->SetRotate(cameraRot_);
@@ -459,11 +496,6 @@ void GamePlayScene::Update() {
 		farmHud_.SetViewData(BuildFarmHUDViewData());
 		farmHud_.Update(sceneDeltaTime_);
 	}
-#ifdef USE_IMGUI
-	farmDebugEditorWindow_.Draw(farmGrid_, farmToolActionSystem_);
-	DrawSceneDebugWindow();
-#endif
-
 	if (skyboxEnabled_) {
 		InitializeSkyboxIfNeeded();
 		if (skybox_) {
@@ -566,6 +598,7 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 	}
 
 	levelRouteTimer_ += fixedDeltaTime;
+	farmGrowthSystem_.Update(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale());
 	farmDateSystem_.Update(fixedDeltaTime);
 	levelGameplay_.UpdatePlayer(pendingPlayerCommand_, fixedDeltaTime);
 	pendingPlayerCommand_.jumpPressed = false;
@@ -1233,6 +1266,11 @@ void GamePlayScene::Draw() {
 		LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
 	}
 
+	farmVisualSystem_.Draw(
+		farmGrid_,
+		farmToolActionSystem_.EvaluateTool(farmGrid_, farmToolSystem_.GetCurrentTool()),
+		*LineDrawer::GetInstance());
+
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction &&
 		interactionBrushOperation_ != InteractionBrushOperation::None) {
 		const Vector4 brushColor =
@@ -1330,7 +1368,9 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.rank = 1;
 	viewData.timeScale = farmDateSystem_.GetTimeScale();
 	viewData.currentToolName = farmToolSystem_.GetCurrentToolName();
+	viewData.toolGuide = "1 HOE  2 WATER  3 SEED  4 HARVEST  Q/E CYCLE  ENTER USE";
 	viewData.selectedTileInfo = BuildSelectedTileInfo(farmGrid_);
+	viewData.selectedTileHint = BuildSelectedTileHint(farmGrid_);
 	return viewData;
 }
 
@@ -1351,40 +1391,8 @@ void GamePlayScene::HandleFarmDateDebugInput() {
 	}
 }
 
-void GamePlayScene::HandleFarmToolDebugInput() {
-	Input* input = framework_->GetInput();
-	if (!input) {
-		return;
-	}
-	if (viewportHovered_ && input->PushMouseButton(InputMouseButton::Right)) {
-		return;
-	}
-
-	if (input->TriggerKey(InputKey::E)) {
-		farmToolSystem_.SelectNextTool();
-	}
-	if (input->TriggerKey(InputKey::Q)) {
-		farmToolSystem_.SelectPreviousTool();
-	}
-}
-
-void GamePlayScene::HandleFarmToolActionInput() {
-	if (!framework_ || !viewportHovered_ || ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
-		return;
-	}
-
-	Input* input = framework_->GetInput();
-	if (!input) {
-		return;
-	}
-
-	if (input->TriggerKey(InputKey::Enter)) {
-		farmToolActionSystem_.ApplyTool(farmGrid_, farmToolSystem_.GetCurrentTool());
-	}
-}
-
-bool GamePlayScene::HandleFarmGridSelectionInput() {
-	if (!framework_ || !viewportHovered_ || ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
+bool GamePlayScene::HandleFarmInput() {
+	if (!framework_) {
 		return false;
 	}
 
@@ -1393,38 +1401,82 @@ bool GamePlayScene::HandleFarmGridSelectionInput() {
 		return false;
 	}
 
-	const bool isArrowPressed =
-		input->PushKey(InputKey::ArrowUp) ||
-		input->PushKey(InputKey::ArrowDown) ||
-		input->PushKey(InputKey::ArrowLeft) ||
-		input->PushKey(InputKey::ArrowRight);
-
-	if (input->TriggerKey(InputKey::ArrowUp)) {
-		farmGrid_.MoveSelection(0, -1);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::ArrowDown)) {
-		farmGrid_.MoveSelection(0, 1);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::ArrowLeft)) {
-		farmGrid_.MoveSelection(-1, 0);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::ArrowRight)) {
-		farmGrid_.MoveSelection(1, 0);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::PageUp)) {
-		farmToolActionSystem_.RaiseSelectedTile(farmGrid_);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::PageDown)) {
-		farmToolActionSystem_.LowerSelectedTile(farmGrid_);
-		return true;
+	FarmInputContext context{};
+	context.keyboardEnabled = viewportFocused_ &&
+		!ImGuiManager::GetInstance()->WantsTextInput();
+	context.cameraDragActive = viewportHovered_ &&
+		input->PushMouseButton(InputMouseButton::Right);
+	context.directToolSelectionEnabled =
+		gpuParticleDebugMode_ != GPUParticleDebugMode::Agriculture;
+	const FarmInputResult result = farmInputSystem_.Update(
+		*input, context, farmGrid_, farmToolSystem_, farmToolActionSystem_);
+	if (result.contentChanged) {
+		farmDocumentSystem_.MarkDirty();
 	}
 
-	return isArrowPressed;
+#ifndef USE_IMGUI
+	if (viewportHovered_ && input->TriggerMouseButton(InputMouseButton::Left) &&
+		TrySelectFarmTileFromViewport()) {
+		const bool quickApply = input->PushKey(InputKey::LeftShift) ||
+			input->PushKey(InputKey::RightShift);
+		if (quickApply) {
+			const FarmToolActionResult actionResult = farmToolActionSystem_.ApplyToolDetailed(
+				farmGrid_, farmToolSystem_.GetCurrentTool());
+			if (actionResult.Succeeded()) {
+				farmDocumentSystem_.MarkDirty();
+			}
+		}
+	}
+#endif
+	return result.navigationInputConsumed;
+}
+
+bool GamePlayScene::TryBuildViewportRay(
+	Vector3& outOrigin, Vector3& outDirection) const
+{
+	outOrigin = {};
+	outDirection = {};
+	if (!camera_ || !viewportHovered_ ||
+		viewportImageSize_.x <= 0.0f || viewportImageSize_.y <= 0.0f) {
+		return false;
+	}
+
+	const float u = (viewportMousePosition_.x - viewportImageTopLeft_.x) / viewportImageSize_.x;
+	const float v = (viewportMousePosition_.y - viewportImageTopLeft_.y) / viewportImageSize_.y;
+	if (!std::isfinite(u) || !std::isfinite(v) ||
+		u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+		return false;
+	}
+
+	const float ndcX = u * 2.0f - 1.0f;
+	const float ndcY = 1.0f - v * 2.0f;
+	const Matrix4x4 inverseViewProjection = MatrixMath::Inverse(camera_->GetViewProjectionMatrix());
+	const Vector3 nearPoint = MatrixMath::Transform({ ndcX, ndcY, 0.0f }, inverseViewProjection);
+	const Vector3 farPoint = MatrixMath::Transform({ ndcX, ndcY, 1.0f }, inverseViewProjection);
+	const Vector3 direction = MatrixMath::Normalize(farPoint - nearPoint);
+	if (MatrixMath::Length(direction) <= 0.0001f ||
+		!std::isfinite(nearPoint.x) || !std::isfinite(nearPoint.y) || !std::isfinite(nearPoint.z) ||
+		!std::isfinite(direction.x) || !std::isfinite(direction.y) || !std::isfinite(direction.z)) {
+		return false;
+	}
+
+	outOrigin = nearPoint;
+	outDirection = direction;
+	return true;
+}
+
+bool GamePlayScene::TrySelectFarmTileFromViewport()
+{
+	Vector3 rayOrigin{};
+	Vector3 rayDirection{};
+	if (!TryBuildViewportRay(rayOrigin, rayDirection)) {
+		return false;
+	}
+
+	int tileIndex = -1;
+	return farmVisualSystem_.TryPickTile(
+		farmGrid_, rayOrigin, rayDirection, tileIndex) &&
+		farmGrid_.SetSelectedIndex(tileIndex);
 }
 
 void GamePlayScene::InitializeFarmHUD() {
@@ -1778,22 +1830,11 @@ uint32_t GamePlayScene::CalculateInteractionParticleCount() const {
 }
 
 bool GamePlayScene::TryGetInteractionBrushPosition(Vector3& outBrushPosition) const {
-	if (!camera_ || !viewportHovered_ || viewportImageSize_.x <= 0.0f || viewportImageSize_.y <= 0.0f) {
+	Vector3 nearPoint{};
+	Vector3 rayDirection{};
+	if (!TryBuildViewportRay(nearPoint, rayDirection)) {
 		return false;
 	}
-
-	const float u = (viewportMousePosition_.x - viewportImageTopLeft_.x) / viewportImageSize_.x;
-	const float v = (viewportMousePosition_.y - viewportImageTopLeft_.y) / viewportImageSize_.y;
-	if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
-		return false;
-	}
-
-	const float ndcX = u * 2.0f - 1.0f;
-	const float ndcY = 1.0f - v * 2.0f;
-	const Matrix4x4 inverseViewProjection = MatrixMath::Inverse(camera_->GetViewProjectionMatrix());
-	const Vector3 nearPoint = MatrixMath::Transform({ ndcX, ndcY, 0.0f }, inverseViewProjection);
-	const Vector3 farPoint = MatrixMath::Transform({ ndcX, ndcY, 1.0f }, inverseViewProjection);
-	const Vector3 rayDirection = MatrixMath::Normalize(farPoint - nearPoint);
 	if (std::abs(rayDirection.y) <= 0.0001f) {
 		return false;
 	}
@@ -1825,6 +1866,7 @@ void GamePlayScene::AddLog(const std::string& message) {
 
 void GamePlayScene::Finalize()
 {
+	gamePlayEditorBridge_.Unbind();
 	if (framework_ && framework_->GetAudio()) {
 		framework_->GetAudio()->SetGlobalTemporalState(
 			AudioPlaybackDirection::Forward,

@@ -19,6 +19,7 @@ public:
 
 	bool Initialize(int width, int height);
 	void MoveSelection(int dx, int dy);
+	bool SetSelectedIndex(int index);
 	int GetWidth() const { return width_; }
 	int GetHeight() const { return height_; }
 	int GetTileCount() const { return static_cast<int>(tiles_.size()); }

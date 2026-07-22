@@ -1,7 +1,8 @@
 #include "farm/system/FarmToolSystem.h"
 
 namespace {
-	constexpr int kToolCount = 5;
+	// BugNet remains reserved until its gameplay action is implemented.
+	constexpr int kSelectableToolCount = 4;
 
 	int ToToolIndex(FarmTool tool)
 	{
@@ -39,13 +40,17 @@ void FarmToolSystem::SetTool(FarmTool tool)
 
 void FarmToolSystem::SelectNextTool()
 {
-	const int nextIndex = (ToToolIndex(currentTool_) + 1) % kToolCount;
+	const int currentIndex = ToToolIndex(currentTool_);
+	const int nextIndex = currentIndex >= kSelectableToolCount - 1
+		? 0 : currentIndex + 1;
 	currentTool_ = ToFarmTool(nextIndex);
 }
 
 void FarmToolSystem::SelectPreviousTool()
 {
-	const int previousIndex = (ToToolIndex(currentTool_) + kToolCount - 1) % kToolCount;
+	const int currentIndex = ToToolIndex(currentTool_);
+	const int previousIndex = currentIndex <= 0 || currentIndex >= kSelectableToolCount
+		? kSelectableToolCount - 1 : currentIndex - 1;
 	currentTool_ = ToFarmTool(previousIndex);
 }
 

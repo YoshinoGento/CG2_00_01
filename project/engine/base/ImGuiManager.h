@@ -2,6 +2,10 @@
 #include "WinApp.h"
 #include "DirectXCommon.h"
 #include "SrvManager.h"
+#include <cstddef>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 // デバッグビルド時のみ ImGui を有効化するための切り替え
 #ifdef USE_IMGUI
@@ -50,6 +54,12 @@ public:
 	// Gameplay input queries this boundary instead of depending on ImGui types.
 	[[nodiscard]] bool WantsCaptureKeyboard() const noexcept;
 	[[nodiscard]] bool WantsCaptureMouse() const noexcept;
+	[[nodiscard]] bool WantsTextInput() const noexcept;
+
+	[[nodiscard]] std::size_t GetFontOptionCount() const noexcept;
+	[[nodiscard]] const char* GetFontOptionName(std::size_t index) const noexcept;
+	[[nodiscard]] std::size_t GetSelectedFontIndex() const noexcept;
+	bool SelectFont(std::size_t index);
 
 private:
 	// コンストラクタを private にして外部からの生成を禁止（シングルトン）
@@ -60,10 +70,32 @@ private:
 
 #ifdef USE_IMGUI
 	// 各種ポインタの保持
+	static void AllocateSrvDescriptor(
+		ImGui_ImplDX12_InitInfo* info,
+		D3D12_CPU_DESCRIPTOR_HANDLE* outCpuHandle,
+		D3D12_GPU_DESCRIPTOR_HANDLE* outGpuHandle);
+	static void FreeSrvDescriptor(
+		ImGui_ImplDX12_InitInfo* info,
+		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle);
+	void ConfigureFonts(ImGuiIO& io);
+	bool TryAddFontOption(
+		ImGuiIO& io,
+		const char* displayName,
+		const char* fontPath,
+		float pixelSize);
+
+	struct FontOption {
+		std::string displayName;
+		ImFont* font = nullptr;
+	};
+
 	DirectXCommon* dxCommon_ = nullptr;
 	SrvManager* srvManager_ = nullptr;
 
 	// ImGuiが使用するディスクリプタ（SRV）のインデックス
-	uint32_t srvIndex_ = 0;
+	std::unordered_map<SIZE_T, uint32_t> srvDescriptorIndices_;
+	std::vector<FontOption> fontOptions_;
+	std::size_t selectedFontIndex_ = 0;
 #endif
 };

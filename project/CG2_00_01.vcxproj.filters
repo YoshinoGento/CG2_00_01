@@ -72,9 +72,27 @@
     <ClCompile Include="application\farm\system\FarmDateSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClCompile>
+	<ClCompile Include="application\farm\system\FarmDocumentSystem.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClCompile>
+    <ClCompile Include="application\farm\system\FarmGrowthSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
+    <ClCompile Include="application\farm\system\FarmInputSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
     <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClCompile>
+	<ClCompile Include="application\farm\system\FarmVisualSystem.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClCompile>
+	<ClCompile Include="application\editor\FarmControllerWindow.cpp" />
+	<ClCompile Include="application\editor\FarmHierarchyWindow.cpp" />
+	<ClCompile Include="application\editor\FarmHistoryWindow.cpp" />
+	<ClCompile Include="application\editor\FarmMapWindow.cpp" />
+	<ClCompile Include="application\editor\FarmToolbarWindow.cpp" />
+	<ClCompile Include="application\editor\EditorLocalization.cpp" />
     <ClCompile Include="engine\command\CommandHistory.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
@@ -260,9 +278,27 @@
     <ClInclude Include="application\farm\system\FarmDateSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
+	<ClInclude Include="application\farm\system\FarmDocumentSystem.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClInclude>
+    <ClInclude Include="application\farm\system\FarmGrowthSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmInputSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
     <ClInclude Include="application\farm\system\FarmToolActionSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
+	<ClInclude Include="application\farm\system\FarmVisualSystem.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClInclude>
+	<ClInclude Include="application\editor\FarmControllerWindow.h" />
+	<ClInclude Include="application\editor\FarmHierarchyWindow.h" />
+	<ClInclude Include="application\editor\FarmHistoryWindow.h" />
+	<ClInclude Include="application\editor\FarmMapWindow.h" />
+	<ClInclude Include="application\editor\FarmToolbarWindow.h" />
+	<ClInclude Include="application\editor\EditorLocalization.h" />
     <ClInclude Include="engine\command\CommandHistory.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>

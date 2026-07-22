@@ -1,6 +1,7 @@
 #pragma once
 
 #include "application/level/LevelGameplaySystem.h"
+#include "editor/GamePlayEditorBridge.h"
 #include "BaseScene.h"
 #include <cstdint>
 #include <memory>
@@ -16,12 +17,13 @@
 #include "time/SnapshotTimeline.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmDateSystem.h"
+#include "farm/system/FarmDocumentSystem.h"
+#include "farm/system/FarmGrowthSystem.h"
+#include "farm/system/FarmInputSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
+#include "farm/system/FarmVisualSystem.h"
 #include "farm/ui/FarmHUD.h"
-#ifdef USE_IMGUI
-#include "farm/debug/FarmDebugEditorWindow.h"
-#endif
 
 class Framework;
 class Sprite;
@@ -35,6 +37,7 @@ struct LevelData;
 
 class GamePlayScene : public BaseScene {
 	friend class Game;
+	friend class editor::GamePlayEditorBridge;
 public:
 	enum class GPUParticleDebugMode {
 		Off,
@@ -59,11 +62,10 @@ public:
 	void FixedUpdate(float fixedDeltaTime) override;
 	void Update() override;
 	void Draw() override;
-	void CreateSphere(float radius);
+	[[nodiscard]] editor::GamePlayEditorBridge& GetEditorBridge() noexcept { return gamePlayEditorBridge_; }
+	[[nodiscard]] const editor::GamePlayEditorBridge& GetEditorBridge() const noexcept { return gamePlayEditorBridge_; }
 	// Cylinderメッシュの再生成（パラメータ変更時に呼ぶ）
-	void RebuildCylinder();
 	// アニメーションモデルの動的切り替え（ImGuiからの呼び出し用）
-	void ChangeAnimationModel(int index);
 
 private:
 	enum class PlayerAnimationMode;
@@ -74,6 +76,9 @@ private:
 	void HandleCameraInput(float deltaTime, bool suppressArrowKeys);
 	void ClampCameraPitch();
 	void ResetCamera();
+	void CreateSphere(float radius);
+	void RebuildCylinder();
+	void ChangeAnimationModel(int index);
 	void SetUsePlayerCamera(bool usePlayerCamera);
 	void ToggleCameraMode();
 	void UpdatePlayerCamera();
@@ -88,9 +93,9 @@ private:
 	FarmHUDViewData BuildFarmHUDViewData() const;
 	void HandleFarmDateDebugInput();
 	void HandleFarmHistoryInput();
-	void HandleFarmToolDebugInput();
-	void HandleFarmToolActionInput();
-	bool HandleFarmGridSelectionInput();
+	bool HandleFarmInput();
+	bool TryBuildViewportRay(Vector3& outOrigin, Vector3& outDirection) const;
+	bool TrySelectFarmTileFromViewport();
 	void InitializeFarmHUD();
 	void InitializeSkyboxIfNeeded();
 	void LoadSceneLevel();
@@ -208,12 +213,14 @@ private:
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
 	farm::FarmGrid farmGrid_;
 	FarmDateSystem farmDateSystem_;
+	FarmDocumentSystem farmDocumentSystem_;
+	FarmGrowthSystem farmGrowthSystem_;
+	FarmInputSystem farmInputSystem_;
 	FarmToolSystem farmToolSystem_;
 	FarmToolActionSystem farmToolActionSystem_;
+	farm::FarmVisualSystem farmVisualSystem_;
+	editor::GamePlayEditorBridge gamePlayEditorBridge_;
 	FarmHUD farmHud_;
-#ifdef USE_IMGUI
-	farm::FarmDebugEditorWindow farmDebugEditorWindow_;
-#endif
 	bool farmHudInitialized_ = false;
 
 	bool showTerrain_ = true;
@@ -261,6 +268,7 @@ private:
 	Vector2 viewportImageSize_ = { 0.0f, 0.0f };
 	Vector2 viewportMousePosition_ = { 0.0f, 0.0f };
 	bool viewportHovered_ = false;
+	bool viewportFocused_ = false;
 
 	// Cylinderパラメータ（ImGuiで操作可能）
 	float cylTopRadius_ = 1.0f;       // 上面の半径
