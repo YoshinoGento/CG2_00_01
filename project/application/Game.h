@@ -4,15 +4,12 @@
 #include <memory>
 
 class SceneFactory;
-class SkinningDebugWindow;
-class EngineDebugWindowManager;
+class EditorShell;
 class PostEffectSystem;
-class PostEffectDebugWindow;
 
 /**
  * Gameクラス
- * プロジェクトのメイン管理者。エディタUI（DockSpace）と
- * ゲーム画面の表示・座標補正を担当します。
+ * Application entry point. It owns the main loop, scene flow, and top-level systems.
  */
 class Game : public Framework {
 public:
@@ -35,8 +32,6 @@ private:
 
 	std::unique_ptr<PostEffectSystem> postEffectSystem_;
 #ifdef USE_IMGUI
-	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
-	std::unique_ptr<EngineDebugWindowManager> engineDebugWindowManager_;
-	std::unique_ptr<PostEffectDebugWindow> postEffectDebugWindow_;
+	std::unique_ptr<EditorShell> editorShell_;
 #endif
 };

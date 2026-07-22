@@ -9,8 +9,9 @@
 namespace {
 constexpr float kFullMoisture = 1.0f;
 constexpr float kInitialGrowth = 0.0f;
-constexpr int kMinimumHeightLevel = 0;
-constexpr int kMaximumHeightLevel = 2;
+constexpr float kHarvestReadyGrowth = 1.0f;
+constexpr float kHarvestMoistureCost = 0.25f;
+constexpr int kHarvestReward = 120;
 
 bool TilesEqual(const farm::FarmTile& left, const farm::FarmTile& right)
 {
@@ -51,10 +52,79 @@ private:
 
 bool FarmToolActionSystem::ApplyTool(farm::FarmGrid& grid, FarmTool tool)
 {
-	const int tileIndex = grid.GetSelectedIndex();
+	return ApplyToolDetailed(grid, tool).Succeeded();
+}
+
+FarmToolActionResult FarmToolActionSystem::EvaluateTool(
+	const farm::FarmGrid& grid, FarmTool tool) const noexcept
+{
+	return EvaluateTool(grid, grid.GetSelectedIndex(), tool);
+}
+
+FarmToolActionResult FarmToolActionSystem::EvaluateTool(
+	const farm::FarmGrid& grid, int tileIndex, FarmTool tool) const noexcept
+{
+	FarmToolActionResult result{};
+	result.tool = tool;
+	result.tileIndex = tileIndex;
+	const farm::FarmTile* tile = grid.GetTile(tileIndex);
+	if (tile == nullptr) {
+		result.status = FarmToolActionStatus::InvalidTarget;
+		return result;
+	}
+
+	switch (tool) {
+	case FarmTool::Hoe:
+		result.status = tile->state == farm::FarmTileState::Empty
+			? FarmToolActionStatus::Applied
+			: FarmToolActionStatus::InvalidState;
+		break;
+	case FarmTool::Water:
+		if (tile->state != farm::FarmTileState::Tilled &&
+			tile->state != farm::FarmTileState::Planted) {
+			result.status = FarmToolActionStatus::InvalidState;
+		} else {
+			result.status = tile->moisture >= kFullMoisture
+				? FarmToolActionStatus::AlreadyWatered
+				: FarmToolActionStatus::Applied;
+		}
+		break;
+	case FarmTool::Seed:
+		result.status = tile->state == farm::FarmTileState::Tilled
+			? FarmToolActionStatus::Applied
+			: FarmToolActionStatus::InvalidState;
+		break;
+	case FarmTool::Harvest:
+		if (tile->state != farm::FarmTileState::Planted ||
+			tile->crop == farm::CropType::None) {
+			result.status = FarmToolActionStatus::InvalidState;
+		} else if (tile->growth < kHarvestReadyGrowth) {
+			result.status = FarmToolActionStatus::NotReady;
+		} else {
+			result.status = FarmToolActionStatus::Harvested;
+			result.reward = kHarvestReward;
+		}
+		break;
+	case FarmTool::BugNet:
+	default:
+		result.status = FarmToolActionStatus::UnsupportedTool;
+		break;
+	}
+	return result;
+}
+
+FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(farm::FarmGrid& grid, FarmTool tool)
+{
+	FarmToolActionResult result = EvaluateTool(grid, tool);
+	if (!result.Succeeded()) {
+		return result;
+	}
+
+	const int tileIndex = result.tileIndex;
 	const farm::FarmTile* selectedTile = grid.GetTile(tileIndex);
 	if (selectedTile == nullptr) {
-		return false;
+		result.status = FarmToolActionStatus::InvalidTarget;
+		return result;
 	}
 	const farm::FarmTile before = *selectedTile;
 	farm::FarmTile after = before;
@@ -62,38 +132,45 @@ bool FarmToolActionSystem::ApplyTool(farm::FarmGrid& grid, FarmTool tool)
 
 	switch (tool) {
 	case FarmTool::Hoe:
-		if (before.state != farm::FarmTileState::Empty) {
-			return false;
-		}
 		after.state = farm::FarmTileState::Tilled;
 		commandName = "Hoe Tile";
 		break;
 	case FarmTool::Water:
-		if (before.state != farm::FarmTileState::Tilled &&
-			before.state != farm::FarmTileState::Planted) {
-			return false;
-		}
-		if (before.moisture >= kFullMoisture) {
-			return false;
-		}
 		after.moisture = kFullMoisture;
 		commandName = "Water Tile";
 		break;
 	case FarmTool::Seed:
-		if (before.state != farm::FarmTileState::Tilled) {
-			return false;
-		}
 		after.state = farm::FarmTileState::Planted;
 		after.crop = farm::CropType::TestCrop;
 		after.growth = kInitialGrowth;
 		commandName = "Plant Seed";
 		break;
 	case FarmTool::Harvest:
+		after.state = farm::FarmTileState::Tilled;
+		after.crop = farm::CropType::None;
+		after.growth = kInitialGrowth;
+		after.moisture = (std::max)(0.0f, before.moisture - kHarvestMoistureCost);
+		commandName = "Harvest Crop";
+		break;
 	case FarmTool::BugNet:
+		result.status = FarmToolActionStatus::UnsupportedTool;
+		return result;
 	default:
-		return false;
+		result.status = FarmToolActionStatus::UnsupportedTool;
+		return result;
 	}
-	return CommitTileChange(grid, tileIndex, before, after, commandName);
+
+	if (!CommitTileChange(grid, tileIndex, before, after, commandName)) {
+		result.status = FarmToolActionStatus::InvalidState;
+		return result;
+	}
+	if (tool == FarmTool::Harvest) {
+		result.status = FarmToolActionStatus::Harvested;
+		result.reward = kHarvestReward;
+	} else {
+		result.status = FarmToolActionStatus::Applied;
+	}
+	return result;
 }
 
 bool FarmToolActionSystem::RaiseSelectedTile(farm::FarmGrid& grid)
@@ -105,7 +182,10 @@ bool FarmToolActionSystem::RaiseSelectedTile(farm::FarmGrid& grid)
 	}
 	const farm::FarmTile before = *selectedTile;
 	farm::FarmTile after = before;
-	after.heightLevel = std::clamp(after.heightLevel + 1, kMinimumHeightLevel, kMaximumHeightLevel);
+	after.heightLevel = std::clamp(
+		after.heightLevel + 1,
+		FarmToolActionSystem::kMinimumHeightLevel,
+		FarmToolActionSystem::kMaximumHeightLevel);
 	return CommitTileChange(grid, tileIndex, before, after, "Raise Tile");
 }
 
@@ -118,7 +198,10 @@ bool FarmToolActionSystem::LowerSelectedTile(farm::FarmGrid& grid)
 	}
 	const farm::FarmTile before = *selectedTile;
 	farm::FarmTile after = before;
-	after.heightLevel = std::clamp(after.heightLevel - 1, kMinimumHeightLevel, kMaximumHeightLevel);
+	after.heightLevel = std::clamp(
+		after.heightLevel - 1,
+		FarmToolActionSystem::kMinimumHeightLevel,
+		FarmToolActionSystem::kMaximumHeightLevel);
 	return CommitTileChange(grid, tileIndex, before, after, "Lower Tile");
 }
 
