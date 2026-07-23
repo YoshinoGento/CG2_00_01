@@ -8,9 +8,40 @@ class FarmGrid;
 struct FarmTile;
 }
 
+enum class FarmToolActionStatus {
+	None,
+	Applied,
+	Harvested,
+	InvalidTarget,
+	InvalidState,
+	AlreadyWatered,
+	NotReady,
+	UnsupportedTool,
+};
+
+struct FarmToolActionResult {
+	FarmToolActionStatus status = FarmToolActionStatus::None;
+	FarmTool tool = FarmTool::Hoe;
+	int tileIndex = -1;
+	int reward = 0;
+
+	[[nodiscard]] bool Succeeded() const noexcept {
+		return status == FarmToolActionStatus::Applied ||
+			status == FarmToolActionStatus::Harvested;
+	}
+};
+
 class FarmToolActionSystem {
 public:
+	static constexpr int kMinimumHeightLevel = 0;
+	static constexpr int kMaximumHeightLevel = 2;
+
+	[[nodiscard]] FarmToolActionResult EvaluateTool(
+		const farm::FarmGrid& grid, FarmTool tool) const noexcept;
+	[[nodiscard]] FarmToolActionResult EvaluateTool(
+		const farm::FarmGrid& grid, int tileIndex, FarmTool tool) const noexcept;
 	bool ApplyTool(farm::FarmGrid& grid, FarmTool tool);
+	[[nodiscard]] FarmToolActionResult ApplyToolDetailed(farm::FarmGrid& grid, FarmTool tool);
 	bool RaiseSelectedTile(farm::FarmGrid& grid);
 	bool LowerSelectedTile(farm::FarmGrid& grid);
 	bool Undo() { return history_.Undo(); }

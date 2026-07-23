@@ -32,6 +32,7 @@ void PostEffectManager::InitializePasses() {
         { DirectXCommon::FullscreenPostEffectType::Vignette, L"Resources/shader/Vignette.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::RandomNoise, L"Resources/shader/RandomNoise.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::HSVFilter, L"Resources/shader/HSVFilter.PS.hlsl" },
+        { DirectXCommon::FullscreenPostEffectType::GaussianFilter, L"Resources/shader/GaussianFilter.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::LinearToSRGB, L"Resources/shader/LinearToSRGB.PS.hlsl" },
     };
 
@@ -81,6 +82,7 @@ void PostEffectManager::InitializeChainPasses() {
         DirectXCommon::FullscreenPostEffectType::HSVFilter,
         DirectXCommon::FullscreenPostEffectType::Vignette,
         DirectXCommon::FullscreenPostEffectType::BoxFilter3x3,
+        DirectXCommon::FullscreenPostEffectType::GaussianFilter,
         DirectXCommon::FullscreenPostEffectType::RadialBlur,
         DirectXCommon::FullscreenPostEffectType::RandomNoise,
         DirectXCommon::FullscreenPostEffectType::Dissolve,
@@ -184,6 +186,8 @@ const char* PostEffectManager::GetPassName(DirectXCommon::FullscreenPostEffectTy
         return "RandomNoise";
     case DirectXCommon::FullscreenPostEffectType::HSVFilter:
         return "HSVFilter";
+    case DirectXCommon::FullscreenPostEffectType::GaussianFilter:
+        return "GaussianFilter";
     case DirectXCommon::FullscreenPostEffectType::LinearToSRGB:
         return "LinearToSRGB";
     default:

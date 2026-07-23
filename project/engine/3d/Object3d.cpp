@@ -41,6 +41,7 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	materialData_->enableLighting = 1;
 	materialData_->shininess = 40.0f;
 	materialData_->environmentCoefficient = 0.0f;
+	materialData_->specularType = static_cast<int32_t>(Object3d::SpecularType::BlinnPhong);
 	materialData_->uvTransform = MatrixMath::MakeIdentity4x4();
 
 	transformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));

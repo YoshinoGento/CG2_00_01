@@ -12,6 +12,7 @@ struct Material
     int enableLighting;
     float shininess; 
     float environmentCoefficient;
+    int specularType;
     float4x4 uvTransform;
 };
 

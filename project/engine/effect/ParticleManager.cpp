@@ -102,10 +102,10 @@ static GPUParticleInteractionSettings SanitizeInteractionSettings(
     if (settings.operation == static_cast<uint32_t>(InteractionBrushOperation::None)) {
         settings.isPressed = 0;
     }
-    if (!std::isfinite(settings.deltaTime) || settings.deltaTime <= 0.0f) {
-        settings.deltaTime = 1.0f / 60.0f;
-    }
-    settings.deltaTime = std::clamp(settings.deltaTime, 1.0f / 240.0f, 1.0f / 15.0f);
+    if (!std::isfinite(settings.deltaTime) || settings.deltaTime < 0.0f) {
+		settings.deltaTime = 0.0f;
+	}
+    settings.deltaTime = std::clamp(settings.deltaTime, 0.0f, 1.0f / 15.0f);
     if (!std::isfinite(settings.damping)) {
         settings.damping = 0.95f;
     }
@@ -872,7 +872,10 @@ void ParticleManager::InitializeGPUParticles() {
 }
 
 void ParticleManager::EmitGPUParticles() {
-    if (!gpuParticleEmitter_ || gpuParticleEmitter_->emit == 0 || gpuParticleEmitter_->count == 0) {
+    if (frameDeltaTime_ <= 0.0f ||
+        !gpuParticleEmitter_ ||
+        gpuParticleEmitter_->emit == 0 ||
+        gpuParticleEmitter_->count == 0) {
         return;
     }
 
@@ -897,6 +900,17 @@ void ParticleManager::EmitGPUParticles() {
 
 void ParticleManager::UpdateGPUParticles() {
     assert(gpuParticleUpdateInfo_);
+	if (frameDeltaTime_ <= 0.0f) {
+		ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
+		// Draw still reads the buffer as an SRV while simulation is paused.
+		TransitionResource(
+			commandList,
+			gpuParticleResource_.Get(),
+			gpuParticleResourceState_,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+		return;
+	}
 	gpuParticleUpdateInfo_->deltaTime = frameDeltaTime_;
     gpuParticleUpdateInfo_->particleCount = kMaxGPUParticleCount;
     gpuParticleUpdateInfo_->timeScale = 1.0f;
@@ -972,6 +986,16 @@ void ParticleManager::UpdateGPUParticleInteraction(const GPUParticleInteractionS
     *gpuParticleInteraction_ = sanitizedSettings;
 
     ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
+	if (sanitizedSettings.deltaTime <= 0.0f) {
+		// Preserve the draw-ready state without dispatching a zero-delta update.
+		TransitionResource(
+			commandList,
+			gpuParticleResource_.Get(),
+			gpuParticleResourceState_,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+		return;
+	}
     TransitionResource(
         commandList,
         gpuParticleResource_.Get(),

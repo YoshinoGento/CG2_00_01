@@ -40,6 +40,7 @@ constexpr float kTimelineScrubAudioRate = 0.55f;
 constexpr float kTimelineAudioEnterTransitionSeconds = 0.08f;
 constexpr float kTimelineAudioExitTransitionSeconds = 0.75f;
 constexpr const char* kRostockSkyboxPath = "Resources/rostock_laage_airport_4k.dds";
+constexpr const char* kFarmDocumentDirectory = "Settings/farm";
 constexpr const char* kSceneLevelName = "scene";
 constexpr const char* kMeshTypeName = "MESH";
 constexpr const char* kCameraTypeName = "CAMERA";
@@ -51,12 +52,24 @@ constexpr const char* kPatrolPointTypeName = "PATROL_POINT";
 constexpr const char* kPlayerRoleName = "PLAYER";
 constexpr const char* kCollectibleRoleName = "COLLECTIBLE";
 constexpr const char* kGroundRoleName = "GROUND";
+constexpr const char* kBoxColliderTypeName = "BOX";
 constexpr Vector3 kPlayerCameraOffset = { 0.0f, 3.5f, -8.0f };
 constexpr Vector3 kPlayerCameraLookOffset = { 0.0f, 0.7f, 0.0f };
 constexpr Vector3 kDefaultPlayerColliderCenterOffset = { 0.0f, 0.9f, 0.0f };
 constexpr Vector3 kDefaultPlayerColliderHalfExtents = { 0.45f, 0.9f, 0.45f };
 constexpr float kColliderCenterEpsilon = 0.0001f;
 constexpr float kPlayerAnimationStopBlendSeconds = 0.20f;
+constexpr farm::FarmVisualLayout kFarmVisualLayout = {
+	{ 0.0f, 0.05f, 8.0f },
+	1.25f,
+	0.18f,
+	0.18f,
+};
+
+Object3d::SpecularType ResolveSpecularType(int selection)
+{
+	return selection == 0 ? Object3d::SpecularType::Phong : Object3d::SpecularType::BlinnPhong;
+}
 
 Vector4 GetLevelRoleColor(const std::string& gameplayRole)
 {
@@ -176,12 +189,36 @@ std::string BuildSelectedTileInfo(const farm::FarmGrid& grid)
 	}
 
 	const float clampedMoisture = std::clamp(selectedTile->moisture, 0.0f, 1.0f);
+	const float clampedGrowth = std::clamp(selectedTile->growth, 0.0f, 1.0f);
 	const int moisturePercent = static_cast<int>(clampedMoisture * 100.0f + 0.5f);
+	const int growthPercent = static_cast<int>(clampedGrowth * 100.0f + 0.5f);
+	const char* stateName = farm::IsHarvestReady(*selectedTile)
+		? "Ready" : farm::ToString(selectedTile->state);
 	return "Tile " + std::to_string(grid.GetSelectedIndex()) +
 		" H" + std::to_string(selectedTile->heightLevel) +
-		" " + farm::ToString(selectedTile->state) +
+		" " + stateName +
 		" Water " + std::to_string(moisturePercent) + "%" +
-		" Crop " + farm::ToString(selectedTile->crop);
+		" Growth " + std::to_string(growthPercent) + "%";
+}
+
+std::string BuildSelectedTileHint(const farm::FarmGrid& grid)
+{
+	const farm::FarmTile* selectedTile = grid.GetSelectedTile();
+	if (selectedTile == nullptr) {
+		return "NEXT SELECT TILE";
+	}
+	if (selectedTile->state == farm::FarmTileState::Empty) {
+		return "NEXT 1 HOE";
+	}
+	if (selectedTile->state == farm::FarmTileState::Tilled) {
+		return selectedTile->moisture < 0.5f
+			? "NEXT 2 WATER / 3 SEED" : "NEXT 3 SEED";
+	}
+	if (farm::IsHarvestReady(*selectedTile)) {
+		return "NEXT 4 HARVEST";
+	}
+	return selectedTile->moisture < 0.25f
+		? "GROWING - 2 WATER" : "GROWING";
 }
 
 void BuildCameraGroundMoveAxes(float yaw, Vector3& right, Vector3& forward)
@@ -256,9 +293,13 @@ void GamePlayScene::Initialize() {
 	farmGrid_.Initialize(5, 4);
 	farmDateSystem_.Initialize();
 	farmToolSystem_.Initialize();
-#ifdef USE_IMGUI
-	farmDebugEditorWindow_.LoadSettings();
-#endif
+	farmVisualSystem_.Initialize(kFarmVisualLayout);
+	if (!farmDocumentSystem_.Initialize(kFarmDocumentDirectory, farmGrid_)) {
+		AddLog("Farm document initialization failed: " + farmDocumentSystem_.GetStatusMessage());
+	}
+	farmToolActionSystem_.ClearHistory();
+	gamePlayEditorBridge_.Bind(
+		*this, farmGrid_, farmToolActionSystem_, farmDocumentSystem_);
 
 	// ログ記録：UIと外部出力の両方に行われます
 	AddLog("Scene: GamePlay Initialized.");
@@ -349,7 +390,10 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle_, ringModel_.get());
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
+#ifdef USE_IMGUI
 	InitializeFarmHUD();
+	InitializeStageClearHUD();
+#endif
 
 }
 
@@ -410,6 +454,7 @@ void GamePlayScene::Update() {
 #ifndef USE_IMGUI
 	// A production build receives mouse coordinates from the game window because no editor viewport exists.
 	viewportHovered_ = true;
+	viewportFocused_ = true;
 	viewportImageTopLeft_ = { 0.0f, 0.0f };
 	viewportImageSize_ = {
 		static_cast<float>(WinApp::kClientWidth),
@@ -420,6 +465,7 @@ void GamePlayScene::Update() {
 	}
 #endif
 
+	// Collect frame requests before scheduling Scene systems.
 	Input* frameInput = framework_ ? framework_->GetInput() : nullptr;
 	const bool controlHeld = frameInput && (frameInput->PushKey(DIK_LCONTROL) || frameInput->PushKey(DIK_RCONTROL));
 	bool levelReloadRequested = frameInput &&
@@ -436,18 +482,20 @@ void GamePlayScene::Update() {
 		ToggleCameraMode();
 	}
 
-	const bool farmGridInputConsumed = HandleFarmGridSelectionInput();
-	HandleCameraInput(sceneDeltaTime_, farmGridInputConsumed);
+	// Farm input has priority; editor-camera input uses unpaused real time.
+	const bool farmGridInputConsumed = HandleFarmInput();
+	HandleCameraInput(realDeltaTime_, farmGridInputConsumed);
 	ClampCameraPitch();
 	if (!farmGridInputConsumed) {
 		HandleKeyboardMovement();
 	}
 	SyncLevelGameplayPresentation();
 	UpdatePlayerCamera();
+
+#ifndef USE_IMGUI
 	HandleFarmHistoryInput();
+#endif
 	HandleFarmDateDebugInput();
-	HandleFarmToolDebugInput();
-	HandleFarmToolActionInput();
 
 	camera_->SetTranslate(cameraPos_);
 	camera_->SetRotate(cameraRot_);
@@ -459,11 +507,10 @@ void GamePlayScene::Update() {
 		farmHud_.SetViewData(BuildFarmHUDViewData());
 		farmHud_.Update(sceneDeltaTime_);
 	}
-#ifdef USE_IMGUI
-	farmDebugEditorWindow_.Draw(farmGrid_, farmToolActionSystem_);
-	DrawSceneDebugWindow();
-#endif
-
+	if (stageClearHudInitialized_) {
+		stageClearHud_.SetVisible(levelGameplay_.IsStageCleared());
+		stageClearHud_.Update();
+	}
 	if (skyboxEnabled_) {
 		InitializeSkyboxIfNeeded();
 		if (skybox_) {
@@ -471,6 +518,7 @@ void GamePlayScene::Update() {
 		}
 	}
 
+	// LightingSystem owns the GPU upload; the Scene supplies one frame snapshot.
 	LightingSystem* lightingSystem = framework_->GetLightingSystem();
 	assert(lightingSystem != nullptr);
 	lightingSystem->SetDirectionalLight({
@@ -489,9 +537,11 @@ void GamePlayScene::Update() {
 	lightingSystem->SetSpotLight(spotLight);
 	lightingSystem->SetCameraPosition(camera_->GetTranslate());
 
+	// Apply shared render settings consistently before each Object3d update.
 	auto UpdateObjectState = [&](Object3d* obj, float envCoef) {
 		if (!obj) return;
 		obj->SetCullMode(cullMode_);
+		obj->SetSpecularType(ResolveSpecularType(specularTypeSelection_));
 
 		if (skybox_ && skyboxEnvironmentEnabled_) {
 			obj->SetEnvironmentMap(skybox_->GetTextureHandle());
@@ -542,6 +592,7 @@ void GamePlayScene::Update() {
 		}
 	}
 
+	// Debug input changes particle requests; ParticleManager owns GPU state.
 	SyncGPUParticleDebugModeChange();
 	HandleGPUParticleDebugModeInput();
 
@@ -553,6 +604,7 @@ void GamePlayScene::Update() {
 }
 
 void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
+	// Deterministic gameplay mutation stays in fixed-step Systems.
 	if (timelineScrubbing_) {
 		const bool stepped = timelineForwardHeld_
 			? timeline_.StepForward(timelineScratch_)
@@ -566,6 +618,7 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 	}
 
 	levelRouteTimer_ += fixedDeltaTime;
+	farmGrowthSystem_.Update(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale());
 	farmDateSystem_.Update(fixedDeltaTime);
 	levelGameplay_.UpdatePlayer(pendingPlayerCommand_, fixedDeltaTime);
 	pendingPlayerCommand_.jumpPressed = false;
@@ -588,6 +641,9 @@ void GamePlayScene::LoadSceneLevel() {
 	levelData_ = level::LevelLoader::Load(kSceneLevelName);
 	levelObjects_.clear();
 	levelGameplay_.Reset();
+	if (stageClearHudInitialized_) {
+		stageClearHud_.SetVisible(false);
+	}
 
 	if (!levelData_) {
 		timeline_.Clear();
@@ -617,6 +673,26 @@ void GamePlayScene::CreateLevelObjectsFromLevel() {
 	if (!modelManager) {
 		AddLog("Level object creation failed: ModelManager is null.");
 		return;
+	}
+
+	for (const level::ObjectData& objectData : levelData_->objects) {
+		if (objectData.type != kEventTriggerTypeName || objectData.disabled) {
+			continue;
+		}
+		if (!objectData.hasCollider || objectData.collider.type != kBoxColliderTypeName) {
+			AddLog("EVENT_TRIGGER skipped. BOX collider is required: " + objectData.name);
+			continue;
+		}
+
+		const Vector3 triggerCenter = AddVector3(objectData.transform.translation, objectData.collider.center);
+		const Vector3 triggerHalfExtents = {
+			std::abs(objectData.collider.size.x) * 0.5f,
+			std::abs(objectData.collider.size.y) * 0.5f,
+			std::abs(objectData.collider.size.z) * 0.5f,
+		};
+		if (!levelGameplay_.AddEventTrigger(triggerCenter, triggerHalfExtents, objectData.eventId)) {
+			AddLog("EVENT_TRIGGER skipped. Invalid collider or event_id: " + objectData.name);
+		}
 	}
 
 	std::size_t meshCount = 0;
@@ -806,6 +882,14 @@ void GamePlayScene::SyncLevelGameplayPresentation()
 		collectible.visible = false;
 		EmitSpark(collectible.basePosition);
 		AddLog("Collected: " + collectible.name);
+	}
+
+	for (const int32_t eventId : levelGameplay_.ConsumeTriggeredEventIds()) {
+		if (eventId == level::LevelGameplaySystem::kStageClearEventId) {
+			AddLog("Stage clear trigger activated.");
+		} else {
+			AddLog("Event trigger activated: " + std::to_string(eventId));
+		}
 	}
 }
 
@@ -1075,6 +1159,15 @@ void GamePlayScene::DrawLevelCollisionGizmos() const {
 			lineDrawer->DrawWireSphere(collectible.position, collectible.radius, { 1.0f, 0.85f, 0.1f, 1.0f }, 16);
 		}
 	}
+	for (const level::LevelGameplaySystem::EventTriggerCollider& trigger : levelGameplay_.GetEventTriggerColliders()) {
+		const Vector4 color = trigger.activated
+			? Vector4{ 0.35f, 0.35f, 0.35f, 1.0f }
+			: Vector4{ 0.2f, 1.0f, 0.45f, 1.0f };
+		DrawLevelBox(
+			trigger.center,
+			{ trigger.halfExtents.x * 2.0f, trigger.halfExtents.y * 2.0f, trigger.halfExtents.z * 2.0f },
+			color);
+	}
 }
 
 Vector3 GamePlayScene::EvaluateLevelRoutePoint(float normalizedTime) const {
@@ -1204,6 +1297,7 @@ void GamePlayScene::Draw() {
 		}
 		};
 
+	// Shadow pass must complete before the color pass reads shadow data.
 	objCommon->SetShadowStrength(directionalShadowsEnabled_ ? directionalShadowStrength_ : 0.0f);
 	if (directionalShadowsEnabled_) {
 		Vector3 shadowFocus = levelGameplay_.HasPlayer()
@@ -1232,6 +1326,11 @@ void GamePlayScene::Draw() {
 		// Z軸に平行な線
 		LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
 	}
+
+	farmVisualSystem_.Draw(
+		farmGrid_,
+		farmToolActionSystem_.EvaluateTool(farmGrid_, farmToolSystem_.GetCurrentTool()),
+		*LineDrawer::GetInstance());
 
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction &&
 		interactionBrushOperation_ != InteractionBrushOperation::None) {
@@ -1286,6 +1385,7 @@ void GamePlayScene::Draw() {
 		LineDrawer::GetInstance()->Draw(camera_->GetViewProjectionMatrix());
 	}
 
+	// ParticleManager performs compute updates before its graphics SRV read.
 	if (showParticles_) {
 		ParticleManager* particleManager = framework_->GetParticleManager();
 		if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
@@ -1317,9 +1417,15 @@ void GamePlayScene::Draw() {
 		}
 	}
 
-	if (farmHudInitialized_) {
+	// HUD is the final Scene overlay and does not mutate gameplay state.
+	if (farmHudInitialized_ || stageClearHudInitialized_) {
 		spriteCommon->PreDraw();
-		farmHud_.Draw();
+		if (farmHudInitialized_) {
+			farmHud_.Draw();
+		}
+		if (stageClearHudInitialized_) {
+			stageClearHud_.Draw();
+		}
 	}
 }
 
@@ -1330,7 +1436,9 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.rank = 1;
 	viewData.timeScale = farmDateSystem_.GetTimeScale();
 	viewData.currentToolName = farmToolSystem_.GetCurrentToolName();
+	viewData.toolGuide = "1 HOE  2 WATER  3 SEED  4 HARVEST  Q/E CYCLE  ENTER USE";
 	viewData.selectedTileInfo = BuildSelectedTileInfo(farmGrid_);
+	viewData.selectedTileHint = BuildSelectedTileHint(farmGrid_);
 	return viewData;
 }
 
@@ -1351,40 +1459,8 @@ void GamePlayScene::HandleFarmDateDebugInput() {
 	}
 }
 
-void GamePlayScene::HandleFarmToolDebugInput() {
-	Input* input = framework_->GetInput();
-	if (!input) {
-		return;
-	}
-	if (viewportHovered_ && input->PushMouseButton(InputMouseButton::Right)) {
-		return;
-	}
-
-	if (input->TriggerKey(InputKey::E)) {
-		farmToolSystem_.SelectNextTool();
-	}
-	if (input->TriggerKey(InputKey::Q)) {
-		farmToolSystem_.SelectPreviousTool();
-	}
-}
-
-void GamePlayScene::HandleFarmToolActionInput() {
-	if (!framework_ || !viewportHovered_ || ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
-		return;
-	}
-
-	Input* input = framework_->GetInput();
-	if (!input) {
-		return;
-	}
-
-	if (input->TriggerKey(InputKey::Enter)) {
-		farmToolActionSystem_.ApplyTool(farmGrid_, farmToolSystem_.GetCurrentTool());
-	}
-}
-
-bool GamePlayScene::HandleFarmGridSelectionInput() {
-	if (!framework_ || !viewportHovered_ || ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
+bool GamePlayScene::HandleFarmInput() {
+	if (!framework_) {
 		return false;
 	}
 
@@ -1393,38 +1469,82 @@ bool GamePlayScene::HandleFarmGridSelectionInput() {
 		return false;
 	}
 
-	const bool isArrowPressed =
-		input->PushKey(InputKey::ArrowUp) ||
-		input->PushKey(InputKey::ArrowDown) ||
-		input->PushKey(InputKey::ArrowLeft) ||
-		input->PushKey(InputKey::ArrowRight);
-
-	if (input->TriggerKey(InputKey::ArrowUp)) {
-		farmGrid_.MoveSelection(0, -1);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::ArrowDown)) {
-		farmGrid_.MoveSelection(0, 1);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::ArrowLeft)) {
-		farmGrid_.MoveSelection(-1, 0);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::ArrowRight)) {
-		farmGrid_.MoveSelection(1, 0);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::PageUp)) {
-		farmToolActionSystem_.RaiseSelectedTile(farmGrid_);
-		return true;
-	}
-	if (input->TriggerKey(InputKey::PageDown)) {
-		farmToolActionSystem_.LowerSelectedTile(farmGrid_);
-		return true;
+	FarmInputContext context{};
+	context.keyboardEnabled = viewportFocused_ &&
+		!ImGuiManager::GetInstance()->WantsTextInput();
+	context.cameraDragActive = viewportHovered_ &&
+		input->PushMouseButton(InputMouseButton::Right);
+	context.directToolSelectionEnabled =
+		gpuParticleDebugMode_ != GPUParticleDebugMode::Agriculture;
+	const FarmInputResult result = farmInputSystem_.Update(
+		*input, context, farmGrid_, farmToolSystem_, farmToolActionSystem_);
+	if (result.contentChanged) {
+		farmDocumentSystem_.MarkDirty();
 	}
 
-	return isArrowPressed;
+#ifndef USE_IMGUI
+	if (viewportHovered_ && input->TriggerMouseButton(InputMouseButton::Left) &&
+		TrySelectFarmTileFromViewport()) {
+		const bool quickApply = input->PushKey(InputKey::LeftShift) ||
+			input->PushKey(InputKey::RightShift);
+		if (quickApply) {
+			const FarmToolActionResult actionResult = farmToolActionSystem_.ApplyToolDetailed(
+				farmGrid_, farmToolSystem_.GetCurrentTool());
+			if (actionResult.Succeeded()) {
+				farmDocumentSystem_.MarkDirty();
+			}
+		}
+	}
+#endif
+	return result.navigationInputConsumed;
+}
+
+bool GamePlayScene::TryBuildViewportRay(
+	Vector3& outOrigin, Vector3& outDirection) const
+{
+	outOrigin = {};
+	outDirection = {};
+	if (!camera_ || !viewportHovered_ ||
+		viewportImageSize_.x <= 0.0f || viewportImageSize_.y <= 0.0f) {
+		return false;
+	}
+
+	const float u = (viewportMousePosition_.x - viewportImageTopLeft_.x) / viewportImageSize_.x;
+	const float v = (viewportMousePosition_.y - viewportImageTopLeft_.y) / viewportImageSize_.y;
+	if (!std::isfinite(u) || !std::isfinite(v) ||
+		u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+		return false;
+	}
+
+	const float ndcX = u * 2.0f - 1.0f;
+	const float ndcY = 1.0f - v * 2.0f;
+	const Matrix4x4 inverseViewProjection = MatrixMath::Inverse(camera_->GetViewProjectionMatrix());
+	const Vector3 nearPoint = MatrixMath::Transform({ ndcX, ndcY, 0.0f }, inverseViewProjection);
+	const Vector3 farPoint = MatrixMath::Transform({ ndcX, ndcY, 1.0f }, inverseViewProjection);
+	const Vector3 direction = MatrixMath::Normalize(farPoint - nearPoint);
+	if (MatrixMath::Length(direction) <= 0.0001f ||
+		!std::isfinite(nearPoint.x) || !std::isfinite(nearPoint.y) || !std::isfinite(nearPoint.z) ||
+		!std::isfinite(direction.x) || !std::isfinite(direction.y) || !std::isfinite(direction.z)) {
+		return false;
+	}
+
+	outOrigin = nearPoint;
+	outDirection = direction;
+	return true;
+}
+
+bool GamePlayScene::TrySelectFarmTileFromViewport()
+{
+	Vector3 rayOrigin{};
+	Vector3 rayDirection{};
+	if (!TryBuildViewportRay(rayOrigin, rayDirection)) {
+		return false;
+	}
+
+	int tileIndex = -1;
+	return farmVisualSystem_.TryPickTile(
+		farmGrid_, rayOrigin, rayDirection, tileIndex) &&
+		farmGrid_.SetSelectedIndex(tileIndex);
 }
 
 void GamePlayScene::InitializeFarmHUD() {
@@ -1435,6 +1555,15 @@ void GamePlayScene::InitializeFarmHUD() {
 	}
 
 	farmHud_.SetViewData(BuildFarmHUDViewData());
+}
+
+void GamePlayScene::InitializeStageClearHUD() {
+	stageClearHudInitialized_ = stageClearHud_.Initialize(framework_->GetSpriteCommon());
+	if (!stageClearHudInitialized_) {
+		AddLog("StageClearHUD initialization failed.");
+		return;
+	}
+	stageClearHud_.SetVisible(levelGameplay_.IsStageCleared());
 }
 
 void GamePlayScene::InitializeSkyboxIfNeeded() {
@@ -1454,15 +1583,12 @@ void GamePlayScene::DrawSceneDebugWindow() {
 		ImGui::Checkbox("Skybox Environment Map", &skyboxEnvironmentEnabled_);
 		ImGui::Text("Skybox Loaded: %s", skybox_ ? "Yes" : "No");
 		ImGui::Separator();
-		ImGui::Checkbox("Terrain", &showTerrain_);
-		ImGui::Checkbox("Sphere", &showSphere_);
-		ImGui::Checkbox("Plane", &showPlane_);
-		ImGui::Checkbox("Level Objects", &showLevelObjects_);
-		ImGui::Checkbox("Level Gizmos", &showLevelGizmos_);
-		ImGui::Checkbox("Collision Gizmos", &showLevelCollisionGizmos_);
+		ImGui::TextDisabled("Object visibility: Window > Scene Visibility");
 		ImGui::Checkbox("Directional Shadows", &directionalShadowsEnabled_);
 		ImGui::SliderFloat("Shadow Strength", &directionalShadowStrength_, 0.0f, 1.0f, "%.2f");
 		ImGui::DragFloat3("Sun Direction", &lightDirection_.x, 0.01f, -1.0f, 1.0f, "%.2f");
+		const char* specularItems[] = { "Phong", "Blinn-Phong" };
+		ImGui::Combo("Specular Type", &specularTypeSelection_, specularItems, IM_ARRAYSIZE(specularItems));
 		bool usePlayerCamera = usePlayerCamera_;
 		if (ImGui::Checkbox("Use Player Camera (Third Person)", &usePlayerCamera)) {
 			SetUsePlayerCamera(usePlayerCamera);
@@ -1489,7 +1615,6 @@ void GamePlayScene::DrawSceneDebugWindow() {
 		ImGui::Text("Level Object3d: %zu", levelObjects_.size());
 		ImGui::Text("Collected: %zu / %zu", levelGameplay_.GetCollectedCount(), levelGameplay_.GetCollectibleCount());
 		ImGui::Text("Patrol Points: %zu", levelRoutePoints_.size());
-		ImGui::Checkbox("Particles", &showParticles_);
 	}
 	ImGui::End();
 }
@@ -1497,7 +1622,12 @@ void GamePlayScene::DrawSceneDebugWindow() {
 
 void GamePlayScene::UpdateSceneDeltaTime() {
 	const FrameClock* frameClock = framework_ ? framework_->GetFrameClock() : nullptr;
-	sceneDeltaTime_ = frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds;
+	sceneDeltaTime_ = frameClock
+		? frameClock->GetFrameDeltaSeconds()
+		: FrameClock::kDefaultFixedDeltaSeconds;
+	realDeltaTime_ = frameClock
+		? frameClock->GetRealDeltaSeconds()
+		: FrameClock::kDefaultFixedDeltaSeconds;
 }
 
 void GamePlayScene::HandleFarmHistoryInput() {
@@ -1778,22 +1908,11 @@ uint32_t GamePlayScene::CalculateInteractionParticleCount() const {
 }
 
 bool GamePlayScene::TryGetInteractionBrushPosition(Vector3& outBrushPosition) const {
-	if (!camera_ || !viewportHovered_ || viewportImageSize_.x <= 0.0f || viewportImageSize_.y <= 0.0f) {
+	Vector3 nearPoint{};
+	Vector3 rayDirection{};
+	if (!TryBuildViewportRay(nearPoint, rayDirection)) {
 		return false;
 	}
-
-	const float u = (viewportMousePosition_.x - viewportImageTopLeft_.x) / viewportImageSize_.x;
-	const float v = (viewportMousePosition_.y - viewportImageTopLeft_.y) / viewportImageSize_.y;
-	if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
-		return false;
-	}
-
-	const float ndcX = u * 2.0f - 1.0f;
-	const float ndcY = 1.0f - v * 2.0f;
-	const Matrix4x4 inverseViewProjection = MatrixMath::Inverse(camera_->GetViewProjectionMatrix());
-	const Vector3 nearPoint = MatrixMath::Transform({ ndcX, ndcY, 0.0f }, inverseViewProjection);
-	const Vector3 farPoint = MatrixMath::Transform({ ndcX, ndcY, 1.0f }, inverseViewProjection);
-	const Vector3 rayDirection = MatrixMath::Normalize(farPoint - nearPoint);
 	if (std::abs(rayDirection.y) <= 0.0001f) {
 		return false;
 	}
@@ -1825,6 +1944,7 @@ void GamePlayScene::AddLog(const std::string& message) {
 
 void GamePlayScene::Finalize()
 {
+	gamePlayEditorBridge_.Unbind();
 	if (framework_ && framework_->GetAudio()) {
 		framework_->GetAudio()->SetGlobalTemporalState(
 			AudioPlaybackDirection::Forward,

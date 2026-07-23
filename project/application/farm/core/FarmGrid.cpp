@@ -35,6 +35,16 @@ void FarmGrid::MoveSelection(int dx, int dy)
 	selectedY_ = std::clamp(selectedY_ + dy, 0, height_ - 1);
 }
 
+bool FarmGrid::SetSelectedIndex(int index)
+{
+	if (!IsValid() || index < 0 || index >= GetTileCount()) {
+		return false;
+	}
+	selectedX_ = index % width_;
+	selectedY_ = index / width_;
+	return true;
+}
+
 int FarmGrid::GetSelectedIndex() const
 {
 	if (!IsValid()) {

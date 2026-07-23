@@ -11,6 +11,11 @@ float SanitizeExtent(float value)
 	return std::isfinite(value) ? (std::max)(std::abs(value), 0.05f) : 0.05f;
 }
 
+bool IsFiniteVector(const Vector3& value)
+{
+	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
 bool OverlapsAabb(
 	const Vector3& centerA,
 	const Vector3& halfExtentsA,
@@ -59,8 +64,11 @@ void LevelGameplaySystem::Reset()
 	hasGround_ = false;
 	collectibles_.clear();
 	obstacles_.clear();
+	eventTriggers_.clear();
 	collectedRenderIndices_.clear();
+	triggeredEventIds_.clear();
 	collectedCount_ = 0;
+	stageCleared_ = false;
 }
 
 void LevelGameplaySystem::ConfigurePlayer(
@@ -124,9 +132,36 @@ void LevelGameplaySystem::AddObstacle(const Vector3& center, const Vector3& half
 	});
 }
 
+bool LevelGameplaySystem::AddEventTrigger(
+	const Vector3& center,
+	const Vector3& halfExtents,
+	int32_t eventId)
+{
+	if (eventId < 0 || !IsFiniteVector(center) || !IsFiniteVector(halfExtents)) {
+		return false;
+	}
+
+	eventTriggers_.push_back({
+		center,
+		{
+			SanitizeExtent(halfExtents.x),
+			SanitizeExtent(halfExtents.y),
+			SanitizeExtent(halfExtents.z),
+		},
+		eventId,
+		false,
+	});
+	return true;
+}
+
 void LevelGameplaySystem::UpdatePlayer(const PlayerCommand& command, float fixedDeltaTime)
 {
 	if (!hasPlayer_ || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f) {
+		return;
+	}
+	if (stageCleared_) {
+		isPlayerMoving_ = false;
+		isPlayerSneaking_ = false;
 		return;
 	}
 
@@ -149,6 +184,7 @@ void LevelGameplaySystem::UpdatePlayer(const PlayerCommand& command, float fixed
 	playerPosition_.y += verticalVelocity_ * fixedDeltaTime;
 	SnapPlayerToGround();
 	CollectOverlappingObjects();
+	ActivateOverlappingEventTriggers();
 }
 
 float LevelGameplaySystem::GetGroundSurfaceHeight() const
@@ -160,6 +196,13 @@ std::vector<std::size_t> LevelGameplaySystem::ConsumeCollectedRenderIndices()
 {
 	std::vector<std::size_t> result = std::move(collectedRenderIndices_);
 	collectedRenderIndices_.clear();
+	return result;
+}
+
+std::vector<int32_t> LevelGameplaySystem::ConsumeTriggeredEventIds()
+{
+	std::vector<int32_t> result = std::move(triggeredEventIds_);
+	triggeredEventIds_.clear();
 	return result;
 }
 
@@ -175,22 +218,42 @@ void LevelGameplaySystem::CaptureSnapshot(Snapshot& snapshot) const
 	for (std::size_t i = 0; i < collectibles_.size(); ++i) {
 		snapshot.collectibleStates[i] = collectibles_[i].collected ? uint8_t{ 1 } : uint8_t{ 0 };
 	}
+	snapshot.eventTriggerStates.resize(eventTriggers_.size());
+	for (std::size_t i = 0; i < eventTriggers_.size(); ++i) {
+		snapshot.eventTriggerStates[i] = eventTriggers_[i].activated ? uint8_t{ 1 } : uint8_t{ 0 };
+	}
 	snapshot.collectedCount = collectedCount_;
+	snapshot.stageCleared = stageCleared_;
 }
 
 bool LevelGameplaySystem::RestoreSnapshot(const Snapshot& snapshot)
 {
-	const auto isFiniteVector = [](const Vector3& value) {
-		return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
-	};
 	const std::size_t collectedStateCount = static_cast<std::size_t>(std::count_if(
 		snapshot.collectibleStates.begin(), snapshot.collectibleStates.end(),
 		[](uint8_t state) { return state != 0; }));
+	const bool hasInvalidCollectibleState = std::any_of(
+		snapshot.collectibleStates.begin(), snapshot.collectibleStates.end(),
+		[](uint8_t state) { return state > 1; });
+	const bool hasInvalidTriggerState = std::any_of(
+		snapshot.eventTriggerStates.begin(), snapshot.eventTriggerStates.end(),
+		[](uint8_t state) { return state > 1; });
+	bool snapshotContainsStageClearTrigger = false;
+	if (snapshot.eventTriggerStates.size() == eventTriggers_.size()) {
+		for (std::size_t i = 0; i < eventTriggers_.size(); ++i) {
+			if (snapshot.eventTriggerStates[i] != 0 && eventTriggers_[i].eventId == kStageClearEventId) {
+				snapshotContainsStageClearTrigger = true;
+				break;
+			}
+		}
+	}
 	if (!hasPlayer_ || snapshot.collectibleStates.size() != collectibles_.size() ||
+		snapshot.eventTriggerStates.size() != eventTriggers_.size() ||
 		snapshot.collectedCount > collectibles_.size() ||
 		snapshot.collectedCount != collectedStateCount ||
-		!isFiniteVector(snapshot.playerPosition) ||
-		!isFiniteVector(snapshot.playerFacingDirection) ||
+		hasInvalidCollectibleState || hasInvalidTriggerState ||
+		snapshot.stageCleared != snapshotContainsStageClearTrigger ||
+		!IsFiniteVector(snapshot.playerPosition) ||
+		!IsFiniteVector(snapshot.playerFacingDirection) ||
 		!std::isfinite(snapshot.verticalVelocity)) {
 		return false;
 	}
@@ -203,8 +266,13 @@ bool LevelGameplaySystem::RestoreSnapshot(const Snapshot& snapshot)
 	for (std::size_t i = 0; i < collectibles_.size(); ++i) {
 		collectibles_[i].collected = snapshot.collectibleStates[i] != 0;
 	}
+	for (std::size_t i = 0; i < eventTriggers_.size(); ++i) {
+		eventTriggers_[i].activated = snapshot.eventTriggerStates[i] != 0;
+	}
 	collectedCount_ = snapshot.collectedCount;
+	stageCleared_ = snapshot.stageCleared;
 	collectedRenderIndices_.clear();
+	triggeredEventIds_.clear();
 	return true;
 }
 
@@ -279,6 +347,23 @@ void LevelGameplaySystem::CollectOverlappingObjects()
 		collectible.collected = true;
 		collectedRenderIndices_.push_back(collectible.renderIndex);
 		++collectedCount_;
+	}
+}
+
+void LevelGameplaySystem::ActivateOverlappingEventTriggers()
+{
+	const Vector3 playerCenter = GetPlayerColliderCenter();
+	for (EventTriggerCollider& trigger : eventTriggers_) {
+		if (trigger.activated ||
+			!OverlapsAabb(playerCenter, playerColliderHalfExtents_, trigger.center, trigger.halfExtents)) {
+			continue;
+		}
+
+		trigger.activated = true;
+		triggeredEventIds_.push_back(trigger.eventId);
+		if (trigger.eventId == kStageClearEventId) {
+			stageCleared_ = true;
+		}
 	}
 }
 
