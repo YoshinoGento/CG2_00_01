@@ -13,6 +13,38 @@
 
 ---
 
+## Unity-style Console Window
+
+The Farm editor includes a dockable `ConsoleWindow` for engine and application diagnostics.
+
+- `Logger` owns severity (`Info`, `Warning`, `Error`), ordering, duplicate collapse, and a thread-safe 1024-entry ring buffer.
+- Existing `Logger::Log` calls remain compatible; new code should prefer explicit typed logging.
+- `ConsoleWindow` owns only presentation state: severity filters, search, selection, and auto-scroll.
+- `EditorShell` owns visibility, bottom Dock placement, and routes the Clear request to `Logger`.
+- The UI copies a log snapshot only when the Logger revision changes. It performs no per-frame filesystem access or GPU allocation.
+- Consecutive duplicate messages are collapsed and shown with a repeat count.
+- Technical log messages remain English; Console labels follow the Japanese/English editor language setting.
+- The window uses stable IDs (`Console###Console`) so language changes preserve Dock layout.
+
+The Console does not allocate descriptors, create DX12 resources, issue draw calls outside ImGui, or alter ResourceState/Fence behavior.
+
+---
+
+## Unity-style Simulation Controls
+
+The fixed Farm Toolbar exposes compact Play (`>`), Pause (`||`), and Step (`>|`) controls.
+
+- `FrameClock` is the only owner of pause state, simulation delta, fixed-step accumulation, and single-step requests.
+- `FarmToolbarWindow` reads immutable state and emits a typed `SimulationEditorAction`; it does not mutate runtime state.
+- `EditorShell` routes the action through `GamePlayEditorBridge`, which validates the bound Scene and forwards it to `FrameClock`.
+- Pause sets simulation delta to zero and consumes no fixed steps. Step is enabled only while paused and advances one fixed step plus one fixed-duration variable update before returning to Pause.
+- Farm growth, gameplay, object animation, CPU/GPU particles, and PostEffect time use simulation delta. Debug-camera navigation uses real delta so inspection remains possible while paused.
+- GPU Particle simulation Dispatch is skipped while paused, but the resource still transitions to `NON_PIXEL_SHADER_RESOURCE` before drawing.
+
+The controls add no pause flag to `Game`, `Scene`, or UI classes and create no descriptors, PSOs, GPU resources, or additional draw calls.
+
+---
+
 ## 2. 結論
 
 ### 採用する基本方針

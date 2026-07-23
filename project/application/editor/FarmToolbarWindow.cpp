@@ -89,6 +89,57 @@ FarmToolbarActions FarmToolbarWindow::Draw(
 	ImGui::SameLine();
 	ImGui::TextDisabled("|");
 	ImGui::SameLine();
+	const ImVec2 transportButtonSize{ 30.0f, 0.0f };
+	if (!viewModel.simulation.paused) {
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.58f, 0.30f, 1.0f));
+	}
+	if (ImGui::Button(">##SimulationPlay", transportButtonSize)) {
+		actions.simulationAction = editor::SimulationEditorAction::Play;
+	}
+	if (!viewModel.simulation.paused) {
+		ImGui::PopStyleColor();
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("%s", text("Resume simulation"));
+	}
+	ImGui::SameLine();
+	if (viewModel.simulation.paused) {
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.80f, 0.48f, 0.12f, 1.0f));
+	}
+	if (ImGui::Button("||##SimulationPause", transportButtonSize)) {
+		actions.simulationAction = editor::SimulationEditorAction::Pause;
+	}
+	if (viewModel.simulation.paused) {
+		ImGui::PopStyleColor();
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("%s", text("Pause simulation"));
+	}
+	ImGui::SameLine();
+	ImGui::BeginDisabled(!viewModel.simulation.paused);
+	if (ImGui::Button(">|##SimulationStep", transportButtonSize)) {
+		actions.simulationAction = editor::SimulationEditorAction::Step;
+	}
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+		ImGui::SetTooltip("%s", text("Advance one simulation step"));
+	}
+	ImGui::EndDisabled();
+	ImGui::SameLine();
+	ImGui::TextColored(
+		viewModel.simulation.paused
+			? ImVec4(1.0f, 0.66f, 0.20f, 1.0f)
+			: ImVec4(0.40f, 0.90f, 0.52f, 1.0f),
+		"%s",
+		text(viewModel.simulation.paused ? "PAUSED" : "PLAYING"));
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip(
+			"%s: %llu",
+			text("Simulation Tick"),
+			static_cast<unsigned long long>(viewModel.simulation.simulationTick));
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("|");
+	ImGui::SameLine();
 	if (ImGui::Button(text("New"))) {
 		if (viewModel.farmDocumentDirty) {
 			pendingDocumentAction_ = PendingDocumentAction::NewDocument;

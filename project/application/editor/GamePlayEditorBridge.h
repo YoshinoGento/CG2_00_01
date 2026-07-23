@@ -44,6 +44,9 @@ struct VisibilityEditorViewData {
 	bool showParticles = true;
 	bool showAnimatedModel = true;
 	bool showSkeleton = false;
+	bool showLevelObjects = true;
+	bool showLevelGizmos = false;
+	bool showCollisionGizmos = false;
 	int cullMode = 2;
 };
 
@@ -148,6 +151,11 @@ struct ParticleEditorViewData {
 	float alphaReference = 0.0f;
 };
 
+struct SimulationEditorViewData {
+	bool paused = false;
+	uint64_t simulationTick = 0;
+};
+
 struct FarmDocumentEditorViewData {
 	std::string id;
 	std::string displayName;
@@ -181,6 +189,17 @@ struct GamePlayEditorViewModel {
 	CameraEditorViewData camera;
 	ObjectInspectorEditorViewData objectInspector;
 	ParticleEditorViewData particles;
+	SimulationEditorViewData simulation;
+};
+
+enum class SimulationEditorAction {
+	Play,
+	Pause,
+	Step,
+};
+
+struct SimulationEditorCommand {
+	SimulationEditorAction action = SimulationEditorAction::Play;
 };
 
 enum class GamePlayEditorCommandType {
@@ -263,7 +282,8 @@ struct ParticleEditorCommand {
 	float alphaReference = 0.0f;
 };
 
-// Non-owning editor boundary. The scene and its systems outlive this binding.
+// Builds read-only editor snapshots and routes typed commands to owning systems.
+// All bound pointers are non-owning and must outlive the binding.
 class GamePlayEditorBridge final {
 public:
 	void Bind(
@@ -281,6 +301,7 @@ public:
 	bool Execute(const CameraEditorCommand& command);
 	bool Execute(const ObjectInspectorEditorCommand& command);
 	bool Execute(const ParticleEditorCommand& command);
+	bool Execute(const SimulationEditorCommand& command);
 
 	void SetViewportState(
 		const Vector2& imageTopLeft,

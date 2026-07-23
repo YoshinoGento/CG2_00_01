@@ -20,6 +20,7 @@ struct FarmToolbarActions {
 	std::optional<FarmDocumentRenameAction> renameDocument;
 	std::optional<std::string> deleteDocumentId;
 	std::optional<FarmTool> selectedTool;
+	std::optional<editor::SimulationEditorAction> simulationAction;
 	bool undo = false;
 	bool redo = false;
 	bool resetLayout = false;

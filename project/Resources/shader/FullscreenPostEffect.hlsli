@@ -24,4 +24,6 @@ cbuffer FullscreenPostEffectParameter : register(b0)
     float normalOutlineIntensity;
     float normalOutlineThickness;
     float normalOutlinePadding;
+    float gaussianSigma;
+    float3 gaussianPadding;
 };

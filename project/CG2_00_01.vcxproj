@@ -202,12 +202,16 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\math\Matrix.cpp" />
     <ClCompile Include="engine\base\Framework.cpp" />
 	<ClCompile Include="engine\base\FrameClock.cpp" />
+	<ClCompile Include="application\editor\CG5DemoWindow.cpp" />
+	<ClCompile Include="application\demo\PostEffectSubmissionDemo.cpp" />
+	<ClCompile Include="application\demo\PostEffectSubmissionHUD.cpp" />
 	<ClCompile Include="application\editor\CameraControlWindow.cpp" />
 	<ClCompile Include="application\editor\EditorLocalization.cpp" />
 	<ClCompile Include="application\editor\EditorSettings.cpp" />
 	<ClCompile Include="application\editor\EditorSettingsWindow.cpp" />
 	<ClCompile Include="application\editor\EditorSelectionSystem.cpp" />
 	<ClCompile Include="application\editor\EditorShell.cpp" />
+	<ClCompile Include="application\editor\ConsoleWindow.cpp" />
 	<ClCompile Include="application\editor\FarmControllerWindow.cpp" />
 	<ClCompile Include="application\editor\FarmHierarchyWindow.cpp" />
 	<ClCompile Include="application\editor\FarmHistoryWindow.cpp" />
@@ -469,6 +473,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\math\Transform.h" />
     <ClInclude Include="engine\base\Framework.h" />
 	<ClInclude Include="engine\base\FrameClock.h" />
+	<ClInclude Include="application\editor\CG5DemoWindow.h" />
+	<ClInclude Include="application\demo\PostEffectSubmissionDemo.h" />
+	<ClInclude Include="application\demo\PostEffectSubmissionHUD.h" />
 	<ClInclude Include="engine\time\SnapshotTimeline.h" />
 	<ClInclude Include="application\editor\CameraControlWindow.h" />
 	<ClInclude Include="application\editor\EditorLocalization.h" />
@@ -478,6 +485,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\editor\EditorShell.h" />
 	<ClInclude Include="application\editor\FarmControllerWindow.h" />
 	<ClInclude Include="application\editor\FarmHierarchyWindow.h" />
+	<ClInclude Include="application\editor\ConsoleWindow.h" />
 	<ClInclude Include="application\editor\FarmHistoryWindow.h" />
 	<ClInclude Include="application\editor\FarmMapWindow.h" />
 	<ClInclude Include="application\editor\FarmToolbarWindow.h" />
