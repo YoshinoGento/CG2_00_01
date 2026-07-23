@@ -1,5 +1,7 @@
 #include "effect/ParticleManager.h"
+#include "2d/TextureManager.h"
 #include "base/DirectXCommon.h"
+#include "base/FrameClock.h"
 #include "base/Logger.h"
 #include "base/SrvManager.h"
 #include "3d/Camera.h"
@@ -101,10 +103,10 @@ static GPUParticleInteractionSettings SanitizeInteractionSettings(
     if (settings.operation == static_cast<uint32_t>(InteractionBrushOperation::None)) {
         settings.isPressed = 0;
     }
-    if (!std::isfinite(settings.deltaTime) || settings.deltaTime <= 0.0f) {
-        settings.deltaTime = 1.0f / 60.0f;
-    }
-    settings.deltaTime = std::clamp(settings.deltaTime, 1.0f / 240.0f, 1.0f / 15.0f);
+    if (!std::isfinite(settings.deltaTime) || settings.deltaTime < 0.0f) {
+		settings.deltaTime = 0.0f;
+	}
+    settings.deltaTime = std::clamp(settings.deltaTime, 0.0f, 1.0f / 15.0f);
     if (!std::isfinite(settings.damping)) {
         settings.damping = 0.95f;
     }
@@ -205,30 +207,34 @@ void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager
     materialData_->alphaReference = 0.0f; // 初期値: 0（従来と同じ動作）
 }
 
-void ParticleManager::Update(Camera* camera) {
+void ParticleManager::Update(Camera* camera, float deltaTime) {
     camera_ = camera;
-    float deltaTime = 1.0f / 60.0f;
+	if (!std::isfinite(deltaTime)) {
+		deltaTime = 0.0f;
+	}
+	frameDeltaTime_ = std::clamp(deltaTime, 0.0f, FrameClock::kMaximumFrameDeltaSeconds);
+	const float legacyFrameScale = frameDeltaTime_ / FrameClock::kDefaultFixedDeltaSeconds;
 
     for (auto& groupPair : particleGroups_) {
         for (auto it = groupPair.second.particles.begin(); it != groupPair.second.particles.end();) {
             Particle& p = *it;
-            p.currentTime += deltaTime;
+            p.currentTime += frameDeltaTime_;
 
             if (p.currentTime >= p.lifeTime) {
                 it = groupPair.second.particles.erase(it);
                 continue;
             }
 
-            p.velocity.x += p.acceleration.x;
-            p.velocity.y += p.acceleration.y;
-            p.velocity.z += p.acceleration.z;
-            p.transform.translate.x += p.velocity.x;
-            p.transform.translate.y += p.velocity.y;
-            p.transform.translate.z += p.velocity.z;
+            p.velocity.x += p.acceleration.x * legacyFrameScale;
+            p.velocity.y += p.acceleration.y * legacyFrameScale;
+            p.velocity.z += p.acceleration.z * legacyFrameScale;
+            p.transform.translate.x += p.velocity.x * legacyFrameScale;
+            p.transform.translate.y += p.velocity.y * legacyFrameScale;
+            p.transform.translate.z += p.velocity.z * legacyFrameScale;
 
 			// UVスクロールのアニメーション
-			p.uvOffset.x += p.uvVelocity.x * deltaTime;
-			p.uvOffset.y += p.uvVelocity.y * deltaTime;
+			p.uvOffset.x += p.uvVelocity.x * frameDeltaTime_;
+			p.uvOffset.y += p.uvVelocity.y * frameDeltaTime_;
 
             float t = p.currentTime / p.lifeTime;
             // 寿命でアルファ値を減衰させる (PS側で色の強さに反映される)
@@ -504,7 +510,7 @@ void ParticleManager::Draw(bool drawDefaultGPUParticles) {
             instanceIndex++;
         }
         if (instanceIndex == 0) continue;
-        commandList->SetGraphicsRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(group.textureHandle));
+        commandList->SetGraphicsRootDescriptorTable(0, TextureManager::GetInstance()->GetGpuHandle(group.textureHandle));
 
         if (group.model) {
             group.model->Draw(commandList, instanceIndex);
@@ -1117,7 +1123,10 @@ void ParticleManager::InitializeGPUParticles() {
 }
 
 void ParticleManager::EmitGPUParticles() {
-    if (!gpuParticleEmitter_ || gpuParticleEmitter_->emit == 0 || gpuParticleEmitter_->count == 0) {
+    if (frameDeltaTime_ <= 0.0f ||
+        !gpuParticleEmitter_ ||
+        gpuParticleEmitter_->emit == 0 ||
+        gpuParticleEmitter_->count == 0) {
         return;
     }
 
@@ -1144,7 +1153,18 @@ void ParticleManager::EmitGPUParticles() {
 
 void ParticleManager::UpdateGPUParticles() {
     assert(gpuParticleUpdateInfo_);
-    gpuParticleUpdateInfo_->deltaTime = 1.0f / 60.0f;
+	if (frameDeltaTime_ <= 0.0f) {
+		ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
+		// Draw still reads the buffer as an SRV while simulation is paused.
+		TransitionResource(
+			commandList,
+			gpuParticleResource_.Get(),
+			gpuParticleResourceState_,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+		return;
+	}
+	gpuParticleUpdateInfo_->deltaTime = frameDeltaTime_;
     gpuParticleUpdateInfo_->particleCount = kMaxGPUParticleCount;
     gpuParticleUpdateInfo_->timeScale = 1.0f;
     gpuParticleUpdateInfo_->padding = 0;
@@ -1219,6 +1239,16 @@ void ParticleManager::UpdateGPUParticleInteraction(const GPUParticleInteractionS
     *gpuParticleInteraction_ = sanitizedSettings;
 
     ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
+	if (sanitizedSettings.deltaTime <= 0.0f) {
+		// Preserve the draw-ready state without dispatching a zero-delta update.
+		TransitionResource(
+			commandList,
+			gpuParticleResource_.Get(),
+			gpuParticleResourceState_,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+		return;
+	}
     TransitionResource(
         commandList,
         gpuParticleResource_.Get(),
@@ -1249,7 +1279,7 @@ void ParticleManager::DrawGPUParticleBuffer() {
         return;
     }
 
-    uint32_t textureHandle = 0;
+    Texture2DHandle textureHandle{};
     if (!TryGetGPUParticleTextureHandle(textureHandle)) {
         return;
     }
@@ -1275,7 +1305,7 @@ void ParticleManager::DrawGPUParticleBuffer() {
     commandList->SetPipelineState(gpuParticleGraphicsPipelineState_.Get());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
-    commandList->SetGraphicsRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(textureHandle));
+    commandList->SetGraphicsRootDescriptorTable(0, TextureManager::GetInstance()->GetGpuHandle(textureHandle));
     commandList->SetGraphicsRootConstantBufferView(1, materialResource_->GetGPUVirtualAddress());
     commandList->SetGraphicsRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(gpuParticleSrvHandle_));
     commandList->SetGraphicsRootConstantBufferView(3, gpuParticleViewResource_->GetGPUVirtualAddress());
@@ -1289,207 +1319,7 @@ void ParticleManager::DrawGPUParticles() {
     DrawGPUParticleBuffer();
 }
 
-void ParticleManager::InitializeAccentParticles() {
-    if (accentParticlesInitialized_) {
-        return;
-    }
-    if (!accentParticleResource_ || !accentFreeListIndexResource_ || !accentFreeListResource_) {
-        return;
-    }
-
-    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
-    TransitionResource(
-        commandList,
-        accentParticleResource_.Get(),
-        accentParticleResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentParticleResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    TransitionResource(
-        commandList,
-        accentFreeListIndexResource_.Get(),
-        accentFreeListIndexResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentFreeListIndexResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    TransitionResource(
-        commandList,
-        accentFreeListResource_.Get(),
-        accentFreeListResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentFreeListResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-
-    commandList->SetComputeRootSignature(gpuParticleComputeRootSignature_.Get());
-    commandList->SetPipelineState(accentInitializeComputePipelineState_.Get());
-    commandList->SetComputeRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(accentParticleUavHandle_));
-    commandList->SetComputeRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(accentFreeListIndexUavHandle_));
-    commandList->SetComputeRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(accentFreeListUavHandle_));
-    commandList->Dispatch(1, 1, 1);
-    InsertUAVBarrier(commandList, nullptr);
-
-    accentParticlesInitialized_ = true;
-}
-
-void ParticleManager::EmitAccentParticles() {
-    if (!accentEmitRequested_ || !accentEmitter_ || accentEmitter_->count == 0) {
-        return;
-    }
-
-    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
-    TransitionResource(
-        commandList,
-        accentParticleResource_.Get(),
-        accentParticleResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentParticleResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    TransitionResource(
-        commandList,
-        accentFreeListIndexResource_.Get(),
-        accentFreeListIndexResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentFreeListIndexResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    TransitionResource(
-        commandList,
-        accentFreeListResource_.Get(),
-        accentFreeListResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentFreeListResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-
-    accentEmitter_->emit = 1;
-    accentEmitter_->count = (std::min)(accentEmitter_->count, kMaxAccentParticleCount);
-
-    commandList->SetComputeRootSignature(gpuParticleEmitComputeRootSignature_.Get());
-    commandList->SetPipelineState(accentEmitComputePipelineState_.Get());
-    commandList->SetComputeRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(accentParticleUavHandle_));
-    commandList->SetComputeRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(accentFreeListIndexUavHandle_));
-    commandList->SetComputeRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(accentFreeListUavHandle_));
-    commandList->SetComputeRootConstantBufferView(3, accentEmitterResource_->GetGPUVirtualAddress());
-
-    constexpr uint32_t kThreadCount = 256;
-    const uint32_t groupCount = (accentEmitter_->count + kThreadCount - 1) / kThreadCount;
-    {
-        std::ostringstream log;
-        log << "[CropBurst] EmitAccentParticles dispatch count=" << accentEmitter_->count
-            << " groups=" << (std::max)(1u, groupCount);
-        Logger::Log(log.str());
-    }
-    commandList->Dispatch((std::max)(1u, groupCount), 1, 1);
-    InsertUAVBarrier(commandList, nullptr);
-
-    accentEmitter_->emit = 0;
-    accentEmitRequested_ = false;
-}
-
-void ParticleManager::UpdateAccentParticles() {
-    if (!cropBurstActive_ || !cropBurstInfo_) {
-        return;
-    }
-
-    const float phaseDuration = GetCropBurstPhaseDuration(cropBurstPhase_);
-    const float normalizedPhaseTime = phaseDuration > 0.0f
-        ? std::clamp(cropBurstPhaseTimer_ / phaseDuration, 0.0f, 1.0f)
-        : 0.0f;
-
-    cropBurstInfo_->center = cropBurstCenter_;
-    const float radius = cropBurstLevel_ == CropBurstLevel::Rare ? 4.0f : (cropBurstLevel_ == CropBurstLevel::Strong ? 3.2f : 2.5f);
-    cropBurstInfo_->radiusSq = radius * radius;
-    cropBurstInfo_->strength = GetCropBurstStrength(cropBurstLevel_);
-    cropBurstInfo_->phase = static_cast<uint32_t>(cropBurstPhase_);
-    cropBurstInfo_->phaseTime = normalizedPhaseTime;
-    cropBurstInfo_->deltaTime = 1.0f / 60.0f;
-    cropBurstInfo_->maxSpeed = cropBurstLevel_ == CropBurstLevel::Rare ? 13.0f : (cropBurstLevel_ == CropBurstLevel::Strong ? 10.5f : 8.5f);
-    cropBurstInfo_->particleCount = kMaxAccentParticleCount;
-    cropBurstInfo_->timeScale = 1.0f;
-    cropBurstInfo_->padding = 0;
-
-    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
-    TransitionResource(
-        commandList,
-        accentParticleResource_.Get(),
-        accentParticleResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentParticleResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    TransitionResource(
-        commandList,
-        accentFreeListIndexResource_.Get(),
-        accentFreeListIndexResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentFreeListIndexResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    TransitionResource(
-        commandList,
-        accentFreeListResource_.Get(),
-        accentFreeListResourceState_,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    accentFreeListResourceState_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-
-    commandList->SetComputeRootSignature(gpuParticleUpdateComputeRootSignature_.Get());
-    commandList->SetPipelineState(accentUpdateComputePipelineState_.Get());
-    commandList->SetComputeRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(accentParticleUavHandle_));
-    commandList->SetComputeRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(accentFreeListIndexUavHandle_));
-    commandList->SetComputeRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(accentFreeListUavHandle_));
-    commandList->SetComputeRootConstantBufferView(3, cropBurstInfoResource_->GetGPUVirtualAddress());
-
-    constexpr uint32_t kThreadCount = 256;
-    const uint32_t groupCount = (kMaxAccentParticleCount + kThreadCount - 1) / kThreadCount;
-    commandList->Dispatch(groupCount, 1, 1);
-    InsertUAVBarrier(commandList, nullptr);
-
-    TransitionResource(
-        commandList,
-        accentParticleResource_.Get(),
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    accentParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-}
-
-void ParticleManager::DrawAccentParticleBuffer() {
-    if (!camera_) {
-        return;
-    }
-
-    uint32_t textureHandle = 0;
-    if (!TryGetGPUParticleTextureHandle(textureHandle)) {
-        return;
-    }
-
-    ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
-    TransitionResource(
-        commandList,
-        accentParticleResource_.Get(),
-        accentParticleResourceState_,
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    accentParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-
-    Matrix4x4 viewMatrix = camera_->GetViewMatrix();
-    Matrix4x4 billboardMatrix = MatrixMath::MakeIdentity4x4();
-    billboardMatrix.m[0][0] = viewMatrix.m[0][0]; billboardMatrix.m[0][1] = viewMatrix.m[1][0]; billboardMatrix.m[0][2] = viewMatrix.m[2][0];
-    billboardMatrix.m[1][0] = viewMatrix.m[0][1]; billboardMatrix.m[1][1] = viewMatrix.m[1][1]; billboardMatrix.m[1][2] = viewMatrix.m[2][1];
-    billboardMatrix.m[2][0] = viewMatrix.m[0][2]; billboardMatrix.m[2][1] = viewMatrix.m[1][2]; billboardMatrix.m[2][2] = viewMatrix.m[2][2];
-
-    gpuParticleViewData_->viewProjection = camera_->GetViewProjectionMatrix();
-    gpuParticleViewData_->billboardMatrix = billboardMatrix;
-
-    commandList->SetGraphicsRootSignature(gpuParticleGraphicsRootSignature_.Get());
-    commandList->SetPipelineState(gpuParticleGraphicsPipelineState_.Get());
-    commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    commandList->IASetVertexBuffers(0, 1, &vertexBufferView_);
-    commandList->SetGraphicsRootDescriptorTable(0, srvManager_->GetGPUDescriptorHandle(textureHandle));
-    commandList->SetGraphicsRootConstantBufferView(1, materialResource_->GetGPUVirtualAddress());
-    commandList->SetGraphicsRootDescriptorTable(2, srvManager_->GetGPUDescriptorHandle(accentParticleSrvHandle_));
-    commandList->SetGraphicsRootConstantBufferView(3, gpuParticleViewResource_->GetGPUVirtualAddress());
-    commandList->DrawInstanced(6, kMaxAccentParticleCount, 0, 0);
-}
-
-void ParticleManager::DrawAccentFX() {
-    if (!cropBurstActive_ && !accentEmitRequested_) {
-        return;
-    }
-
-    InitializeAccentParticles();
-    EmitAccentParticles();
-    UpdateAccentParticles();
-    DrawAccentParticleBuffer();
-}
-
-bool ParticleManager::TryGetGPUParticleTextureHandle(uint32_t& textureHandle) const {
+bool ParticleManager::TryGetGPUParticleTextureHandle(Texture2DHandle& textureHandle) const {
     for (const auto& groupPair : particleGroups_) {
         if (!groupPair.second.model) {
             textureHandle = groupPair.second.textureHandle;
@@ -1505,7 +1335,7 @@ bool ParticleManager::TryGetGPUParticleTextureHandle(uint32_t& textureHandle) co
     return false;
 }
 
-void ParticleManager::CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model) {
+void ParticleManager::CreateParticleGroup(const std::string& name, Texture2DHandle textureHandle, Model* model) {
     ParticleGroup& group = particleGroups_[name];
     group.name = name;
     group.textureHandle = textureHandle;

@@ -3,16 +3,23 @@
 #include "farm/core/FarmTypes.h"
 
 #include <vector>
+#include <cstdint>
 
 namespace farm {
 
 class FarmGrid {
 public:
+	struct Snapshot {
+		int width = 0;
+		int height = 0;
+		int selectedX = 0;
+		int selectedY = 0;
+		std::vector<FarmTile> tiles;
+	};
+
 	bool Initialize(int width, int height);
 	void MoveSelection(int dx, int dy);
-	bool RaiseSelectedTileHeight();
-	bool LowerSelectedTileHeight();
-
+	bool SetSelectedIndex(int index);
 	int GetWidth() const { return width_; }
 	int GetHeight() const { return height_; }
 	int GetTileCount() const { return static_cast<int>(tiles_.size()); }
@@ -28,11 +35,12 @@ public:
 	const FarmTile* GetTile(int index) const;
 	FarmTile* GetMutableSelectedTile();
 	FarmTile* GetMutableTile(int index);
+	bool SetTile(int index, const FarmTile& tile);
+	void CaptureSnapshot(Snapshot& output) const;
+	bool RestoreSnapshot(const Snapshot& snapshot);
+	[[nodiscard]] uint64_t GetGeneration() const noexcept { return generation_; }
 
 private:
-	static constexpr int kMinHeightLevel = 0;
-	static constexpr int kMaxHeightLevel = 2;
-
 	bool IsValid() const;
 
 private:
@@ -41,8 +49,7 @@ private:
 	int selectedX_ = 0;
 	int selectedY_ = 0;
 	std::vector<FarmTile> tiles_;
-	int selectedIndex_ = 0;
-	int harvestCount_ = 0;
+	uint64_t generation_ = 0;
 };
 
 } // namespace farm

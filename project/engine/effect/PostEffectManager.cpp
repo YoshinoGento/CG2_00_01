@@ -1,6 +1,7 @@
 #include "PostEffectManager.h"
 
 #include "base/SrvManager.h"
+#include "2d/TextureManager.h"
 
 #include <algorithm>
 #include <array>
@@ -31,6 +32,7 @@ void PostEffectManager::InitializePasses() {
         { DirectXCommon::FullscreenPostEffectType::Vignette, L"Resources/shader/Vignette.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::RandomNoise, L"Resources/shader/RandomNoise.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::HSVFilter, L"Resources/shader/HSVFilter.PS.hlsl" },
+        { DirectXCommon::FullscreenPostEffectType::GaussianFilter, L"Resources/shader/GaussianFilter.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::LinearToSRGB, L"Resources/shader/LinearToSRGB.PS.hlsl" },
     };
 
@@ -80,6 +82,7 @@ void PostEffectManager::InitializeChainPasses() {
         DirectXCommon::FullscreenPostEffectType::HSVFilter,
         DirectXCommon::FullscreenPostEffectType::Vignette,
         DirectXCommon::FullscreenPostEffectType::BoxFilter3x3,
+        DirectXCommon::FullscreenPostEffectType::GaussianFilter,
         DirectXCommon::FullscreenPostEffectType::RadialBlur,
         DirectXCommon::FullscreenPostEffectType::RandomNoise,
         DirectXCommon::FullscreenPostEffectType::Dissolve,
@@ -99,34 +102,8 @@ void PostEffectManager::CreateDummyTexture(
     assert(srvManager_);
     assert(debugName);
 
-    DirectX::ScratchImage image;
-    HRESULT hr = image.Initialize2D(DXGI_FORMAT_R8G8B8A8_UNORM, 1, 1, 1, 1);
-    assert(SUCCEEDED(hr));
-
-    uint8_t* pixels = image.GetPixels();
-    assert(pixels);
-    pixels[0] = color[0];
-    pixels[1] = color[1];
-    pixels[2] = color[2];
-    pixels[3] = color[3];
-
-    dummyTexture.resource = dxCommon_->CreateTextureResource(image.GetMetadata());
-    assert(dummyTexture.resource);
-    {
-        std::string name(debugName);
-        std::wstring wideName(name.begin(), name.end());
-        dummyTexture.resource->SetName(wideName.c_str());
-    }
-
-    dxCommon_->UploadTextureData(dummyTexture.resource.Get(), image);
-
-    dummyTexture.srvIndex = srvManager_->Allocate();
-    srvManager_->CreateSRVforTexture2D(
-        dummyTexture.srvIndex,
-        dummyTexture.resource.Get(),
-        DXGI_FORMAT_R8G8B8A8_UNORM,
-        1);
-    dummyTexture.srv = srvManager_->GetGPUDescriptorHandle(dummyTexture.srvIndex);
+    dummyTexture.handle = TextureManager::GetInstance()->CreateSolidColorTexture2D(debugName, color);
+    dummyTexture.srv = TextureManager::GetInstance()->GetGpuHandle(dummyTexture.handle);
 }
 
 void PostEffectManager::InitializeDummyTextures() {
@@ -233,6 +210,8 @@ const char* PostEffectManager::GetPassName(DirectXCommon::FullscreenPostEffectTy
         return "RandomNoise";
     case DirectXCommon::FullscreenPostEffectType::HSVFilter:
         return "HSVFilter";
+    case DirectXCommon::FullscreenPostEffectType::GaussianFilter:
+        return "GaussianFilter";
     case DirectXCommon::FullscreenPostEffectType::LinearToSRGB:
         return "LinearToSRGB";
     default:
@@ -418,6 +397,16 @@ void PostEffectManager::Initialize(
     InitializePasses();
     InitializePingPongTextures();
     InitializeChainPasses();
+}
+
+void PostEffectManager::Finalize() {
+	pingTexture_.Finalize(srvManager_);
+	pongTexture_.Finalize(srvManager_);
+	activePasses_.clear();
+	chainPassEnabled_.clear();
+	chainPassTypes_.clear();
+	dxCommon_ = nullptr;
+	srvManager_ = nullptr;
 }
 
 void PostEffectManager::ExecuteSingle(

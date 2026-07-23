@@ -6,11 +6,9 @@
 #include <dxcapi.h>
 #include <wrl.h>
 #include <string>
-#include <chrono>
 #include <cstdint>
 #include "effect/RenderTexture.h"
 #include "math/Struct.h"
-#include "externals/DirectXTex/DirectXTex.h"
 
 /**
  * DirectXCommon繧ｯ繝ｩ繧ｹ
@@ -35,6 +33,7 @@ public:
         Vignette,
         RandomNoise,
         HSVFilter,
+        GaussianFilter,
         LinearToSRGB,
         Count,
     };
@@ -64,8 +63,10 @@ public:
         float normalOutlineIntensity = 1.0f;
         float normalOutlineThickness = 1.0f;
         float normalOutlinePadding = 0.0f;
+        float gaussianSigma = 1.0f;
+        float gaussianPadding[3] = {};
     };
-    static_assert(sizeof(FullscreenPostEffectParameter) == 96);
+    static_assert(sizeof(FullscreenPostEffectParameter) == 112);
 
     struct VignetteParamForGPU {
         float scale = 16.0f;
@@ -161,9 +162,6 @@ public:
     void SetSceneRenderTargetsWithNormal();
 
     // --- 蜷・ｨｮ繝倥Ν繝代・ ---
-    DirectX::ScratchImage LoadTexture(const std::string& filePath);
-    Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
-    void UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
     Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const std::wstring& profile);
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeInBytes);
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateUAVBufferResource(size_t sizeInBytes, D3D12_RESOURCE_STATES initialState);
@@ -182,8 +180,6 @@ private:
     void InitializeFullscreenPostEffectParameter();
     void InitializeFence();
     void InitializeDXCCompiler();
-    void InitializeFixFPS();
-    void UpdateFixFPS();
     void SetFullscreenViewportAndScissor();
     void SetSwapChainViewportAndScissor();
 
@@ -234,5 +230,4 @@ private:
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
     Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
     Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;
-    std::chrono::steady_clock::time_point reference_;
 };

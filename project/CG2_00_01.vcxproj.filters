@@ -52,6 +52,9 @@
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\ui">
       <UniqueIdentifier>{3df8a0bb-f0d2-4285-aed8-4fa841b6ba44}</UniqueIdentifier>
     </Filter>
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo">
+      <UniqueIdentifier>{27b94f22-239e-446f-ad5e-b0cdac6d1f75}</UniqueIdentifier>
+    </Filter>
     <Filter Include="繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources">
       <UniqueIdentifier>{b1b01ead-a50b-431e-aab4-09931dab71f1}</UniqueIdentifier>
     </Filter>
@@ -72,8 +75,37 @@
     <ClCompile Include="application\farm\system\FarmDateSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClCompile>
+	<ClCompile Include="application\farm\system\FarmDocumentSystem.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClCompile>
+    <ClCompile Include="application\farm\system\FarmGrowthSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
+    <ClCompile Include="application\farm\system\FarmInputSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
     <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
+	<ClCompile Include="application\farm\system\FarmVisualSystem.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClCompile>
+	<ClCompile Include="application\editor\FarmControllerWindow.cpp" />
+	<ClCompile Include="application\editor\FarmHierarchyWindow.cpp" />
+	<ClCompile Include="application\editor\ConsoleWindow.cpp" />
+	<ClCompile Include="application\editor\CG5DemoWindow.cpp" />
+	<ClCompile Include="application\demo\PostEffectSubmissionDemo.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo</Filter>
+	</ClCompile>
+	<ClCompile Include="application\demo\PostEffectSubmissionHUD.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo</Filter>
+	</ClCompile>
+	<ClCompile Include="application\editor\FarmHistoryWindow.cpp" />
+	<ClCompile Include="application\editor\FarmMapWindow.cpp" />
+	<ClCompile Include="application\editor\FarmToolbarWindow.cpp" />
+	<ClCompile Include="application\editor\EditorLocalization.cpp" />
+    <ClCompile Include="engine\command\CommandHistory.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="application\farm\system\FarmToolSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
@@ -102,9 +134,6 @@
     <ClCompile Include="engine\base\WinApp.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
-    <ClCompile Include="test\hoge.cpp">
-      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
-    </ClCompile>
     <ClCompile Include="engine\base\DirectXCommon.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
@@ -112,6 +141,9 @@
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\2d\SpriteCommon.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\2d\TextureManager.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\2d\AnimatedSprite.cpp">
@@ -130,6 +162,9 @@
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Object3d.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\3d\LightingSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\3d\Model.cpp">
@@ -168,6 +203,9 @@
     <ClCompile Include="engine\base\Framework.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
+    <ClCompile Include="engine\base\FrameClock.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
     <ClCompile Include="application\scene\GamePlayScene.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
@@ -192,13 +230,13 @@
     <ClCompile Include="engine\3d\Skybox.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
-    <ClCompile Include="engine\3d\SkyboxManager.cpp">
-      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
-    </ClCompile>
-    <ClCompile Include="engine\effect\PostProcess.cpp">
-      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
-    </ClCompile>
     <ClCompile Include="engine\effect\PostEffectManager.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\effect\PostEffectSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\debug\PostEffectDebugWindow.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
     <ClCompile Include="engine\effect\FullscreenPass.cpp">
@@ -260,8 +298,37 @@
     <ClInclude Include="application\farm\system\FarmDateSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
+	<ClInclude Include="application\farm\system\FarmDocumentSystem.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClInclude>
+    <ClInclude Include="application\farm\system\FarmGrowthSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmInputSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
     <ClInclude Include="application\farm\system\FarmToolActionSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+	<ClInclude Include="application\farm\system\FarmVisualSystem.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClInclude>
+	<ClInclude Include="application\editor\FarmControllerWindow.h" />
+	<ClInclude Include="application\editor\FarmHierarchyWindow.h" />
+	<ClInclude Include="application\editor\ConsoleWindow.h" />
+	<ClInclude Include="application\editor\CG5DemoWindow.h" />
+	<ClInclude Include="application\demo\PostEffectSubmissionDemo.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo</Filter>
+	</ClInclude>
+	<ClInclude Include="application\demo\PostEffectSubmissionHUD.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo</Filter>
+	</ClInclude>
+	<ClInclude Include="application\editor\FarmHistoryWindow.h" />
+	<ClInclude Include="application\editor\FarmMapWindow.h" />
+	<ClInclude Include="application\editor\FarmToolbarWindow.h" />
+	<ClInclude Include="application\editor\EditorLocalization.h" />
+    <ClInclude Include="engine\command\CommandHistory.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="application\farm\system\FarmToolSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
@@ -299,9 +366,6 @@
     <ClInclude Include="engine\base\WinApp.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
-    <ClInclude Include="test\hoge.h">
-      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
-    </ClInclude>
     <ClInclude Include="engine\base\DirectXCommon.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
@@ -309,6 +373,9 @@
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\2d\SpriteCommon.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\2d\TextureManager.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\2d\AnimatedSprite.h">
@@ -327,6 +394,9 @@
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Object3d.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\3d\LightingSystem.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\3d\Model.h">
@@ -365,6 +435,12 @@
     <ClInclude Include="engine\base\Framework.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
+    <ClInclude Include="engine\base\FrameClock.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\time\SnapshotTimeline.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
     <ClInclude Include="application\scene\GamePlayScene.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
@@ -395,10 +471,13 @@
     <ClInclude Include="engine\3d\Animation.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
-    <ClInclude Include="engine\effect\PostProcess.h">
+    <ClInclude Include="engine\effect\PostEffectManager.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
-    <ClInclude Include="engine\effect\PostEffectManager.h">
+    <ClInclude Include="engine\effect\PostEffectSystem.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\debug\PostEffectDebugWindow.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
     <ClInclude Include="engine\effect\FullscreenPass.h">
@@ -495,14 +574,11 @@
     <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="application\farm\core\FarmGrid.cpp" />
-    <ClCompile Include="application\farm\debug\FarmDebugWindow.cpp" />
-    <ClCompile Include="application\farm\render\FarmRenderer.cpp" />
-    <ClInclude Include="application\farm\core\FarmGrid.h" />
-    <ClInclude Include="application\farm\core\FarmTile.h" />
-    <ClInclude Include="application\farm\core\FarmTypes.h" />
-    <ClInclude Include="application\farm\data\FarmRules.h" />
-    <ClInclude Include="application\farm\debug\FarmDebugWindow.h" />
-    <ClInclude Include="application\farm\render\FarmRenderer.h" />
+    <ClCompile Include="application\level\LevelLoader.cpp" />
+    <ClInclude Include="application\level\LevelLoader.h" />
+    <ClCompile Include="application\level\LevelGameplaySystem.cpp" />
+    <ClInclude Include="application\level\LevelGameplaySystem.h" />
+    <ClCompile Include="application\level\ui\StageClearHUD.cpp" />
+    <ClInclude Include="application\level\ui\StageClearHUD.h" />
   </ItemGroup>
 </Project>

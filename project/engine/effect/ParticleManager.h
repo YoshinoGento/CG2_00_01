@@ -10,6 +10,7 @@
 #include <map>
 #include "math/Matrix.h"
 #include "math/Transform.h"
+#include "2d/TextureManager.h"
 
 // 前方宣言
 class DirectXCommon;
@@ -46,7 +47,7 @@ struct Particle {
 struct ParticleGroup {
     std::string name;
     std::list<Particle> particles;
-    uint32_t textureHandle;
+    Texture2DHandle textureHandle{};
 	Model* model = nullptr;
 };
 
@@ -121,10 +122,12 @@ static_assert(offsetof(GPUParticleInteractionSettings, operation) == 56, "GPUPar
 static_assert(offsetof(GPUParticleInteractionSettings, deltaTime) == 60, "GPUParticleInteractionSettings::deltaTime offset must match HLSL.");
 static_assert(offsetof(GPUParticleInteractionSettings, damping) == 64, "GPUParticleInteractionSettings::damping offset must match HLSL.");
 
+// Owns CPU particle groups and the shared GPU buffers, pipelines, and states.
+// DirectXCommon, SrvManager, Camera, and group Models are non-owning dependencies.
 class ParticleManager {
 public:
     void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager);
-    void Update(Camera* camera);
+	void Update(Camera* camera, float deltaTime);
     void Draw(bool drawDefaultGPUParticles = true);
     void InitializeGPUParticleInteraction(const GPUParticleInteractionSettings& settings);
     void UpdateGPUParticleInteraction(const GPUParticleInteractionSettings& settings);
@@ -137,7 +140,7 @@ public:
     bool IsCropBurstActive() const { return cropBurstActive_; }
 
     // グループ作成
-    void CreateParticleGroup(const std::string& name, uint32_t textureHandle, Model* model = nullptr);
+    void CreateParticleGroup(const std::string& name, Texture2DHandle textureHandle, Model* model = nullptr);
 
     // ★新機能：パーティクルを1つ追加して、その参照を返す
     // 火花など、1粒ずつのパラメータを細かく設定したい時用
@@ -183,17 +186,16 @@ private:
     void EmitGPUParticles();
     void UpdateGPUParticles();
     void DrawGPUParticles();
-    void InitializeAccentParticles();
-    void EmitAccentParticles();
-    void UpdateAccentParticles();
-    void DrawAccentParticleBuffer();
-    bool TryGetGPUParticleTextureHandle(uint32_t& textureHandle) const;
+    bool TryGetGPUParticleTextureHandle(Texture2DHandle& textureHandle) const;
 
 private:
+    // Non-owning services and current-frame context.
     DirectXCommon* dxCommon_ = nullptr;
     SrvManager* srvManager_ = nullptr;
     Camera* camera_ = nullptr;
+	float frameDeltaTime_ = 1.0f / 60.0f;
 
+    // CPU and GPU pipeline state owned by this manager.
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleComputeRootSignature_;
@@ -249,20 +251,7 @@ private:
     };
     static_assert(sizeof(UpdateParticleInfo) == 16, "UpdateParticleInfo must be 16 bytes.");
 
-    struct CropBurstInfo {
-        Vector3 center;
-        float radiusSq;
-        float strength;
-        uint32_t phase;
-        float phaseTime;
-        float deltaTime;
-        float maxSpeed;
-        uint32_t particleCount;
-        float timeScale;
-        uint32_t padding;
-    };
-    static_assert(sizeof(CropBurstInfo) == 48, "CropBurstInfo layout must match HLSL.");
-
+    // Resource states are tracked explicitly because compute writes and graphics reads share buffers.
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleResource_;
     uint32_t gpuParticleSrvHandle_ = UINT32_MAX;
     uint32_t gpuParticleUavHandle_ = UINT32_MAX;

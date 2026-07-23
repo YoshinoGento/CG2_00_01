@@ -25,6 +25,12 @@ struct FarmTile {
 	float growth = 0.0f;
 };
 
+inline bool IsHarvestReady(const FarmTile& tile)
+{
+	return tile.state == FarmTileState::Planted &&
+		tile.crop != CropType::None && tile.growth >= 1.0f;
+}
+
 inline const char* ToString(FarmTileState state)
 {
 	switch (state) {

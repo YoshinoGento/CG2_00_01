@@ -1,0 +1,7 @@
+{
+  "texture": "Resources/ui/font/ascii_bitmap_font.png",
+  "glyphWidth": 32,
+  "glyphHeight": 32,
+  "columns": 16,
+  "characters": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz :/-+.!%$×"
+}

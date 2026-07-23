@@ -1,22 +1,28 @@
 #pragma once
+
+#include "application/level/LevelGameplaySystem.h"
+#include "editor/GamePlayEditorBridge.h"
 #include "BaseScene.h"
-#include <memory>
-#include <vector>
-#include <string>
 #include <cstdint>
-#include <chrono>
+#include <memory>
+#include <string>
+#include <vector>
 #include "math/Matrix.h"
-#include "3d/SkyboxManager.h"
+#include "3d/Skybox.h"
+#include "2d/TextureManager.h"
 #include "3d/SkeletonDebugger.h"
 #include "effect/ParticleManager.h"
+#include "time/SnapshotTimeline.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmDateSystem.h"
+#include "farm/system/FarmDocumentSystem.h"
+#include "farm/system/FarmGrowthSystem.h"
+#include "farm/system/FarmInputSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
+#include "farm/system/FarmVisualSystem.h"
 #include "farm/ui/FarmHUD.h"
-#ifdef _DEBUG
-#include "farm/debug/FarmDebugEditorWindow.h"
-#endif
+#include "level/ui/StageClearHUD.h"
 
 class Framework;
 class Game;
@@ -26,8 +32,14 @@ class Camera;
 class Model;
 class FieldManager;
 
+namespace level {
+struct LevelData;
+}
+
+// Coordinates Scene systems and rendering. Domain state changes belong to Systems.
 class GamePlayScene : public BaseScene {
 	friend class Game;
+	friend class editor::GamePlayEditorBridge;
 public:
 	enum class GPUParticleDebugMode {
 		Off,
@@ -48,47 +60,30 @@ public:
 
 	void Initialize() override;
 	void Finalize() override;
+	void PrepareFixedUpdate() override;
+	void FixedUpdate(float fixedDeltaTime) override;
 	void Update() override;
 	void Draw() override;
-	void CreateSphere(float radius);
+	[[nodiscard]] editor::GamePlayEditorBridge& GetEditorBridge() noexcept { return gamePlayEditorBridge_; }
+	[[nodiscard]] const editor::GamePlayEditorBridge& GetEditorBridge() const noexcept { return gamePlayEditorBridge_; }
 	// Cylinderメッシュの再生成（パラメータ変更時に呼ぶ）
-	void RebuildCylinder();
 	// アニメーションモデルの動的切り替え（ImGuiからの呼び出し用）
-	void ChangeAnimationModel(int index);
-	bool ConsumeFieldHarvestEvent(Vector3& outPosition, int32_t& outPrice, bool& outRare);
-	Camera* GetCamera() const;
-	FieldManager* GetFieldManager() const;
-	SkyboxManager* GetSkyboxManager() const;
-	Object3d* GetAnimationObject() const;
-	void SetViewportInfo(const Vector2& imageTopLeft, const Vector2& imageSize, const Vector2& mousePosition, bool hovered);
-	void SetFieldSelectionEnabled(bool enabled);
-	void SetSkyboxInputEnabled(bool enabled);
-	void SetFieldInputEnabled(bool enabled);
-	void SetCameraInputEnabled(bool enabled);
-	void SetDemoCameraPreset();
-	void ApplyCleanDemoScene();
-	void ApplyAutoDemoScenePreset();
-	void ResetCamera();
-	void SetGPUParticleDebugMode(GPUParticleDebugMode mode);
-	void EmitAgricultureParticle(AgricultureParticleType type);
-	uint32_t CalculateInteractionParticleCount() const;
 
 private:
-	struct Ray {
-		Vector3 origin = { 0.0f, 0.0f, 0.0f };
-		Vector3 direction = { 0.0f, 0.0f, 1.0f };
-	};
-
+	enum class PlayerAnimationMode;
+	struct GameplaySnapshot;
 	void AddLog(const std::string& message);
 	void UpdateSceneDeltaTime();
 	void HandleKeyboardMovement();
 	void HandleCameraInput(float deltaTime, bool suppressArrowKeys);
 	void ClampCameraPitch();
-	void HandleFieldMouseSelection();
-	void SetCameraLookAt(const Vector3& eye, const Vector3& target);
-	bool ConvertMouseToVirtualScreen(const Vector2& mouseScreenPos, Vector2& outVirtualPos) const;
-	bool CreateRayFromVirtualScreen(const Vector2& virtualScreenPos, Ray& outRay) const;
-	bool IntersectRayPlaneY(const Ray& ray, float planeY, Vector3& outHitPosition) const;
+	void ResetCamera();
+	void CreateSphere(float radius);
+	void RebuildCylinder();
+	void ChangeAnimationModel(int index);
+	void SetUsePlayerCamera(bool usePlayerCamera);
+	void ToggleCameraMode();
+	void UpdatePlayerCamera();
 	void SyncGPUParticleDebugModeChange();
 	void HandleGPUParticleDebugModeInput();
 	void HandleAgricultureParticleInput();
@@ -99,12 +94,29 @@ private:
 	bool TryGetInteractionBrushPosition(Vector3& outBrushPosition) const;
 	FarmHUDViewData BuildFarmHUDViewData() const;
 	void HandleFarmDateDebugInput();
-	void HandleFarmToolDebugInput();
-	void HandleFarmToolActionInput();
-	bool HandleFarmGridSelectionInput();
+	void HandleFarmHistoryInput();
+	bool HandleFarmInput();
+	bool TryBuildViewportRay(Vector3& outOrigin, Vector3& outDirection) const;
+	bool TrySelectFarmTileFromViewport();
 	void InitializeFarmHUD();
+	void InitializeStageClearHUD();
 	void InitializeSkyboxIfNeeded();
-#ifdef _DEBUG
+	void LoadSceneLevel();
+	void CreateLevelObjectsFromLevel();
+	void SyncLevelGameplayPresentation();
+	void InitializeTimeline();
+	void CaptureTimelineSnapshot(GameplaySnapshot& output) const;
+	bool RestoreTimelineSnapshot(const GameplaySnapshot& snapshot);
+	void UpdateLevelPlayerVisual();
+	void ConfigureLevelPlayerAnimation(std::size_t playerRenderIndex, PlayerAnimationMode mode);
+	void CollectLevelRuntimeData();
+	void ApplyLevelCamera();
+	void DrawLevelDebugGizmos() const;
+	void DrawLevelCollisionGizmos() const;
+	void DrawLevelBox(const Vector3& center, const Vector3& size, const Vector4& color) const;
+	void DrawLevelCameraGizmo(const Vector3& position, const Vector4& color) const;
+	Vector3 EvaluateLevelRoutePoint(float normalizedTime) const;
+#ifdef USE_IMGUI
 	void DrawSceneDebugWindow();
 #endif
 
@@ -114,6 +126,41 @@ private:
 	void EmitCylinderEffect(const Vector3& position);
 
 private:
+	struct LevelObjectRuntime {
+		std::unique_ptr<Object3d> object;
+		std::string name;
+		std::string gameplayRole;
+		Vector3 basePosition{};
+		float animationPhase = 0.0f;
+		bool visible = true;
+	};
+	struct GameplaySnapshot {
+		level::LevelGameplaySystem::Snapshot levelGameplay;
+		farm::FarmGrid::Snapshot farmGrid;
+		FarmDateSystem::Snapshot farmDate;
+		FarmTool farmTool = FarmTool::Hoe;
+		float levelRouteTimer = 0.0f;
+		float playerAnimationTime = 0.0f;
+		float playerAnimationSpeed = 0.0f;
+	};
+
+	enum class PlayerAnimationMode {
+		Walk,
+		Sneak,
+	};
+	struct PlayerAnimationClip {
+		const char* fileName = nullptr;
+		float playbackSpeed = 1.0f;
+	};
+	enum class PlayerAnimationState {
+		Idle,
+		Walk,
+		Sneak,
+		Airborne,
+	};
+	static const PlayerAnimationClip& GetPlayerAnimationClip(PlayerAnimationMode mode);
+
+	// Framework and render objects are Scene-lifetime dependencies.
 	Framework* framework_ = nullptr;
 	ParticleManager* particleManager_ = nullptr;
 	std::unique_ptr<Sprite> sprite_;
@@ -122,10 +169,14 @@ private:
 
 	Vector3 cameraPos_ = { 0.0f, 5.0f, -15.0f };
 	Vector3 cameraRot_ = { 0.3f, 0.0f, 0.0f };
+	Vector3 debugCameraPos_ = { 0.0f, 5.0f, -15.0f };
+	Vector3 debugCameraRot_ = { 0.3f, 0.0f, 0.0f };
+	Vector3 levelCameraPos_ = { 0.0f, 5.0f, -15.0f };
+	Vector3 levelCameraRot_ = { 0.3f, 0.0f, 0.0f };
 	float cameraMoveSpeed_ = 5.0f;
 	float cameraRotateSpeed_ = 1.5f;
-	float sceneDeltaTime_ = 1.0f / 60.0f;
-	std::chrono::steady_clock::time_point previousFrameTime_{};
+	float sceneDeltaTime_ = 1.0f / 60.0f; // Pausable simulation time.
+	float realDeltaTime_ = 1.0f / 60.0f;  // Unscaled editor-camera time.
 
 	std::unique_ptr<Model> sphereModel_;
 	std::unique_ptr<Object3d> sphereObj_;
@@ -133,6 +184,26 @@ private:
 	std::unique_ptr<Object3d> terrainObj_;
 
 	std::unique_ptr<Object3d> animObj_;
+	std::unique_ptr<level::LevelData> levelData_;
+	std::vector<LevelObjectRuntime> levelObjects_;
+	level::LevelGameplaySystem levelGameplay_;
+	level::LevelGameplaySystem::PlayerCommand pendingPlayerCommand_{};
+	SnapshotTimeline<GameplaySnapshot> timeline_;
+	GameplaySnapshot timelineScratch_{};
+	bool timelineRewindHeld_ = false;
+	bool timelineForwardHeld_ = false;
+	bool timelineScrubbing_ = false;
+	bool timelineStepBackwardRequested_ = false;
+	bool timelineStepForwardRequested_ = false;
+	Texture2DHandle levelWhiteTextureHandle_{};
+	PlayerAnimationMode playerAnimationMode_ = PlayerAnimationMode::Walk;
+	PlayerAnimationState playerAnimationState_ = PlayerAnimationState::Idle;
+	float playerAnimationSpeed_ = 0.0f;
+	bool playerVisualConfigured_ = false;
+	bool directionalShadowsEnabled_ = true;
+	float directionalShadowStrength_ = 0.82f;
+	std::vector<Vector3> levelRoutePoints_;
+	float levelRouteTimer_ = 0.0f;
 
 	// エフェクト用モデル
 	std::unique_ptr<Model> ringModel_;
@@ -142,26 +213,36 @@ private:
 	bool skyboxEnabled_ = false;
 	bool skyboxEnvironmentEnabled_ = false;
 	int skyboxSelection_ = 0;
-	std::vector<uint32_t> textureHandles_;
-	uint32_t ringTexHandle_ = 0;
+	std::vector<Texture2DHandle> textureHandles_;
+	Texture2DHandle ringTexHandle_{};
 
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
+	// Farm Systems own mutation; the Scene only schedules them.
 	farm::FarmGrid farmGrid_;
 	FarmDateSystem farmDateSystem_;
+	FarmDocumentSystem farmDocumentSystem_;
+	FarmGrowthSystem farmGrowthSystem_;
+	FarmInputSystem farmInputSystem_;
 	FarmToolSystem farmToolSystem_;
 	FarmToolActionSystem farmToolActionSystem_;
+	farm::FarmVisualSystem farmVisualSystem_;
+	editor::GamePlayEditorBridge gamePlayEditorBridge_;
 	FarmHUD farmHud_;
-#ifdef _DEBUG
-	farm::FarmDebugEditorWindow farmDebugEditorWindow_;
-#endif
 	bool farmHudInitialized_ = false;
+	StageClearHUD stageClearHud_;
+	bool stageClearHudInitialized_ = false;
 
 	bool showTerrain_ = false;
 	bool showSphere_ = false;
 	bool showPlane_ = false;
 	bool showSprite_ = false;
 	bool showParticles_ = true;
-	bool showAnimModel_ = false;
+	bool showAnimModel_ = true;
+	bool showLevelObjects_ = true;
+	bool showLevelGizmos_ = false;
+	bool showLevelCollisionGizmos_ = false;
+	bool usePlayerCamera_ = true;
+	bool hasLevelCamera_ = false;
 	bool showSkeleton_ = false;
 	bool showDebugGrid_ = true;
 
@@ -175,6 +256,7 @@ private:
 	int activeParticleType_ = 0; // これを Game.cpp と同期
 	int currentAnimModelIdx_ = 1; // 現在のアニメーションモデルのインデックス（0: AnimatedCube, 1: simpleSkin, 2: human/walk, 3: human/sneakWalk）
 	int cullMode_ = 2;
+	int specularTypeSelection_ = 1;
 	int modelPriority_ = 0;
 
 	GPUParticleDebugMode gpuParticleDebugMode_ = GPUParticleDebugMode::Off;
@@ -200,23 +282,7 @@ private:
 	Vector2 viewportImageSize_ = { 0.0f, 0.0f };
 	Vector2 viewportMousePosition_ = { 0.0f, 0.0f };
 	bool viewportHovered_ = false;
-	bool cameraInputEnabled_ = true;
-	bool fieldSelectionEnabled_ = true;
-	bool skyboxInputEnabled_ = true;
-	bool fieldMouseInViewport_ = false;
-	bool fieldMouseRayValid_ = false;
-	bool fieldMouseHit_ = false;
-	Vector2 fieldMouseVirtualPosition_ = { -1.0f, -1.0f };
-	Vector3 fieldMouseRayOrigin_ = { 0.0f, 0.0f, 0.0f };
-	Vector3 fieldMouseRayDirection_ = { 0.0f, 0.0f, 1.0f };
-	Vector3 fieldMouseHitPosition_ = { 0.0f, 0.0f, 0.0f };
-	int fieldMouseSelectedIndex_ = -1;
-	int cropBurstSelectedIndex_ = 1;
-	Vector3 cropBurstEffectPosition_ = { 0.0f, 0.0f, 0.0f };
-	bool cropBurstAutoPlayed_ = false;
-	float cropBurstAutoTimer_ = 0.0f;
-	bool cropBurstAutoLoop_ = true;
-	float cropBurstLoopTimer_ = 0.0f;
+	bool viewportFocused_ = false;
 
 	// Cylinderパラメータ（ImGuiで操作可能）
 	float cylTopRadius_ = 1.0f;       // 上面の半径
@@ -231,7 +297,7 @@ private:
 	float lightIntensity_ = 1.0f;
 	Vector3 spotLightColor_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 spotLightPos_ = { 0.0f, 4.0f, 10.0f };
-	float spotLightIntensity_ = 2.0f;
+	float spotLightIntensity_ = 0.0f;
 	Vector3 spotLightDir_ = { 0.0f, -1.0f, 0.0f };
 	float spotLightDistance_ = 15.0f;
 	float spotLightDecay_ = 1.0f;
