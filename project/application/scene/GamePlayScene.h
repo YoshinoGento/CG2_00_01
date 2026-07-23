@@ -7,8 +7,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <string>
-#include <cstdint>
 #include "math/Matrix.h"
 #include "3d/Skybox.h"
 #include "2d/TextureManager.h"
@@ -36,6 +34,7 @@ namespace level {
 struct LevelData;
 }
 
+// Coordinates Scene systems and rendering. Domain state changes belong to Systems.
 class GamePlayScene : public BaseScene {
 	friend class Game;
 	friend class editor::GamePlayEditorBridge;
@@ -159,6 +158,7 @@ private:
 	};
 	static const PlayerAnimationClip& GetPlayerAnimationClip(PlayerAnimationMode mode);
 
+	// Framework and render objects are Scene-lifetime dependencies.
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Sprite> sprite_;
 	std::unique_ptr<Object3d> object3d_;
@@ -172,7 +172,8 @@ private:
 	Vector3 levelCameraRot_ = { 0.3f, 0.0f, 0.0f };
 	float cameraMoveSpeed_ = 5.0f;
 	float cameraRotateSpeed_ = 1.5f;
-	float sceneDeltaTime_ = 1.0f / 60.0f;
+	float sceneDeltaTime_ = 1.0f / 60.0f; // Pausable simulation time.
+	float realDeltaTime_ = 1.0f / 60.0f;  // Unscaled editor-camera time.
 
 	std::unique_ptr<Model> sphereModel_;
 	std::unique_ptr<Object3d> sphereObj_;
@@ -213,6 +214,7 @@ private:
 	Texture2DHandle ringTexHandle_{};
 
 	std::unique_ptr<SkeletonDebugger> skeletonDebugger_;
+	// Farm Systems own mutation; the Scene only schedules them.
 	farm::FarmGrid farmGrid_;
 	FarmDateSystem farmDateSystem_;
 	FarmDocumentSystem farmDocumentSystem_;
@@ -234,8 +236,8 @@ private:
 	bool showParticles_ = true;
 	bool showAnimModel_ = true;
 	bool showLevelObjects_ = true;
-	bool showLevelGizmos_ = true;
-	bool showLevelCollisionGizmos_ = true;
+	bool showLevelGizmos_ = false;
+	bool showLevelCollisionGizmos_ = false;
 	bool usePlayerCamera_ = true;
 	bool hasLevelCamera_ = false;
 	bool showSkeleton_ = false;

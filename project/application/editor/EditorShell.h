@@ -1,6 +1,8 @@
 #pragma once
 
+#include "editor/CG5DemoWindow.h"
 #include "editor/CameraControlWindow.h"
+#include "editor/ConsoleWindow.h"
 #include "editor/EditorSettings.h"
 #include "editor/EditorSettingsWindow.h"
 #include "editor/EditorSelectionSystem.h"
@@ -44,7 +46,9 @@ public:
 
 private:
 	void DrawMainMenuBar();
+	void DrawCG5Demo(PostEffectSystem& postEffectSystem);
 	void DrawEditorSettingsWindow();
+	void DrawConsole();
 	void DrawFarmController(GamePlayScene& playScene);
 	void DrawFarmHierarchy(GamePlayScene& playScene);
 	void DrawFarmHistory(GamePlayScene& playScene);
@@ -55,6 +59,7 @@ private:
 	void BuildDefaultFarmLayout(unsigned int dockspaceId);
 
 	EditorSettings editorSettings_;
+	CG5DemoWindow cg5DemoWindow_;
 	EditorSettingsWindow editorSettingsWindow_;
 	editor::EditorSelectionSystem selectionSystem_;
 	editor::GamePlayEditorViewModel gamePlayEditorViewModel_;
@@ -66,6 +71,7 @@ private:
 	GameViewportWindow gameViewportWindow_;
 	VisibilityWindow visibilityWindow_;
 	CameraControlWindow cameraControlWindow_;
+	ConsoleWindow consoleWindow_;
 	ObjectInspectorWindow objectInspectorWindow_;
 	ParticleEffectWindow particleEffectWindow_;
 	std::unique_ptr<EngineDebugWindowManager> engineDebugWindowManager_;

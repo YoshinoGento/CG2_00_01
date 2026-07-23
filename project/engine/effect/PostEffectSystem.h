@@ -14,11 +14,32 @@ class SrvManager;
 
 class PostEffectSystem final {
 public:
+	enum class DemoPreset {
+		Original,
+		RequiredGrayscale,
+		Vignette,
+		BoxFilter,
+		GaussianFilter,
+		LuminanceBasedOutline,
+		DepthBasedOutline,
+		RadialBlur,
+		Dissolve,
+		RandomNoise,
+	};
+
+	struct DepthOutlineParameters {
+		float threshold = 0.001f;
+		float intensity = 1.0f;
+		float thickness = 1.0f;
+		bool linearize = true;
+	};
+
 	struct Settings {
 		DirectXCommon::FullscreenPostEffectType effect = DirectXCommon::FullscreenPostEffectType::Copy;
 		float grayscaleIntensity = 1.0f;
 		float sepiaIntensity = 1.0f;
 		float blurStrength = 4.0f;
+		float gaussianSigma = 1.0f;
 		float bloomThreshold = 0.65f;
 		float bloomIntensity = 1.5f;
 		float bloomRadius = 8.0f;
@@ -67,6 +88,11 @@ public:
 	void Update(float deltaTime);
 	void Execute(float nearClip, float farClip);
 	void ResetSettings() { settings_ = Settings{}; }
+	void ApplySettings(const Settings& settings) noexcept;
+	void ApplyDemoPreset(DemoPreset preset);
+	void SetGrayscaleIntensity(float intensity) noexcept;
+	void SetDissolveThreshold(float threshold) noexcept;
+	void SetDepthOutlineParameters(const DepthOutlineParameters& parameters) noexcept;
 
 	[[nodiscard]] Settings& GetSettings() noexcept { return settings_; }
 	[[nodiscard]] const Settings& GetSettings() const noexcept { return settings_; }

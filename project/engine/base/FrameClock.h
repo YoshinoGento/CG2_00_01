@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 
+// Owns real time, pausable simulation time, and fixed-step accumulation.
 class FrameClock final {
 public:
 	static constexpr float kDefaultFixedDeltaSeconds = 1.0f / 60.0f;
@@ -11,10 +12,12 @@ public:
 
 	void Initialize();
 	void Tick();
+	// Returns true once per available fixed step and advances the simulation tick.
 	[[nodiscard]] bool ConsumeFixedStep();
 
 	void SetPaused(bool paused) noexcept { paused_ = paused; }
 	void TogglePaused() noexcept { paused_ = !paused_; }
+	// Queues one fixed and one variable simulation update while remaining paused.
 	void RequestSingleStep() noexcept { singleStepRequested_ = true; }
 	void SetTimeScale(float timeScale) noexcept;
 

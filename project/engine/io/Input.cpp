@@ -150,6 +150,7 @@ void Input::Initialize(WinApp* winApp)
 
 void Input::Update()
 {
+	memset(consumedKeyTriggers_, 0, sizeof(consumedKeyTriggers_));
 	memcpy(keyPre, key, sizeof(key));
 	if (!UpdateKeyboardState()) {
 		ClearKeyboardState();
@@ -297,7 +298,7 @@ bool Input::PushKey(InputKey inputKey) const
 
 bool Input::TriggerKey(BYTE keyNumber) const
 {
-	if (key[keyNumber] && !keyPre[keyNumber]) {
+	if (!consumedKeyTriggers_[keyNumber] && key[keyNumber] && !keyPre[keyNumber]) {
 		return true;
 	}
 
@@ -308,6 +309,22 @@ bool Input::TriggerKey(InputKey inputKey) const
 {
 	const int keyCode = ToDirectInputKey(inputKey);
 	return IsKeyboardKeyCodeValid(keyCode) && TriggerKey(static_cast<BYTE>(keyCode));
+}
+
+bool Input::ConsumeTriggerKey(BYTE keyNumber)
+{
+	if (!TriggerKey(keyNumber)) {
+		return false;
+	}
+	consumedKeyTriggers_[keyNumber] = true;
+	return true;
+}
+
+bool Input::ConsumeTriggerKey(InputKey inputKey)
+{
+	const int keyCode = ToDirectInputKey(inputKey);
+	return IsKeyboardKeyCodeValid(keyCode) &&
+		ConsumeTriggerKey(static_cast<BYTE>(keyCode));
 }
 
 bool Input::ReleaseKey(BYTE keyNumber) const

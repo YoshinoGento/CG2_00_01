@@ -40,6 +40,8 @@ public:
 	/// <returns>トリガーか</returns>
 	bool TriggerKey(BYTE keyNumber) const; 
 	bool TriggerKey(InputKey key) const;
+	bool ConsumeTriggerKey(BYTE keyNumber);
+	bool ConsumeTriggerKey(InputKey key);
 	bool ReleaseKey(BYTE keyNumber) const;
 	bool ReleaseKey(InputKey key) const;
 
@@ -78,6 +80,7 @@ private:
 	BYTE keyPre[256] = {};
 
 	BYTE key[256] = {};
+	bool consumedKeyTriggers_[256] = {};
 
 	static constexpr int kMouseButtonCount = 5;
 	BYTE mouseButtonPre[kMouseButtonCount] = {};

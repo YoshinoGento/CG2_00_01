@@ -33,11 +33,15 @@ void FrameClock::Tick() {
 	elapsedSeconds = std::clamp(
 		elapsedSeconds, 0.0, static_cast<double>(kMaximumFrameDeltaSeconds));
 	realDeltaSeconds_ = static_cast<float>(elapsedSeconds);
-	frameDeltaSeconds_ = paused_ ? 0.0f : realDeltaSeconds_ * timeScale_;
+	// A paused Step advances simulation time once; real time keeps tracking the editor.
+	const bool advanceSingleStep = paused_ && singleStepRequested_;
+	frameDeltaSeconds_ = paused_
+		? (advanceSingleStep ? fixedDeltaSeconds_ : 0.0f)
+		: realDeltaSeconds_ * timeScale_;
 	fixedStepsThisFrame_ = 0;
 
 	if (paused_) {
-		if (singleStepRequested_) {
+		if (advanceSingleStep) {
 			accumulatorSeconds_ += fixedDeltaSeconds_;
 		}
 	} else {

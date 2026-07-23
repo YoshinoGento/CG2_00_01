@@ -1,6 +1,7 @@
 #include "editor/GamePlayEditorBridge.h"
 
 #include "3d/Object3d.h"
+#include "base/FrameClock.h"
 #include "base/Framework.h"
 #include "effect/ParticleManager.h"
 #include "farm/core/FarmGrid.h"
@@ -112,6 +113,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.objectInspector.cylinder = {};
 	output.objectInspector.joints.clear();
 	output.particles = {};
+	output.simulation = {};
 	if (!IsBound()) {
 		return;
 	}
@@ -187,6 +189,9 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.visibility.showParticles = scene_->showParticles_;
 	output.visibility.showAnimatedModel = scene_->showAnimModel_;
 	output.visibility.showSkeleton = scene_->showSkeleton_;
+	output.visibility.showLevelObjects = scene_->showLevelObjects_;
+	output.visibility.showLevelGizmos = scene_->showLevelGizmos_;
+	output.visibility.showCollisionGizmos = scene_->showLevelCollisionGizmos_;
 	output.visibility.cullMode = scene_->cullMode_;
 	output.camera = {
 		scene_->cameraPos_,
@@ -257,6 +262,38 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	};
 	if (scene_->framework_ && scene_->framework_->GetParticleManager()) {
 		output.particles.alphaReference = scene_->framework_->GetParticleManager()->GetAlphaReference();
+	}
+	if (scene_->framework_ && scene_->framework_->GetFrameClock()) {
+		const FrameClock* frameClock = scene_->framework_->GetFrameClock();
+		output.simulation.paused = frameClock->IsPaused();
+		output.simulation.simulationTick = frameClock->GetSimulationTick();
+	}
+}
+
+bool GamePlayEditorBridge::Execute(const SimulationEditorCommand& command) {
+	if (!IsBound() || !scene_->framework_) {
+		return false;
+	}
+	FrameClock* frameClock = scene_->framework_->GetFrameClock();
+	if (!frameClock) {
+		return false;
+	}
+
+	switch (command.action) {
+	case SimulationEditorAction::Play:
+		frameClock->SetPaused(false);
+		return true;
+	case SimulationEditorAction::Pause:
+		frameClock->SetPaused(true);
+		return true;
+	case SimulationEditorAction::Step:
+		if (!frameClock->IsPaused()) {
+			return false;
+		}
+		frameClock->RequestSingleStep();
+		return true;
+	default:
+		return false;
 	}
 }
 
@@ -368,6 +405,9 @@ bool GamePlayEditorBridge::Execute(const VisibilityEditorCommand& command) {
 	scene_->showParticles_ = command.value.showParticles;
 	scene_->showAnimModel_ = command.value.showAnimatedModel;
 	scene_->showSkeleton_ = command.value.showSkeleton;
+	scene_->showLevelObjects_ = command.value.showLevelObjects;
+	scene_->showLevelGizmos_ = command.value.showLevelGizmos;
+	scene_->showLevelCollisionGizmos_ = command.value.showCollisionGizmos;
 	scene_->cullMode_ = std::clamp(command.value.cullMode, 0, 2);
 	return true;
 }

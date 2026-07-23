@@ -390,8 +390,10 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle_, ringModel_.get());
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
+#ifdef USE_IMGUI
 	InitializeFarmHUD();
 	InitializeStageClearHUD();
+#endif
 
 }
 
@@ -463,6 +465,7 @@ void GamePlayScene::Update() {
 	}
 #endif
 
+	// Collect frame requests before scheduling Scene systems.
 	Input* frameInput = framework_ ? framework_->GetInput() : nullptr;
 	const bool controlHeld = frameInput && (frameInput->PushKey(DIK_LCONTROL) || frameInput->PushKey(DIK_RCONTROL));
 	bool levelReloadRequested = frameInput &&
@@ -479,8 +482,9 @@ void GamePlayScene::Update() {
 		ToggleCameraMode();
 	}
 
+	// Farm input has priority; editor-camera input uses unpaused real time.
 	const bool farmGridInputConsumed = HandleFarmInput();
-	HandleCameraInput(sceneDeltaTime_, farmGridInputConsumed);
+	HandleCameraInput(realDeltaTime_, farmGridInputConsumed);
 	ClampCameraPitch();
 	if (!farmGridInputConsumed) {
 		HandleKeyboardMovement();
@@ -514,6 +518,7 @@ void GamePlayScene::Update() {
 		}
 	}
 
+	// LightingSystem owns the GPU upload; the Scene supplies one frame snapshot.
 	LightingSystem* lightingSystem = framework_->GetLightingSystem();
 	assert(lightingSystem != nullptr);
 	lightingSystem->SetDirectionalLight({
@@ -532,6 +537,7 @@ void GamePlayScene::Update() {
 	lightingSystem->SetSpotLight(spotLight);
 	lightingSystem->SetCameraPosition(camera_->GetTranslate());
 
+	// Apply shared render settings consistently before each Object3d update.
 	auto UpdateObjectState = [&](Object3d* obj, float envCoef) {
 		if (!obj) return;
 		obj->SetCullMode(cullMode_);
@@ -586,6 +592,7 @@ void GamePlayScene::Update() {
 		}
 	}
 
+	// Debug input changes particle requests; ParticleManager owns GPU state.
 	SyncGPUParticleDebugModeChange();
 	HandleGPUParticleDebugModeInput();
 
@@ -597,6 +604,7 @@ void GamePlayScene::Update() {
 }
 
 void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
+	// Deterministic gameplay mutation stays in fixed-step Systems.
 	if (timelineScrubbing_) {
 		const bool stepped = timelineForwardHeld_
 			? timeline_.StepForward(timelineScratch_)
@@ -1289,6 +1297,7 @@ void GamePlayScene::Draw() {
 		}
 		};
 
+	// Shadow pass must complete before the color pass reads shadow data.
 	objCommon->SetShadowStrength(directionalShadowsEnabled_ ? directionalShadowStrength_ : 0.0f);
 	if (directionalShadowsEnabled_) {
 		Vector3 shadowFocus = levelGameplay_.HasPlayer()
@@ -1376,6 +1385,7 @@ void GamePlayScene::Draw() {
 		LineDrawer::GetInstance()->Draw(camera_->GetViewProjectionMatrix());
 	}
 
+	// ParticleManager performs compute updates before its graphics SRV read.
 	if (showParticles_) {
 		ParticleManager* particleManager = framework_->GetParticleManager();
 		if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction) {
@@ -1407,6 +1417,7 @@ void GamePlayScene::Draw() {
 		}
 	}
 
+	// HUD is the final Scene overlay and does not mutate gameplay state.
 	if (farmHudInitialized_ || stageClearHudInitialized_) {
 		spriteCommon->PreDraw();
 		if (farmHudInitialized_) {
@@ -1572,12 +1583,7 @@ void GamePlayScene::DrawSceneDebugWindow() {
 		ImGui::Checkbox("Skybox Environment Map", &skyboxEnvironmentEnabled_);
 		ImGui::Text("Skybox Loaded: %s", skybox_ ? "Yes" : "No");
 		ImGui::Separator();
-		ImGui::Checkbox("Terrain", &showTerrain_);
-		ImGui::Checkbox("Sphere", &showSphere_);
-		ImGui::Checkbox("Plane", &showPlane_);
-		ImGui::Checkbox("Level Objects", &showLevelObjects_);
-		ImGui::Checkbox("Level Gizmos", &showLevelGizmos_);
-		ImGui::Checkbox("Collision Gizmos", &showLevelCollisionGizmos_);
+		ImGui::TextDisabled("Object visibility: Window > Scene Visibility");
 		ImGui::Checkbox("Directional Shadows", &directionalShadowsEnabled_);
 		ImGui::SliderFloat("Shadow Strength", &directionalShadowStrength_, 0.0f, 1.0f, "%.2f");
 		ImGui::DragFloat3("Sun Direction", &lightDirection_.x, 0.01f, -1.0f, 1.0f, "%.2f");
@@ -1609,7 +1615,6 @@ void GamePlayScene::DrawSceneDebugWindow() {
 		ImGui::Text("Level Object3d: %zu", levelObjects_.size());
 		ImGui::Text("Collected: %zu / %zu", levelGameplay_.GetCollectedCount(), levelGameplay_.GetCollectibleCount());
 		ImGui::Text("Patrol Points: %zu", levelRoutePoints_.size());
-		ImGui::Checkbox("Particles", &showParticles_);
 	}
 	ImGui::End();
 }
@@ -1617,7 +1622,12 @@ void GamePlayScene::DrawSceneDebugWindow() {
 
 void GamePlayScene::UpdateSceneDeltaTime() {
 	const FrameClock* frameClock = framework_ ? framework_->GetFrameClock() : nullptr;
-	sceneDeltaTime_ = frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds;
+	sceneDeltaTime_ = frameClock
+		? frameClock->GetFrameDeltaSeconds()
+		: FrameClock::kDefaultFixedDeltaSeconds;
+	realDeltaTime_ = frameClock
+		? frameClock->GetRealDeltaSeconds()
+		: FrameClock::kDefaultFixedDeltaSeconds;
 }
 
 void GamePlayScene::HandleFarmHistoryInput() {

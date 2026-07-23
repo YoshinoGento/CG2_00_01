@@ -6,6 +6,8 @@
 #include "base/ImGuiManager.h"
 #include "base/Logger.h"
 #include "base/SrvManager.h"
+#include "demo/PostEffectSubmissionDemo.h"
+#include "demo/PostEffectSubmissionHUD.h"
 #include "editor/EditorShell.h"
 #include "effect/PostEffectSystem.h"
 #include "scene/GamePlayScene.h"
@@ -31,11 +33,23 @@ void Game::Initialize() {
 #ifdef USE_IMGUI
 	editorShell_ = std::make_unique<EditorShell>();
 	editorShell_->Initialize();
+#else
+	postEffectSubmissionDemo_ = std::make_unique<PostEffectSubmissionDemo>();
+	postEffectSubmissionDemo_->Initialize(*postEffectSystem_, *winApp_);
+	postEffectSubmissionHud_ = std::make_unique<PostEffectSubmissionHUD>();
+	if (!postEffectSubmissionHud_->Initialize(spriteCommon_.get())) {
+		Logger::Log("Game::Initialize failed to initialize PostEffectSubmissionHUD.");
+		assert(false && "PostEffectSubmissionHUD initialization failed");
+	}
 #endif
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
 	SceneManager::GetInstance()->SetSceneFactory(sceneFactory_.get());
+#ifdef USE_IMGUI
 	SceneManager::GetInstance()->ChangeScene("TITLE");
+#else
+	SceneManager::GetInstance()->ChangeScene("GAMEPLAY");
+#endif
 }
 
 void Game::Finalize() {
@@ -46,6 +60,8 @@ void Game::Finalize() {
 	}
 #endif
 
+	postEffectSubmissionHud_.reset();
+	postEffectSubmissionDemo_.reset();
 	SceneManager::DeleteInstance();
 	if (postEffectSystem_) {
 		postEffectSystem_->Finalize();
@@ -58,6 +74,25 @@ void Game::Update() {
 	Framework::Update();
 	SceneManager* sceneManager = SceneManager::GetInstance();
 	sceneManager->BeginFrame();
+
+#ifndef USE_IMGUI
+	if (postEffectSubmissionDemo_) {
+		postEffectSubmissionDemo_->Update(
+			frameClock_->GetFrameDeltaSeconds(),
+			*input_,
+			*postEffectSystem_,
+			*winApp_);
+		if (postEffectSubmissionHud_) {
+			postEffectSubmissionHud_->SetViewData({
+				.effectName = postEffectSubmissionDemo_->GetCurrentEffectName(),
+				.showDissolveProgress = postEffectSubmissionDemo_->IsDissolveActive(),
+				.dissolvePercent = postEffectSubmissionDemo_->GetDissolvePercent(),
+			});
+			postEffectSubmissionHud_->Update();
+		}
+	}
+#endif
+
 	postEffectSystem_->Update(frameClock_->GetFrameDeltaSeconds());
 
 	ImGuiManager::GetInstance()->Begin();
@@ -100,6 +135,14 @@ void Game::Draw() {
 		}
 	}
 	postEffectSystem_->Execute(nearClip, farClip);
+
+#ifndef USE_IMGUI
+	// Submission text is display-space UI, so the demonstrated effect cannot hide its own name.
+	if (postEffectSubmissionHud_) {
+		spriteCommon_->PreDraw();
+		postEffectSubmissionHud_->Draw();
+	}
+#endif
 
 	// ImGui is composited on the swapchain after the gamma-corrected game image.
 	ImGuiManager::GetInstance()->Draw();

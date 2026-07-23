@@ -108,6 +108,8 @@ static_assert(offsetof(GPUParticleInteractionSettings, operation) == 56, "GPUPar
 static_assert(offsetof(GPUParticleInteractionSettings, deltaTime) == 60, "GPUParticleInteractionSettings::deltaTime offset must match HLSL.");
 static_assert(offsetof(GPUParticleInteractionSettings, damping) == 64, "GPUParticleInteractionSettings::damping offset must match HLSL.");
 
+// Owns CPU particle groups and the shared GPU buffers, pipelines, and states.
+// DirectXCommon, SrvManager, Camera, and group Models are non-owning dependencies.
 class ParticleManager {
 public:
     void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager);
@@ -167,11 +169,13 @@ private:
     bool TryGetGPUParticleTextureHandle(Texture2DHandle& textureHandle) const;
 
 private:
+    // Non-owning services and current-frame context.
     DirectXCommon* dxCommon_ = nullptr;
     SrvManager* srvManager_ = nullptr;
     Camera* camera_ = nullptr;
 	float frameDeltaTime_ = 1.0f / 60.0f;
 
+    // CPU and GPU pipeline state owned by this manager.
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> gpuParticleComputeRootSignature_;
@@ -227,6 +231,7 @@ private:
     };
     static_assert(sizeof(UpdateParticleInfo) == 16, "UpdateParticleInfo must be 16 bytes.");
 
+    // Resource states are tracked explicitly because compute writes and graphics reads share buffers.
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleResource_;
     uint32_t gpuParticleSrvHandle_ = UINT32_MAX;
     uint32_t gpuParticleUavHandle_ = UINT32_MAX;

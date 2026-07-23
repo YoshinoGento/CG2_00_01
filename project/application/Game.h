@@ -6,6 +6,8 @@
 class SceneFactory;
 class EditorShell;
 class PostEffectSystem;
+class PostEffectSubmissionDemo;
+class PostEffectSubmissionHUD;
 
 /**
  * Gameクラス
@@ -31,6 +33,8 @@ private:
 	static Vector2 mousePosInViewport_;
 
 	std::unique_ptr<PostEffectSystem> postEffectSystem_;
+	std::unique_ptr<PostEffectSubmissionDemo> postEffectSubmissionDemo_;
+	std::unique_ptr<PostEffectSubmissionHUD> postEffectSubmissionHud_;
 #ifdef USE_IMGUI
 	std::unique_ptr<EditorShell> editorShell_;
 #endif

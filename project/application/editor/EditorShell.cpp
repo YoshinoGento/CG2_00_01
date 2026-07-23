@@ -1,6 +1,7 @@
 #include "editor/EditorShell.h"
 
 #include "base/ImGuiManager.h"
+#include "base/Logger.h"
 #include "base/SrvManager.h"
 #include "base/WinApp.h"
 #include "debug/EngineDebugWindowManager.h"
@@ -16,7 +17,7 @@
 #endif
 
 namespace {
-constexpr int kFarmWorkspaceLayoutVersion = 4;
+constexpr int kFarmWorkspaceLayoutVersion = 6;
 }
 
 EditorShell::EditorShell() = default;
@@ -32,12 +33,15 @@ void EditorShell::Initialize() {
 	editorSettings_.Apply(*ImGuiManager::GetInstance());
 	rebuildLayoutRequested_ =
 		editorSettings_.GetWorkspaceLayoutVersion() < kFarmWorkspaceLayoutVersion;
+	cg5DemoWindow_.SetOpen(false);
 	farmMapWindow_.SetOpen(true);
+	consoleWindow_.SetOpen(true);
 	farmHierarchyWindow_.SetOpen(false);
 	visibilityWindow_.SetOpen(false);
 	cameraControlWindow_.SetOpen(false);
 	objectInspectorWindow_.SetOpen(false);
 	particleEffectWindow_.SetOpen(false);
+	showPostEffectDebugWindow_ = true;
 #endif
 }
 
@@ -69,6 +73,7 @@ void EditorShell::Draw(
 		ImGui::GetMainViewport(),
 		ImGuiDockNodeFlags_None);
 	DrawEditorSettingsWindow();
+	DrawConsole();
 
 	if (showEngineDebugWindow_ && engineDebugWindowManager_ && input) {
 		engineDebugWindowManager_->Draw(*input);
@@ -132,7 +137,9 @@ void EditorShell::Draw(
 	DrawFarmController(*playScene);
 	DrawFarmHistory(*playScene);
 	DrawFarmMap(*playScene);
-	bridge.Execute(visibilityWindow_.Draw(gamePlayEditorViewModel_.visibility));
+	bridge.Execute(visibilityWindow_.Draw(
+		gamePlayEditorViewModel_.visibility,
+		editorSettings_.GetLanguage()));
 	bridge.Execute(cameraControlWindow_.Draw(gamePlayEditorViewModel_.camera));
 	bridge.Execute(objectInspectorWindow_.Draw(gamePlayEditorViewModel_.objectInspector));
 	bridge.Execute(particleEffectWindow_.Draw(gamePlayEditorViewModel_.particles));
@@ -140,7 +147,29 @@ void EditorShell::Draw(
 		skinningDebugWindow_->Draw(bridge.GetAnimationObjectForDebug());
 	}
 	if (showPostEffectDebugWindow_ && postEffectDebugWindow_ && postEffectSystem) {
-		postEffectDebugWindow_->Draw(*postEffectSystem);
+		const PostEffectDebugActions actions = postEffectDebugWindow_->Draw(
+			*postEffectSystem,
+			editorSettings_.GetLanguage());
+		if (actions.settings.has_value()) {
+			postEffectSystem->ApplySettings(*actions.settings);
+		}
+		if (actions.chainModeEnabled.has_value()) {
+			postEffectSystem->SetChainModeEnabled(*actions.chainModeEnabled);
+		}
+		if (actions.chainPassChange.has_value()) {
+			postEffectSystem->SetChainPassEnabled(
+				actions.chainPassChange->index,
+				actions.chainPassChange->enabled);
+		}
+		if (actions.resetSettings) {
+			postEffectSystem->ResetSettings();
+		}
+		if (actions.preset.has_value()) {
+			postEffectSystem->ApplyDemoPreset(*actions.preset);
+		}
+	}
+	if (postEffectSystem) {
+		DrawCG5Demo(*postEffectSystem);
 	}
 #else
 	(void)currentScene;
@@ -206,6 +235,10 @@ void EditorShell::DrawMainMenuBar() {
 	}
 
 	if (ImGui::BeginMenu(text("Window"))) {
+		if (ImGui::MenuItem(text("CG5 Demo"), nullptr, cg5DemoWindow_.IsOpen())) {
+			cg5DemoWindow_.SetOpen(!cg5DemoWindow_.IsOpen());
+		}
+		ImGui::Separator();
 		if (ImGui::MenuItem(text("Farm Map"), nullptr, farmMapWindow_.IsOpen())) {
 			farmMapWindow_.SetOpen(!farmMapWindow_.IsOpen());
 		}
@@ -218,8 +251,11 @@ void EditorShell::DrawMainMenuBar() {
 		if (ImGui::MenuItem(text("Farm History"), nullptr, farmHistoryWindow_.IsOpen())) {
 			farmHistoryWindow_.SetOpen(!farmHistoryWindow_.IsOpen());
 		}
+		if (ImGui::MenuItem(text("Console"), nullptr, consoleWindow_.IsOpen())) {
+			consoleWindow_.SetOpen(!consoleWindow_.IsOpen());
+		}
 		ImGui::Separator();
-		if (ImGui::MenuItem("Visibility & Cull", nullptr, visibilityWindow_.IsOpen())) {
+		if (ImGui::MenuItem(text("Scene Visibility"), nullptr, visibilityWindow_.IsOpen())) {
 			visibilityWindow_.SetOpen(!visibilityWindow_.IsOpen());
 		}
 		if (ImGui::MenuItem("Camera Control", nullptr, cameraControlWindow_.IsOpen())) {
@@ -237,11 +273,76 @@ void EditorShell::DrawMainMenuBar() {
 		}
 		ImGui::Separator();
 		ImGui::MenuItem("Engine Debug", nullptr, &showEngineDebugWindow_);
-		ImGui::MenuItem("PostEffect Debug", nullptr, &showPostEffectDebugWindow_);
+		ImGui::MenuItem(
+			text("Fullscreen PostEffect"),
+			nullptr,
+			&showPostEffectDebugWindow_);
 		ImGui::MenuItem("Skinning Debug", nullptr, &showSkinningDebugWindow_);
 		ImGui::EndMenu();
 	}
 	ImGui::EndMainMenuBar();
+#endif
+}
+
+void EditorShell::DrawCG5Demo(PostEffectSystem& postEffectSystem) {
+#ifdef USE_IMGUI
+	const PostEffectSystem::Settings& settings = postEffectSystem.GetSettings();
+	CG5DemoViewData viewData;
+	viewData.chainModeEnabled = postEffectSystem.IsChainModeEnabled();
+	switch (settings.effect) {
+	case DirectXCommon::FullscreenPostEffectType::Copy:
+		viewData.effect = CG5DemoEffectState::Original;
+		break;
+	case DirectXCommon::FullscreenPostEffectType::Grayscale:
+		viewData.effect = CG5DemoEffectState::Grayscale;
+		break;
+	case DirectXCommon::FullscreenPostEffectType::OutlineDepth:
+		viewData.effect = CG5DemoEffectState::DepthBasedOutline;
+		break;
+	default:
+		viewData.effect = CG5DemoEffectState::Other;
+		break;
+	}
+	viewData.grayscaleIntensity = settings.grayscaleIntensity;
+	viewData.depthOutline = {
+		.threshold = settings.depthOutlineThreshold,
+		.intensity = settings.depthOutlineIntensity,
+		.thickness = settings.depthOutlineThickness,
+		.linearize = settings.depthOutlineLinearize,
+	};
+
+	const CG5DemoActions actions = cg5DemoWindow_.Draw(
+		viewData,
+		editorSettings_.GetLanguage());
+	if (actions.preset.has_value()) {
+		PostEffectSystem::DemoPreset preset = PostEffectSystem::DemoPreset::Original;
+		switch (*actions.preset) {
+		case CG5DemoPresetAction::RequiredGrayscale:
+			preset = PostEffectSystem::DemoPreset::RequiredGrayscale;
+			break;
+		case CG5DemoPresetAction::DepthBasedOutline:
+			preset = PostEffectSystem::DemoPreset::DepthBasedOutline;
+			break;
+		case CG5DemoPresetAction::Original:
+		default:
+			break;
+		}
+		postEffectSystem.ApplyDemoPreset(preset);
+	}
+	if (actions.grayscaleIntensity.has_value()) {
+		postEffectSystem.SetGrayscaleIntensity(*actions.grayscaleIntensity);
+	}
+	if (actions.depthOutline.has_value()) {
+		const CG5DepthOutlineParameters& outline = *actions.depthOutline;
+		postEffectSystem.SetDepthOutlineParameters({
+			.threshold = outline.threshold,
+			.intensity = outline.intensity,
+			.thickness = outline.thickness,
+			.linearize = outline.linearize,
+		});
+	}
+#else
+	(void)postEffectSystem;
 #endif
 }
 
@@ -270,6 +371,15 @@ void EditorShell::DrawEditorSettingsWindow() {
 		if (editorSettings_.ResetLayout()) {
 			rebuildLayoutRequested_ = true;
 		}
+	}
+#endif
+}
+
+void EditorShell::DrawConsole() {
+#ifdef USE_IMGUI
+	const ConsoleWindowActions actions = consoleWindow_.Draw(editorSettings_.GetLanguage());
+	if (actions.clearRequested) {
+		Logger::Clear();
 	}
 #endif
 }
@@ -311,6 +421,11 @@ void EditorShell::DrawFarmToolbar(GamePlayScene& playScene) {
 		command.type = editor::GamePlayEditorCommandType::SelectFarmTool;
 		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
 		command.farmTool = *actions.selectedTool;
+		changed |= bridge.Execute(command);
+	}
+	if (actions.simulationAction.has_value()) {
+		editor::SimulationEditorCommand command;
+		command.action = *actions.simulationAction;
 		changed |= bridge.Execute(command);
 	}
 	if (actions.undo) {
@@ -541,7 +656,7 @@ void EditorShell::BuildDefaultFarmLayout(unsigned int dockspaceId) {
 	ImGui::DockBuilderSplitNode(
 		bodyNode,
 		ImGuiDir_Down,
-		0.09f,
+		0.20f,
 		&historyNode,
 		&mainNode);
 	ImGuiID hierarchyNode = 0;
@@ -569,7 +684,9 @@ void EditorShell::BuildDefaultFarmLayout(unsigned int dockspaceId) {
 	ImGui::DockBuilderDockWindow("FarmHierarchy", hierarchyNode);
 	ImGui::DockBuilderDockWindow("GameViewport", viewportNode);
 	ImGui::DockBuilderDockWindow("FarmInspector", inspectorNode);
+	ImGui::DockBuilderDockWindow("CG5Demo", inspectorNode);
 	ImGui::DockBuilderDockWindow("FarmHistory", historyNode);
+	ImGui::DockBuilderDockWindow("Console", historyNode);
 	ImGui::DockBuilderDockWindow("Particle Effect", historyNode);
 	ImGui::DockBuilderDockWindow("Camera Control", inspectorNode);
 	ImGui::DockBuilderDockWindow("Object Inspector", inspectorNode);
