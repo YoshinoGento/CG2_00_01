@@ -135,6 +135,10 @@ public:
 	const SkinCluster& GetSkinCluster() const { return skinCluster_; }
 	bool UseComputeSkinning() const;
 	void SetUseComputeSkinning(bool useComputeSkinning) { skinCluster_.useComputeSkinning = useComputeSkinning; }
+	uint32_t GetVertexCount() const { return static_cast<uint32_t>(vertices_.size()); }
+	uint32_t GetIndexCount() const { return static_cast<uint32_t>(indices_.size()); }
+	uint32_t GetMeshCount() const { return static_cast<uint32_t>(meshes_.size()); }
+	uint32_t GetMaterialCount() const { return static_cast<uint32_t>(modelMaterials_.size()); }
 
 	// --- 追加：アニメーションの読み込み ---
 	Animation LoadAnimation(const std::string& directoryPath, const std::string& filename);

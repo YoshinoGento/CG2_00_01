@@ -92,6 +92,9 @@ void Object3d::Update(Camera* camera, float deltaTime) {
 	Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(transform_.translate);
 	// ★修正：ルートノードのローカル行列を含まない、オブジェクト自身の変換行列を保持する
 	objectWorldMatrix_ = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
+	if (parentWorldMatrix_.has_value()) {
+		objectWorldMatrix_ = MatrixMath::Multiply(objectWorldMatrix_, *parentWorldMatrix_);
+	}
 	worldMatrix_ = objectWorldMatrix_;
 
 	// --- 2. モデル内の階層構造（ノード）の行列を合成する ---

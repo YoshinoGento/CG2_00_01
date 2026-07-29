@@ -21,6 +21,8 @@
 #include "farm/ui/FarmHUD.h"
 #ifdef USE_IMGUI
 #include "farm/debug/FarmDebugEditorWindow.h"
+#include "debug/CG4EvaluationTypes.h"
+#include "3d/JointAttachmentSystem.h"
 #endif
 
 class Framework;
@@ -64,6 +66,10 @@ public:
 	void RebuildCylinder();
 	// アニメーションモデルの動的切り替え（ImGuiからの呼び出し用）
 	void ChangeAnimationModel(int index);
+#ifdef USE_IMGUI
+	[[nodiscard]] CG4EvaluationViewData BuildCG4EvaluationViewData() const;
+	void ApplyCG4EvaluationActions(const CG4EvaluationActions& actions);
+#endif
 
 private:
 	enum class PlayerAnimationMode;
@@ -97,6 +103,10 @@ private:
 	void CreateLevelObjectsFromLevel();
 	void SyncLevelGameplayPresentation();
 	void InitializeTimeline();
+#ifdef USE_IMGUI
+	void BindBusterSwordAttachment();
+	void DrawBusterSwordAttachmentGizmo() const;
+#endif
 	void CaptureTimelineSnapshot(GameplaySnapshot& output) const;
 	bool RestoreTimelineSnapshot(const GameplaySnapshot& snapshot);
 	void UpdateLevelPlayerVisual();
@@ -173,6 +183,12 @@ private:
 	std::unique_ptr<Object3d> terrainObj_;
 
 	std::unique_ptr<Object3d> animObj_;
+	std::unique_ptr<Object3d> multiMeshMaterialObj_;
+#ifdef USE_IMGUI
+	std::unique_ptr<Object3d> busterSwordObj_;
+	JointAttachmentSystem busterSwordAttachment_;
+	bool showBusterSwordGizmo_ = true;
+#endif
 	std::unique_ptr<level::LevelData> levelData_;
 	std::vector<LevelObjectRuntime> levelObjects_;
 	level::LevelGameplaySystem levelGameplay_;
@@ -213,8 +229,10 @@ private:
 	FarmHUD farmHud_;
 #ifdef USE_IMGUI
 	farm::FarmDebugEditorWindow farmDebugEditorWindow_;
+	bool showLegacySceneDebugWindows_ = true;
 #endif
 	bool farmHudInitialized_ = false;
+	bool showFarmHud_ = true;
 
 	bool showTerrain_ = true;
 	bool showSphere_ = true;
@@ -222,6 +240,10 @@ private:
 	bool showSprite_ = true;
 	bool showParticles_ = true;
 	bool showAnimModel_ = true;
+	bool showMultiMeshMaterialSample_ = false;
+#ifdef USE_IMGUI
+	bool showBusterSword_ = false;
+#endif
 	bool showLevelObjects_ = true;
 	bool showLevelGizmos_ = true;
 	bool showLevelCollisionGizmos_ = true;

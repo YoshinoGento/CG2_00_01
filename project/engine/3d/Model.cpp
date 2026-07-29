@@ -178,7 +178,10 @@ Animation Model::LoadAnimation(const std::string& directoryPath, const std::stri
 void Model::LoadModelFile(const std::string& directoryPath, const std::string& filename) {
 	Assimp::Importer importer;
 	std::string filepath = directoryPath + "/" + filename;
-	std::string modelFolder = std::filesystem::path(filepath).parent_path().string();
+	const size_t lastSeparator = filepath.find_last_of("/\\");
+	const std::string modelFolder = lastSeparator == std::string::npos
+		? std::string{}
+		: filepath.substr(0, lastSeparator);
 
 	const aiScene* scene = importer.ReadFile(filepath.c_str(),
 		aiProcess_Triangulate | aiProcess_FlipWindingOrder | aiProcess_FlipUVs);

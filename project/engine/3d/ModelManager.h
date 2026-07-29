@@ -22,6 +22,7 @@ public:
 
 	// モデルの読み込みと取得
 	void LoadModel(const std::string& filename);
+	void LoadModelAs(const std::string& cacheKey, const std::string& filename);
 	Model* GetModel(const std::string& filename);
 
 	// --- ゲッター ---

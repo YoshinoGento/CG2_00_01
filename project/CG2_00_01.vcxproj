@@ -176,6 +176,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\LineDrawer.cpp" />
     <ClCompile Include="engine\3d\Skeleton.cpp" />
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp" />
+    <ClCompile Include="engine\3d\JointAttachmentSystem.cpp" />
     <ClCompile Include="engine\debug\Engine2DFeatureDebugWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
@@ -189,6 +190,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+	<ClCompile Include="engine\debug\CG4EvaluationWindow.cpp">
+	  <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+	</ClCompile>
     <ClCompile Include="engine\audio\Audio.cpp" />
     <ClCompile Include="application\scene\BaseScene.cpp" />
     <ClCompile Include="engine\3d\Camera.cpp" />
@@ -427,11 +431,14 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\3d\LineDrawer.h" />
     <ClInclude Include="engine\3d\Skeleton.h" />
     <ClInclude Include="engine\3d\SkeletonDebugger.h" />
+    <ClInclude Include="engine\3d\JointAttachmentSystem.h" />
     <ClInclude Include="engine\debug\Engine2DFeatureDebugWindow.h" />
     <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
     <ClInclude Include="engine\debug\InputDebugWindow.h" />
     <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
+	<ClInclude Include="engine\debug\CG4EvaluationWindow.h" />
+	<ClInclude Include="engine\debug\CG4EvaluationTypes.h" />
     <ClInclude Include="engine\audio\Audio.h" />
     <ClInclude Include="application\scene\BaseScene.h" />
     <ClInclude Include="engine\3d\Camera.h" />

@@ -24,13 +24,17 @@ void ModelManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager) {
  * モデルの読み込み
  */
 void ModelManager::LoadModel(const std::string& filename) {
-    if (models_.find(filename) != models_.end()) {
-        return;
-    }
+	LoadModelAs(filename, filename);
+}
 
-    std::unique_ptr<Model> model = std::make_unique<Model>();
-    model->Initialize(this, "Resources", filename);
-    models_[filename] = std::move(model);
+void ModelManager::LoadModelAs(const std::string& cacheKey, const std::string& filename) {
+	if (cacheKey.empty() || filename.empty() || models_.find(cacheKey) != models_.end()) {
+		return;
+	}
+
+	std::unique_ptr<Model> model = std::make_unique<Model>();
+	model->Initialize(this, "Resources", filename);
+	models_[cacheKey] = std::move(model);
 }
 
 /**

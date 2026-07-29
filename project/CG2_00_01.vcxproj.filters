@@ -216,6 +216,9 @@
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
+    <ClCompile Include="engine\3d\JointAttachmentSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\shader\Object3D.PS.hlsl">
@@ -419,6 +422,9 @@
     <ClInclude Include="engine\3d\SkeletonDebugger.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
+    <ClInclude Include="engine\3d\JointAttachmentSystem.h">
+      <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Resources\shader\Particle.PS.hlsl">
@@ -487,11 +493,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp" />
+	<ClCompile Include="engine\debug\CG4EvaluationWindow.cpp" />
     <ClCompile Include="engine\debug\Engine2DFeatureDebugWindow.cpp" />
     <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp" />
     <ClCompile Include="engine\debug\InputDebugWindow.cpp" />
     <ClCompile Include="engine\debug\ResourceLeakChecker.cpp" />
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
+	<ClInclude Include="engine\debug\CG4EvaluationWindow.h" />
+	<ClInclude Include="engine\debug\CG4EvaluationTypes.h" />
     <ClInclude Include="engine\debug\Engine2DFeatureDebugWindow.h" />
     <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
     <ClInclude Include="engine\debug\InputDebugWindow.h" />

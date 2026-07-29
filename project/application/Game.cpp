@@ -11,6 +11,7 @@
 #include "debug/EngineDebugWindowManager.h"
 #include "debug/PostEffectDebugWindow.h"
 #include "debug/SkinningDebugWindow.h"
+#include "debug/CG4EvaluationWindow.h"
 #include "effect/ParticleManager.h"
 #include "effect/PostEffectSystem.h"
 #include "base/Logger.h"
@@ -35,6 +36,7 @@ void Game::Initialize() {
 	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
 	engineDebugWindowManager_ = std::make_unique<EngineDebugWindowManager>();
 	postEffectDebugWindow_ = std::make_unique<PostEffectDebugWindow>();
+	cg4EvaluationWindow_ = std::make_unique<CG4EvaluationWindow>();
 #endif
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
@@ -44,6 +46,7 @@ void Game::Initialize() {
 
 void Game::Finalize() {
 #ifdef USE_IMGUI
+	cg4EvaluationWindow_.reset();
 	postEffectDebugWindow_.reset();
 	skinningDebugWindow_.reset();
 	engineDebugWindowManager_.reset();
@@ -68,7 +71,7 @@ void Game::Update() {
 	}
 #ifdef USE_IMGUI
 	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
-	if (engineDebugWindowManager_ && input_) {
+	if (showLegacyDebugWindows_ && engineDebugWindowManager_ && input_) {
 		engineDebugWindowManager_->Draw(*input_);
 	}
 
@@ -119,7 +122,16 @@ void Game::Update() {
 	ImGui::End();
 	ImGui::PopStyleVar();
 
-	if (playScene) {
+	if (playScene && cg4EvaluationWindow_) {
+		CG4EvaluationViewData viewData = playScene->BuildCG4EvaluationViewData();
+		const CG4EvaluationActions actions = cg4EvaluationWindow_->Draw(viewData);
+		if (actions.showLegacyTools.has_value()) {
+			showLegacyDebugWindows_ = *actions.showLegacyTools;
+		}
+		playScene->ApplyCG4EvaluationActions(actions);
+	}
+
+	if (playScene && showLegacyDebugWindows_) {
 		ImGui::Begin("Global Settings");
 		static const char* targets[] = { "None", "Sprite", "Object3D", "Particle", "Sphere" };
 		ImGui::Combo("Edit Focus", &playScene->selectedTarget_, targets, 5);
@@ -358,7 +370,20 @@ void Game::Update() {
 		ImGui::End();
 
 		if (postEffectDebugWindow_ && postEffectSystem_) {
-			postEffectDebugWindow_->Draw(*postEffectSystem_);
+			const PostEffectDebugActions actions = postEffectDebugWindow_->Draw(*postEffectSystem_);
+			if (actions.resetSettings) {
+				postEffectSystem_->ResetSettings();
+			} else if (actions.settings.has_value()) {
+				postEffectSystem_->GetSettings() = *actions.settings;
+			}
+			if (actions.chainModeEnabled.has_value()) {
+				postEffectSystem_->SetChainModeEnabled(*actions.chainModeEnabled);
+			}
+			if (actions.chainPassChange.has_value()) {
+				postEffectSystem_->SetChainPassEnabled(
+					actions.chainPassChange->index,
+					actions.chainPassChange->enabled);
+			}
 		}
 	}
 #endif

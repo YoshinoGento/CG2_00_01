@@ -25,10 +25,13 @@ public:
 	void InitializeSkeleton();
 
 	std::optional<Skeleton>& GetSkeleton() { return skeleton_; }
+	const std::optional<Skeleton>& GetSkeleton() const { return skeleton_; }
 	Model* GetModel() const { return model_; }
 	const Matrix4x4& GetWorldMatrix() const { return worldMatrix_; }
 	// ルートノードのローカル行列を含まない、オブジェクト自身の純粋なアフィン変換行列を取得する（日本語コメント付き）
 	const Matrix4x4& GetObjectWorldMatrix() const { return objectWorldMatrix_; }
+	void SetParentWorldMatrix(const Matrix4x4& parentWorldMatrix) { parentWorldMatrix_ = parentWorldMatrix; }
+	void ClearParentWorldMatrix() { parentWorldMatrix_.reset(); }
 
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
@@ -70,6 +73,7 @@ private:
 	Matrix4x4 worldMatrix_ = MatrixMath::MakeIdentity4x4();
 	// ：ルートノードのローカル行列を含まない、オブジェクト自身のワールド変換行列
 	Matrix4x4 objectWorldMatrix_ = MatrixMath::MakeIdentity4x4();
+	std::optional<Matrix4x4> parentWorldMatrix_;
 	bool computeSkinningPrepared_ = false;
 	bool isMirrored_ = false;
 

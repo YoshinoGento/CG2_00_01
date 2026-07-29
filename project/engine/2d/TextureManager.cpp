@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <iterator>
 #include <sstream>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -138,7 +139,9 @@ Texture2DHandle TextureManager::LoadTexture2D(const std::string& filePath, Lifet
         return fallback2D_;
     }
 
-    const std::filesystem::path path = std::filesystem::path(filePath).lexically_normal();
+    const std::u8string_view utf8Path(
+        reinterpret_cast<const char8_t*>(filePath.data()), filePath.size());
+    const std::filesystem::path path = std::filesystem::path(utf8Path).lexically_normal();
     const std::wstring key = MakeCacheKey(path);
     if (const auto found = texture2DCache_.find(key); found != texture2DCache_.end()) {
 		if (TextureRecord* record = FindRecord(
@@ -177,7 +180,9 @@ TextureCubeHandle TextureManager::LoadTextureCube(const std::string& filePath, L
         return fallbackCube_;
     }
 
-    const std::filesystem::path path = std::filesystem::path(filePath).lexically_normal();
+    const std::u8string_view utf8Path(
+        reinterpret_cast<const char8_t*>(filePath.data()), filePath.size());
+    const std::filesystem::path path = std::filesystem::path(utf8Path).lexically_normal();
     const std::wstring key = MakeCacheKey(path);
     if (const auto found = textureCubeCache_.find(key); found != textureCubeCache_.end()) {
 		if (TextureRecord* record = FindRecord(

@@ -8,6 +8,7 @@ class SkinningDebugWindow;
 class EngineDebugWindowManager;
 class PostEffectSystem;
 class PostEffectDebugWindow;
+class CG4EvaluationWindow;
 
 /**
  * Gameクラス
@@ -38,5 +39,7 @@ private:
 	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
 	std::unique_ptr<EngineDebugWindowManager> engineDebugWindowManager_;
 	std::unique_ptr<PostEffectDebugWindow> postEffectDebugWindow_;
+	std::unique_ptr<CG4EvaluationWindow> cg4EvaluationWindow_;
+	bool showLegacyDebugWindows_ = true;
 #endif
 };

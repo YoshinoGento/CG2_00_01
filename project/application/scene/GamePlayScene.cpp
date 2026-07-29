@@ -22,9 +22,11 @@
 #include "2d/TextureManager.h"
 #include "base/Logger.h" // 追加：外部ロガーツールのインクルード
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <filesystem>
+#include <iterator>
 #include <random>
 #include <system_error>
 #include <unordered_set>
@@ -57,6 +59,26 @@ constexpr Vector3 kDefaultPlayerColliderCenterOffset = { 0.0f, 0.9f, 0.0f };
 constexpr Vector3 kDefaultPlayerColliderHalfExtents = { 0.45f, 0.9f, 0.45f };
 constexpr float kColliderCenterEpsilon = 0.0001f;
 constexpr float kPlayerAnimationStopBlendSeconds = 0.20f;
+#ifdef USE_IMGUI
+constexpr Transform kDefaultBusterSwordTransform = {
+	{ 1.0f, 1.0f, 1.0f },
+	{ 0.0f, 0.0f, 1.5707963f },
+	{ 0.0f, 0.0f, 0.0f },
+};
+#endif
+
+struct AnimationModelDefinition {
+	const char* directory;
+	const char* fileName;
+	const char* evaluationCacheKey;
+};
+
+constexpr std::array<AnimationModelDefinition, 4> kAnimationModels = {
+	AnimationModelDefinition{ "AnimatedCube", "AnimatedCube.gltf", "AnimatedCube/AnimatedCube.gltf" },
+	AnimationModelDefinition{ "simpleSkin", "simpleSkin.gltf", "simpleSkin/simpleSkin.gltf" },
+	AnimationModelDefinition{ "human", "walk.gltf", "__cg4/human/walk.gltf" },
+	AnimationModelDefinition{ "human", "sneakWalk.gltf", "__cg4/human/sneakWalk.gltf" },
+};
 
 Vector4 GetLevelRoleColor(const std::string& gameplayRole)
 {
@@ -295,23 +317,40 @@ void GamePlayScene::Initialize() {
 	framework_->GetModelManager()->LoadModel("plane.obj");
 	Model* planeModel = framework_->GetModelManager()->GetModel("plane.obj");
 
-	// アニメーションモデルのプリロード（配布データ3種と仮モデル1種）
-	std::vector<std::pair<std::string, std::string>> animModels = {
-		{ "AnimatedCube", "AnimatedCube.gltf" },
-		{ "simpleSkin", "simpleSkin.gltf" },
-		{ "human", "walk.gltf" },
-		{ "human", "sneakWalk.gltf" }
-	};
-
-	for (const auto& pair : animModels) {
-		std::string path = pair.first + "/" + pair.second;
+	// Level Playerと評価用Humanがmutable SkinClusterを共有しないよう、
+	// human ClipだけはUSE_IMGUI構成で専用Model instanceもプリロードする。
+	for (const AnimationModelDefinition& definition : kAnimationModels) {
+		const std::string path = std::string(definition.directory) + "/" + definition.fileName;
 		framework_->GetModelManager()->LoadModel(path);
 		Model* m = framework_->GetModelManager()->GetModel(path);
 		if (m) {
-			// テクスチャをSpriteCommonにロードする
 			m->LoadTextures();
 		}
+#ifdef USE_IMGUI
+		if (path != definition.evaluationCacheKey) {
+			framework_->GetModelManager()->LoadModelAs(definition.evaluationCacheKey, path);
+			if (Model* evaluationModel = framework_->GetModelManager()->GetModel(definition.evaluationCacheKey)) {
+				evaluationModel->LoadTextures();
+			}
+		}
+#endif
 	}
+
+	constexpr const char* kMultiMeshMaterialSamplePath = "multiMaterial.obj";
+	framework_->GetModelManager()->LoadModel(kMultiMeshMaterialSamplePath);
+	Model* multiMeshMaterialModel = framework_->GetModelManager()->GetModel(kMultiMeshMaterialSamplePath);
+	if (multiMeshMaterialModel) {
+		multiMeshMaterialModel->LoadTextures();
+	}
+
+#ifdef USE_IMGUI
+	constexpr const char* kBusterSwordModelPath = "バスターソード/BusterSword.obj";
+	framework_->GetModelManager()->LoadModel(kBusterSwordModelPath);
+	Model* busterSwordModel = framework_->GetModelManager()->GetModel(kBusterSwordModelPath);
+	if (busterSwordModel) {
+		busterSwordModel->LoadTextures();
+	}
+#endif
 
 	// ---------------------------------------------------------
 	// 4. 各種オブジェクトの実体生成
@@ -325,6 +364,19 @@ void GamePlayScene::Initialize() {
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize(framework_->GetObject3dCommon());
 	object3d_->SetModel(planeModel);
+
+	multiMeshMaterialObj_ = std::make_unique<Object3d>();
+	multiMeshMaterialObj_->Initialize(framework_->GetObject3dCommon());
+	multiMeshMaterialObj_->SetModel(multiMeshMaterialModel);
+	multiMeshMaterialObj_->SetPosition({ -1.25f, -0.5f, 0.0f });
+
+#ifdef USE_IMGUI
+	busterSwordObj_ = std::make_unique<Object3d>();
+	busterSwordObj_->Initialize(framework_->GetObject3dCommon());
+	busterSwordObj_->SetModel(busterSwordModel);
+	busterSwordObj_->SetCullMode(0);
+	busterSwordObj_->SetEnableLighting(false);
+#endif
 
 	// The human animation is assigned to the level PLAYER object, not shown as a separate sample object.
 	showAnimModel_ = false;
@@ -350,6 +402,12 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
 	InitializeFarmHUD();
+
+#ifdef USE_IMGUI
+	CG4EvaluationActions initialEvaluationActions;
+	initialEvaluationActions.preset = CG4EvaluationPreset::WeaponAttachment;
+	ApplyCG4EvaluationActions(initialEvaluationActions);
+#endif
 
 }
 
@@ -455,13 +513,15 @@ void GamePlayScene::Update() {
 
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
-	if (farmHudInitialized_) {
+	if (farmHudInitialized_ && showFarmHud_) {
 		farmHud_.SetViewData(BuildFarmHUDViewData());
 		farmHud_.Update(sceneDeltaTime_);
 	}
 #ifdef USE_IMGUI
-	farmDebugEditorWindow_.Draw(farmGrid_, farmToolActionSystem_);
-	DrawSceneDebugWindow();
+	if (showLegacySceneDebugWindows_) {
+		farmDebugEditorWindow_.Draw(farmGrid_, farmToolActionSystem_);
+		DrawSceneDebugWindow();
+	}
 #endif
 
 	if (skyboxEnabled_) {
@@ -506,6 +566,17 @@ void GamePlayScene::Update() {
 	UpdateObjectState(terrainObj_.get(), 0.0f);
 	UpdateObjectState(object3d_.get(), 0.0f);
 	UpdateObjectState(animObj_.get(), 0.5f);
+#ifdef USE_IMGUI
+	busterSwordAttachment_.SetEnabled(showBusterSword_);
+	const bool busterSwordResolved = busterSwordAttachment_.Update();
+	if (showBusterSword_ && busterSwordResolved) {
+		UpdateObjectState(busterSwordObj_.get(), 0.25f);
+		busterSwordObj_->SetCullMode(0);
+	}
+#endif
+	if (showMultiMeshMaterialSample_) {
+		UpdateObjectState(multiMeshMaterialObj_.get(), 0.0f);
+	}
 	for (LevelObjectRuntime& levelObject : levelObjects_) {
 		if (!levelObject.object || !levelObject.visible) {
 			continue;
@@ -1216,6 +1287,10 @@ void GamePlayScene::Draw() {
 			if (showSphere_ && sphereObj_) sphereObj_->DrawShadow();
 			if (showPlane_ && object3d_) object3d_->DrawShadow();
 			if (showAnimModel_ && animObj_) animObj_->DrawShadow();
+			if (showMultiMeshMaterialSample_ && multiMeshMaterialObj_) multiMeshMaterialObj_->DrawShadow();
+#ifdef USE_IMGUI
+			if (showBusterSword_ && busterSwordAttachment_.IsResolved() && busterSwordObj_) busterSwordObj_->DrawShadow();
+#endif
 			DrawLevelObjectShadows();
 			objCommon->EndShadowPass();
 		}
@@ -1255,6 +1330,10 @@ void GamePlayScene::Draw() {
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
+		if (showMultiMeshMaterialSample_ && multiMeshMaterialObj_) multiMeshMaterialObj_->Draw();
+#ifdef USE_IMGUI
+		if (showBusterSword_ && busterSwordAttachment_.IsResolved() && busterSwordObj_) busterSwordObj_->Draw();
+#endif
 		DrawLevelObjects();
 		objCommon->EndObjectPass();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
@@ -1263,6 +1342,9 @@ void GamePlayScene::Draw() {
 			// 【修正】モデルルート行列の二重掛けを防ぐため、GetWorldMatrix() ではなくルートを含まない GetObjectWorldMatrix() を渡します
 			skeletonDebugger_->Draw(*animObj_->GetSkeleton(), animObj_->GetObjectWorldMatrix(), LineDrawer::GetInstance(), camera_.get());
 		}
+#ifdef USE_IMGUI
+		DrawBusterSwordAttachmentGizmo();
+#endif
 		// その直後に呼ばれる
 		LineDrawer::GetInstance()->Draw(camera_->GetViewProjectionMatrix());
 	}
@@ -1275,6 +1357,10 @@ void GamePlayScene::Draw() {
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
+		if (showMultiMeshMaterialSample_ && multiMeshMaterialObj_) multiMeshMaterialObj_->Draw();
+#ifdef USE_IMGUI
+		if (showBusterSword_ && busterSwordAttachment_.IsResolved() && busterSwordObj_) busterSwordObj_->Draw();
+#endif
 		DrawLevelObjects();
 		objCommon->EndObjectPass();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
@@ -1283,6 +1369,9 @@ void GamePlayScene::Draw() {
 			// 【修正】モデルルート行列の二重掛けを防ぐため、GetWorldMatrix() ではなくルートを含まない GetObjectWorldMatrix() を渡します
 			skeletonDebugger_->Draw(*animObj_->GetSkeleton(), animObj_->GetObjectWorldMatrix(), LineDrawer::GetInstance(), camera_.get());
 		}
+#ifdef USE_IMGUI
+		DrawBusterSwordAttachmentGizmo();
+#endif
 		LineDrawer::GetInstance()->Draw(camera_->GetViewProjectionMatrix());
 	}
 
@@ -1317,7 +1406,7 @@ void GamePlayScene::Draw() {
 		}
 	}
 
-	if (farmHudInitialized_) {
+	if (farmHudInitialized_ && showFarmHud_) {
 		spriteCommon->PreDraw();
 		farmHud_.Draw();
 	}
@@ -1833,22 +1922,281 @@ void GamePlayScene::Finalize()
 	}
 }
 
+#ifdef USE_IMGUI
+CG4EvaluationViewData GamePlayScene::BuildCG4EvaluationViewData() const {
+	CG4EvaluationViewData viewData;
+	ModelManager* modelManager = framework_ ? framework_->GetModelManager() : nullptr;
+	viewData.hasAnimatedObject = animObj_ != nullptr;
+	viewData.showAnimatedModel = showAnimModel_;
+	viewData.showMultiMeshMaterialSample = showMultiMeshMaterialSample_;
+	viewData.showWeapon = showBusterSword_;
+	viewData.showSkeleton = showSkeleton_;
+	viewData.showParticles = showParticles_;
+	viewData.showLegacyTools = showLegacySceneDebugWindows_;
+	viewData.animationModelIndex = currentAnimModelIdx_;
+	viewData.gpuParticleMode = static_cast<int32_t>(gpuParticleDebugMode_);
+	viewData.gpuParticleAvailable = framework_ && framework_->GetParticleManager();
+	const Model* multiMeshMaterialModel = multiMeshMaterialObj_ ? multiMeshMaterialObj_->GetModel() : nullptr;
+	viewData.multiMeshMaterialSampleReady =
+		multiMeshMaterialModel &&
+		multiMeshMaterialModel->GetMeshCount() > 1 &&
+		multiMeshMaterialModel->GetMaterialCount() > 1;
+	viewData.weaponAttachmentReady =
+		busterSwordObj_ &&
+		busterSwordObj_->GetModel() &&
+		busterSwordAttachment_.CanResolveJoint();
+	viewData.weaponAttachmentActive = busterSwordAttachment_.IsResolved();
+	viewData.showWeaponGizmo = showBusterSwordGizmo_;
+	viewData.weaponLocalTransform = busterSwordAttachment_.GetLocalTransform();
+	viewData.weaponSocketScale = busterSwordAttachment_.GetResolvedParentScale();
+	const Model* busterSwordModel = busterSwordObj_ ? busterSwordObj_->GetModel() : nullptr;
+	if (busterSwordModel) {
+		viewData.weaponVertexCount = busterSwordModel->GetVertexCount();
+		viewData.weaponIndexCount = busterSwordModel->GetIndexCount();
+		viewData.weaponMeshCount = busterSwordModel->GetMeshCount();
+		viewData.weaponMaterialCount = busterSwordModel->GetMaterialCount();
+	}
+
+	if (skeletonDebugger_) {
+		viewData.selectedJointIndex = skeletonDebugger_->GetSelectedJointIndex();
+		viewData.showLocalAxes = skeletonDebugger_->GetShowLocalAxes();
+	}
+
+	if (animObj_) {
+		viewData.animationPlaying = animObj_->GetIsAnimationPlaying();
+		viewData.animationTime = animObj_->GetAnimationTime();
+		viewData.animationDuration = animObj_->GetAnimation().duration;
+		viewData.animationSpeed = animObj_->GetAnimationSpeed();
+		const std::optional<Skeleton>& skeleton = animObj_->GetSkeleton();
+		if (skeleton.has_value()) {
+			viewData.skeleton = &skeleton.value();
+			viewData.jointCount = static_cast<uint32_t>(skeleton->joints.size());
+		}
+
+		const Model* model = animObj_->GetModel();
+		if (model) {
+			if (modelManager &&
+				currentAnimModelIdx_ >= 0 &&
+				currentAnimModelIdx_ < static_cast<int32_t>(kAnimationModels.size())) {
+				const AnimationModelDefinition& definition = kAnimationModels[static_cast<size_t>(currentAnimModelIdx_)];
+				viewData.animationSkinningIsolated =
+					model == modelManager->GetModel(definition.evaluationCacheKey);
+			}
+			viewData.hasSkinCluster = model->HasSkinCluster();
+			viewData.computeSkinningEnabled = model->UseComputeSkinning();
+			viewData.vertexCount = model->GetVertexCount();
+			viewData.indexCount = model->GetIndexCount();
+			viewData.meshCount = model->GetMeshCount();
+			viewData.materialCount = model->GetMaterialCount();
+		}
+	}
+	if (showMultiMeshMaterialSample_ && multiMeshMaterialModel) {
+		viewData.vertexCount = multiMeshMaterialModel->GetVertexCount();
+		viewData.indexCount = multiMeshMaterialModel->GetIndexCount();
+		viewData.meshCount = multiMeshMaterialModel->GetMeshCount();
+		viewData.materialCount = multiMeshMaterialModel->GetMaterialCount();
+		viewData.jointCount = 0;
+	} else if (showBusterSword_ && busterSwordModel) {
+		viewData.vertexCount = busterSwordModel->GetVertexCount();
+		viewData.indexCount = busterSwordModel->GetIndexCount();
+		viewData.meshCount = busterSwordModel->GetMeshCount();
+		viewData.materialCount = busterSwordModel->GetMaterialCount();
+	}
+	return viewData;
+}
+
+void GamePlayScene::ApplyCG4EvaluationActions(const CG4EvaluationActions& actions) {
+	if (actions.showLegacyTools.has_value()) {
+		showLegacySceneDebugWindows_ = *actions.showLegacyTools;
+	}
+
+	auto configureEvaluationView = [this]() {
+		showTerrain_ = false;
+		showSphere_ = false;
+		showPlane_ = false;
+		showSprite_ = false;
+		showLevelObjects_ = false;
+		showLevelGizmos_ = false;
+		showLevelCollisionGizmos_ = false;
+		showFarmHud_ = false;
+		showMultiMeshMaterialSample_ = false;
+		showBusterSword_ = false;
+		SetUsePlayerCamera(false);
+		// Frame the roughly two-meter sample character tightly enough that joint
+		// colors and the selected-joint axes remain readable in the split viewport.
+		cameraPos_ = { 0.0f, 0.25f, -7.0f };
+		cameraRot_ = { 0.18f, 0.0f, 0.0f };
+		debugCameraPos_ = cameraPos_;
+		debugCameraRot_ = cameraRot_;
+	};
+
+	if (actions.preset.has_value()) {
+		switch (*actions.preset) {
+		case CG4EvaluationPreset::Gameplay:
+			showAnimModel_ = false;
+			showMultiMeshMaterialSample_ = false;
+			showBusterSword_ = false;
+			showSkeleton_ = false;
+			showTerrain_ = false;
+			showSphere_ = false;
+			showPlane_ = false;
+			showSprite_ = false;
+			showLevelObjects_ = true;
+			showLevelGizmos_ = false;
+			showLevelCollisionGizmos_ = false;
+			showParticles_ = true;
+			showFarmHud_ = true;
+			SetGPUParticleDebugMode(GPUParticleDebugMode::Off);
+			SetUsePlayerCamera(true);
+			break;
+		case CG4EvaluationPreset::Skinning:
+			configureEvaluationView();
+			currentAnimModelIdx_ = 2;
+			ChangeAnimationModel(2);
+			showAnimModel_ = true;
+			showSkeleton_ = false;
+			showParticles_ = false;
+			SetGPUParticleDebugMode(GPUParticleDebugMode::Off);
+			break;
+		case CG4EvaluationPreset::Skeleton:
+			configureEvaluationView();
+			currentAnimModelIdx_ = 2;
+			ChangeAnimationModel(2);
+			showAnimModel_ = true;
+			showSkeleton_ = true;
+			showParticles_ = false;
+			SetGPUParticleDebugMode(GPUParticleDebugMode::Off);
+			break;
+		case CG4EvaluationPreset::WeaponAttachment:
+			configureEvaluationView();
+			currentAnimModelIdx_ = 2;
+			ChangeAnimationModel(2);
+			showAnimModel_ = true;
+			showSkeleton_ = false;
+			showBusterSword_ = true;
+			showParticles_ = false;
+			SetGPUParticleDebugMode(GPUParticleDebugMode::Off);
+			break;
+		case CG4EvaluationPreset::MultiMeshMaterial:
+			configureEvaluationView();
+			showAnimModel_ = false;
+			showSkeleton_ = false;
+			showMultiMeshMaterialSample_ = true;
+			showParticles_ = false;
+			SetGPUParticleDebugMode(GPUParticleDebugMode::Off);
+			break;
+		case CG4EvaluationPreset::GpuParticle:
+			configureEvaluationView();
+			showAnimModel_ = false;
+			showSkeleton_ = false;
+			showParticles_ = true;
+			SetGPUParticleDebugMode(GPUParticleDebugMode::Agriculture);
+			EmitAgricultureParticle(AgricultureParticleType::HarvestSparkle);
+			break;
+		}
+	}
+
+	if (actions.animationModelIndex.has_value()) {
+		const int32_t lastModelIndex = static_cast<int32_t>(kAnimationModels.size()) - 1;
+		const int32_t modelIndex = std::clamp(*actions.animationModelIndex, 0, lastModelIndex);
+		if (!animObj_ || modelIndex != currentAnimModelIdx_) {
+			currentAnimModelIdx_ = modelIndex;
+			ChangeAnimationModel(modelIndex);
+		}
+	}
+	if (actions.showAnimatedModel.has_value()) {
+		showAnimModel_ = *actions.showAnimatedModel;
+	}
+	if (actions.showSkeleton.has_value()) {
+		showSkeleton_ = *actions.showSkeleton;
+	}
+	if (actions.showParticles.has_value()) {
+		showParticles_ = *actions.showParticles;
+	}
+	if (actions.showWeapon.has_value()) {
+		showBusterSword_ = *actions.showWeapon;
+	}
+	if (actions.showWeaponGizmo.has_value()) {
+		showBusterSwordGizmo_ = *actions.showWeaponGizmo;
+	}
+	if (actions.resetWeaponTransform) {
+		if (!busterSwordAttachment_.SetLocalTransform(kDefaultBusterSwordTransform)) {
+			AddLog("BusterSword attachment: default local Transform was rejected.");
+		}
+	} else if (actions.weaponLocalTransform.has_value()) {
+		if (!busterSwordAttachment_.SetLocalTransform(*actions.weaponLocalTransform)) {
+			AddLog("BusterSword attachment: invalid local Transform was rejected.");
+		}
+	}
+
+	if (animObj_) {
+		if (actions.computeSkinningEnabled.has_value()) {
+			if (Model* model = animObj_->GetModel(); model && model->HasSkinCluster()) {
+				model->SetUseComputeSkinning(*actions.computeSkinningEnabled);
+			}
+		}
+		if (actions.animationPlaying.has_value()) {
+			animObj_->GetIsAnimationPlaying() = *actions.animationPlaying;
+		}
+		if (actions.animationSpeed.has_value() && std::isfinite(*actions.animationSpeed)) {
+			animObj_->GetAnimationSpeed() = std::clamp(*actions.animationSpeed, -2.0f, 2.0f);
+		}
+		if (actions.resetAnimation) {
+			animObj_->GetAnimationTime() = 0.0f;
+		}
+		if (actions.animationTime.has_value() && std::isfinite(*actions.animationTime)) {
+			const float duration = (std::max)(animObj_->GetAnimation().duration, 0.0f);
+			animObj_->GetAnimationTime() = std::clamp(*actions.animationTime, 0.0f, duration);
+		}
+	}
+
+	if (skeletonDebugger_) {
+		if (actions.showLocalAxes.has_value()) {
+			skeletonDebugger_->SetShowLocalAxes(*actions.showLocalAxes);
+		}
+		const Skeleton* skeleton = nullptr;
+		if (animObj_ && animObj_->GetSkeleton().has_value()) {
+			skeleton = &animObj_->GetSkeleton().value();
+		}
+		if (skeleton && !skeleton->joints.empty()) {
+			int32_t selectedJoint = actions.selectedJointIndex.value_or(skeletonDebugger_->GetSelectedJointIndex());
+			if (actions.preset == CG4EvaluationPreset::Skeleton ||
+				actions.preset == CG4EvaluationPreset::WeaponAttachment) {
+				const auto rightHand = skeleton->jointMap.find("mixamorig:RightHand");
+				if (rightHand != skeleton->jointMap.end()) {
+					selectedJoint = rightHand->second;
+				}
+			}
+			selectedJoint = std::clamp(selectedJoint, 0, static_cast<int32_t>(skeleton->joints.size()) - 1);
+			skeletonDebugger_->SetSelectedJointIndex(selectedJoint);
+		} else {
+			skeletonDebugger_->SetSelectedJointIndex(-1);
+		}
+	}
+
+	if (actions.emitGpuParticleSample) {
+		showParticles_ = true;
+		SetGPUParticleDebugMode(GPUParticleDebugMode::Agriculture);
+		EmitAgricultureParticle(AgricultureParticleType::HarvestSparkle);
+	}
+}
+#endif
+
 /**
  * ChangeAnimationModel: インデックスに応じて再生するアニメーションモデルを動的に切り替える
  * 各モデル固有のサイズ（スケール）や初期位置の自動調整もここで行います
  */
 void GamePlayScene::ChangeAnimationModel(int index) {
-	std::vector<std::pair<std::string, std::string>> animModels = {
-		{ "AnimatedCube", "AnimatedCube.gltf" },
-		{ "simpleSkin", "simpleSkin.gltf" },
-		{ "human", "walk.gltf" },
-		{ "human", "sneakWalk.gltf" }
-	};
+	if (index < 0 || index >= static_cast<int>(kAnimationModels.size())) return;
 
-	if (index < 0 || index >= static_cast<int>(animModels.size())) return;
-
-	std::string path = animModels[index].first + "/" + animModels[index].second;
-	Model* animModel = framework_->GetModelManager()->GetModel(path);
+	const AnimationModelDefinition& definition = kAnimationModels[static_cast<size_t>(index)];
+	const std::string resourcePath = std::string(definition.directory) + "/" + definition.fileName;
+#ifdef USE_IMGUI
+	const std::string modelKey = definition.evaluationCacheKey;
+#else
+	const std::string& modelKey = resourcePath;
+#endif
+	Model* animModel = framework_->GetModelManager()->GetModel(modelKey);
 	if (animModel) {
 		if (!animObj_) {
 			animObj_ = std::make_unique<Object3d>();
@@ -1875,11 +2223,81 @@ void GamePlayScene::ChangeAnimationModel(int index) {
 		}
 		
 		// アニメーションデータをアセットフォルダから読み込んでオブジェクトにセット
-		Animation anim = animModel->LoadAnimation("Resources/" + animModels[index].first, animModels[index].second);
+		Animation anim = animModel->LoadAnimation(
+			std::string("Resources/") + definition.directory,
+			definition.fileName);
 		animObj_->SetAnimation(anim);
 		
 		// 再生制御パラメータの初期化
 		animObj_->GetAnimationTime() = 0.0f;
 		animObj_->GetIsAnimationPlaying() = true;
+#ifdef USE_IMGUI
+		BindBusterSwordAttachment();
+#endif
 	}
 }
+
+#ifdef USE_IMGUI
+void GamePlayScene::BindBusterSwordAttachment() {
+	if (!busterSwordObj_ || !busterSwordObj_->GetModel() || !animObj_) {
+		busterSwordAttachment_.Clear();
+		return;
+	}
+
+	JointAttachmentSystem::BindingSettings settings;
+	settings.jointName = "mixamorig:RightHand";
+	settings.localTransform = kDefaultBusterSwordTransform;
+	if (!busterSwordAttachment_.Bind(busterSwordObj_.get(), animObj_.get(), settings)) {
+		AddLog("BusterSword attachment: RightHand Joint is unavailable for the selected model.");
+	}
+}
+
+void GamePlayScene::DrawBusterSwordAttachmentGizmo() const {
+	if (!showBusterSword_ || !showBusterSwordGizmo_ || !busterSwordObj_ || !busterSwordAttachment_.IsResolved()) {
+		return;
+	}
+	constexpr Vector3 kGripLocalPosition = { 0.0f, 0.0f, 0.0f };
+	constexpr Vector3 kBladeTipLocalPosition = { 0.0f, 219.05f, 0.0f };
+	// BusterSword.obj の頂点範囲。Socket調整時だけ描くため、Modelの描画契約には持ち込まない。
+	constexpr Vector3 kBoundsMin = { -32.884f, -11.213f, -4.178f };
+	constexpr Vector3 kBoundsMax = { 33.097f, 219.050f, 4.019f };
+	constexpr float kLocalAxisLength = 12.0f;
+	const Matrix4x4& weaponWorldMatrix = busterSwordObj_->GetObjectWorldMatrix();
+	const Vector3 gripPosition = MatrixMath::Transform(kGripLocalPosition, weaponWorldMatrix);
+	const Vector3 bladeTipPosition = MatrixMath::Transform(kBladeTipLocalPosition, weaponWorldMatrix);
+	const Vector3 axisX = MatrixMath::Transform({ kLocalAxisLength, 0.0f, 0.0f }, weaponWorldMatrix);
+	const Vector3 axisY = MatrixMath::Transform({ 0.0f, kLocalAxisLength, 0.0f }, weaponWorldMatrix);
+	const Vector3 axisZ = MatrixMath::Transform({ 0.0f, 0.0f, kLocalAxisLength }, weaponWorldMatrix);
+	LineDrawer* lineDrawer = LineDrawer::GetInstance();
+	lineDrawer->DrawLine(gripPosition, axisX, { 1.0f, 0.15f, 0.15f, 1.0f });
+	lineDrawer->DrawLine(gripPosition, axisY, { 0.15f, 1.0f, 0.20f, 1.0f });
+	lineDrawer->DrawLine(gripPosition, axisZ, { 0.20f, 0.45f, 1.0f, 1.0f });
+	LineDrawer::GetInstance()->DrawLine(
+		gripPosition, bladeTipPosition, { 1.0f, 0.15f, 0.85f, 1.0f });
+	LineDrawer::GetInstance()->DrawWireSphere(
+		bladeTipPosition, 0.06f, { 1.0f, 0.15f, 0.85f, 1.0f }, 8);
+
+	const Vector3 localCorners[8] = {
+		{ kBoundsMin.x, kBoundsMin.y, kBoundsMin.z },
+		{ kBoundsMax.x, kBoundsMin.y, kBoundsMin.z },
+		{ kBoundsMax.x, kBoundsMax.y, kBoundsMin.z },
+		{ kBoundsMin.x, kBoundsMax.y, kBoundsMin.z },
+		{ kBoundsMin.x, kBoundsMin.y, kBoundsMax.z },
+		{ kBoundsMax.x, kBoundsMin.y, kBoundsMax.z },
+		{ kBoundsMax.x, kBoundsMax.y, kBoundsMax.z },
+		{ kBoundsMin.x, kBoundsMax.y, kBoundsMax.z },
+	};
+	Vector3 corners[8]{};
+	for (size_t i = 0; i < std::size(localCorners); ++i) {
+		corners[i] = MatrixMath::Transform(localCorners[i], weaponWorldMatrix);
+	}
+	constexpr size_t kEdges[12][2] = {
+		{ 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
+		{ 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
+		{ 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
+	};
+	for (const auto& edge : kEdges) {
+		lineDrawer->DrawLine(corners[edge[0]], corners[edge[1]], { 1.0f, 0.25f, 0.75f, 0.75f });
+	}
+}
+#endif

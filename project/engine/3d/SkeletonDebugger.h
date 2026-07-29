@@ -21,6 +21,10 @@ public:
 
 	// 描画：スケルトンの各関節に球を配置し、親子間に線を引く
 	void Draw(const Skeleton& skeleton, const Matrix4x4& worldMatrix, LineDrawer* lineDrawer, Camera* camera);
+	void SetSelectedJointIndex(int32_t jointIndex) { selectedJointIndex_ = jointIndex; }
+	int32_t GetSelectedJointIndex() const { return selectedJointIndex_; }
+	void SetShowLocalAxes(bool show) { showLocalAxes_ = show; }
+	bool GetShowLocalAxes() const { return showLocalAxes_; }
 
 	// 環境マップのハンドル（以前の互換性のために残すか空にする）
 	void SetEnvironmentMap(TextureCubeHandle handle) {
@@ -32,5 +36,6 @@ public:
 
 private:
 	int32_t selectedJointIndex_ = 0;
+	bool showLocalAxes_ = true;
 };
 
