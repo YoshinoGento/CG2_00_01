@@ -512,7 +512,7 @@ void GamePlayScene::Update() {
 	const bool controlHeld = frameInput && (frameInput->PushKey(DIK_LCONTROL) || frameInput->PushKey(DIK_RCONTROL));
 	bool levelReloadRequested = frameInput &&
 		(frameInput->TriggerKey(DIK_F5) || (controlHeld && frameInput->TriggerKey(DIK_R)));
-	bool cameraModeToggleRequested = framework_ && framework_->GetInput() && framework_->GetInput()->TriggerKey(DIK_F1);
+	bool cameraModeToggleRequested = framework_ && framework_->GetInput() && framework_->GetInput()->TriggerKey(DIK_F2);
 	if (ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
 		levelReloadRequested = false;
 		cameraModeToggleRequested = false;
@@ -629,8 +629,8 @@ void GamePlayScene::Update() {
 		UpdateObjectState(sphereObj_.get(), 0.5f);
 	}
 
-	// スペースキー入力時の分岐（activeParticleType_ は Game.cpp の ImGui から書き換わる）
-	if (framework_->GetInput()->TriggerKey(DIK_SPACE)) {
+	// GameplayのSpaceジャンプと競合しない、デバッグ専用のParticle発生キー。
+	if (framework_->GetInput()->TriggerKey(DIK_P)) {
 		switch (activeParticleType_) {
 		case 0: EmitSpark(spherePos_); break;
 		case 1: EmitRingEffect(spherePos_); break;
@@ -900,7 +900,7 @@ void GamePlayScene::PrepareFixedUpdate()
 		return;
 	}
 
-	if (!framework_ || !levelGameplay_.HasPlayer() || keyboardCaptured) {
+	if (!framework_ || !levelGameplay_.HasPlayer()) {
 		pendingPlayerCommand_.jumpPressed = false;
 		return;
 	}
@@ -909,19 +909,28 @@ void GamePlayScene::PrepareFixedUpdate()
 		pendingPlayerCommand_.jumpPressed = false;
 		return;
 	}
-	if (!usePlayerCamera_ && input->PushMouseButton(InputMouseButton::Right)) {
-		pendingPlayerCommand_.jumpPressed = false;
-		return;
+	const bool keyboardMovementBlocked =
+		(keyboardCaptured && !viewportHovered_) ||
+		(!usePlayerCamera_ && input->PushMouseButton(InputMouseButton::Right));
+	if (!keyboardMovementBlocked) {
+		if (input->PushKey(InputKey::W)) { pendingPlayerCommand_.moveDirection.z += 1.0f; }
+		if (input->PushKey(InputKey::S)) { pendingPlayerCommand_.moveDirection.z -= 1.0f; }
+		if (input->PushKey(InputKey::D)) { pendingPlayerCommand_.moveDirection.x += 1.0f; }
+		if (input->PushKey(InputKey::A)) { pendingPlayerCommand_.moveDirection.x -= 1.0f; }
+		pendingPlayerCommand_.jumpPressed = pendingPlayerCommand_.jumpPressed || input->TriggerKey(DIK_SPACE);
+		pendingPlayerCommand_.sneakHeld =
+			input->PushKey(InputKey::LeftShift) ||
+			input->PushKey(InputKey::RightShift);
 	}
 
-	if (input->PushKey(InputKey::W)) { pendingPlayerCommand_.moveDirection.z += 1.0f; }
-	if (input->PushKey(InputKey::S)) { pendingPlayerCommand_.moveDirection.z -= 1.0f; }
-	if (input->PushKey(InputKey::D)) { pendingPlayerCommand_.moveDirection.x += 1.0f; }
-	if (input->PushKey(InputKey::A)) { pendingPlayerCommand_.moveDirection.x -= 1.0f; }
-	pendingPlayerCommand_.jumpPressed = pendingPlayerCommand_.jumpPressed || input->TriggerKey(DIK_SPACE);
-	pendingPlayerCommand_.sneakHeld =
-		input->PushKey(InputKey::LeftShift) ||
-		input->PushKey(InputKey::RightShift);
+	if (input->IsGamepadConnected()) {
+		const Vector2 leftStick = input->GetLeftStick();
+		pendingPlayerCommand_.moveDirection.x += leftStick.x;
+		pendingPlayerCommand_.moveDirection.z += leftStick.y;
+		pendingPlayerCommand_.jumpPressed =
+			pendingPlayerCommand_.jumpPressed ||
+			input->TriggerGamepadButton(InputGamepadButton::A);
+	}
 }
 
 void GamePlayScene::SyncLevelGameplayPresentation()
@@ -1620,7 +1629,7 @@ void GamePlayScene::DrawSceneDebugWindow() {
 		if (ImGui::Checkbox("Use Player Camera (Third Person)", &usePlayerCamera)) {
 			SetUsePlayerCamera(usePlayerCamera);
 		}
-		ImGui::TextUnformatted("F1: Toggle player/debug camera");
+		ImGui::TextUnformatted("F1: Toggle Debug/Play view  |  F2: Toggle player/debug camera");
 		ImGui::TextUnformatted("Hold R: Rewind  |  Shift+R: Forward Scrub");
 		ImGui::TextUnformatted("Debug: hold right mouse + WASD, Q/E, wheel");
 		if (ImGui::Button("Reload Level (F5 / Ctrl+R)")) {

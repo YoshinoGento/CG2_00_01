@@ -16,6 +16,7 @@
 #include "effect/PostEffectSystem.h"
 #include "base/Logger.h"
 #include "base/FrameClock.h"
+#include "io/Input.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -64,12 +65,26 @@ void Game::Update() {
 	SceneManager::GetInstance()->BeginFrame();
 	postEffectSystem_->Update(frameClock_->GetFrameDeltaSeconds());
 
+#ifdef USE_IMGUI
+	if (input_ && input_->TriggerKey(DIK_F1)) {
+		runtimeViewMode_ = runtimeViewMode_ == RuntimeViewMode::Debug
+			? RuntimeViewMode::Play
+			: RuntimeViewMode::Debug;
+		if (runtimeViewMode_ == RuntimeViewMode::Play) {
+			playModeInitializationPending_ = true;
+		}
+	}
+#endif
+
 	ImGuiManager::GetInstance()->Begin();
 	SceneManager::GetInstance()->PrepareFixedUpdate();
 	while (frameClock_->ConsumeFixedStep()) {
 		SceneManager::GetInstance()->FixedUpdate(frameClock_->GetFixedDeltaSeconds());
 	}
 #ifdef USE_IMGUI
+	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
+	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
+	if (runtimeViewMode_ == RuntimeViewMode::Debug) {
 	if (cg4EvaluationWindow_) {
 		const bool evaluationMode = !showLegacyDebugWindows_;
 		if (const std::optional<bool> requestedMode = cg4EvaluationWindow_->DrawModeBar(evaluationMode)) {
@@ -81,8 +96,6 @@ void Game::Update() {
 		engineDebugWindowManager_->Draw(*input_);
 	}
 
-	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
-	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
 	if (playScene) {
 		playScene->viewportHovered_ = false;
 		playScene->viewportImageSize_ = { 0.0f, 0.0f };
@@ -297,7 +310,7 @@ void Game::Update() {
 
 		ImGui::Begin("Effect Control");
 
-		ImGui::Text("Space Key: Emit");
+		ImGui::Text("P Key: Emit");
 		const char* pTypes[] = { "Spark (Manual)", "Ring (Model)", "Cylinder (Primitive)", "Combined", "Explosion (Emit)" };
 		ImGui::Combo("Particle Mode", &playScene->activeParticleType_, pTypes, 5);
 
@@ -392,6 +405,28 @@ void Game::Update() {
 					actions.chainPassChange->enabled);
 			}
 		}
+	}
+	} else if (playScene) {
+		// Play表示ではImGuiを提出せず、入力座標をクライアント全体へ対応させる。
+		playScene->viewportHovered_ = true;
+		playScene->viewportImageTopLeft_ = { 0.0f, 0.0f };
+		playScene->viewportImageSize_ = {
+			static_cast<float>(WinApp::kClientWidth),
+			static_cast<float>(WinApp::kClientHeight)
+		};
+		if (input_) {
+			const Vector2 mousePosition = input_->GetMousePosition();
+			playScene->viewportMousePosition_ = mousePosition;
+			mousePosInViewport_ = mousePosition;
+		}
+
+		CG4EvaluationActions actions;
+		actions.showLegacyTools = false;
+		if (playModeInitializationPending_) {
+			actions.preset = CG4EvaluationPreset::Gameplay;
+			playModeInitializationPending_ = false;
+		}
+		playScene->ApplyCG4EvaluationActions(actions);
 	}
 #endif
 

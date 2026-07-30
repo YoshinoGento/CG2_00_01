@@ -29,6 +29,13 @@ public:
 	static Vector2 GetMousePosInViewport() { return mousePosInViewport_; }
 
 private:
+#ifdef USE_IMGUI
+	enum class RuntimeViewMode {
+		Debug,
+		Play,
+	};
+#endif
+
 	std::unique_ptr<SceneFactory> sceneFactory_;
 
 	// 計算・補正されたマウス座標を保持
@@ -41,5 +48,7 @@ private:
 	std::unique_ptr<PostEffectDebugWindow> postEffectDebugWindow_;
 	std::unique_ptr<CG4EvaluationWindow> cg4EvaluationWindow_;
 	bool showLegacyDebugWindows_ = false;
+	RuntimeViewMode runtimeViewMode_ = RuntimeViewMode::Debug;
+	bool playModeInitializationPending_ = false;
 #endif
 };

@@ -15,9 +15,10 @@ void ImGuiManager::Initialize([[maybe_unused]] WinApp* winApp, [[maybe_unused]] 
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 
-	// ドッキングとマルチビューポートを有効化
+	// CG4評価画面はメインウィンドウ内のDockSpaceだけを使用する。
+	// Platform Windowを無効にして、評価パネルの分離と追加描画負荷を防ぐ。
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+	io.ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
 
 	ImGui::StyleColorsDark();
 

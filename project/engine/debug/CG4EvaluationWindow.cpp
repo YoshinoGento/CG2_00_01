@@ -105,7 +105,7 @@ std::optional<bool> CG4EvaluationWindow::DrawModeBar(bool evaluationMode) {
 		requestedMode = false;
 	}
 	ImGui::SameLine();
-	ImGui::TextDisabled("| 上のボタンでいつでも切替できます");
+	ImGui::TextDisabled("| F1: Debug表示 / Play表示 | 上のボタンで評価UIを切替");
 	ImGui::EndMainMenuBar();
 	return requestedMode;
 }
@@ -113,7 +113,8 @@ std::optional<bool> CG4EvaluationWindow::DrawModeBar(bool evaluationMode) {
 CG4EvaluationActions CG4EvaluationWindow::Draw(const CG4EvaluationViewData& viewData) {
 	CG4EvaluationActions actions;
 	ImGui::SetNextWindowSize(ImVec2(480.0f, 780.0f), ImGuiCond_FirstUseEver);
-	if (!ImGui::Begin("CG4 評価課題")) {
+	// 表示名は日本語のまま、既存のCG4 Dockレイアウト用IDを維持する。
+	if (!ImGui::Begin("CG4 評価課題###CG4 Evaluation")) {
 		ImGui::End();
 		return actions;
 	}
