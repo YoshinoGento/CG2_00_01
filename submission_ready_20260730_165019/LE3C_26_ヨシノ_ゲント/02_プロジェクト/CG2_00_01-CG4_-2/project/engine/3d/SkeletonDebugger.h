@@ -1,0 +1,50 @@
+#pragma once
+#include "3d/Skeleton.h"
+#include "3d/Object3d.h"
+#include "3d/Model.h"
+#include "3d/LineDrawer.h"
+#include <memory>
+#include <vector>
+
+class Object3dCommon;
+class ModelManager;
+
+/**
+ * SkeletonDebugger
+ * スケルトンの状態（関節と骨）を可視化するためのクラス
+ * 授業資料の「デバッグ描画」に相当します。
+ */
+class SkeletonDebugger {
+public:
+	// 初期化：関節表示用の球モデルなどを準備
+	void Initialize(Object3dCommon* object3dCommon, ModelManager* modelManager);
+
+	// 描画：スケルトンの各関節に球を配置し、親子間に線を引く
+	void Draw(const Skeleton& skeleton, const Matrix4x4& worldMatrix, LineDrawer* lineDrawer, Camera* camera);
+	void SetSelectedJointIndex(int32_t jointIndex) { selectedJointIndex_ = jointIndex; }
+	int32_t GetSelectedJointIndex() const { return selectedJointIndex_; }
+	void SetShowLocalAxes(bool show) { showLocalAxes_ = show; }
+	bool GetShowLocalAxes() const { return showLocalAxes_; }
+	void SetShowAllLocalAxes(bool show) { showAllLocalAxes_ = show; }
+	bool GetShowAllLocalAxes() const { return showAllLocalAxes_; }
+	void SetShowJointMarkers(bool show) { showJointMarkers_ = show; }
+	bool GetShowJointMarkers() const { return showJointMarkers_; }
+	void SetHighlightSelectedChain(bool highlight) { highlightSelectedChain_ = highlight; }
+	bool GetHighlightSelectedChain() const { return highlightSelectedChain_; }
+
+	// 環境マップのハンドル（以前の互換性のために残すか空にする）
+	void SetEnvironmentMap(TextureCubeHandle handle) {
+		// ワイヤーフレーム描画では環境マップを使用しないため何もしない
+		(void)handle;
+	}
+
+	void DrawImGui(Skeleton& skeleton);
+
+private:
+	int32_t selectedJointIndex_ = 0;
+	bool showLocalAxes_ = true;
+	bool showAllLocalAxes_ = false;
+	bool showJointMarkers_ = true;
+	bool highlightSelectedChain_ = true;
+};
+
