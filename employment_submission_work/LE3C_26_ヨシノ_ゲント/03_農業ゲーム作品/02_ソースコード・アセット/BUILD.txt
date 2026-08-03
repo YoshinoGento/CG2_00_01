@@ -1,0 +1,22 @@
+ソースコードのビルド手順
+
+1. project/CG2_00_01.sln をVisual Studioで開きます。
+2. ConfigurationをRelease、Platformをx64にします。
+3. 「ソリューションのリビルド」を実行します。
+4. 出力先は、このBUILD.txtと同じフォルダ内の generated/outputs/Release です。
+
+必要な主な環境
+・Windows 10 / 11
+・Visual Studio（Platform Toolset v145を利用できる環境）
+・Windows SDK 10.0
+
+同梱範囲
+・application / engineのC++ソース
+・ResourcesのHLSLとゲームアセット
+・Dear ImGui、DirectXTex、nlohmann/json
+・Assimpのincludeと、Debug / Releaseビルドに必要な静的ライブラリ
+
+除外したもの
+・.vs、obj、pdb、tlogなどのローカル中間生成物
+・過去の提出物、Git履歴、個人用Visual Studio設定
+
