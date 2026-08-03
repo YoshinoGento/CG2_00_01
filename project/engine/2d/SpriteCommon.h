@@ -2,6 +2,8 @@
 #include "base/DirectXCommon.h"
 #include <wrl.h>
 #include <d3d12.h>
+#include <cstdint>
+#include <string>
 
 class SpriteCommon {
 public:
@@ -15,6 +17,8 @@ public:
     DirectXCommon* GetDxCommon() const { return dxCommon_; }
     ID3D12RootSignature* GetRootSignature() const { return rootSignature_.Get(); }
     ID3D12PipelineState* GetPipelineState() const { return pipelineState_.Get(); }
+    uint32_t LoadTexture(const std::string& texturePath);
+    D3D12_RESOURCE_DESC GetTextureResourceDesc(uint32_t textureHandle) const;
 
 private:
     void CreateRootSignature();

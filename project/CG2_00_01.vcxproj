@@ -250,8 +250,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\scene\SceneFactory.cpp" />
     <ClCompile Include="application\scene\SceneManager.cpp" />
     <ClCompile Include="engine\3d\Skybox.cpp" />
+    <ClCompile Include="engine\3d\SkyboxManager.cpp" />
     <ClCompile Include="engine\2d\AnimatedSprite.cpp" />
     <ClCompile Include="engine\2d\BitmapFont.cpp" />
+    <ClCompile Include="engine\2d\RuntimeTextTextureGenerator.cpp" />
     <ClCompile Include="engine\2d\Sprite.cpp" />
     <ClCompile Include="engine\2d\SpriteCommon.cpp" />
     <ClCompile Include="engine\2d\TextureManager.cpp" />
@@ -525,8 +527,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\scene\SceneFactory.h" />
     <ClInclude Include="application\scene\SceneManager.h" />
     <ClInclude Include="engine\3d\Skybox.h" />
+    <ClInclude Include="engine\3d\SkyboxManager.h" />
     <ClInclude Include="engine\2d\AnimatedSprite.h" />
     <ClInclude Include="engine\2d\BitmapFont.h" />
+    <ClInclude Include="engine\2d\RuntimeTextTextureGenerator.h" />
     <ClInclude Include="engine\2d\Sprite.h" />
     <ClInclude Include="engine\2d\SpriteCommon.h" />
     <ClInclude Include="engine\2d\TextureManager.h" />

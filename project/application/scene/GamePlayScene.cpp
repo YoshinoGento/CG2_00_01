@@ -37,6 +37,8 @@ constexpr float kMouseLookSensitivity = 0.005f;
 constexpr float kMousePanSensitivity = 0.01f;
 constexpr float kMouseWheelZoomSpeed = 2.0f;
 constexpr float kEditorCameraFastMultiplier = 3.0f;
+constexpr float kVirtualScreenWidth = 1280.0f;
+constexpr float kVirtualScreenHeight = 720.0f;
 constexpr std::size_t kTimelineSnapshotCapacity = 60u * 10u;
 constexpr float kTimelineScrubAudioRate = 0.55f;
 constexpr float kTimelineAudioEnterTransitionSeconds = 0.08f;
@@ -286,6 +288,46 @@ bool GamePlayScene::ConsumeFieldHarvestEvent(Vector3& outPosition, int32_t& outP
 		return false;
 	}
 	return fieldManager_->ConsumeHarvestEvent(outPosition, outPrice, outRare);
+}
+
+void GamePlayScene::ApplyAutoDemoScenePreset() {
+	showTerrain_ = true;
+	showSphere_ = true;
+	showPlane_ = false;
+	showSprite_ = false;
+	showParticles_ = true;
+	showAnimModel_ = true;
+	showLevelObjects_ = true;
+	showDebugGrid_ = true;
+	SetGPUParticleDebugMode(GPUParticleDebugMode::Off);
+}
+
+void GamePlayScene::SetFieldSelectionEnabled(bool enabled) {
+	fieldSelectionEnabled_ = enabled;
+}
+
+void GamePlayScene::SetSkyboxInputEnabled(bool enabled) {
+	skyboxInputEnabled_ = enabled;
+}
+
+void GamePlayScene::SetFieldInputEnabled(bool enabled) {
+	fieldInputEnabled_ = enabled;
+	if (fieldManager_) {
+		fieldManager_->SetInputEnabled(enabled);
+	}
+}
+
+void GamePlayScene::SetCameraInputEnabled(bool enabled) {
+	cameraInputEnabled_ = enabled;
+}
+
+void GamePlayScene::SetDemoCameraPreset() {
+	usePlayerCamera_ = false;
+	cameraPos_ = { 0.0f, 5.5f, -12.0f };
+	cameraRot_ = { 0.36f, 0.0f, 0.0f };
+	debugCameraPos_ = cameraPos_;
+	debugCameraRot_ = cameraRot_;
+	ClampCameraPitch();
 }
 
 /**
@@ -593,6 +635,7 @@ void GamePlayScene::Update() {
 	}
 
 	// スペースキー入力時の分岐（activeParticleType_ は Game.cpp の ImGui から書き換わる）
+	const bool cropBurstInputHandled = UpdateCropBurstDebugInput();
 	if (!cropBurstInputHandled &&
 		gpuParticleDebugMode_ != GPUParticleDebugMode::Off &&
 		framework_->GetInput()->TriggerKey(DIK_SPACE)) {
@@ -614,6 +657,7 @@ void GamePlayScene::Update() {
 	SyncGPUParticleDebugModeChange();
 	HandleReleaseParticleInteractionInput(sceneDeltaTime_);
 	HandleGPUParticleDebugModeInput();
+	UpdateCropBurstAutoPlayback(sceneDeltaTime_);
 
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Off && framework_->GetInput()->TriggerKey(DIK_G)) {
 		framework_->GetParticleManager()->RequestGPUParticleEmit(spherePos_, 256);
@@ -1338,11 +1382,10 @@ void GamePlayScene::Draw() {
 	const int divCount = 10;       // 分割数
 	const Vector4 gridColor = { 0.5f, 0.5f, 0.5f, 1.0f }; // グレー
 
-		for (int i = -divCount; i <= divCount; ++i) {
-			float f = (float)i / (float)divCount * gridScale;
-			LineDrawer::GetInstance()->DrawLine({ -gridScale, -2.0f, f }, { gridScale, -2.0f, f }, gridColor);
-			LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
-		}
+	for (int i = -divCount; i <= divCount; ++i) {
+		float f = (float)i / (float)divCount * gridScale;
+		LineDrawer::GetInstance()->DrawLine({ -gridScale, -2.0f, f }, { gridScale, -2.0f, f }, gridColor);
+		LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
 	}
 
 	farmVisualSystem_.Draw(
@@ -1735,7 +1778,7 @@ void GamePlayScene::ClampCameraPitch() {
 }
 
 void GamePlayScene::HandleCameraInput(float deltaTime, bool suppressArrowKeys) {
-	if (usePlayerCamera_ || !framework_ || !viewportHovered_ || ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
+	if (!cameraInputEnabled_ || usePlayerCamera_ || !framework_ || !viewportHovered_ || ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
 		return;
 	}
 	if (!std::isfinite(deltaTime) || deltaTime <= 0.0f) {
@@ -1857,11 +1900,13 @@ void GamePlayScene::HandleFieldMouseSelection() {
 	}
 	fieldMouseHitPosition_ = hitPosition;
 
+#ifdef USE_IMGUI
 	if (viewportHovered_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 		if (fieldManager_->TrySelectTileByWorldPosition(hitPosition)) {
 			fieldMouseSelectedIndex_ = fieldManager_->GetSelectedIndex();
 		}
 	}
+#endif
 }
 
 bool GamePlayScene::ConvertMouseToVirtualScreen(const Vector2& mouseScreenPos, Vector2& outVirtualPos) const {
@@ -2114,6 +2159,7 @@ bool GamePlayScene::UpdateCropBurstDebugInput() {
 		AddLog(log.str());
 	}
 
+#ifdef USE_IMGUI
 	if (viewportHovered_ &&
 		fieldMouseHit_ &&
 		particleManager_ &&
@@ -2128,6 +2174,7 @@ bool GamePlayScene::UpdateCropBurstDebugInput() {
 			playPosition,
 			CropBurstLevel::Strong);
 	}
+#endif
 
 	return handledCropBurstPlay;
 }

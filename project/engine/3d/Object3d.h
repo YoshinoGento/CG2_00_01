@@ -25,6 +25,7 @@ public:
 	// シェーダーと一致させる構造体 (16バイト境界に注意)
 	void Initialize(Object3dCommon* object3dCommon);
 	void Update(Camera* camera, float deltaTime);
+	void Update(Camera* camera);
 	void Draw();
 	void DrawShadow();
 	void SetModel(Model* model);
@@ -40,6 +41,7 @@ public:
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
 	bool SetScale(const Vector3& scale);
 	void SetTexture(Texture2DHandle textureHandle) { textureHandle_ = textureHandle; }
+	void SetTexture(uint32_t textureHandle);
 	void SetColor(const Vector4& color) { materialData_->color = color; }
 	void SetEnableLighting(bool enabled) { materialData_->enableLighting = enabled ? 1 : 0; }
 	// 環境マップ用のテクスチャハンドルをセット

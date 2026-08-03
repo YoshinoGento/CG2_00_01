@@ -32,7 +32,6 @@ public:
 	const FarmTile* GetTile(int index) const;
 	FarmTile* GetSelectedTile();
 	const FarmTile* GetSelectedTile() const;
-	const FarmTile* GetTile(int index) const;
 	FarmTile* GetMutableSelectedTile();
 	FarmTile* GetMutableTile(int index);
 	bool SetTile(int index, const FarmTile& tile);

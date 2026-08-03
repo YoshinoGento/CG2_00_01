@@ -31,6 +31,7 @@ class Object3d;
 class Camera;
 class Model;
 class FieldManager;
+class SkyboxManager;
 
 namespace level {
 struct LevelData;
@@ -66,6 +67,17 @@ public:
 	void Draw() override;
 	[[nodiscard]] editor::GamePlayEditorBridge& GetEditorBridge() noexcept { return gamePlayEditorBridge_; }
 	[[nodiscard]] const editor::GamePlayEditorBridge& GetEditorBridge() const noexcept { return gamePlayEditorBridge_; }
+	[[nodiscard]] Camera* GetCamera() const noexcept { return camera_.get(); }
+	[[nodiscard]] FieldManager* GetFieldManager() noexcept { return fieldManager_.get(); }
+	[[nodiscard]] const FieldManager* GetFieldManager() const noexcept { return fieldManager_.get(); }
+	[[nodiscard]] SkyboxManager* GetSkyboxManager() const noexcept { return nullptr; }
+	bool ConsumeFieldHarvestEvent(Vector3& outPosition, int32_t& outPrice, bool& outRare);
+	void ApplyAutoDemoScenePreset();
+	void SetFieldSelectionEnabled(bool enabled);
+	void SetSkyboxInputEnabled(bool enabled);
+	void SetFieldInputEnabled(bool enabled);
+	void SetCameraInputEnabled(bool enabled);
+	void SetDemoCameraPreset();
 	// Cylinderメッシュの再生成（パラメータ変更時に呼ぶ）
 	// アニメーションモデルの動的切り替え（ImGuiからの呼び出し用）
 
@@ -116,6 +128,17 @@ private:
 	void DrawLevelBox(const Vector3& center, const Vector3& size, const Vector4& color) const;
 	void DrawLevelCameraGizmo(const Vector3& position, const Vector4& color) const;
 	Vector3 EvaluateLevelRoutePoint(float normalizedTime) const;
+	void SetGPUParticleDebugMode(GPUParticleDebugMode mode);
+	void HandleFieldMouseSelection();
+	bool ConvertMouseToVirtualScreen(const Vector2& mouseScreenPos, Vector2& outVirtualPos) const;
+	struct Ray {
+		Vector3 origin = { 0.0f, 0.0f, 0.0f };
+		Vector3 direction = { 0.0f, 0.0f, 1.0f };
+	};
+	bool CreateRayFromVirtualScreen(const Vector2& virtualScreenPos, Ray& outRay) const;
+	bool IntersectRayPlaneY(const Ray& ray, float planeY, Vector3& outHitPosition) const;
+	void EmitAgricultureParticle(AgricultureParticleType type);
+	uint32_t CalculateInteractionParticleCount() const;
 #ifdef USE_IMGUI
 	void DrawSceneDebugWindow();
 #endif
@@ -184,6 +207,7 @@ private:
 	std::unique_ptr<Object3d> terrainObj_;
 
 	std::unique_ptr<Object3d> animObj_;
+	std::unique_ptr<FieldManager> fieldManager_;
 	std::unique_ptr<level::LevelData> levelData_;
 	std::vector<LevelObjectRuntime> levelObjects_;
 	level::LevelGameplaySystem levelGameplay_;
@@ -283,6 +307,24 @@ private:
 	Vector2 viewportMousePosition_ = { 0.0f, 0.0f };
 	bool viewportHovered_ = false;
 	bool viewportFocused_ = false;
+	bool fieldSelectionEnabled_ = true;
+	bool skyboxInputEnabled_ = true;
+	bool fieldInputEnabled_ = true;
+	bool cameraInputEnabled_ = true;
+	bool fieldMouseInViewport_ = false;
+	bool fieldMouseRayValid_ = false;
+	bool fieldMouseHit_ = false;
+	Vector2 fieldMouseVirtualPosition_ = { -1.0f, -1.0f };
+	Vector3 fieldMouseRayOrigin_ = { 0.0f, 0.0f, 0.0f };
+	Vector3 fieldMouseRayDirection_ = { 0.0f, 0.0f, 1.0f };
+	Vector3 fieldMouseHitPosition_ = { 0.0f, 0.0f, 0.0f };
+	int fieldMouseSelectedIndex_ = -1;
+	int cropBurstSelectedIndex_ = 0;
+	Vector3 cropBurstEffectPosition_ = { 0.0f, 1.0f, 8.0f };
+	float cropBurstAutoTimer_ = 0.0f;
+	float cropBurstLoopTimer_ = 0.0f;
+	bool cropBurstAutoPlayed_ = false;
+	bool cropBurstAutoLoop_ = false;
 
 	// Cylinderパラメータ（ImGuiで操作可能）
 	float cylTopRadius_ = 1.0f;       // 上面の半径

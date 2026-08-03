@@ -278,6 +278,15 @@ D3D12_RESOURCE_DESC TextureManager::GetResourceDesc(Texture2DHandle handle) cons
     return record != nullptr ? record->desc : D3D12_RESOURCE_DESC{};
 }
 
+Texture2DHandle TextureManager::GetTexture2DHandle(uint32_t descriptorIndex) const {
+    const auto found = records_.find(descriptorIndex);
+    if (found == records_.end() || found->second.kind != TextureKind::Texture2D) {
+        return fallback2D_;
+    }
+
+    return Texture2DHandle(descriptorIndex, found->second.generation);
+}
+
 TextureManager::Statistics TextureManager::GetStatistics() const noexcept {
     Statistics statistics{};
     statistics.estimatedGpuBytes = estimatedGpuBytes_;

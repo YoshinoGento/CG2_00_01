@@ -8,8 +8,27 @@ bool Sprite::Initialize(SpriteCommon* spriteCommon, const std::string& texturePa
         Logger::Log("Sprite::Initialize failed. SpriteCommon and a texture path are required.");
         return false;
     }
+    return InitializeWithHandle(spriteCommon, TextureManager::GetInstance()->LoadTexture2D(texturePath));
+}
+
+bool Sprite::Initialize(SpriteCommon* spriteCommon, uint32_t textureHandle) {
+    if (spriteCommon == nullptr) {
+        Logger::Log("Sprite::Initialize failed. SpriteCommon is required.");
+        return false;
+    }
+    return InitializeWithHandle(
+        spriteCommon,
+        TextureManager::GetInstance()->GetTexture2DHandle(textureHandle));
+}
+
+bool Sprite::InitializeWithHandle(SpriteCommon* spriteCommon, Texture2DHandle textureHandle) {
+    if (spriteCommon == nullptr) {
+        Logger::Log("Sprite::InitializeWithHandle failed. SpriteCommon is required.");
+        return false;
+    }
+
     spriteCommon_ = spriteCommon;
-    textureHandle_ = TextureManager::GetInstance()->LoadTexture2D(texturePath);
+    textureHandle_ = textureHandle;
 
     vertexResource_ = spriteCommon_->GetDxCommon()->CreateBufferResource(sizeof(VertexData) * 4);
     vertexBufferView_.BufferLocation = vertexResource_->GetGPUVirtualAddress();
@@ -77,6 +96,11 @@ void Sprite::Draw() {
 
 void Sprite::SetTexture(Texture2DHandle textureHandle) {
     textureHandle_ = textureHandle;
+    AdjustTextureRect();
+}
+
+void Sprite::SetTexture(uint32_t textureHandle) {
+    textureHandle_ = TextureManager::GetInstance()->GetTexture2DHandle(textureHandle);
     AdjustTextureRect();
 }
 

@@ -25,7 +25,7 @@ void SkyboxManager::LoadSkybox(const std::string& name, const std::string& textu
     data.name = name;
     data.texturePath = texturePath;
     data.skybox = std::make_unique<Skybox>();
-    data.skybox->Initialize(dxCommon_, srvManager_, texturePath);
+    data.skybox->Initialize(dxCommon_, texturePath);
     skyboxes_.push_back(std::move(data));
 }
 
@@ -152,7 +152,8 @@ uint32_t SkyboxManager::GetCurrentSrvIndex() const {
     if (skyboxes_.empty() || currentSkyboxIndex_ >= skyboxes_.size()) {
         return 0;
     }
-    return skyboxes_[currentSkyboxIndex_].skybox->GetSrvIndex();
+    const TextureCubeHandle textureHandle = skyboxes_[currentSkyboxIndex_].skybox->GetTextureHandle();
+    return textureHandle.IsValid() ? textureHandle.Index() : 0;
 }
 
 const char* SkyboxManager::GetModeName() const {

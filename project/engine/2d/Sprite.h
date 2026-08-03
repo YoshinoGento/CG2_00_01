@@ -8,6 +8,7 @@ class Sprite {
 public:
     // The path-based entry point guarantees that every Sprite resolves assets through TextureManager.
     bool Initialize(SpriteCommon* spriteCommon, const std::string& texturePath);
+    bool Initialize(SpriteCommon* spriteCommon, uint32_t textureHandle);
 
     // 更新
     void Update();
@@ -35,6 +36,7 @@ public:
 
     // テクスチャ変更
     void SetTexture(Texture2DHandle textureHandle);
+    void SetTexture(uint32_t textureHandle);
 
     // テクスチャ切り出し範囲（左上座標、サイズ）
     void SetTextureRect(const Vector2& leftTop, const Vector2& size);
@@ -47,6 +49,7 @@ public:
 
 private:
     // 頂点データの更新（サイズや切り取り範囲が変わったら呼ぶ）
+    bool InitializeWithHandle(SpriteCommon* spriteCommon, Texture2DHandle textureHandle);
     void AdjustTextureRect();
     void UpdateTextureCoordinates();
 

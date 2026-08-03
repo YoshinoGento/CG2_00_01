@@ -1,4 +1,5 @@
 #include "SpriteCommon.h"
+#include "2d/TextureManager.h"
 #include "base/Logger.h"
 #include <cassert>
 
@@ -22,6 +23,15 @@ void SpriteCommon::PreDraw() {
     // main.cpp の srvManager->PreDraw() で一括設定するため、ここで上書きするとバグになります。
     // ID3D12DescriptorHeap* ppHeaps[] = { dxCommon_->GetSrvHeap() };
     // commandList->SetDescriptorHeaps(1, ppHeaps);
+}
+
+uint32_t SpriteCommon::LoadTexture(const std::string& texturePath) {
+    return TextureManager::GetInstance()->LoadTexture2D(texturePath).Index();
+}
+
+D3D12_RESOURCE_DESC SpriteCommon::GetTextureResourceDesc(uint32_t textureHandle) const {
+    return TextureManager::GetInstance()->GetResourceDesc(
+        TextureManager::GetInstance()->GetTexture2DHandle(textureHandle));
 }
 
 void SpriteCommon::CreateRootSignature() {

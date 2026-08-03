@@ -8,15 +8,95 @@
 #include "base/SrvManager.h"
 #include "demo/PostEffectSubmissionDemo.h"
 #include "demo/PostEffectSubmissionHUD.h"
+#ifdef USE_IMGUI
 #include "editor/EditorShell.h"
+#endif
 #include "effect/PostEffectSystem.h"
+#include "FloatingTextSystem.h"
+#include "GameplayEffectManager.h"
+#include "2d/RuntimeTextTextureGenerator.h"
+#include "2d/Sprite.h"
+#include "3d/SkyboxManager.h"
 #include "scene/GamePlayScene.h"
 #include "scene/SceneFactory.h"
 #include "scene/SceneManager.h"
 
+#include <algorithm>
 #include <cassert>
+#include <cmath>
+#include <cstdio>
 
 Vector2 Game::mousePosInViewport_ = { 0.0f, 0.0f };
+
+namespace {
+constexpr float kVirtualScreenWidth = 1280.0f;
+constexpr float kVirtualScreenHeight = 720.0f;
+
+size_t GetFieldStateHudIndex(FieldState state)
+{
+	switch (state) {
+	case FieldState::Empty:
+		return 0;
+	case FieldState::Tilled:
+		return 1;
+	case FieldState::Watered:
+		return 2;
+	case FieldState::Planted:
+		return 3;
+	case FieldState::ReadyToHarvest:
+		return 4;
+	default:
+		return 0;
+	}
+}
+
+Vector4 GetFieldStateHudColor(FieldState state)
+{
+	switch (state) {
+	case FieldState::Empty:
+		return { 0.90f, 0.90f, 0.86f, 1.0f };
+	case FieldState::Tilled:
+		return { 0.82f, 0.58f, 0.34f, 1.0f };
+	case FieldState::Watered:
+		return { 0.45f, 0.78f, 1.0f, 1.0f };
+	case FieldState::Planted:
+		return { 0.50f, 0.95f, 0.48f, 1.0f };
+	case FieldState::ReadyToHarvest:
+		return { 1.0f, 0.86f, 0.24f, 1.0f };
+	default:
+		return { 1.0f, 1.0f, 1.0f, 1.0f };
+	}
+}
+
+Vector4 GetGrowthBarColor(float growth)
+{
+	const float t = std::clamp(growth, 0.0f, 1.0f);
+	return { 0.35f + 0.45f * t, 0.72f + 0.20f * t, 0.25f, 0.95f };
+}
+
+Vector4 GetMoistureBarColor(float moisture)
+{
+	const float t = std::clamp(moisture, 0.0f, 1.0f);
+	return { 0.20f + 0.20f * t, 0.45f + 0.35f * t, 0.85f + 0.15f * t, 0.95f };
+}
+
+int GetActionMessageIndex(FieldActionFeedbackType type)
+{
+	switch (type) {
+	case FieldActionFeedbackType::Tilled:
+		return 0;
+	case FieldActionFeedbackType::Watered:
+		return 1;
+	case FieldActionFeedbackType::Planted:
+		return 2;
+	case FieldActionFeedbackType::Harvested:
+		return 3;
+	case FieldActionFeedbackType::None:
+	default:
+		return -1;
+	}
+}
+}
 
 Game::Game() = default;
 Game::~Game() = default;
@@ -31,6 +111,7 @@ void Game::Initialize() {
 	}
 	InitializeRuntimeTextTextures();
 	InitializeGameplayHud();
+	gameplayEffectManager_ = std::make_unique<GameplayEffectManager>();
 	floatingTextSystem_ = std::make_unique<FloatingTextSystem>();
 	floatingTextSystem_->Initialize(
 		spriteCommon_.get(),
@@ -392,6 +473,17 @@ void Game::DrawGameplayHud(GamePlayScene* playScene) {
 		GetMoistureBarColor(moisture));
 }
 
+void Game::DrawHudSprite(Sprite* sprite, const Vector2& position, const Vector2& size, const Vector4& color) {
+	if (!sprite) {
+		return;
+	}
+	sprite->SetPosition(position);
+	sprite->SetSize(size);
+	sprite->SetColor(color);
+	sprite->Update();
+	sprite->Draw();
+}
+
 void Game::ShowFieldActionMessage(FieldActionFeedbackType type, const Vector3& worldPosition) {
 	const int index = GetActionMessageIndex(type);
 	if (index < 0) {
@@ -633,6 +725,7 @@ void Game::UpdateAutoDemoSequence(float deltaTime) {
 	}
 }
 
+#ifdef USE_IMGUI
 void Game::DrawDemoRecordingImGui(GamePlayScene* playScene) {
 	ImGui::Begin("Demo Recording");
 
@@ -686,6 +779,7 @@ void Game::DrawDemoRecordingImGui(GamePlayScene* playScene) {
 
 	ImGui::End();
 }
+#endif
 
 void Game::Update() {
 	Framework::Update();

@@ -251,6 +251,20 @@ private:
     };
     static_assert(sizeof(UpdateParticleInfo) == 16, "UpdateParticleInfo must be 16 bytes.");
 
+    struct CropBurstInfo {
+        Vector3 center;
+        float radiusSq;
+        float strength;
+        uint32_t phase;
+        float phaseTime;
+        float deltaTime;
+        float maxSpeed;
+        uint32_t particleCount;
+        float timeScale;
+        uint32_t padding;
+    };
+    static_assert(sizeof(CropBurstInfo) == 48, "CropBurstInfo layout must match HLSL.");
+
     // Resource states are tracked explicitly because compute writes and graphics reads share buffers.
     Microsoft::WRL::ComPtr<ID3D12Resource> gpuParticleResource_;
     uint32_t gpuParticleSrvHandle_ = UINT32_MAX;

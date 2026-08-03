@@ -45,7 +45,6 @@ public:
 
 	// getter
 	HINSTANCE GetHInstance() const { return wc.hInstance; }
-	void ToggleBorderlessFullscreen();
 private:
 
 	HWND hwnd= nullptr;  // ← ウィンドウハンドルを保持するメンバ変数
@@ -55,7 +54,4 @@ private:
 	RECT windowedRect_ = {};
 
 	WNDCLASS wc{};
-	bool isBorderlessFullscreen_ = false;
-	DWORD windowedStyle_ = WS_OVERLAPPEDWINDOW;
-	RECT windowedRect_ = {};
 };

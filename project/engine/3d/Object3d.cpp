@@ -54,6 +54,10 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 
 }
 
+void Object3d::Update(Camera* camera) {
+	Update(camera, 0.0f);
+}
+
 void Object3d::Update(Camera* camera, float deltaTime) {
 	assert(camera);
 	computeSkinningPrepared_ = false;
@@ -116,6 +120,10 @@ void Object3d::Update(Camera* camera, float deltaTime) {
 	// --- 4. スポットライトの更新 (正規化の追加) ---
 	// ImGuiなどで方向が変更された場合、計算に使う前に必ず長さを 1 にします
 	// これを行わないと、シェーダー側で角度による減衰計算が破綻します
+}
+
+void Object3d::SetTexture(uint32_t textureHandle) {
+	textureHandle_ = TextureManager::GetInstance()->GetTexture2DHandle(textureHandle);
 }
 
 void Object3d::Draw() {
