@@ -1,0 +1,26 @@
+[Script Info]
+Title: CG5 Farm Demo Telop
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+PlayResX: 1600
+PlayResY: 900
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Title,Yu Gothic,42,&H00FFFFFF,&H000000FF,&H00202020,&HBB000000,-1,0,0,0,100,100,0,0,3,2,1,8,80,80,78,1
+Style: Body,Yu Gothic,32,&H00FFFFFF,&H000000FF,&H00202020,&HBB000000,-1,0,0,0,100,100,0,0,3,2,1,8,80,80,72,1
+Style: Small,Yu Gothic,28,&H00FFFFFF,&H000000FF,&H00202020,&HAA000000,-1,0,0,0,100,100,0,0,3,2,1,8,80,80,72,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:05.00,Title,,0,0,0,,農場ゲーム / 自作C++ DirectX12エンジン
+Dialogue: 0,0:00:05.00,0:00:12.00,Body,,0,0,0,,畑マスを選び、耕す・水やり・植える・収穫の流れを確認できます
+Dialogue: 0,0:00:12.00,0:00:20.00,Body,,0,0,0,,左に畑マップ、中央にGame View、右に選択中マスのInspectorを表示
+Dialogue: 0,0:00:20.00,0:00:29.00,Body,,0,0,0,,FarmGridが各Tileの状態・高さ・水分・成長度を管理
+Dialogue: 0,0:00:29.00,0:00:39.00,Body,,0,0,0,,ToolActionSystemでHoe / Water / Seed / Harvestの処理を分離
+Dialogue: 0,0:00:39.00,0:00:50.00,Body,,0,0,0,,HUDはGame状態を直接変更せず、表示専用データだけを描画
+Dialogue: 0,0:00:50.00,0:01:02.00,Body,,0,0,0,,Debug Editorから内部状態を確認し、開発中の検証をしやすくしています
+Dialogue: 0,0:01:02.00,0:01:13.00,Body,,0,0,0,,描画・入力・ゲームロジックを分け、拡張しやすい構成を意識
+Dialogue: 0,0:01:13.00,0:01:23.00,Small,,0,0,0,,今後は作物種類・販売・ゲーム目標を追加してコアループを完成させます
