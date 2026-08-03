@@ -1,10 +1,39 @@
 #include "ImGuiManager.h"
+#include "base/Logger.h"
+
+#ifdef USE_IMGUI
+#include <filesystem>
+#include <string>
+#endif
 
 // シングルトンの実体取得
 ImGuiManager* ImGuiManager::GetInstance() {
 	static ImGuiManager instance;
 	return &instance;
 }
+
+#ifdef USE_IMGUI
+namespace {
+const char* FindJapaneseFontPath() {
+	static constexpr const char* kFontPaths[] = {
+		"Resources/fonts/NotoSansJP-VF.ttf",
+		"C:/Windows/Fonts/NotoSansJP-VF.ttf",
+		"C:/Windows/Fonts/meiryo.ttc",
+		"C:/Windows/Fonts/YuGothM.ttc",
+		"C:/Windows/Fonts/msgothic.ttc",
+	};
+
+	for (const char* path : kFontPaths) {
+		std::error_code error;
+		if (std::filesystem::exists(path, error)) {
+			return path;
+		}
+	}
+
+	return nullptr;
+}
+}
+#endif
 
 void ImGuiManager::Initialize([[maybe_unused]] WinApp* winApp, [[maybe_unused]] DirectXCommon* dxCommon, [[maybe_unused]] SrvManager* srvManager) {
 #ifdef USE_IMGUI
@@ -20,6 +49,19 @@ void ImGuiManager::Initialize([[maybe_unused]] WinApp* winApp, [[maybe_unused]] 
 	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
 	ImGui::StyleColorsDark();
+	if (const char* japaneseFontPath = FindJapaneseFontPath()) {
+		ImFont* font = io.Fonts->AddFontFromFileTTF(japaneseFontPath, 16.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
+		if (font) {
+			io.FontDefault = font;
+			Logger::Log(std::string("ImGuiManager: loaded Japanese-capable font: ") + japaneseFontPath);
+		} else {
+			io.Fonts->AddFontDefault();
+			Logger::Log(std::string("ImGuiManager: failed to load font, using default ImGui font: ") + japaneseFontPath);
+		}
+	} else {
+		io.Fonts->AddFontDefault();
+		Logger::Log("ImGuiManager: Japanese-capable font was not found. Using default ImGui font.");
+	}
 
 	ImGuiStyle& style = ImGui::GetStyle();
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
