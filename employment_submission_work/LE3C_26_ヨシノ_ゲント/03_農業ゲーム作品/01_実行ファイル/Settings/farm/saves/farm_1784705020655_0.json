@@ -1,0 +1,155 @@
+{
+    "document": {
+        "displayName": "シンノスケ",
+        "id": "farm_1784705020655_0",
+        "savedAt": "2026-07-22 16:23:40"
+    },
+    "grid": {
+        "height": 4,
+        "selectedIndex": 12,
+        "width": 5
+    },
+    "schemaVersion": 1,
+    "tiles": [
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        }
+    ]
+}
