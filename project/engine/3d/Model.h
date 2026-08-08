@@ -133,6 +133,8 @@ public:
 	const Node& GetRootNode() const { return rootNode_; }
 	bool HasSkinCluster() const { return skinCluster_.influenceResource.Get() != nullptr && skinCluster_.paletteResource.Get() != nullptr; }
 	const SkinCluster& GetSkinCluster() const { return skinCluster_; }
+	uint32_t GetVertexCount() const { return static_cast<uint32_t>(vertices_.size()); }
+	uint32_t GetIndexCount() const { return static_cast<uint32_t>(indices_.size()); }
 	bool UseComputeSkinning() const;
 	void SetUseComputeSkinning(bool useComputeSkinning) { skinCluster_.useComputeSkinning = useComputeSkinning; }
 

@@ -20,6 +20,7 @@
 #include "farm/system/FarmToolSystem.h"
 #include "farm/ui/FarmHUD.h"
 #ifdef USE_IMGUI
+#include "debug/DebugEditorWindow.h"
 #include "farm/debug/FarmDebugEditorWindow.h"
 #endif
 
@@ -110,6 +111,8 @@ private:
 	Vector3 EvaluateLevelRoutePoint(float normalizedTime) const;
 #ifdef USE_IMGUI
 	void DrawSceneDebugWindow();
+	void SpawnDebugEditorObject(const DebugEditorWindow::SpawnRequest& request);
+	Object3d* PickDebugObjectFromViewport(const Vector2& viewportMousePosition) const;
 #endif
 
 	// エフェクト発生関数
@@ -126,6 +129,14 @@ private:
 		float animationPhase = 0.0f;
 		bool visible = true;
 	};
+#ifdef USE_IMGUI
+	struct DebugSpawnedObjectRuntime {
+		std::unique_ptr<Object3d> object;
+		std::string name;
+		std::string modelPath;
+		bool animated = false;
+	};
+#endif
 	struct GameplaySnapshot {
 		level::LevelGameplaySystem::Snapshot levelGameplay;
 		farm::FarmGrid::Snapshot farmGrid;
@@ -213,6 +224,9 @@ private:
 	FarmHUD farmHud_;
 #ifdef USE_IMGUI
 	farm::FarmDebugEditorWindow farmDebugEditorWindow_;
+	Object3d* debugSelectedObject_ = nullptr;
+	std::vector<DebugSpawnedObjectRuntime> debugSpawnedObjects_;
+	uint32_t debugSpawnCounter_ = 0;
 	bool showSceneDebugUi_ = true;
 	bool showFarmDebugUi_ = true;
 #endif
