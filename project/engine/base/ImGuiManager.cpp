@@ -1,12 +1,13 @@
 #include "ImGuiManager.h"
+
 #include "base/Logger.h"
 
 #ifdef USE_IMGUI
 #include <filesystem>
 #include <string>
+#include <cstring>
 #endif
 
-// シングルトンの実体取得
 ImGuiManager* ImGuiManager::GetInstance() {
 	static ImGuiManager instance;
 	return &instance;
@@ -32,6 +33,17 @@ const char* FindJapaneseFontPath() {
 
 	return nullptr;
 }
+
+ImFont* LoadDebugFont(ImGuiIO& io, const char* name, const char* path, float size) {
+	ImFont* font = io.Fonts->AddFontFromFileTTF(path, size, nullptr, io.Fonts->GetGlyphRangesJapanese());
+	if (!font) {
+		Logger::Log(std::string("ImGuiManager: failed to load debug font: ") + name + " from " + path);
+		return nullptr;
+	}
+
+	Logger::Log(std::string("ImGuiManager: loaded debug font: ") + name + " from " + path);
+	return font;
+}
 }
 #endif
 
@@ -39,27 +51,40 @@ void ImGuiManager::Initialize([[maybe_unused]] WinApp* winApp, [[maybe_unused]] 
 #ifdef USE_IMGUI
 	dxCommon_ = dxCommon;
 	srvManager_ = srvManager;
+	debugFonts_.clear();
+	currentDebugFontIndex_ = 0;
+	debugFontPushedThisFrame_ = false;
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	ImGuiIO& io = ImGui::GetIO();
 
-	// ドッキングとマルチビューポートを有効化
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
 	ImGui::StyleColorsDark();
+
+	ImFont* defaultFont = io.Fonts->AddFontDefault();
+	debugFonts_.push_back({ "Default", defaultFont });
+	io.FontDefault = defaultFont;
+
 	if (const char* japaneseFontPath = FindJapaneseFontPath()) {
-		ImFont* font = io.Fonts->AddFontFromFileTTF(japaneseFontPath, 16.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
-		if (font) {
-			io.FontDefault = font;
-			Logger::Log(std::string("ImGuiManager: loaded Japanese-capable font: ") + japaneseFontPath);
-		} else {
-			io.Fonts->AddFontDefault();
-			Logger::Log(std::string("ImGuiManager: failed to load font, using default ImGui font: ") + japaneseFontPath);
+		const int firstJapaneseFontIndex = static_cast<int>(debugFonts_.size());
+		if (ImFont* font = LoadDebugFont(io, "Japanese 16", japaneseFontPath, 16.0f)) {
+			debugFonts_.push_back({ "Japanese 16", font });
+		}
+		if (ImFont* font = LoadDebugFont(io, "Japanese 18", japaneseFontPath, 18.0f)) {
+			debugFonts_.push_back({ "Japanese 18", font });
+		}
+		if (ImFont* font = LoadDebugFont(io, "Japanese 20", japaneseFontPath, 20.0f)) {
+			debugFonts_.push_back({ "Japanese 20", font });
+		}
+
+		if (static_cast<int>(debugFonts_.size()) > firstJapaneseFontIndex) {
+			currentDebugFontIndex_ = firstJapaneseFontIndex;
+			io.FontDefault = debugFonts_[currentDebugFontIndex_].font;
 		}
 	} else {
-		io.Fonts->AddFontDefault();
 		Logger::Log("ImGuiManager: Japanese-capable font was not found. Using default ImGui font.");
 	}
 
@@ -73,27 +98,18 @@ void ImGuiManager::Initialize([[maybe_unused]] WinApp* winApp, [[maybe_unused]] 
 
 	srvIndex_ = srvManager_->Allocate();
 
-	// --- 初期化設定の修正 ---
 	ImGui_ImplDX12_InitInfo initInfo = {};
 	initInfo.Device = dxCommon_->GetDevice();
 	initInfo.CommandQueue = dxCommon_->GetCommandQueue();
-	initInfo.NumFramesInFlight = (uint32_t)dxCommon_->GetSwapChainResourcesNum();
-
-	// ★【重要修正】エラーログに合わせて _SRGB を取ります
-	// ログにて render target format = R8G8B8A8_UNORM と出ていたためこちらに合わせます
+	initInfo.NumFramesInFlight = static_cast<uint32_t>(dxCommon_->GetSwapChainResourcesNum());
 	initInfo.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-
-	// DSV(深度)もエンジンの設定に合わせます。
-	// もしエンジンの DirectXCommon で D32_FLOAT を使っているなら D32_FLOAT にしてください。
 	initInfo.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-
 	initInfo.SrvDescriptorHeap = srvManager_->GetSrvDescriptorHeap();
-
-	initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle) {
+	initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* outCpuHandle, D3D12_GPU_DESCRIPTOR_HANDLE* outGpuHandle) {
 		ImGuiManager* manager = ImGuiManager::GetInstance();
-		*out_cpu_handle = manager->srvManager_->GetCPUDescriptorHandle(manager->srvIndex_);
-		*out_gpu_handle = manager->srvManager_->GetGPUDescriptorHandle(manager->srvIndex_);
-		};
+		*outCpuHandle = manager->srvManager_->GetCPUDescriptorHandle(manager->srvIndex_);
+		*outGpuHandle = manager->srvManager_->GetGPUDescriptorHandle(manager->srvIndex_);
+	};
 	initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLE) {};
 
 	ImGui_ImplDX12_Init(&initInfo);
@@ -106,6 +122,9 @@ void ImGuiManager::Finalize() {
 	ImGui_ImplDX12_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
+	debugFonts_.clear();
+	currentDebugFontIndex_ = 0;
+	debugFontPushedThisFrame_ = false;
 #endif
 }
 
@@ -114,11 +133,24 @@ void ImGuiManager::Begin() {
 	ImGui_ImplDX12_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
+
+	debugFontPushedThisFrame_ = false;
+	if (currentDebugFontIndex_ >= 0 && currentDebugFontIndex_ < static_cast<int>(debugFonts_.size())) {
+		ImFont* font = debugFonts_[currentDebugFontIndex_].font;
+		if (font) {
+			ImGui::PushFont(font);
+			debugFontPushedThisFrame_ = true;
+		}
+	}
 #endif
 }
 
 void ImGuiManager::End() {
 #ifdef USE_IMGUI
+	if (debugFontPushedThisFrame_) {
+		ImGui::PopFont();
+		debugFontPushedThisFrame_ = false;
+	}
 	ImGui::Render();
 #endif
 }
@@ -134,7 +166,7 @@ void ImGuiManager::Draw() {
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
 		ImGui::UpdatePlatformWindows();
-		ImGui::RenderPlatformWindowsDefault(nullptr, (void*)commandList);
+		ImGui::RenderPlatformWindowsDefault(nullptr, static_cast<void*>(commandList));
 	}
 #endif
 }
@@ -151,6 +183,67 @@ bool ImGuiManager::WantsCaptureMouse() const noexcept {
 #ifdef USE_IMGUI
 	return ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse;
 #else
+	return false;
+#endif
+}
+
+int ImGuiManager::GetDebugFontCount() const noexcept {
+#ifdef USE_IMGUI
+	return static_cast<int>(debugFonts_.size());
+#else
+	return 0;
+#endif
+}
+
+int ImGuiManager::GetCurrentDebugFontIndex() const noexcept {
+#ifdef USE_IMGUI
+	return currentDebugFontIndex_;
+#else
+	return 0;
+#endif
+}
+
+const char* ImGuiManager::GetDebugFontName(int index) const noexcept {
+#ifdef USE_IMGUI
+	if (index < 0 || index >= static_cast<int>(debugFonts_.size())) {
+		return "Unknown";
+	}
+
+	return debugFonts_[index].name;
+#else
+	(void)index;
+	return "Unavailable";
+#endif
+}
+
+void ImGuiManager::SetCurrentDebugFontIndex(int index) noexcept {
+#ifdef USE_IMGUI
+	if (index < 0 || index >= static_cast<int>(debugFonts_.size())) {
+		return;
+	}
+
+	currentDebugFontIndex_ = index;
+#else
+	(void)index;
+#endif
+}
+
+bool ImGuiManager::SetCurrentDebugFontByName(const char* name) noexcept {
+#ifdef USE_IMGUI
+	if (!name) {
+		return false;
+	}
+
+	for (int index = 0; index < static_cast<int>(debugFonts_.size()); ++index) {
+		if (debugFonts_[index].name && std::strcmp(debugFonts_[index].name, name) == 0) {
+			currentDebugFontIndex_ = index;
+			return true;
+		}
+	}
+
+	return false;
+#else
+	(void)name;
 	return false;
 #endif
 }

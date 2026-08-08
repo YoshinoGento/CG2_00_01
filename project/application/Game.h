@@ -5,6 +5,7 @@
 
 class SceneFactory;
 class SkinningDebugWindow;
+class DebugEditorWindow;
 class EngineDebugWindowManager;
 class PostEffectSystem;
 class PostEffectDebugWindow;
@@ -35,7 +36,10 @@ private:
 	};
 
 	void DrawDebugMasterTopBar(class GamePlayScene* playScene);
+	void DrawDebugEditor(class GamePlayScene* playScene);
 	const char* DebugLabel(const char* japanese, const char* english) const;
+	void LoadDebugUiSettings();
+	void SaveDebugUiSettings() const;
 	bool ShouldDrawLegacyDebugWindows() const;
 	bool ShouldDrawSceneDebugWindows() const;
 	bool ShouldDrawFarmDebugWindows() const;
@@ -48,6 +52,7 @@ private:
 
 	std::unique_ptr<PostEffectSystem> postEffectSystem_;
 #ifdef USE_IMGUI
+	std::unique_ptr<DebugEditorWindow> debugEditorWindow_;
 	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
 	std::unique_ptr<EngineDebugWindowManager> engineDebugWindowManager_;
 	std::unique_ptr<PostEffectDebugWindow> postEffectDebugWindow_;

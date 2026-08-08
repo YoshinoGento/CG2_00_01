@@ -25,6 +25,7 @@
 #include <cassert>
 #include <cmath>
 #include <filesystem>
+#include <limits>
 #include <random>
 #include <system_error>
 #include <unordered_set>
@@ -529,6 +530,13 @@ void GamePlayScene::Update() {
 		sphereObj_->SetRotation(objectRot_);
 		UpdateObjectState(sphereObj_.get(), 0.5f);
 	}
+#ifdef USE_IMGUI
+	for (DebugSpawnedObjectRuntime& debugObject : debugSpawnedObjects_) {
+		if (debugObject.object) {
+			UpdateObjectState(debugObject.object.get(), debugObject.animated ? 0.4f : 0.0f);
+		}
+	}
+#endif
 
 	// スペースキー入力時の分岐（activeParticleType_ は Game.cpp の ImGui から書き換わる）
 	if (framework_->GetInput()->TriggerKey(DIK_SPACE)) {
@@ -1207,6 +1215,22 @@ void GamePlayScene::Draw() {
 			}
 		}
 		};
+#ifdef USE_IMGUI
+	auto DrawDebugSpawnedObjects = [&]() {
+		for (const DebugSpawnedObjectRuntime& debugObject : debugSpawnedObjects_) {
+			if (debugObject.object) {
+				debugObject.object->Draw();
+			}
+		}
+		};
+	auto DrawDebugSpawnedObjectShadows = [&]() {
+		for (const DebugSpawnedObjectRuntime& debugObject : debugSpawnedObjects_) {
+			if (debugObject.object) {
+				debugObject.object->DrawShadow();
+			}
+		}
+		};
+#endif
 
 	objCommon->SetShadowStrength(directionalShadowsEnabled_ ? directionalShadowStrength_ : 0.0f);
 	if (directionalShadowsEnabled_) {
@@ -1221,6 +1245,9 @@ void GamePlayScene::Draw() {
 			if (showPlane_ && object3d_) object3d_->DrawShadow();
 			if (showAnimModel_ && animObj_) animObj_->DrawShadow();
 			DrawLevelObjectShadows();
+#ifdef USE_IMGUI
+			DrawDebugSpawnedObjectShadows();
+#endif
 			objCommon->EndShadowPass();
 		}
 	}
@@ -1252,6 +1279,16 @@ void GamePlayScene::Draw() {
 
 	DrawLevelDebugGizmos();
 	DrawLevelCollisionGizmos();
+#ifdef USE_IMGUI
+	if (debugSelectedObject_) {
+		const Vector3 selectedPosition = debugSelectedObject_->GetPosition();
+		const Vector3 selectedScale = debugSelectedObject_->GetScale();
+		const float selectedRadius = (std::max)({ selectedScale.x, selectedScale.y, selectedScale.z, 1.0f }) * 1.15f;
+		const Vector4 selectedColor = { 1.0f, 0.82f, 0.08f, 1.0f };
+		LineDrawer::GetInstance()->DrawWireSphere(selectedPosition, selectedRadius, selectedColor, 32);
+		LineDrawer::GetInstance()->DrawLine(selectedPosition, AddVector3(selectedPosition, { 0.0f, selectedRadius, 0.0f }), selectedColor);
+	}
+#endif
 
 	if (modelPriority_ == 0) {
 		objCommon->BeginObjectPass();
@@ -1260,6 +1297,9 @@ void GamePlayScene::Draw() {
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
 		DrawLevelObjects();
+#ifdef USE_IMGUI
+		DrawDebugSpawnedObjects();
+#endif
 		objCommon->EndObjectPass();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
@@ -1280,6 +1320,9 @@ void GamePlayScene::Draw() {
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
 		DrawLevelObjects();
+#ifdef USE_IMGUI
+		DrawDebugSpawnedObjects();
+#endif
 		objCommon->EndObjectPass();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
@@ -1836,6 +1879,155 @@ void GamePlayScene::Finalize()
 			0.0f);
 	}
 }
+
+#ifdef USE_IMGUI
+void GamePlayScene::SpawnDebugEditorObject(const DebugEditorWindow::SpawnRequest& request) {
+	if (!framework_) {
+		return;
+	}
+
+	Model* model = nullptr;
+	const bool isSpherePrimitive = request.kind == DebugEditorWindow::SpawnKind::SpherePrimitive;
+	if (isSpherePrimitive) {
+		if (!sphereModel_) {
+			CreateSphere(sphereRadius_);
+		}
+		model = sphereModel_.get();
+	} else {
+		if (request.modelPath.empty()) {
+			AddLog("Debug spawn skipped: model path is empty.");
+			return;
+		}
+		if (!FileExistsNoThrow(std::filesystem::path("Resources") / request.modelPath)) {
+			AddLog("Debug spawn skipped. Model file not found: " + request.modelPath);
+			return;
+		}
+
+		ModelManager* modelManager = framework_->GetModelManager();
+		if (!modelManager) {
+			AddLog("Debug spawn skipped: ModelManager is null.");
+			return;
+		}
+		modelManager->LoadModel(request.modelPath);
+		model = modelManager->GetModel(request.modelPath);
+		if (!model) {
+			AddLog("Debug spawn skipped. Model load failed: " + request.modelPath);
+			return;
+		}
+		model->LoadTextures();
+	}
+
+	std::unique_ptr<Object3d> object = std::make_unique<Object3d>();
+	object->Initialize(framework_->GetObject3dCommon());
+	object->SetModel(model);
+	object->SetShininess(30.0f);
+	if (isSpherePrimitive && textureHandles_.size() > 1) {
+		object->SetTexture(textureHandles_[1]);
+	}
+	if (skybox_ && skyboxEnvironmentEnabled_) {
+		object->SetEnvironmentMap(skybox_->GetTextureHandle());
+		object->SetEnvironmentCoefficient(0.5f);
+	}
+
+	const uint32_t spawnIndex = debugSpawnCounter_++;
+	Vector3 position = {
+		-4.0f + static_cast<float>(spawnIndex % 6u) * 1.6f,
+		-1.0f,
+		4.0f + static_cast<float>(spawnIndex / 6u) * 1.6f
+	};
+	Vector3 scale = { 1.0f, 1.0f, 1.0f };
+	if (request.kind == DebugEditorWindow::SpawnKind::AnimatedModel) {
+		if (request.modelPath.find("simpleSkin") != std::string::npos) {
+			position.y = 0.0f;
+			scale = { 0.5f, 0.5f, 0.5f };
+		} else if (request.modelPath.find("human/") != std::string::npos) {
+			position.y = -2.0f;
+		}
+		if (!request.animationDirectory.empty() && !request.animationFile.empty()) {
+			Animation animation = model->LoadAnimation("Resources/" + request.animationDirectory, request.animationFile);
+			object->SetAnimation(animation);
+			object->SetAnimationPlaying(true);
+		}
+	}
+	object->SetPosition(position);
+	object->SetScale(scale);
+
+	DebugSpawnedObjectRuntime runtime{};
+	runtime.name = "Spawned " + std::to_string(spawnIndex) + " " + request.displayName;
+	runtime.modelPath = isSpherePrimitive ? "primitive/sphere" : request.modelPath;
+	runtime.animated = request.kind == DebugEditorWindow::SpawnKind::AnimatedModel;
+	runtime.object = std::move(object);
+	debugSpawnedObjects_.push_back(std::move(runtime));
+	AddLog("Debug spawned object: " + debugSpawnedObjects_.back().name);
+}
+
+Object3d* GamePlayScene::PickDebugObjectFromViewport(const Vector2& viewportMousePosition) const {
+	if (!camera_ || viewportImageSize_.x <= 1.0f || viewportImageSize_.y <= 1.0f) {
+		return nullptr;
+	}
+
+	constexpr float kPickRadiusPixels = 42.0f;
+	const float pickRadiusSq = kPickRadiusPixels * kPickRadiusPixels;
+	float bestDistanceSq = pickRadiusSq;
+	float bestDepth = (std::numeric_limits<float>::max)();
+	Object3d* bestObject = nullptr;
+
+	auto TryPick = [&](Object3d* object) {
+		if (!object) {
+			return;
+		}
+
+		const Vector3 ndc = MatrixMath::Transform(object->GetPosition(), camera_->GetViewProjectionMatrix());
+		if (!std::isfinite(ndc.x) || !std::isfinite(ndc.y) || !std::isfinite(ndc.z)) {
+			return;
+		}
+		if (ndc.z < 0.0f || ndc.z > 1.0f || ndc.x < -1.2f || ndc.x > 1.2f || ndc.y < -1.2f || ndc.y > 1.2f) {
+			return;
+		}
+
+		const float screenX = viewportImageTopLeft_.x + (ndc.x * 0.5f + 0.5f) * viewportImageSize_.x;
+		const float screenY = viewportImageTopLeft_.y + (0.5f - ndc.y * 0.5f) * viewportImageSize_.y;
+		const float dx = viewportMousePosition.x - screenX;
+		const float dy = viewportMousePosition.y - screenY;
+		const float distanceSq = dx * dx + dy * dy;
+		if (distanceSq > bestDistanceSq) {
+			return;
+		}
+		if (std::abs(distanceSq - bestDistanceSq) <= 0.001f && ndc.z >= bestDepth) {
+			return;
+		}
+
+		bestDistanceSq = distanceSq;
+		bestDepth = ndc.z;
+		bestObject = object;
+	};
+
+	if (showTerrain_) {
+		TryPick(terrainObj_.get());
+	}
+	if (showSphere_) {
+		TryPick(sphereObj_.get());
+	}
+	if (showPlane_) {
+		TryPick(object3d_.get());
+	}
+	if (showAnimModel_) {
+		TryPick(animObj_.get());
+	}
+	if (showLevelObjects_) {
+		for (const LevelObjectRuntime& levelObject : levelObjects_) {
+			if (levelObject.visible) {
+				TryPick(levelObject.object.get());
+			}
+		}
+	}
+	for (const DebugSpawnedObjectRuntime& debugObject : debugSpawnedObjects_) {
+		TryPick(debugObject.object.get());
+	}
+
+	return bestObject;
+}
+#endif
 
 /**
  * ChangeAnimationModel: インデックスに応じて再生するアニメーションモデルを動的に切り替える

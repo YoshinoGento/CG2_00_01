@@ -9,17 +9,31 @@
 #include "3d/Object3d.h"
 #include "2d/SpriteCommon.h"
 #include "debug/EngineDebugWindowManager.h"
+#include "debug/DebugEditorWindow.h"
 #include "debug/PostEffectDebugWindow.h"
 #include "debug/SkinningDebugWindow.h"
 #include "effect/ParticleManager.h"
 #include "effect/PostEffectSystem.h"
+#include "io/Input.h"
+#include "io/JsonFile.h"
 #include "base/Logger.h"
 #include "base/FrameClock.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <filesystem>
+#include <string>
+#include <system_error>
 
 Vector2 Game::mousePosInViewport_ = { 0, 0 };
+
+#ifdef USE_IMGUI
+namespace {
+constexpr const char* kDebugMasterUiSettingsPath = "Settings/editor/debug_master_ui_settings.json";
+constexpr const char* kDebugUiLanguageJapanese = "Japanese";
+constexpr const char* kDebugUiLanguageEnglish = "English";
+}
+#endif
 
 Game::Game() = default;
 Game::~Game() = default;
@@ -32,9 +46,11 @@ void Game::Initialize() {
 		assert(false && "PostEffectSystem initialization failed");
 	}
 #ifdef USE_IMGUI
+	debugEditorWindow_ = std::make_unique<DebugEditorWindow>();
 	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
 	engineDebugWindowManager_ = std::make_unique<EngineDebugWindowManager>();
 	postEffectDebugWindow_ = std::make_unique<PostEffectDebugWindow>();
+	LoadDebugUiSettings();
 #endif
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
@@ -44,6 +60,8 @@ void Game::Initialize() {
 
 void Game::Finalize() {
 #ifdef USE_IMGUI
+	SaveDebugUiSettings();
+	debugEditorWindow_.reset();
 	postEffectDebugWindow_.reset();
 	skinningDebugWindow_.reset();
 	engineDebugWindowManager_.reset();
@@ -59,7 +77,7 @@ void Game::Finalize() {
 #ifdef USE_IMGUI
 void Game::DrawDebugMasterTopBar(GamePlayScene* playScene) {
 	const ImGuiViewport* viewport = ImGui::GetMainViewport();
-	constexpr float kTopBarHeight = 28.0f;
+	constexpr float kTopBarHeight = 30.0f;
 
 	ImGui::SetNextWindowPos(viewport->Pos);
 	ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kTopBarHeight));
@@ -75,7 +93,7 @@ void Game::DrawDebugMasterTopBar(GamePlayScene* playScene) {
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 4.0f));
 	if (ImGui::Begin("Debug Master Top Bar", nullptr, flags)) {
-		ImGui::TextUnformatted(DebugLabel("CG2 Debug", "CG2 Debug"));
+		ImGui::TextUnformatted("CG2 Debug");
 		ImGui::SameLine();
 		ImGui::TextDisabled("|");
 		ImGui::SameLine();
@@ -91,7 +109,7 @@ void Game::DrawDebugMasterTopBar(GamePlayScene* playScene) {
 		if (japanese) {
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::Button("日本語", ImVec2(72.0f, 0.0f))) {
+		if (ImGui::Button("Japanese", ImVec2(82.0f, 0.0f))) {
 			debugUiLanguage_ = DebugUiLanguage::Japanese;
 		}
 		if (japanese) {
@@ -111,10 +129,32 @@ void Game::DrawDebugMasterTopBar(GamePlayScene* playScene) {
 		}
 
 		ImGui::SameLine();
-		ImGui::TextDisabled("| %s", DebugLabel("上のボタンで表示言語を切替", "Use the buttons above to switch language"));
+		ImGui::TextDisabled("|");
+		ImGui::SameLine();
+		ImGui::TextUnformatted("Font:");
+		ImGui::SameLine();
+
+		ImGuiManager* imguiManager = ImGuiManager::GetInstance();
+		int currentFontIndex = imguiManager->GetCurrentDebugFontIndex();
+		const char* currentFontName = imguiManager->GetDebugFontName(currentFontIndex);
+		ImGui::SetNextItemWidth(132.0f);
+		if (ImGui::BeginCombo("##DebugUIFont", currentFontName)) {
+			const int fontCount = imguiManager->GetDebugFontCount();
+			for (int index = 0; index < fontCount; ++index) {
+				const bool selected = index == currentFontIndex;
+				if (ImGui::Selectable(imguiManager->GetDebugFontName(index), selected)) {
+					imguiManager->SetCurrentDebugFontIndex(index);
+				}
+				if (selected) {
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+			ImGui::EndCombo();
+		}
+
 		if (playScene) {
 			ImGui::SameLine();
-			ImGui::TextDisabled("Scene: GamePlay");
+			ImGui::TextDisabled("| Scene: GamePlay");
 		}
 	}
 	ImGui::End();
@@ -123,6 +163,103 @@ void Game::DrawDebugMasterTopBar(GamePlayScene* playScene) {
 
 const char* Game::DebugLabel(const char* japanese, const char* english) const {
 	return debugUiLanguage_ == DebugUiLanguage::Japanese ? japanese : english;
+}
+
+void Game::LoadDebugUiSettings() {
+	nlohmann::json json;
+	if (!JsonFile::Exists(kDebugMasterUiSettingsPath)) {
+		return;
+	}
+	if (!JsonFile::Load(kDebugMasterUiSettingsPath, json)) {
+		return;
+	}
+
+	if (json.contains("language") && json["language"].is_string()) {
+		const std::string language = json["language"].get<std::string>();
+		debugUiLanguage_ = (language == kDebugUiLanguageEnglish) ? DebugUiLanguage::English : DebugUiLanguage::Japanese;
+	}
+
+	if (json.contains("fontName") && json["fontName"].is_string()) {
+		const std::string fontName = json["fontName"].get<std::string>();
+		ImGuiManager::GetInstance()->SetCurrentDebugFontByName(fontName.c_str());
+	}
+}
+
+void Game::SaveDebugUiSettings() const {
+	std::error_code error;
+	std::filesystem::create_directories(std::filesystem::path(kDebugMasterUiSettingsPath).parent_path(), error);
+	if (error) {
+		Logger::Log("Game::SaveDebugUiSettings failed. Could not create settings directory: " + error.message());
+		return;
+	}
+
+	const char* languageName = kDebugUiLanguageJapanese;
+	switch (debugUiLanguage_) {
+	case DebugUiLanguage::Japanese:
+		languageName = kDebugUiLanguageJapanese;
+		break;
+	case DebugUiLanguage::English:
+		languageName = kDebugUiLanguageEnglish;
+		break;
+	}
+
+	ImGuiManager* imguiManager = ImGuiManager::GetInstance();
+	const int fontIndex = imguiManager->GetCurrentDebugFontIndex();
+	nlohmann::json json;
+	json["language"] = languageName;
+	json["fontName"] = imguiManager->GetDebugFontName(fontIndex);
+
+	JsonFile::Save(kDebugMasterUiSettingsPath, json);
+}
+
+void Game::DrawDebugEditor(GamePlayScene* playScene) {
+	if (!playScene || !debugEditorWindow_) {
+		return;
+	}
+
+	debugEditorWindow_->ClearTargets();
+	if (playScene->terrainObj_) {
+		debugEditorWindow_->AddTarget("Terrain", playScene->terrainObj_.get());
+	}
+	if (playScene->sphereObj_) {
+		debugEditorWindow_->AddTarget("Sphere", playScene->sphereObj_.get());
+	}
+	if (playScene->object3d_) {
+		debugEditorWindow_->AddTarget("Plane", playScene->object3d_.get());
+	}
+	if (playScene->animObj_) {
+		debugEditorWindow_->AddTarget("Animated Model", playScene->animObj_.get());
+	}
+	for (const GamePlayScene::LevelObjectRuntime& levelObject : playScene->levelObjects_) {
+		if (levelObject.object) {
+			debugEditorWindow_->AddTarget(levelObject.name.c_str(), levelObject.object.get());
+		}
+	}
+#ifdef USE_IMGUI
+	for (const GamePlayScene::DebugSpawnedObjectRuntime& debugObject : playScene->debugSpawnedObjects_) {
+		if (debugObject.object) {
+			debugEditorWindow_->AddTarget(debugObject.name.c_str(), debugObject.object.get());
+		}
+	}
+#endif
+
+	if (debugEditorWindow_->IsObjectSelectionModeEnabled() &&
+		playScene->viewportHovered_ &&
+		input_ &&
+		input_->TriggerMouseButton(InputMouseButton::Left) &&
+		!input_->PushMouseButton(InputMouseButton::Right) &&
+		!input_->PushMouseButton(InputMouseButton::Middle)) {
+		if (Object3d* pickedObject = playScene->PickDebugObjectFromViewport(playScene->viewportMousePosition_)) {
+			debugEditorWindow_->SelectObject(pickedObject);
+		}
+	}
+
+	debugEditorWindow_->Draw(&playScene->showSceneDebugUi_, &playScene->showFarmDebugUi_);
+	DebugEditorWindow::SpawnRequest spawnRequest{};
+	if (debugEditorWindow_->ConsumeSpawnRequest(spawnRequest)) {
+		playScene->SpawnDebugEditorObject(spawnRequest);
+	}
+	playScene->debugSelectedObject_ = debugEditorWindow_->GetSelectedObject();
 }
 
 bool Game::ShouldDrawLegacyDebugWindows() const {
@@ -204,6 +341,8 @@ void Game::Update() {
 	}
 	ImGui::End();
 	ImGui::PopStyleVar();
+
+	DrawDebugEditor(playScene);
 
 	if (playScene && ShouldDrawLegacyDebugWindows()) {
 		ImGui::Begin("Global Settings");
