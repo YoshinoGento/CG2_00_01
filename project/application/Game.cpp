@@ -8,10 +8,12 @@
 #include "audio/Audio.h"
 #include "3d/Object3d.h"
 #include "2d/SpriteCommon.h"
+#ifdef USE_IMGUI
 #include "debug/EngineDebugWindowManager.h"
 #include "debug/DebugEditorWindow.h"
 #include "debug/PostEffectDebugWindow.h"
 #include "debug/SkinningDebugWindow.h"
+#endif
 #include "effect/ParticleManager.h"
 #include "effect/PostEffectSystem.h"
 #include "io/Input.h"
@@ -583,7 +585,21 @@ void Game::Update() {
 		ImGui::End();
 
 		if (postEffectDebugWindow_ && postEffectSystem_) {
-			postEffectDebugWindow_->Draw(*postEffectSystem_);
+			const PostEffectDebugActions actions = postEffectDebugWindow_->Draw(*postEffectSystem_);
+			if (actions.settings.has_value()) {
+				postEffectSystem_->GetSettings() = *actions.settings;
+			}
+			if (actions.chainModeEnabled.has_value()) {
+				postEffectSystem_->SetChainModeEnabled(*actions.chainModeEnabled);
+			}
+			if (actions.chainPassChange.has_value()) {
+				postEffectSystem_->SetChainPassEnabled(
+					actions.chainPassChange->index,
+					actions.chainPassChange->enabled);
+			}
+			if (actions.resetSettings) {
+				postEffectSystem_->ResetSettings();
+			}
 		}
 	}
 #endif
