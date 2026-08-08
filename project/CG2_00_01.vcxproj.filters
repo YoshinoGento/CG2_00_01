@@ -25,6 +25,9 @@
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\base">
       <UniqueIdentifier>{78b88003-f0a7-4cdc-881c-5f08498599e5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\core">
+      <UniqueIdentifier>{F5D966C5-43E8-4B69-A05E-5399D17CF426}</UniqueIdentifier>
+    </Filter>
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\math">
       <UniqueIdentifier>{b5f28e78-c01f-48bc-ae84-961018048100}</UniqueIdentifier>
     </Filter>
@@ -77,6 +80,15 @@
     </ClCompile>
     <ClCompile Include="engine\command\CommandHistory.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\core\Component.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\core</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\core\GameObject.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\core</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\core\World.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\core</Filter>
     </ClCompile>
     <ClCompile Include="application\farm\system\FarmToolSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
@@ -265,6 +277,15 @@
     </ClInclude>
     <ClInclude Include="engine\command\CommandHistory.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\core\Component.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\core</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\core\GameObject.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\core</Filter>
+    </ClInclude>
+    <ClInclude Include="engine\core\World.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\engine\core</Filter>
     </ClInclude>
     <ClInclude Include="application\farm\system\FarmToolSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
@@ -487,11 +508,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp" />
+    <ClCompile Include="engine\debug\DebugEditorWindow.cpp" />
     <ClCompile Include="engine\debug\Engine2DFeatureDebugWindow.cpp" />
     <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp" />
     <ClCompile Include="engine\debug\InputDebugWindow.cpp" />
     <ClCompile Include="engine\debug\ResourceLeakChecker.cpp" />
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
+    <ClInclude Include="engine\debug\DebugEditorWindow.h" />
     <ClInclude Include="engine\debug\Engine2DFeatureDebugWindow.h" />
     <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
     <ClInclude Include="engine\debug\InputDebugWindow.h" />
