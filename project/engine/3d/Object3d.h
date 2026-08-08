@@ -36,6 +36,9 @@ public:
 	const Matrix4x4& GetWorldMatrix() const { return worldMatrix_; }
 	// ルートノードのローカル行列を含まない、オブジェクト自身の純粋なアフィン変換行列を取得する（日本語コメント付き）
 	const Matrix4x4& GetObjectWorldMatrix() const { return objectWorldMatrix_; }
+	Vector3 GetPosition() const { return transform_.translate; }
+	Vector3 GetRotation() const { return transform_.rotate; }
+	Vector3 GetScale() const { return transform_.scale; }
 
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
@@ -63,6 +66,16 @@ public:
 	bool& GetIsAnimationPlaying() { return isAnimationPlaying_; }
 	float& GetAnimationSpeed() { return animationSpeed_; }
 	const Animation& GetAnimation() const { return animation_; }
+	bool HasAnimation() const { return animation_.duration > 0.0f; }
+	bool HasSkeleton() const { return skeleton_.has_value(); }
+	bool HasSkinning() const { return model_ && model_->HasSkinCluster(); }
+	bool IsAnimationPlaying() const { return isAnimationPlaying_; }
+	void SetAnimationPlaying(bool isPlaying) { isAnimationPlaying_ = isPlaying; }
+	void ResetAnimationTime() { animationTime_ = 0.0f; }
+	float GetAnimationDuration() const { return animation_.duration; }
+	float GetAnimationTimeValue() const { return animationTime_; }
+	float GetPlaybackSpeed() const { return animationSpeed_; }
+	void SetPlaybackSpeed(float speed) { animationSpeed_ = speed; }
 
 
 private:

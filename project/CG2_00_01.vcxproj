@@ -173,6 +173,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp" />
 	<ClCompile Include="application\farm\system\FarmVisualSystem.cpp" />
 	<ClCompile Include="engine\command\CommandHistory.cpp" />
+    <ClCompile Include="engine\core\Component.cpp" />
+    <ClCompile Include="engine\core\GameObject.cpp" />
+    <ClCompile Include="engine\core\World.cpp" />
     <ClCompile Include="application\farm\system\FarmToolSystem.cpp" />
     <ClCompile Include="application\farm\ui\FarmHUD.cpp" />
     <ClCompile Include="application\level\LevelLoader.cpp" />
@@ -182,6 +185,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\Skeleton.cpp" />
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp" />
     <ClCompile Include="engine\debug\Engine2DFeatureDebugWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="engine\debug\DebugEditorWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="engine\debug\EngineDebugWindowManager.cpp">
@@ -455,6 +461,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\farm\system\FarmToolActionSystem.h" />
 	<ClInclude Include="application\farm\system\FarmVisualSystem.h" />
 	<ClInclude Include="engine\command\CommandHistory.h" />
+    <ClInclude Include="engine\core\Component.h" />
+    <ClInclude Include="engine\core\GameObject.h" />
+    <ClInclude Include="engine\core\World.h" />
     <ClInclude Include="application\farm\system\FarmToolSystem.h" />
     <ClInclude Include="application\farm\ui\FarmHUD.h" />
     <ClInclude Include="application\level\LevelLoader.h" />
@@ -465,6 +474,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\3d\Skeleton.h" />
     <ClInclude Include="engine\3d\SkeletonDebugger.h" />
     <ClInclude Include="engine\debug\Engine2DFeatureDebugWindow.h" />
+    <ClInclude Include="engine\debug\DebugEditorWindow.h" />
     <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
     <ClInclude Include="engine\debug\InputDebugWindow.h" />
     <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
