@@ -344,6 +344,7 @@ void GamePlayScene::Initialize() {
 	farmGrid_.Initialize(5, 4);
 	farmDateSystem_.Initialize();
 	farmToolSystem_.Initialize();
+	farmEconomySystem_.Initialize();
 	farmVisualSystem_.Initialize(kFarmVisualLayout);
 	if (!farmDocumentSystem_.Initialize(kFarmDocumentDirectory, farmGrid_)) {
 		AddLog("Farm document initialization failed: " + farmDocumentSystem_.GetStatusMessage());
@@ -1495,11 +1496,12 @@ void GamePlayScene::Draw() {
 FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	FarmHUDViewData viewData;
 	viewData.day = farmDateSystem_.GetDay();
-	viewData.money = 300;
+	viewData.money = farmEconomySystem_.GetMoney();
 	viewData.rank = 1;
+	viewData.cropCount = farmEconomySystem_.GetTotalCropCount();
 	viewData.timeScale = farmDateSystem_.GetTimeScale();
 	viewData.currentToolName = farmToolSystem_.GetCurrentToolName();
-	viewData.toolGuide = "1 HOE  2 WATER  3 SEED  4 HARVEST  Q/E CYCLE  ENTER USE";
+	viewData.toolGuide = "1 HOE  2 WATER  3 SEED  4 HARVEST  Q/E CYCLE  ENTER USE  F SELL";
 	viewData.selectedTileInfo = BuildSelectedTileInfo(farmGrid_);
 	viewData.selectedTileHint = BuildSelectedTileHint(farmGrid_);
 	return viewData;
@@ -1540,9 +1542,20 @@ bool GamePlayScene::HandleFarmInput() {
 	context.directToolSelectionEnabled =
 		gpuParticleDebugMode_ != GPUParticleDebugMode::Agriculture;
 	const FarmInputResult result = farmInputSystem_.Update(
-		*input, context, farmGrid_, farmToolSystem_, farmToolActionSystem_);
+		*input, context, farmGrid_, farmToolSystem_,
+		farmEconomySystem_, farmToolActionSystem_);
 	if (result.contentChanged) {
 		farmDocumentSystem_.MarkDirty();
+	}
+	if (result.sellRequested) {
+		const FarmSaleResult saleResult = farmEconomySystem_.SellAll();
+		if (saleResult.Succeeded()) {
+			// A sale commits harvested items, so earlier tile-only history cannot safely cross it.
+			farmToolActionSystem_.ClearHistory();
+			AddLog(
+				"Sold " + std::to_string(saleResult.soldCount) +
+				" crop(s) for " + std::to_string(saleResult.earnedMoney) + "G.");
+		}
 	}
 
 #ifndef USE_IMGUI

@@ -168,6 +168,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </ClCompile>
     <ClCompile Include="application\farm\system\FarmDateSystem.cpp" />
 	<ClCompile Include="application\farm\system\FarmDocumentSystem.cpp" />
+	<ClCompile Include="application\farm\system\FarmEconomySystem.cpp" />
     <ClCompile Include="application\farm\system\FarmGrowthSystem.cpp" />
     <ClCompile Include="application\farm\system\FarmInputSystem.cpp" />
     <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp" />
@@ -456,6 +457,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\farm\debug\FarmDebugWindow.h" />
     <ClInclude Include="application\farm\system\FarmDateSystem.h" />
 	<ClInclude Include="application\farm\system\FarmDocumentSystem.h" />
+	<ClInclude Include="application\farm\system\FarmEconomySystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthSystem.h" />
     <ClInclude Include="application\farm\system\FarmInputSystem.h" />
     <ClInclude Include="application\farm\system\FarmToolActionSystem.h" />

@@ -9,6 +9,7 @@ FarmInputResult FarmInputSystem::Update(
 	const FarmInputContext& context,
 	farm::FarmGrid& grid,
 	FarmToolSystem& toolSystem,
+	FarmEconomySystem& economySystem,
 	FarmToolActionSystem& actionSystem) const
 {
 	FarmInputResult result{};
@@ -63,8 +64,10 @@ FarmInputResult FarmInputSystem::Update(
 	result.toolChanged = previousTool != toolSystem.GetCurrentTool();
 
 	if (input.TriggerKey(InputKey::Enter)) {
-		result.toolAction = actionSystem.ApplyToolDetailed(grid, toolSystem.GetCurrentTool());
+		result.toolAction = actionSystem.ApplyToolDetailed(
+			grid, toolSystem.GetCurrentTool(), &economySystem);
 		result.contentChanged |= result.toolAction.Succeeded();
 	}
+	result.sellRequested = input.TriggerKey(InputKey::F);
 	return result;
 }

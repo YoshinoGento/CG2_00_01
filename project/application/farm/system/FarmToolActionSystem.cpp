@@ -1,6 +1,7 @@
 #include "farm/system/FarmToolActionSystem.h"
 
 #include "farm/core/FarmGrid.h"
+#include "farm/system/FarmEconomySystem.h"
 
 #include <algorithm>
 #include <memory>
@@ -26,18 +27,49 @@ class FarmTileEditCommand final : public IUndoableCommand {
 public:
 	FarmTileEditCommand(
 		farm::FarmGrid& grid, int tileIndex, const farm::FarmTile& before,
-		const farm::FarmTile& after, const char* name)
+		const farm::FarmTile& after, const char* name,
+		FarmEconomySystem* economySystem, farm::CropType harvestedCrop,
+		int harvestedQuantity)
 		: grid_(&grid), gridGeneration_(grid.GetGeneration()), tileIndex_(tileIndex),
-		before_(before), after_(after), name_(name ? name : "Farm Tile Edit") {}
+		before_(before), after_(after), name_(name ? name : "Farm Tile Edit"),
+		economySystem_(economySystem), harvestedCrop_(harvestedCrop),
+		harvestedQuantity_(harvestedQuantity) {}
 
-	bool Execute() override { return Apply(after_); }
-	bool Undo() override { return Apply(before_); }
+	bool Execute() override { return Apply(after_, true); }
+	bool Undo() override { return Apply(before_, false); }
 	std::string_view GetName() const noexcept override { return name_; }
 
 private:
-	bool Apply(const farm::FarmTile& tile) {
-		return grid_ != nullptr && grid_->GetGeneration() == gridGeneration_ &&
-			grid_->SetTile(tileIndex_, tile);
+	bool Apply(const farm::FarmTile& tile, bool addHarvest) {
+		if (grid_ == nullptr || grid_->GetGeneration() != gridGeneration_) {
+			return false;
+		}
+
+		const bool updatesEconomy = economySystem_ != nullptr &&
+			harvestedCrop_ != farm::CropType::None && harvestedQuantity_ > 0;
+		if (updatesEconomy) {
+			const bool economyChanged = addHarvest
+				? economySystem_->AddHarvest(harvestedCrop_, harvestedQuantity_)
+				: economySystem_->RemoveHarvest(harvestedCrop_, harvestedQuantity_);
+			if (!economyChanged) {
+				return false;
+			}
+		}
+
+		if (grid_->SetTile(tileIndex_, tile)) {
+			return true;
+		}
+
+		if (updatesEconomy) {
+			if (addHarvest) {
+				static_cast<void>(economySystem_->RemoveHarvest(
+					harvestedCrop_, harvestedQuantity_));
+			} else {
+				static_cast<void>(economySystem_->AddHarvest(
+					harvestedCrop_, harvestedQuantity_));
+			}
+		}
+		return false;
 	}
 
 	// FarmToolActionSystem history is destroyed before the scene-owned FarmGrid.
@@ -47,6 +79,9 @@ private:
 	farm::FarmTile before_{};
 	farm::FarmTile after_{};
 	std::string_view name_;
+	FarmEconomySystem* economySystem_ = nullptr;
+	farm::CropType harvestedCrop_ = farm::CropType::None;
+	int harvestedQuantity_ = 0;
 };
 }
 
@@ -113,7 +148,8 @@ FarmToolActionResult FarmToolActionSystem::EvaluateTool(
 	return result;
 }
 
-FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(farm::FarmGrid& grid, FarmTool tool)
+FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(
+	farm::FarmGrid& grid, FarmTool tool, FarmEconomySystem* economySystem)
 {
 	FarmToolActionResult result = EvaluateTool(grid, tool);
 	if (!result.Succeeded()) {
@@ -160,7 +196,13 @@ FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(farm::FarmGrid& gri
 		return result;
 	}
 
-	if (!CommitTileChange(grid, tileIndex, before, after, commandName)) {
+	const farm::CropType harvestedCrop = tool == FarmTool::Harvest
+		? before.crop
+		: farm::CropType::None;
+	const int harvestedQuantity = tool == FarmTool::Harvest ? 1 : 0;
+	if (!CommitTileChange(
+		grid, tileIndex, before, after, commandName,
+		economySystem, harvestedCrop, harvestedQuantity)) {
 		result.status = FarmToolActionStatus::InvalidState;
 		return result;
 	}
@@ -207,11 +249,14 @@ bool FarmToolActionSystem::LowerSelectedTile(farm::FarmGrid& grid)
 
 bool FarmToolActionSystem::CommitTileChange(
 	farm::FarmGrid& grid, int tileIndex, const farm::FarmTile& before,
-	const farm::FarmTile& after, const char* commandName)
+	const farm::FarmTile& after, const char* commandName,
+	FarmEconomySystem* economySystem, farm::CropType harvestedCrop,
+	int harvestedQuantity)
 {
 	if (TilesEqual(before, after)) {
 		return false;
 	}
 	return history_.Execute(std::make_unique<FarmTileEditCommand>(
-		grid, tileIndex, before, after, commandName));
+		grid, tileIndex, before, after, commandName,
+		economySystem, harvestedCrop, harvestedQuantity));
 }

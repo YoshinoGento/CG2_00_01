@@ -21,6 +21,7 @@ struct FarmRules {
 	float readyMoistureMinimum = 0.20f;
 	float maxUpdateDeltaTime = 0.25f;
 
+	int initialMoney = 300;
 	int normalHarvestPrice = 120;
 	int rareHarvestPrice = 500;
 	int rareHarvestInterval = 3;

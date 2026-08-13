@@ -1,5 +1,6 @@
 #pragma once
 
+#include "farm/system/FarmEconomySystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 
 class FarmToolSystem;
@@ -20,6 +21,7 @@ struct FarmInputResult {
 	bool selectionChanged = false;
 	bool toolChanged = false;
 	bool contentChanged = false;
+	bool sellRequested = false;
 	FarmToolActionResult toolAction{};
 };
 
@@ -30,5 +32,6 @@ public:
 		const FarmInputContext& context,
 		farm::FarmGrid& grid,
 		FarmToolSystem& toolSystem,
+		FarmEconomySystem& economySystem,
 		FarmToolActionSystem& actionSystem) const;
 };

@@ -16,6 +16,7 @@
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmDateSystem.h"
 #include "farm/system/FarmDocumentSystem.h"
+#include "farm/system/FarmEconomySystem.h"
 #include "farm/system/FarmGrowthSystem.h"
 #include "farm/system/FarmInputSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
@@ -245,6 +246,7 @@ private:
 	farm::FarmGrid farmGrid_;
 	FarmDateSystem farmDateSystem_;
 	FarmDocumentSystem farmDocumentSystem_;
+	FarmEconomySystem farmEconomySystem_;
 	FarmGrowthSystem farmGrowthSystem_;
 	FarmInputSystem farmInputSystem_;
 	FarmToolSystem farmToolSystem_;

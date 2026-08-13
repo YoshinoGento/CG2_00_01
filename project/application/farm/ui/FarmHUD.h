@@ -11,6 +11,7 @@ struct FarmHUDViewData {
 	int day = 1;
 	int money = 0;
 	int rank = 1;
+	int cropCount = 0;
 	float timeScale = 1.0f;
 	std::string currentToolName = "None";
 	std::string toolGuide;
@@ -32,6 +33,7 @@ private:
 	void UpdateDayText();
 	void UpdateMoneyText();
 	void UpdateRankText();
+	void UpdateCropCountText();
 	void UpdateTimeScaleText();
 	void UpdateToolText();
 	void UpdateToolGuideText();
@@ -45,6 +47,7 @@ private:
 	SpriteText dayShadowText_;
 	SpriteText moneyShadowText_;
 	SpriteText rankShadowText_;
+	SpriteText cropCountShadowText_;
 	SpriteText timeScaleShadowText_;
 	SpriteText toolShadowText_;
 	SpriteText toolGuideShadowText_;
@@ -53,6 +56,7 @@ private:
 	SpriteText dayText_;
 	SpriteText moneyText_;
 	SpriteText rankText_;
+	SpriteText cropCountText_;
 	SpriteText timeScaleText_;
 	SpriteText toolText_;
 	SpriteText toolGuideText_;

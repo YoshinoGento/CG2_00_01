@@ -1,5 +1,6 @@
 #pragma once
 
+#include "farm/core/FarmTypes.h"
 #include "farm/system/FarmToolSystem.h"
 #include "command/CommandHistory.h"
 
@@ -7,6 +8,8 @@ namespace farm {
 class FarmGrid;
 struct FarmTile;
 }
+
+class FarmEconomySystem;
 
 enum class FarmToolActionStatus {
 	None,
@@ -41,7 +44,8 @@ public:
 	[[nodiscard]] FarmToolActionResult EvaluateTool(
 		const farm::FarmGrid& grid, int tileIndex, FarmTool tool) const noexcept;
 	bool ApplyTool(farm::FarmGrid& grid, FarmTool tool);
-	[[nodiscard]] FarmToolActionResult ApplyToolDetailed(farm::FarmGrid& grid, FarmTool tool);
+	[[nodiscard]] FarmToolActionResult ApplyToolDetailed(
+		farm::FarmGrid& grid, FarmTool tool, FarmEconomySystem* economySystem = nullptr);
 	bool RaiseSelectedTile(farm::FarmGrid& grid);
 	bool LowerSelectedTile(farm::FarmGrid& grid);
 	bool Undo() { return history_.Undo(); }
@@ -52,6 +56,9 @@ public:
 private:
 	bool CommitTileChange(
 		farm::FarmGrid& grid, int tileIndex, const farm::FarmTile& before,
-		const farm::FarmTile& after, const char* commandName);
+		const farm::FarmTile& after, const char* commandName,
+		FarmEconomySystem* economySystem = nullptr,
+		farm::CropType harvestedCrop = farm::CropType::None,
+		int harvestedQuantity = 0);
 	CommandHistory history_{ 128 };
 };

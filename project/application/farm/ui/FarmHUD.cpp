@@ -12,6 +12,7 @@ namespace {
 	const Vector2 kDayTextPosition{ 32.0f, 32.0f };
 	const Vector2 kMoneyTextPosition{ 32.0f, 88.0f };
 	const Vector2 kRankTextPosition{ 32.0f, 144.0f };
+	const Vector2 kCropCountTextPosition{ 32.0f, 200.0f };
 	const Vector2 kToolTextPosition{ 420.0f, 32.0f };
 	const Vector2 kToolGuideTextPosition{ 250.0f, 92.0f };
 	const Vector2 kTimeScaleTextPosition{ 1080.0f, 32.0f };
@@ -79,6 +80,7 @@ bool FarmHUD::Initialize(SpriteCommon* spriteCommon)
 	dayShadowText_.Initialize(spriteCommon, &font_);
 	moneyShadowText_.Initialize(spriteCommon, &font_);
 	rankShadowText_.Initialize(spriteCommon, &font_);
+	cropCountShadowText_.Initialize(spriteCommon, &font_);
 	timeScaleShadowText_.Initialize(spriteCommon, &font_);
 	toolShadowText_.Initialize(spriteCommon, &font_);
 	toolGuideShadowText_.Initialize(spriteCommon, &font_);
@@ -87,6 +89,7 @@ bool FarmHUD::Initialize(SpriteCommon* spriteCommon)
 	dayText_.Initialize(spriteCommon, &font_);
 	moneyText_.Initialize(spriteCommon, &font_);
 	rankText_.Initialize(spriteCommon, &font_);
+	cropCountText_.Initialize(spriteCommon, &font_);
 	timeScaleText_.Initialize(spriteCommon, &font_);
 	toolText_.Initialize(spriteCommon, &font_);
 	toolGuideText_.Initialize(spriteCommon, &font_);
@@ -103,6 +106,7 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData)
 	const bool dayChanged = viewData_.day != viewData.day;
 	const bool moneyChanged = viewData_.money != viewData.money;
 	const bool rankChanged = viewData_.rank != viewData.rank;
+	const bool cropCountChanged = viewData_.cropCount != viewData.cropCount;
 	const bool timeScaleChanged = !IsSameTimeScale(viewData_.timeScale, viewData.timeScale);
 	const bool toolChanged = viewData_.currentToolName != viewData.currentToolName;
 	const bool toolGuideChanged = viewData_.toolGuide != viewData.toolGuide;
@@ -119,6 +123,9 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData)
 	}
 	if (rankChanged) {
 		UpdateRankText();
+	}
+	if (cropCountChanged) {
+		UpdateCropCountText();
 	}
 	if (timeScaleChanged) {
 		UpdateTimeScaleText();
@@ -144,6 +151,7 @@ void FarmHUD::Update(float deltaTime)
 	dayText_.Update();
 	moneyText_.Update();
 	rankText_.Update();
+	cropCountText_.Update();
 	timeScaleText_.Update();
 	toolText_.Update();
 	toolGuideText_.Update();
@@ -152,6 +160,7 @@ void FarmHUD::Update(float deltaTime)
 	dayShadowText_.Update();
 	moneyShadowText_.Update();
 	rankShadowText_.Update();
+	cropCountShadowText_.Update();
 	timeScaleShadowText_.Update();
 	toolShadowText_.Update();
 	toolGuideShadowText_.Update();
@@ -167,6 +176,8 @@ void FarmHUD::Draw()
 	moneyText_.Draw();
 	rankShadowText_.Draw();
 	rankText_.Draw();
+	cropCountShadowText_.Draw();
+	cropCountText_.Draw();
 	toolShadowText_.Draw();
 	toolText_.Draw();
 	toolGuideShadowText_.Draw();
@@ -184,6 +195,7 @@ void FarmHUD::ApplyLayout()
 	dayShadowText_.SetPosition(WithShadowOffset(kDayTextPosition));
 	moneyShadowText_.SetPosition(WithShadowOffset(kMoneyTextPosition));
 	rankShadowText_.SetPosition(WithShadowOffset(kRankTextPosition));
+	cropCountShadowText_.SetPosition(WithShadowOffset(kCropCountTextPosition));
 	toolShadowText_.SetPosition(WithShadowOffset(kToolTextPosition));
 	toolGuideShadowText_.SetPosition(WithShadowOffset(kToolGuideTextPosition));
 	timeScaleShadowText_.SetPosition(WithShadowOffset(kTimeScaleTextPosition));
@@ -192,6 +204,7 @@ void FarmHUD::ApplyLayout()
 	dayText_.SetPosition(kDayTextPosition);
 	moneyText_.SetPosition(kMoneyTextPosition);
 	rankText_.SetPosition(kRankTextPosition);
+	cropCountText_.SetPosition(kCropCountTextPosition);
 	toolText_.SetPosition(kToolTextPosition);
 	toolGuideText_.SetPosition(kToolGuideTextPosition);
 	timeScaleText_.SetPosition(kTimeScaleTextPosition);
@@ -201,6 +214,7 @@ void FarmHUD::ApplyLayout()
 	dayShadowText_.SetScale(kTextScale);
 	moneyShadowText_.SetScale(kTextScale);
 	rankShadowText_.SetScale(kTextScale);
+	cropCountShadowText_.SetScale(kTextScale);
 	toolShadowText_.SetScale(kToolTextScale);
 	toolGuideShadowText_.SetScale(kToolGuideTextScale);
 	timeScaleShadowText_.SetScale(kTimeScaleTextScale);
@@ -209,6 +223,7 @@ void FarmHUD::ApplyLayout()
 	dayText_.SetScale(kTextScale);
 	moneyText_.SetScale(kTextScale);
 	rankText_.SetScale(kTextScale);
+	cropCountText_.SetScale(kTextScale);
 	toolText_.SetScale(kToolTextScale);
 	toolGuideText_.SetScale(kToolGuideTextScale);
 	timeScaleText_.SetScale(kTimeScaleTextScale);
@@ -218,6 +233,7 @@ void FarmHUD::ApplyLayout()
 	dayShadowText_.SetCharacterSpacing(kCharacterSpacing);
 	moneyShadowText_.SetCharacterSpacing(kCharacterSpacing);
 	rankShadowText_.SetCharacterSpacing(kCharacterSpacing);
+	cropCountShadowText_.SetCharacterSpacing(kCharacterSpacing);
 	toolShadowText_.SetCharacterSpacing(kCharacterSpacing);
 	toolGuideShadowText_.SetCharacterSpacing(kToolGuideCharacterSpacing);
 	timeScaleShadowText_.SetCharacterSpacing(kTimeScaleCharacterSpacing);
@@ -226,6 +242,7 @@ void FarmHUD::ApplyLayout()
 	dayText_.SetCharacterSpacing(kCharacterSpacing);
 	moneyText_.SetCharacterSpacing(kCharacterSpacing);
 	rankText_.SetCharacterSpacing(kCharacterSpacing);
+	cropCountText_.SetCharacterSpacing(kCharacterSpacing);
 	toolText_.SetCharacterSpacing(kCharacterSpacing);
 	toolGuideText_.SetCharacterSpacing(kToolGuideCharacterSpacing);
 	timeScaleText_.SetCharacterSpacing(kTimeScaleCharacterSpacing);
@@ -235,6 +252,7 @@ void FarmHUD::ApplyLayout()
 	dayShadowText_.SetColor(kTextShadowColor);
 	moneyShadowText_.SetColor(kTextShadowColor);
 	rankShadowText_.SetColor(kTextShadowColor);
+	cropCountShadowText_.SetColor(kTextShadowColor);
 	toolShadowText_.SetColor(kTextShadowColor);
 	toolGuideShadowText_.SetColor(kTextShadowColor);
 	timeScaleShadowText_.SetColor(kTextShadowColor);
@@ -243,6 +261,7 @@ void FarmHUD::ApplyLayout()
 	dayText_.SetColor(kTextColor);
 	moneyText_.SetColor(kTextColor);
 	rankText_.SetColor(kTextColor);
+	cropCountText_.SetColor(kTextColor);
 	toolText_.SetColor(kToolColor);
 	toolGuideText_.SetColor(kToolGuideColor);
 	timeScaleText_.SetColor(kTextColor);
@@ -255,6 +274,7 @@ void FarmHUD::RefreshAllText()
 	UpdateDayText();
 	UpdateMoneyText();
 	UpdateRankText();
+	UpdateCropCountText();
 	UpdateTimeScaleText();
 	UpdateToolText();
 	UpdateToolGuideText();
@@ -281,6 +301,13 @@ void FarmHUD::UpdateRankText()
 	const std::string text = "Rank " + std::to_string(viewData_.rank);
 	rankShadowText_.SetText(text);
 	rankText_.SetText(text);
+}
+
+void FarmHUD::UpdateCropCountText()
+{
+	const std::string text = "Crop " + std::to_string(viewData_.cropCount);
+	cropCountShadowText_.SetText(text);
+	cropCountText_.SetText(text);
 }
 
 void FarmHUD::UpdateTimeScaleText()
