@@ -42,6 +42,87 @@ Vector4 GetTileColor(const FarmTile& tile)
 	}
 	return { 0.38f, 0.76f, 0.28f, 1.0f };
 }
+
+bool HasDevelopedLeaves(FarmCropGrowthStage stage) noexcept
+{
+	return stage == FarmCropGrowthStage::Growing ||
+		stage == FarmCropGrowthStage::AlmostReady ||
+		stage == FarmCropGrowthStage::Ready;
+}
+
+bool HasVisibleCropBody(FarmCropGrowthStage stage) noexcept
+{
+	return stage == FarmCropGrowthStage::AlmostReady ||
+		stage == FarmCropGrowthStage::Ready;
+}
+
+void DrawCropSilhouette(
+	LineDrawer& lineDrawer,
+	const FarmTile& tile,
+	const Vector3& center)
+{
+	const FarmCropGrowthStage stage = GetCropGrowthStage(tile);
+	if (stage == FarmCropGrowthStage::None) {
+		return;
+	}
+
+	const float growth = std::clamp(tile.growth, 0.0f, 1.0f);
+	const float stemHeight = 0.16f + growth * 0.68f;
+	const Vector3 stemBase = { center.x, center.y + 0.03f, center.z };
+	const Vector3 stemTop = { center.x, stemBase.y + stemHeight, center.z };
+	const Vector4 stemColor = tile.crop == CropType::Carrot
+		? Vector4{ 0.12f, 0.72f, 0.24f, 1.0f }
+		: Vector4{ 0.34f, 0.94f, 0.30f, 1.0f };
+	lineDrawer.DrawLine(stemBase, stemTop, stemColor);
+
+	if (HasDevelopedLeaves(stage)) {
+		const float leafWidth = 0.10f + growth * 0.22f;
+		const float leafY = stemBase.y + stemHeight * 0.58f;
+		lineDrawer.DrawLine(
+			{ center.x, leafY, center.z },
+			{ center.x - leafWidth, leafY + 0.08f, center.z },
+			stemColor);
+		lineDrawer.DrawLine(
+			{ center.x, leafY + 0.05f, center.z },
+			{ center.x + leafWidth, leafY + 0.13f, center.z },
+			stemColor);
+		lineDrawer.DrawLine(
+			{ center.x, leafY + 0.02f, center.z },
+			{ center.x, leafY + 0.10f, center.z + leafWidth },
+			stemColor);
+	}
+
+	if (HasVisibleCropBody(stage)) {
+		if (tile.crop == CropType::Carrot) {
+			const Vector4 rootColor = { 1.0f, 0.40f, 0.08f, 1.0f };
+			const float shoulderWidth = 0.10f + growth * 0.06f;
+			const float shoulderY = center.y + 0.17f;
+			const Vector3 rootTip = { center.x, center.y + 0.03f, center.z };
+			lineDrawer.DrawLine(
+				{ center.x - shoulderWidth, shoulderY, center.z }, rootTip, rootColor);
+			lineDrawer.DrawLine(
+				{ center.x + shoulderWidth, shoulderY, center.z }, rootTip, rootColor);
+			lineDrawer.DrawLine(
+				{ center.x, shoulderY, center.z - shoulderWidth }, rootTip, rootColor);
+			lineDrawer.DrawLine(
+				{ center.x, shoulderY, center.z + shoulderWidth }, rootTip, rootColor);
+		} else {
+			const float bulbRadius = 0.10f + growth * 0.07f;
+			lineDrawer.DrawWireSphere(
+				{ center.x, center.y + bulbRadius, center.z },
+				bulbRadius,
+				{ 0.92f, 0.48f, 0.78f, 1.0f },
+				8);
+		}
+	}
+
+	if (stage == FarmCropGrowthStage::Ready) {
+		lineDrawer.DrawWireCube(
+			{ stemTop.x, stemTop.y + 0.12f, stemTop.z },
+			0.24f,
+			{ 1.0f, 0.72f, 0.08f, 1.0f });
+	}
+}
 } // namespace
 
 void FarmVisualSystem::Initialize(const FarmVisualLayout& layout) noexcept
@@ -136,32 +217,7 @@ void FarmVisualSystem::Draw(
 				moistureColor);
 		}
 
-		if (tile->state == FarmTileState::Planted) {
-			const float growth = std::clamp(tile->growth, 0.0f, 1.0f);
-			const float stemHeight = 0.18f + growth * 0.72f;
-			const Vector3 stemBase = { center.x, center.y + 0.03f, center.z };
-			const Vector3 stemTop = { center.x, stemBase.y + stemHeight, center.z };
-			const Vector4 stemColor = { 0.18f, 0.92f, 0.25f, 1.0f };
-			lineDrawer.DrawLine(stemBase, stemTop, stemColor);
-			if (growth >= 0.25f) {
-				const float leafWidth = 0.10f + growth * 0.22f;
-				const float leafY = stemBase.y + stemHeight * 0.55f;
-				lineDrawer.DrawLine(
-					{ center.x, leafY, center.z },
-					{ center.x - leafWidth, leafY + 0.08f, center.z },
-					stemColor);
-				lineDrawer.DrawLine(
-					{ center.x, leafY + 0.06f, center.z },
-					{ center.x + leafWidth, leafY + 0.14f, center.z },
-					stemColor);
-			}
-			if (IsHarvestReady(*tile)) {
-				lineDrawer.DrawWireCube(
-					{ stemTop.x, stemTop.y + 0.12f, stemTop.z },
-					0.24f,
-					{ 1.0f, 0.72f, 0.08f, 1.0f });
-			}
-		}
+		DrawCropSilhouette(lineDrawer, *tile, center);
 
 		if (index == grid.GetSelectedIndex()) {
 			const Vector4 selectionColor = selectedAction.Succeeded()

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "farm/system/FarmCropSelectionSystem.h"
+#include "farm/system/FarmEconomySystem.h"
+
 #include <string>
 #include <vector>
 
@@ -26,13 +29,26 @@ struct FarmDocumentEntry {
 // Owns Farm document persistence and validation. UI code only requests operations.
 class FarmDocumentSystem final {
 public:
-	bool Initialize(const std::string& directoryPath, farm::FarmGrid& grid);
-	bool Save(const farm::FarmGrid& grid);
-	bool SaveAs(const std::string& displayName, const farm::FarmGrid& grid);
-	bool Load(const std::string& documentId, farm::FarmGrid& grid);
+	bool Initialize(
+		const std::string& directoryPath, farm::FarmGrid& grid,
+		FarmEconomySystem& economySystem,
+		FarmCropSelectionSystem& cropSelectionSystem);
+	bool Save(
+		const farm::FarmGrid& grid, const FarmEconomySystem& economySystem,
+		const FarmCropSelectionSystem& cropSelectionSystem);
+	bool SaveAs(
+		const std::string& displayName, const farm::FarmGrid& grid,
+		const FarmEconomySystem& economySystem,
+		const FarmCropSelectionSystem& cropSelectionSystem);
+	bool Load(
+		const std::string& documentId, farm::FarmGrid& grid,
+		FarmEconomySystem& economySystem,
+		FarmCropSelectionSystem& cropSelectionSystem);
 	bool Rename(const std::string& documentId, const std::string& displayName);
 	bool Delete(const std::string& documentId);
-	bool Reset(farm::FarmGrid& grid);
+	bool Reset(
+		farm::FarmGrid& grid, FarmEconomySystem& economySystem,
+		FarmCropSelectionSystem& cropSelectionSystem);
 	void MarkDirty() noexcept;
 
 	[[nodiscard]] bool IsDirty() const noexcept { return dirty_; }
@@ -53,7 +69,9 @@ private:
 	bool SaveToDocument(
 		const std::string& documentId,
 		const std::string& displayName,
-		const farm::FarmGrid& grid);
+		const farm::FarmGrid& grid,
+		const FarmEconomySystem& economySystem,
+		const FarmCropSelectionSystem& cropSelectionSystem);
 	void SetStatus(FarmDocumentStatus status, std::string message);
 	void SetError(std::string message);
 
@@ -66,6 +84,8 @@ private:
 	std::string message_ = "Ready";
 	FarmDocumentStatus status_ = FarmDocumentStatus::Ready;
 	std::vector<FarmDocumentEntry> documents_;
+	FarmEconomySystem::Snapshot defaultEconomySnapshot_{};
+	FarmCropSelectionSystem::Snapshot defaultCropSelectionSnapshot_{};
 	bool dirty_ = false;
 	bool fileExists_ = false;
 };

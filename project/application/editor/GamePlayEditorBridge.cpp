@@ -104,6 +104,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.redoName.clear();
 	output.currentFarmTool = FarmTool::Hoe;
 	output.selectedFarmAction = {};
+	output.farmPlaytest = {};
 	output.visibility = {};
 	output.camera = {};
 	output.objectInspector.directionalLight = {};
@@ -148,19 +149,26 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 		destination.column = output.farmWidth > 0 ? index % output.farmWidth : 0;
 		destination.row = output.farmWidth > 0 ? index / output.farmWidth : 0;
 		if (tile != nullptr) {
+			const farm::CropType selectedCrop =
+				scene_->farmCropSelectionSystem_.GetSelectedCrop();
 			destination.heightLevel = tile->heightLevel;
 			destination.state = tile->state;
 			destination.crop = tile->crop;
+			destination.growthStage = farm::GetCropGrowthStage(*tile);
 			destination.moisture = tile->moisture;
 			destination.growth = tile->growth;
+			destination.growthForecast = scene_->farmGrowthSystem_.Evaluate(
+				*tile, selectedCrop, scene_->farmDateSystem_.GetTimeScale());
+			destination.quality = farmToolActionSystem_->EvaluateHarvestQuality(*tile);
 			destination.canHoe = farmToolActionSystem_->EvaluateTool(
-				*farmGrid_, index, FarmTool::Hoe).Succeeded();
+				*farmGrid_, index, FarmTool::Hoe, selectedCrop).Succeeded();
 			destination.canWater = farmToolActionSystem_->EvaluateTool(
-				*farmGrid_, index, FarmTool::Water).Succeeded();
+				*farmGrid_, index, FarmTool::Water, selectedCrop).Succeeded();
 			destination.canSeed = farmToolActionSystem_->EvaluateTool(
-				*farmGrid_, index, FarmTool::Seed).Succeeded();
+				*farmGrid_, index, FarmTool::Seed, selectedCrop,
+				&scene_->farmEconomySystem_).Succeeded();
 			destination.canHarvest = farmToolActionSystem_->EvaluateTool(
-				*farmGrid_, index, FarmTool::Harvest).Succeeded();
+				*farmGrid_, index, FarmTool::Harvest, selectedCrop).Succeeded();
 		}
 	}
 
@@ -178,8 +186,43 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 		output.redoName.assign(redoName.data(), redoName.size());
 	}
 	output.currentFarmTool = scene_->farmToolSystem_.GetCurrentTool();
+	const farm::CropType selectedCrop =
+		scene_->farmCropSelectionSystem_.GetSelectedCrop();
 	output.selectedFarmAction = farmToolActionSystem_->EvaluateTool(
-		*farmGrid_, output.currentFarmTool);
+		*farmGrid_, output.currentFarmTool, selectedCrop,
+		&scene_->farmEconomySystem_);
+	output.farmPlaytest.money = scene_->farmEconomySystem_.GetMoney();
+	output.farmPlaytest.targetMoney = scene_->farmProgressionSystem_.GetTargetMoney();
+	output.farmPlaytest.remainingMoney = scene_->farmProgressionSystem_.GetRemainingMoney(
+		output.farmPlaytest.money);
+	output.farmPlaytest.cropCount = scene_->farmEconomySystem_.GetTotalCropCount();
+	output.farmPlaytest.cropSellPrice = scene_->farmEconomySystem_.GetSellPrice(selectedCrop);
+	output.farmPlaytest.saleValue = scene_->farmEconomySystem_.GetSalePreviewValue();
+	output.farmPlaytest.selectedSeedCrop = selectedCrop;
+	output.farmPlaytest.seedCount = scene_->farmEconomySystem_.GetSeedCount(selectedCrop);
+	output.farmPlaytest.seedPrice = scene_->farmEconomySystem_.GetSeedPrice(selectedCrop);
+	for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot) {
+		const std::size_t index = static_cast<std::size_t>(slot);
+		const farm::CropType crop = farm::CropTypeFromSlot(slot);
+		output.farmPlaytest.cropCounts[index] =
+			scene_->farmEconomySystem_.GetCropCount(crop);
+		output.farmPlaytest.cropValues[index] =
+			scene_->farmEconomySystem_.GetCropInventoryValue(crop);
+		output.farmPlaytest.seedCounts[index] =
+			scene_->farmEconomySystem_.GetSeedCount(crop);
+	}
+	output.farmPlaytest.requiredCropCount = scene_->farmProgressionSystem_.GetRequiredCropCount(
+		output.farmPlaytest.money, output.farmPlaytest.cropSellPrice);
+	output.farmPlaytest.progress = scene_->farmProgressionSystem_.GetProgress(
+		output.farmPlaytest.money);
+	output.farmPlaytest.cleared = scene_->farmProgressionSystem_.IsCleared();
+	output.farmPlaytest.inputLocked = output.farmPlaytest.cleared;
+	output.farmPlaytest.feedbackMessage = scene_->farmFeedbackSystem_.GetCurrentMessage();
+	output.farmPlaytest.lastFeedbackKind = scene_->farmFeedbackSystem_.GetLastKind();
+	output.farmPlaytest.feedbackStats = scene_->farmFeedbackSystem_.GetStats();
+	output.farmPlaytest.restartCount = scene_->farmRestartCount_;
+	output.farmPlaytest.lastHarvestQuality =
+		scene_->farmEconomySystem_.GetLastHarvestQuality();
 
 	output.visibility.selectedTarget = scene_->selectedTarget_;
 	output.visibility.showTerrain = scene_->showTerrain_;
@@ -317,8 +360,10 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		if (!SelectCommandTarget(command)) {
 			return false;
 		}
-		if (farmToolActionSystem_->ApplyTool(
-			*farmGrid_, scene_->farmToolSystem_.GetCurrentTool())) {
+		if (farmToolActionSystem_->ApplyToolDetailed(
+			*farmGrid_, scene_->farmToolSystem_.GetCurrentTool(),
+			scene_->farmCropSelectionSystem_.GetSelectedCrop(),
+			scene_->farmEconomySystem_).Succeeded()) {
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
@@ -328,7 +373,10 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 			return false;
 		}
 		scene_->farmToolSystem_.SetTool(command.farmTool);
-		if (farmToolActionSystem_->ApplyTool(*farmGrid_, command.farmTool)) {
+		if (farmToolActionSystem_->ApplyToolDetailed(
+			*farmGrid_, command.farmTool,
+			scene_->farmCropSelectionSystem_.GetSelectedCrop(),
+			scene_->farmEconomySystem_).Succeeded()) {
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
@@ -357,6 +405,9 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 			return true;
 		}
 		return false;
+	case GamePlayEditorCommandType::RestartFarmSession:
+		scene_->ResetFarmSession();
+		return true;
 	default:
 		return false;
 	}
@@ -370,15 +421,23 @@ bool GamePlayEditorBridge::Execute(const FarmDocumentCommand& command) {
 	bool executed = false;
 	switch (command.type) {
 	case FarmDocumentCommandType::NewDocument:
-		executed = farmDocumentSystem_->Reset(*farmGrid_);
+		executed = farmDocumentSystem_->Reset(
+			*farmGrid_, scene_->farmEconomySystem_,
+			scene_->farmCropSelectionSystem_);
 		break;
 	case FarmDocumentCommandType::Load:
-		executed = farmDocumentSystem_->Load(command.documentId, *farmGrid_);
+		executed = farmDocumentSystem_->Load(
+			command.documentId, *farmGrid_, scene_->farmEconomySystem_,
+			scene_->farmCropSelectionSystem_);
 		break;
 	case FarmDocumentCommandType::Save:
-		return farmDocumentSystem_->Save(*farmGrid_);
+		return farmDocumentSystem_->Save(
+			*farmGrid_, scene_->farmEconomySystem_,
+			scene_->farmCropSelectionSystem_);
 	case FarmDocumentCommandType::SaveAs:
-		return farmDocumentSystem_->SaveAs(command.displayName, *farmGrid_);
+		return farmDocumentSystem_->SaveAs(
+			command.displayName, *farmGrid_, scene_->farmEconomySystem_,
+			scene_->farmCropSelectionSystem_);
 	case FarmDocumentCommandType::Rename:
 		return farmDocumentSystem_->Rename(command.documentId, command.displayName);
 	case FarmDocumentCommandType::Delete:
@@ -389,6 +448,13 @@ bool GamePlayEditorBridge::Execute(const FarmDocumentCommand& command) {
 
 	if (executed) {
 		farmToolActionSystem_->ClearHistory();
+		if (command.type == FarmDocumentCommandType::NewDocument ||
+			command.type == FarmDocumentCommandType::Load) {
+			scene_->farmProgressionSystem_.Initialize();
+			static_cast<void>(scene_->farmProgressionSystem_.EvaluateClear(
+				scene_->farmEconomySystem_.GetMoney()));
+			scene_->farmFeedbackSystem_.Clear();
+		}
 	}
 	return executed;
 }

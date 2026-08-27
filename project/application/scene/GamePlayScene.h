@@ -17,8 +17,11 @@
 #include "farm/system/FarmDateSystem.h"
 #include "farm/system/FarmDocumentSystem.h"
 #include "farm/system/FarmEconomySystem.h"
+#include "farm/system/FarmCropSelectionSystem.h"
+#include "farm/system/FarmFeedbackSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
 #include "farm/system/FarmInputSystem.h"
+#include "farm/system/FarmProgressionSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
 #include "farm/system/FarmVisualSystem.h"
@@ -109,6 +112,9 @@ private:
 	void HandleFarmDateDebugInput();
 	void HandleFarmHistoryInput();
 	bool HandleFarmInput();
+	void RouteFarmToolFeedback(const FarmToolActionResult& result);
+	void RouteFarmSale(const FarmSaleResult& result);
+	void ResetFarmSession();
 	bool TryBuildViewportRay(Vector3& outOrigin, Vector3& outDirection) const;
 	bool TrySelectFarmTileFromViewport();
 	void InitializeFarmHUD();
@@ -162,6 +168,9 @@ private:
 		level::LevelGameplaySystem::Snapshot levelGameplay;
 		farm::FarmGrid::Snapshot farmGrid;
 		FarmDateSystem::Snapshot farmDate;
+		FarmEconomySystem::Snapshot farmEconomy;
+		FarmCropSelectionSystem::Snapshot farmCropSelection;
+		FarmProgressionSystem::Snapshot farmProgression;
 		FarmTool farmTool = FarmTool::Hoe;
 		float levelRouteTimer = 0.0f;
 		float playerAnimationTime = 0.0f;
@@ -247,8 +256,11 @@ private:
 	FarmDateSystem farmDateSystem_;
 	FarmDocumentSystem farmDocumentSystem_;
 	FarmEconomySystem farmEconomySystem_;
+	FarmCropSelectionSystem farmCropSelectionSystem_;
+	FarmFeedbackSystem farmFeedbackSystem_;
 	FarmGrowthSystem farmGrowthSystem_;
 	FarmInputSystem farmInputSystem_;
+	FarmProgressionSystem farmProgressionSystem_;
 	FarmToolSystem farmToolSystem_;
 	FarmToolActionSystem farmToolActionSystem_;
 	farm::FarmVisualSystem farmVisualSystem_;
@@ -257,6 +269,7 @@ private:
 	bool farmHudInitialized_ = false;
 	StageClearHUD stageClearHud_;
 	bool stageClearHudInitialized_ = false;
+	std::uint32_t farmRestartCount_ = 0;
 
 	bool showTerrain_ = false;
 	bool showSphere_ = false;

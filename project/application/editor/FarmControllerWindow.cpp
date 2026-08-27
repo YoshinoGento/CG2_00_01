@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #endif
 
 namespace {
@@ -32,6 +33,9 @@ const char* GetActionStatusLabel(FarmToolActionStatus status, EditorLanguage lan
 	case FarmToolActionStatus::AlreadyWatered:
 		label = "Already fully watered";
 		break;
+	case FarmToolActionStatus::NoSeed:
+		label = "No seed in inventory";
+		break;
 	case FarmToolActionStatus::NotReady:
 		label = "Crop is not ready";
 		break;
@@ -55,7 +59,22 @@ const char* GetStateLabel(
 	if (tile.canHarvest) {
 		label = "Ready";
 	} else if (tile.state == farm::FarmTileState::Planted) {
-		label = "Growing";
+		switch (tile.growthStage) {
+		case farm::FarmCropGrowthStage::Sprout:
+			label = "Sprout";
+			break;
+		case farm::FarmCropGrowthStage::AlmostReady:
+			label = "Almost Ready";
+			break;
+		case farm::FarmCropGrowthStage::Ready:
+			label = "Ready";
+			break;
+		case farm::FarmCropGrowthStage::Growing:
+		case farm::FarmCropGrowthStage::None:
+		default:
+			label = "Growing";
+			break;
+		}
 	} else if (tile.state == farm::FarmTileState::Tilled && tile.moisture > 0.5f) {
 		label = "Watered";
 	}
@@ -94,6 +113,214 @@ const char* GetNextActionLabel(
 	}
 	return editor::Localize(language, label);
 }
+
+const char* GetMoistureStatusLabel(
+	FarmMoistureStatus status,
+	EditorLanguage language) noexcept {
+	const char* label = "Unavailable";
+	switch (status) {
+	case FarmMoistureStatus::Dry:
+		label = "Dry";
+		break;
+	case FarmMoistureStatus::Low:
+		label = "Low";
+		break;
+	case FarmMoistureStatus::Good:
+		label = "Good";
+		break;
+	case FarmMoistureStatus::Invalid:
+	default:
+		break;
+	}
+	return editor::Localize(language, label);
+}
+
+ImVec4 GetMoistureStatusColor(FarmMoistureStatus status) noexcept {
+	switch (status) {
+	case FarmMoistureStatus::Dry:
+		return { 1.0f, 0.34f, 0.22f, 1.0f };
+	case FarmMoistureStatus::Low:
+		return { 1.0f, 0.72f, 0.18f, 1.0f };
+	case FarmMoistureStatus::Good:
+		return { 0.34f, 0.78f, 1.0f, 1.0f };
+	case FarmMoistureStatus::Invalid:
+	default:
+		return { 0.52f, 0.52f, 0.52f, 1.0f };
+	}
+}
+
+void DrawObservedStatus(
+	const char* label,
+	bool observed,
+	EditorLanguage language) {
+	const ImVec4 color = observed
+		? ImVec4(0.30f, 0.86f, 0.38f, 1.0f)
+		: ImVec4(0.52f, 0.52f, 0.52f, 1.0f);
+	ImGui::TextColored(
+		color,
+		"%s  %s",
+		editor::Localize(language, observed ? "Observed" : "Not observed"),
+		editor::Localize(language, label));
+}
+
+const char* GetFeedbackKindLabel(
+	FarmFeedbackKind kind,
+	EditorLanguage language) noexcept {
+	const char* label = "None";
+	switch (kind) {
+	case FarmFeedbackKind::Harvest:
+		label = "Harvest";
+		break;
+	case FarmFeedbackKind::Sale:
+		label = "Sold";
+		break;
+	case FarmFeedbackKind::EmptySale:
+		label = "Empty Sale";
+		break;
+	case FarmFeedbackKind::InputLocked:
+		label = "Input Lock";
+		break;
+	case FarmFeedbackKind::Restarted:
+		label = "Restart";
+		break;
+	case FarmFeedbackKind::SeedPurchased:
+		label = "Seed Purchased";
+		break;
+	case FarmFeedbackKind::NoSeed:
+		label = "No Seed";
+		break;
+	case FarmFeedbackKind::InsufficientMoney:
+		label = "Insufficient Money";
+		break;
+	case FarmFeedbackKind::None:
+	default:
+		break;
+	}
+	return editor::Localize(language, label);
+}
+
+ImVec4 GetFeedbackKindColor(FarmFeedbackKind kind) noexcept {
+	switch (kind) {
+	case FarmFeedbackKind::EmptySale:
+	case FarmFeedbackKind::InputLocked:
+	case FarmFeedbackKind::NoSeed:
+	case FarmFeedbackKind::InsufficientMoney:
+		return { 1.0f, 0.32f, 0.22f, 1.0f };
+	case FarmFeedbackKind::Harvest:
+	case FarmFeedbackKind::Sale:
+	case FarmFeedbackKind::Restarted:
+	case FarmFeedbackKind::SeedPurchased:
+		return { 0.30f, 0.86f, 0.38f, 1.0f };
+	case FarmFeedbackKind::None:
+	default:
+		return { 0.52f, 0.52f, 0.52f, 1.0f };
+	}
+}
+
+const char* GetQualityGrade(int score) noexcept
+{
+	if (score >= 90) {
+		return "S";
+	}
+	if (score >= 75) {
+		return "A";
+	}
+	if (score >= 60) {
+		return "B";
+	}
+	if (score >= 40) {
+		return "C";
+	}
+	return "D";
+}
+
+void DrawQualityRadar(
+	const FarmCropQualityResult& quality,
+	EditorLanguage language)
+{
+	if (!quality.IsValid()) {
+		ImGui::TextDisabled("%s", editor::Localize(language, "No quality data"));
+		return;
+	}
+
+	const float availableWidth = (std::max)(ImGui::GetContentRegionAvail().x, 180.0f);
+	const float canvasWidth = (std::min)(availableWidth, 260.0f);
+	constexpr float canvasHeight = 178.0f;
+	constexpr float radius = 62.0f;
+	const ImVec2 origin = ImGui::GetCursorScreenPos();
+	const ImVec2 center = { origin.x + canvasWidth * 0.5f, origin.y + 76.0f };
+	const std::array<ImVec2, 3> axes = {{
+		{ 0.0f, -1.0f },
+		{ 0.8660254f, 0.5f },
+		{ -0.8660254f, 0.5f },
+	}};
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+	const ImU32 gridColor = ImGui::GetColorU32(ImVec4(0.46f, 0.49f, 0.54f, 0.72f));
+	for (int ring = 1; ring <= 4; ++ring) {
+		const float ringRadius = radius * static_cast<float>(ring) / 4.0f;
+		std::array<ImVec2, 4> points{};
+		for (std::size_t axis = 0; axis < axes.size(); ++axis) {
+			points[axis] = {
+				center.x + axes[axis].x * ringRadius,
+				center.y + axes[axis].y * ringRadius,
+			};
+		}
+		points[3] = points[0];
+		drawList->AddPolyline(
+			points.data(), static_cast<int>(points.size()), gridColor, ImDrawFlags_None, 1.0f);
+	}
+	for (const ImVec2& axis : axes) {
+		drawList->AddLine(
+			center,
+			{ center.x + axis.x * radius, center.y + axis.y * radius },
+			gridColor,
+			1.0f);
+	}
+
+	const std::array<float, 3> values = {{
+		std::clamp(quality.maturity, 0.0f, 1.0f),
+		std::clamp(quality.waterBalance, 0.0f, 1.0f),
+		std::clamp(quality.terrainFit, 0.0f, 1.0f),
+	}};
+	std::array<ImVec2, 3> valuePoints{};
+	for (std::size_t axis = 0; axis < axes.size(); ++axis) {
+		valuePoints[axis] = {
+			center.x + axes[axis].x * radius * values[axis],
+			center.y + axes[axis].y * radius * values[axis],
+		};
+	}
+	const ImU32 fillColor = ImGui::GetColorU32(ImVec4(0.96f, 0.67f, 0.12f, 0.28f));
+	const ImU32 outlineColor = ImGui::GetColorU32(ImVec4(1.0f, 0.76f, 0.16f, 1.0f));
+	drawList->AddConvexPolyFilled(valuePoints.data(), 3, fillColor);
+	drawList->AddPolyline(valuePoints.data(), 3, outlineColor, ImDrawFlags_Closed, 2.0f);
+	for (const ImVec2& point : valuePoints) {
+		drawList->AddCircleFilled(point, 3.5f, outlineColor);
+	}
+
+	const char* maturityLabel = editor::Localize(language, "Maturity");
+	const char* waterLabel = editor::Localize(language, "Water Balance");
+	const char* terrainLabel = editor::Localize(language, "Terrain Fit");
+	drawList->AddText(
+		{ center.x - ImGui::CalcTextSize(maturityLabel).x * 0.5f, origin.y },
+		ImGui::GetColorU32(ImGuiCol_Text), maturityLabel);
+	drawList->AddText(
+		{ center.x + radius * 0.55f, center.y + radius * 0.50f },
+		ImGui::GetColorU32(ImGuiCol_Text), waterLabel);
+	drawList->AddText(
+		{ center.x - radius - ImGui::CalcTextSize(terrainLabel).x * 0.75f,
+			center.y + radius * 0.50f },
+		ImGui::GetColorU32(ImGuiCol_Text), terrainLabel);
+	ImGui::Dummy({ canvasWidth, canvasHeight });
+
+	ImGui::Text(
+		editor::Localize(language, "Score: %d / 100  Grade %s"),
+		quality.score,
+		GetQualityGrade(quality.score));
+	ImGui::Text(
+		editor::Localize(language, "Estimated Value: %dG (Base %dG)"),
+		quality.salePrice,
+		quality.basePrice);
+}
 #endif
 } // namespace
 
@@ -114,7 +341,7 @@ FarmControllerActions FarmControllerWindow::Draw(
 		{ viewport->WorkPos.x + (std::max)(viewport->WorkSize.x - 292.0f, 0.0f),
 			viewport->WorkPos.y },
 		ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize({ 292.0f, 370.0f }, ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize({ 320.0f, 640.0f }, ImGuiCond_FirstUseEver);
 	if (!ImGui::Begin(text("Farm Inspector###FarmInspector"), &open_, ImGuiWindowFlags_NoCollapse)) {
 		ImGui::End();
 		return actions;
@@ -125,6 +352,111 @@ FarmControllerActions FarmControllerWindow::Draw(
 		selectedIndex >= 0 && selectedIndex < static_cast<int>(viewModel.farmTiles.size())
 		? &viewModel.farmTiles[static_cast<std::size_t>(selectedIndex)]
 		: nullptr;
+	const editor::FarmPlaytestEditorViewData& playtest = viewModel.farmPlaytest;
+
+	ImGui::SeparatorText(text("Playtest"));
+	const ImVec4 stateColor = playtest.cleared
+		? ImVec4(0.30f, 0.86f, 0.38f, 1.0f)
+		: ImVec4(0.94f, 0.72f, 0.18f, 1.0f);
+	ImGui::TextColored(
+		stateColor,
+		"%s",
+		text(playtest.cleared ? "CLEARED" : "PLAYING"));
+	ImGui::SameLine();
+	ImGui::TextColored(
+		playtest.inputLocked
+			? ImVec4(1.0f, 0.32f, 0.22f, 1.0f)
+			: ImVec4(0.30f, 0.86f, 0.38f, 1.0f),
+		"%s",
+		text(playtest.inputLocked ? "Input Locked" : "Input Enabled"));
+
+	std::array<char, 64> progressOverlay{};
+	std::snprintf(
+		progressOverlay.data(),
+		progressOverlay.size(),
+		"%d / %d G",
+		playtest.money,
+		playtest.targetMoney);
+	ImGui::PushStyleColor(ImGuiCol_PlotHistogram, stateColor);
+	ImGui::ProgressBar(
+		std::clamp(playtest.progress, 0.0f, 1.0f),
+		ImVec2(-1.0f, 0.0f),
+		progressOverlay.data());
+	ImGui::PopStyleColor();
+
+	ImGui::Text(text("Inventory: %d crop(s)"), playtest.cropCount);
+	ImGui::SameLine();
+	ImGui::TextDisabled(text("Sale value: %dG"), playtest.saleValue);
+	ImGui::Text(
+		text("Selected seed: %s / %d"),
+		farm::ToString(playtest.selectedSeedCrop),
+		playtest.seedCount);
+	ImGui::SameLine();
+	ImGui::TextDisabled(text("Buy: B / %dG each"), playtest.seedPrice);
+	ImGui::TextDisabled(text("Unit price: %dG"), playtest.cropSellPrice);
+	if (ImGui::BeginTable(
+		"CropInventory", 4,
+		ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg |
+		ImGuiTableFlags_SizingStretchProp)) {
+		ImGui::TableSetupColumn(text("Crop"));
+		ImGui::TableSetupColumn(text("Seeds"));
+		ImGui::TableSetupColumn(text("Harvested"));
+		ImGui::TableSetupColumn(text("Value"));
+		ImGui::TableHeadersRow();
+		for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot) {
+			const std::size_t index = static_cast<std::size_t>(slot);
+			const farm::CropType crop = farm::CropTypeFromSlot(slot);
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(0);
+			ImGui::TextUnformatted(text(farm::ToString(crop)));
+			ImGui::TableSetColumnIndex(1);
+			ImGui::Text("%d", playtest.seedCounts[index]);
+			ImGui::TableSetColumnIndex(2);
+			ImGui::Text("%d", playtest.cropCounts[index]);
+			ImGui::TableSetColumnIndex(3);
+			ImGui::Text("%dG", playtest.cropValues[index]);
+		}
+		ImGui::EndTable();
+	}
+	ImGui::TextDisabled("%s", text("F: Sell all / V: Sell selected crop"));
+	if (!playtest.cleared) {
+		if (playtest.requiredCropCount >= 0) {
+			ImGui::Text(text("Goal: %dG left / %d crop(s) needed"),
+				playtest.remainingMoney, playtest.requiredCropCount);
+		} else {
+			ImGui::TextColored(
+				ImVec4(1.0f, 0.35f, 0.25f, 1.0f),
+				"%s",
+				text("Goal cannot be calculated"));
+		}
+	}
+	ImGui::TextUnformatted(text("Last Action"));
+	ImGui::SameLine();
+	ImGui::TextColored(
+		GetFeedbackKindColor(playtest.lastFeedbackKind),
+		"%s",
+		playtest.feedbackMessage.empty()
+			? GetFeedbackKindLabel(playtest.lastFeedbackKind, language)
+			: playtest.feedbackMessage.c_str());
+
+	if (ImGui::CollapsingHeader(text("Video Verification"))) {
+		DrawObservedStatus("Empty Sale", playtest.feedbackStats.emptySaleCount > 0, language);
+		DrawObservedStatus(
+			"Clear",
+			playtest.cleared || playtest.feedbackStats.goalReachedCount > 0,
+			language);
+		DrawObservedStatus("Input Lock", playtest.feedbackStats.inputLockedCount > 0, language);
+		DrawObservedStatus("Seed Purchase", playtest.feedbackStats.seedPurchaseCount > 0, language);
+		DrawObservedStatus("No Seed", playtest.feedbackStats.noSeedCount > 0, language);
+		DrawObservedStatus(
+			"Insufficient Money",
+			playtest.feedbackStats.insufficientMoneyCount > 0,
+			language);
+		DrawObservedStatus("Restart", playtest.restartCount > 0, language);
+	}
+	if (ImGui::Button(text("Restart Farm"), ImVec2(-1.0f, 30.0f))) {
+		actions.restartFarm = true;
+	}
 
 	ImGui::SeparatorText(text("Selection"));
 	if (tile != nullptr) {
@@ -178,9 +510,82 @@ FarmControllerActions FarmControllerWindow::Draw(
 				: ImVec4(0.25f, 0.82f, 0.34f, 1.0f));
 		ImGui::ProgressBar(growth, ImVec2(-1.0f, 0.0f), text("Growth"));
 		ImGui::PopStyleColor();
+		const FarmGrowthForecast& forecast = tile->growthForecast;
+		if (tile->growthStage != farm::FarmCropGrowthStage::None) {
+			ImGui::Text(
+				text("Stage: %s"),
+				GetStateLabel(*tile, language));
+		}
+		if (forecast.moistureValid) {
+			ImGui::Text(
+				text("Growth profile: %s"),
+				text(farm::ToString(forecast.profileCrop)));
+			ImGui::TextDisabled(
+				text("Good moisture: %.0f%% or more"),
+				forecast.goodMoistureMinimum * 100.0f);
+			ImGui::TextColored(
+				GetMoistureStatusColor(forecast.moistureStatus),
+				text("Moisture: %s"),
+				GetMoistureStatusLabel(forecast.moistureStatus, language));
+			if (forecast.growing) {
+				ImGui::Text(
+					text("Growth rate: %.1f%% / sec"),
+					forecast.growthPerSecond * 100.0f);
+				if (forecast.secondsUntilReady >= 0.0f) {
+					ImGui::Text(
+						text("Ready ETA: %.1f sec (current rate)"),
+						forecast.secondsUntilReady);
+				}
+			}
+			if (forecast.secondsUntilDry >= 0.0f) {
+				ImGui::TextDisabled(
+					text("Dry ETA: %.1f sec"),
+					forecast.secondsUntilDry);
+			}
+		} else {
+			ImGui::TextDisabled("%s", text("No active growth forecast"));
+		}
 		ImGui::TextDisabled("%s", GetNextActionLabel(*tile, language));
 	} else {
 		ImGui::TextDisabled("%s", text("None"));
+	}
+
+	ImGui::SeparatorText(text("Crop Quality"));
+	const FarmCropQualityResult* quality = nullptr;
+	if (tile != nullptr && tile->quality.IsValid()) {
+		quality = &tile->quality;
+		ImGui::TextDisabled("%s", text("Selected Tile Preview"));
+	} else if (playtest.lastHarvestQuality.IsValid()) {
+		quality = &playtest.lastHarvestQuality;
+		ImGui::TextDisabled("%s", text("Last Harvest Result"));
+	}
+	if (quality != nullptr) {
+		DrawQualityRadar(*quality, language);
+	} else {
+		ImGui::TextDisabled("%s", text("No quality data"));
+	}
+
+	if (ImGui::CollapsingHeader(text("History Integrity"))) {
+		ImGui::Text(
+			text("Undo: %zu / Redo: %zu"),
+			viewModel.undoCount,
+			viewModel.redoCount);
+		ImGui::Text(
+			text("Inventory: %d crop(s) / exact value %dG"),
+			playtest.cropCount,
+			playtest.saleValue);
+		if (playtest.lastHarvestQuality.IsValid()) {
+			ImGui::Text(
+				text("Last harvest: %s / Q%d / %dG"),
+				farm::ToString(playtest.lastHarvestQuality.crop),
+				playtest.lastHarvestQuality.score,
+				playtest.lastHarvestQuality.salePrice);
+		} else {
+			ImGui::TextDisabled("%s", text("Last harvest: None"));
+		}
+		ImGui::TextDisabled(
+			"%s",
+			text("Verify Harvest -> Undo -> Redo returns these values exactly."));
 	}
 
 	ImGui::SeparatorText(text("Farm Tool"));

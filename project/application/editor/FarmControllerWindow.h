@@ -10,6 +10,7 @@ struct FarmControllerActions {
 	bool applyCurrentTool = false;
 	bool raiseTile = false;
 	bool lowerTile = false;
+	bool restartFarm = false;
 };
 
 // Compact viewport companion. It reports actions and never mutates Farm state directly.

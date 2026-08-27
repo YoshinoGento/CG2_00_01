@@ -6,6 +6,7 @@
 #include "io/JsonFile.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -21,13 +22,23 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 1;
+constexpr int kSchemaVersion = 2;
+constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
 constexpr std::size_t kMaximumDisplayNameBytes = 192;
 constexpr float kMinimumNormalizedValue = 0.0f;
 constexpr float kMaximumNormalizedValue = 1.0f;
 constexpr std::string_view kUntitledFarmName = "Untitled Farm";
+
+bool TryGetSchemaVersion(const nlohmann::json& document, int& output) {
+	if (!document.is_object() || !document.contains("schemaVersion") ||
+		!document["schemaVersion"].is_number_integer()) {
+		return false;
+	}
+	output = document["schemaVersion"].get<int>();
+	return output >= kMinimumSupportedSchemaVersion && output <= kSchemaVersion;
+}
 
 bool TryParseState(const std::string& value, farm::FarmTileState& output) {
 	if (value == "Empty") {
@@ -52,6 +63,10 @@ bool TryParseCrop(const std::string& value, farm::CropType& output) {
 	}
 	if (value == "TestCrop") {
 		output = farm::CropType::TestCrop;
+		return true;
+	}
+	if (value == "Carrot") {
+		output = farm::CropType::Carrot;
 		return true;
 	}
 	return false;
@@ -222,6 +237,8 @@ std::string GenerateDocumentId(const std::string& saveDirectoryPath) {
 
 nlohmann::json BuildJson(
 	const farm::FarmGrid::Snapshot& snapshot,
+	const FarmEconomySystem::Snapshot& economySnapshot,
+	const FarmCropSelectionSystem::Snapshot& cropSelectionSnapshot,
 	const std::string& documentId,
 	const std::string& displayName,
 	const std::string& savedAt) {
@@ -247,6 +264,29 @@ nlohmann::json BuildJson(
 			{ "growth", tile.growth },
 		});
 	}
+	document["economy"] = {
+		{ "money", economySnapshot.money },
+		{ "cropCounts", economySnapshot.cropCounts },
+		{ "cropValues", economySnapshot.cropValues },
+		{ "seedCounts", economySnapshot.seedCounts },
+	};
+	if (economySnapshot.lastHarvestQuality.crop == farm::CropType::None) {
+		document["economy"]["lastHarvestQuality"] = nullptr;
+	} else {
+		const FarmCropQualityResult& quality = economySnapshot.lastHarvestQuality;
+		document["economy"]["lastHarvestQuality"] = {
+			{ "crop", farm::ToString(quality.crop) },
+			{ "maturity", quality.maturity },
+			{ "waterBalance", quality.waterBalance },
+			{ "terrainFit", quality.terrainFit },
+			{ "score", quality.score },
+			{ "basePrice", quality.basePrice },
+			{ "salePrice", quality.salePrice },
+		};
+	}
+	document["cropSelection"] = {
+		{ "crop", farm::ToString(cropSelectionSnapshot.selectedCrop) },
+	};
 	return document;
 }
 
@@ -256,14 +296,13 @@ bool ParseMetadata(
 	FarmDocumentEntry& output,
 	std::string& error) {
 	try {
-		if (!document.is_object() ||
-			!document.contains("schemaVersion") ||
-			!document["schemaVersion"].is_number_integer() ||
-			document["schemaVersion"].get<int>() != kSchemaVersion ||
+		int schemaVersion = 0;
+		if (!TryGetSchemaVersion(document, schemaVersion) ||
 			!document.contains("document") || !document["document"].is_object()) {
 			error = "Unsupported Farm document metadata.";
 			return false;
 		}
+		static_cast<void>(schemaVersion);
 		const nlohmann::json& metadata = document["document"];
 		if (!metadata.contains("id") || !metadata["id"].is_string() ||
 			!metadata.contains("displayName") || !metadata["displayName"].is_string() ||
@@ -297,10 +336,8 @@ bool ParseSnapshot(
 	farm::FarmGrid::Snapshot& output,
 	std::string& error) {
 	try {
-		if (!document.is_object() ||
-			!document.contains("schemaVersion") ||
-			!document["schemaVersion"].is_number_integer() ||
-			document["schemaVersion"].get<int>() != kSchemaVersion) {
+		int schemaVersion = 0;
+		if (!TryGetSchemaVersion(document, schemaVersion)) {
 			error = "Unsupported or missing Farm schema version.";
 			return false;
 		}
@@ -360,6 +397,129 @@ bool ParseSnapshot(
 		return true;
 	} catch (const std::exception& exception) {
 		error = std::string("Farm document parse failed: ") + exception.what();
+		return false;
+	}
+}
+
+template<std::size_t Size>
+bool ParseNonNegativeIntArray(
+	const nlohmann::json& object, const char* key,
+	std::array<int, Size>& output, std::string& error) {
+	if (!object.contains(key) || !object[key].is_array() || object[key].size() != Size) {
+		error = std::string("Farm economy field has an invalid size: ") + key;
+		return false;
+	}
+	for (std::size_t index = 0; index < Size; ++index) {
+		if (!object[key][index].is_number_integer()) {
+			error = std::string("Farm economy field has an invalid type: ") + key;
+			return false;
+		}
+		const int value = object[key][index].get<int>();
+		if (value < 0) {
+			error = std::string("Farm economy field contains a negative value: ") + key;
+			return false;
+		}
+		output[index] = value;
+	}
+	return true;
+}
+
+bool ParsePersistentState(
+	const nlohmann::json& document,
+	FarmEconomySystem::Snapshot& economySnapshot,
+	FarmCropSelectionSystem::Snapshot& cropSelectionSnapshot,
+	std::string& error) {
+	try {
+		int schemaVersion = 0;
+		if (!TryGetSchemaVersion(document, schemaVersion)) {
+			error = "Unsupported or missing Farm schema version.";
+			return false;
+		}
+		static_cast<void>(schemaVersion);
+		if (schemaVersion == 1) {
+			return true;
+		}
+		if (!document.contains("economy") || !document["economy"].is_object() ||
+			!document.contains("cropSelection") || !document["cropSelection"].is_object()) {
+			error = "Farm document is missing economy or crop-selection data.";
+			return false;
+		}
+
+		const nlohmann::json& economyJson = document["economy"];
+		if (!economyJson.contains("money") || !economyJson["money"].is_number_integer()) {
+			error = "Farm economy money has an invalid type.";
+			return false;
+		}
+		economySnapshot.money = economyJson["money"].get<int>();
+		if (economySnapshot.money < 0 ||
+			!ParseNonNegativeIntArray(
+				economyJson, "cropCounts", economySnapshot.cropCounts, error) ||
+			!ParseNonNegativeIntArray(
+				economyJson, "cropValues", economySnapshot.cropValues, error) ||
+			!ParseNonNegativeIntArray(
+				economyJson, "seedCounts", economySnapshot.seedCounts, error)) {
+			if (error.empty()) {
+				error = "Farm economy money is negative.";
+			}
+			return false;
+		}
+		for (std::size_t index = 0; index < economySnapshot.cropCounts.size(); ++index) {
+			if ((economySnapshot.cropCounts[index] == 0) !=
+				(economySnapshot.cropValues[index] == 0)) {
+				error = "Farm crop count and inventory value are inconsistent.";
+				return false;
+			}
+		}
+
+		economySnapshot.lastHarvestQuality = {};
+		if (!economyJson.contains("lastHarvestQuality")) {
+			error = "Farm economy is missing last-harvest quality data.";
+			return false;
+		}
+		const nlohmann::json& qualityJson = economyJson["lastHarvestQuality"];
+		if (!qualityJson.is_null()) {
+			if (!qualityJson.is_object() ||
+				!qualityJson.contains("crop") || !qualityJson["crop"].is_string() ||
+				!qualityJson.contains("maturity") || !qualityJson["maturity"].is_number() ||
+				!qualityJson.contains("waterBalance") || !qualityJson["waterBalance"].is_number() ||
+				!qualityJson.contains("terrainFit") || !qualityJson["terrainFit"].is_number() ||
+				!qualityJson.contains("score") || !qualityJson["score"].is_number_integer() ||
+				!qualityJson.contains("basePrice") || !qualityJson["basePrice"].is_number_integer() ||
+				!qualityJson.contains("salePrice") || !qualityJson["salePrice"].is_number_integer()) {
+				error = "Farm last-harvest quality has invalid fields.";
+				return false;
+			}
+			FarmCropQualityResult quality;
+			quality.maturity = qualityJson["maturity"].get<float>();
+			quality.waterBalance = qualityJson["waterBalance"].get<float>();
+			quality.terrainFit = qualityJson["terrainFit"].get<float>();
+			quality.score = qualityJson["score"].get<int>();
+			quality.basePrice = qualityJson["basePrice"].get<int>();
+			quality.salePrice = qualityJson["salePrice"].get<int>();
+			if (!TryParseCrop(qualityJson["crop"].get<std::string>(), quality.crop) ||
+				!quality.IsValid() || !std::isfinite(quality.maturity) ||
+				!std::isfinite(quality.waterBalance) || !std::isfinite(quality.terrainFit) ||
+				quality.maturity < 0.0f || quality.maturity > 1.0f ||
+				quality.waterBalance < 0.0f || quality.waterBalance > 1.0f ||
+				quality.terrainFit < 0.0f || quality.terrainFit > 1.0f ||
+				quality.score < 0 || quality.score > 100) {
+				error = "Farm last-harvest quality is outside the supported range.";
+				return false;
+			}
+			economySnapshot.lastHarvestQuality = quality;
+		}
+
+		const nlohmann::json& selectionJson = document["cropSelection"];
+		if (!selectionJson.contains("crop") || !selectionJson["crop"].is_string() ||
+			!TryParseCrop(
+				selectionJson["crop"].get<std::string>(), cropSelectionSnapshot.selectedCrop) ||
+			!farm::IsPlantableCrop(cropSelectionSnapshot.selectedCrop)) {
+			error = "Farm selected crop is invalid.";
+			return false;
+		}
+		return true;
+	} catch (const std::exception& exception) {
+		error = std::string("Farm persistent-state parse failed: ") + exception.what();
 		return false;
 	}
 }
@@ -427,7 +587,10 @@ bool SaveJsonAtomically(
 }
 } // namespace
 
-bool FarmDocumentSystem::Initialize(const std::string& directoryPath, farm::FarmGrid& grid) {
+bool FarmDocumentSystem::Initialize(
+	const std::string& directoryPath, farm::FarmGrid& grid,
+	FarmEconomySystem& economySystem,
+	FarmCropSelectionSystem& cropSelectionSystem) {
 	directoryPath_ = directoryPath;
 	saveDirectoryPath_ = (std::filesystem::path(directoryPath_) / "saves").string();
 	catalogPath_ = (std::filesystem::path(directoryPath_) / "farm_documents.json").string();
@@ -436,6 +599,8 @@ bool FarmDocumentSystem::Initialize(const std::string& directoryPath, farm::Farm
 	displayName_ = std::string(kUntitledFarmName);
 	dirty_ = false;
 	fileExists_ = false;
+	defaultEconomySnapshot_ = economySystem.CaptureSnapshot();
+	defaultCropSelectionSnapshot_ = cropSelectionSystem.CaptureSnapshot();
 	SetStatus(FarmDocumentStatus::Ready, "New Farm document");
 
 	if (!RefreshDocumentList()) {
@@ -451,11 +616,11 @@ bool FarmDocumentSystem::Initialize(const std::string& directoryPath, farm::Farm
 			return entry.id == catalogDocumentId;
 		});
 		if (found != documents_.end()) {
-			return Load(found->id, grid);
+			return Load(found->id, grid, economySystem, cropSelectionSystem);
 		}
 	}
 	if (!documents_.empty()) {
-		return Load(documents_.front().id, grid);
+		return Load(documents_.front().id, grid, economySystem, cropSelectionSystem);
 	}
 
 	const std::filesystem::path legacyPath = std::filesystem::path(directoryPath_) / "farm_stage.json";
@@ -466,22 +631,29 @@ bool FarmDocumentSystem::Initialize(const std::string& directoryPath, farm::Farm
 		if (JsonFile::Load(legacyPath.string(), legacyDocument) &&
 			ParseSnapshot(legacyDocument, grid.GetWidth(), grid.GetHeight(), legacySnapshot, error) &&
 			grid.RestoreSnapshot(legacySnapshot)) {
-			return SaveAs("Legacy Farm", grid);
+			return SaveAs(
+				"Legacy Farm", grid, economySystem, cropSelectionSystem);
 		}
 		Logger::Log("FarmDocumentSystem: legacy Farm document was not imported: " + error);
 	}
 	return true;
 }
 
-bool FarmDocumentSystem::Save(const farm::FarmGrid& grid) {
+bool FarmDocumentSystem::Save(
+	const farm::FarmGrid& grid, const FarmEconomySystem& economySystem,
+	const FarmCropSelectionSystem& cropSelectionSystem) {
 	if (activeDocumentId_.empty() || !fileExists_) {
 		SetError("Use Save As to name this Farm document first.");
 		return false;
 	}
-	return SaveToDocument(activeDocumentId_, displayName_, grid);
+	return SaveToDocument(
+		activeDocumentId_, displayName_, grid, economySystem, cropSelectionSystem);
 }
 
-bool FarmDocumentSystem::SaveAs(const std::string& displayName, const farm::FarmGrid& grid) {
+bool FarmDocumentSystem::SaveAs(
+	const std::string& displayName, const farm::FarmGrid& grid,
+	const FarmEconomySystem& economySystem,
+	const FarmCropSelectionSystem& cropSelectionSystem) {
 	std::string normalizedName;
 	std::string error;
 	if (!NormalizeDisplayName(displayName, normalizedName, error)) {
@@ -501,10 +673,14 @@ bool FarmDocumentSystem::SaveAs(const std::string& displayName, const farm::Farm
 		SetError("Could not allocate a unique Farm document ID.");
 		return false;
 	}
-	return SaveToDocument(documentId, normalizedName, grid);
+	return SaveToDocument(
+		documentId, normalizedName, grid, economySystem, cropSelectionSystem);
 }
 
-bool FarmDocumentSystem::Load(const std::string& documentId, farm::FarmGrid& grid) {
+bool FarmDocumentSystem::Load(
+	const std::string& documentId, farm::FarmGrid& grid,
+	FarmEconomySystem& economySystem,
+	FarmCropSelectionSystem& cropSelectionSystem) {
 	if (!IsSafeDocumentId(documentId)) {
 		SetError("The selected Farm document ID is invalid.");
 		return false;
@@ -526,14 +702,39 @@ bool FarmDocumentSystem::Load(const std::string& documentId, farm::FarmGrid& gri
 	}
 	FarmDocumentEntry metadata;
 	farm::FarmGrid::Snapshot snapshot;
+	FarmEconomySystem::Snapshot economySnapshot = defaultEconomySnapshot_;
+	FarmCropSelectionSystem::Snapshot cropSelectionSnapshot =
+		defaultCropSelectionSnapshot_;
 	std::string error;
 	if (!ParseMetadata(document, documentId, metadata, error) ||
-		!ParseSnapshot(document, grid.GetWidth(), grid.GetHeight(), snapshot, error)) {
+		!ParseSnapshot(document, grid.GetWidth(), grid.GetHeight(), snapshot, error) ||
+		!ParsePersistentState(
+			document, economySnapshot, cropSelectionSnapshot, error)) {
 		SetError(error);
 		return false;
 	}
-	if (!grid.RestoreSnapshot(snapshot)) {
-		SetError("FarmGrid rejected the validated document snapshot.");
+
+	farm::FarmGrid::Snapshot previousGridSnapshot;
+	grid.CaptureSnapshot(previousGridSnapshot);
+	const FarmEconomySystem::Snapshot previousEconomySnapshot =
+		economySystem.CaptureSnapshot();
+	const FarmCropSelectionSystem::Snapshot previousCropSelectionSnapshot =
+		cropSelectionSystem.CaptureSnapshot();
+	if (!grid.RestoreSnapshot(snapshot) ||
+		!economySystem.RestoreSnapshot(economySnapshot) ||
+		!cropSelectionSystem.RestoreSnapshot(cropSelectionSnapshot)) {
+		const bool gridRollbackSucceeded =
+			grid.RestoreSnapshot(previousGridSnapshot);
+		const bool economyRollbackSucceeded =
+			economySystem.RestoreSnapshot(previousEconomySnapshot);
+		const bool cropSelectionRollbackSucceeded =
+			cropSelectionSystem.RestoreSnapshot(previousCropSelectionSnapshot);
+		const bool rollbackSucceeded = gridRollbackSucceeded &&
+			economyRollbackSucceeded && cropSelectionRollbackSucceeded;
+		if (!rollbackSucceeded) {
+			Logger::Log("FarmDocumentSystem: failed to roll back a rejected document restore.");
+		}
+		SetError("A Farm System rejected the validated document state.");
 		return false;
 	}
 
@@ -697,7 +898,9 @@ bool FarmDocumentSystem::Delete(const std::string& documentId) {
 	return true;
 }
 
-bool FarmDocumentSystem::Reset(farm::FarmGrid& grid) {
+bool FarmDocumentSystem::Reset(
+	farm::FarmGrid& grid, FarmEconomySystem& economySystem,
+	FarmCropSelectionSystem& cropSelectionSystem) {
 	if (grid.GetWidth() <= 0 || grid.GetHeight() <= 0) {
 		SetError("Cannot reset an invalid Farm grid.");
 		return false;
@@ -708,8 +911,22 @@ bool FarmDocumentSystem::Reset(farm::FarmGrid& grid) {
 	snapshot.selectedX = 0;
 	snapshot.selectedY = 0;
 	snapshot.tiles.assign(static_cast<std::size_t>(grid.GetTileCount()), farm::FarmTile{});
-	if (!grid.RestoreSnapshot(snapshot)) {
-		SetError("FarmGrid rejected the reset snapshot.");
+	const farm::FarmGrid::Snapshot previousGridSnapshot = [&]() {
+		farm::FarmGrid::Snapshot value;
+		grid.CaptureSnapshot(value);
+		return value;
+	}();
+	const FarmEconomySystem::Snapshot previousEconomySnapshot =
+		economySystem.CaptureSnapshot();
+	const FarmCropSelectionSystem::Snapshot previousCropSelectionSnapshot =
+		cropSelectionSystem.CaptureSnapshot();
+	if (!grid.RestoreSnapshot(snapshot) ||
+		!economySystem.RestoreSnapshot(defaultEconomySnapshot_) ||
+		!cropSelectionSystem.RestoreSnapshot(defaultCropSelectionSnapshot_)) {
+		static_cast<void>(grid.RestoreSnapshot(previousGridSnapshot));
+		static_cast<void>(economySystem.RestoreSnapshot(previousEconomySnapshot));
+		static_cast<void>(cropSelectionSystem.RestoreSnapshot(previousCropSelectionSnapshot));
+		SetError("A Farm System rejected the reset state.");
 		return false;
 	}
 	activeDocumentId_.clear();
@@ -810,13 +1027,19 @@ bool FarmDocumentSystem::LoadCatalog(std::string& activeDocumentId) const {
 bool FarmDocumentSystem::SaveToDocument(
 	const std::string& documentId,
 	const std::string& displayName,
-	const farm::FarmGrid& grid) {
+	const farm::FarmGrid& grid,
+	const FarmEconomySystem& economySystem,
+	const FarmCropSelectionSystem& cropSelectionSystem) {
 	if (!IsSafeDocumentId(documentId)) {
 		SetError("Farm document ID is invalid.");
 		return false;
 	}
 	farm::FarmGrid::Snapshot snapshot;
 	grid.CaptureSnapshot(snapshot);
+	const FarmEconomySystem::Snapshot economySnapshot =
+		economySystem.CaptureSnapshot();
+	const FarmCropSelectionSystem::Snapshot cropSelectionSnapshot =
+		cropSelectionSystem.CaptureSnapshot();
 	std::string error;
 	if (!ValidateSnapshot(snapshot, grid.GetWidth(), grid.GetHeight(), error)) {
 		SetError(error);
@@ -828,7 +1051,9 @@ bool FarmDocumentSystem::SaveToDocument(
 		std::filesystem::path(saveDirectoryPath_) / (documentId + ".json");
 	if (!SaveJsonAtomically(
 		documentPath,
-		BuildJson(snapshot, documentId, displayName, savedAt),
+		BuildJson(
+			snapshot, economySnapshot, cropSelectionSnapshot,
+			documentId, displayName, savedAt),
 		error)) {
 		SetError(error);
 		return false;

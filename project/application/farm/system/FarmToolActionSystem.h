@@ -1,6 +1,8 @@
 #pragma once
 
 #include "farm/core/FarmTypes.h"
+#include "farm/data/FarmRules.h"
+#include "farm/system/FarmCropQualitySystem.h"
 #include "farm/system/FarmToolSystem.h"
 #include "command/CommandHistory.h"
 
@@ -18,6 +20,7 @@ enum class FarmToolActionStatus {
 	InvalidTarget,
 	InvalidState,
 	AlreadyWatered,
+	NoSeed,
 	NotReady,
 	UnsupportedTool,
 };
@@ -27,6 +30,7 @@ struct FarmToolActionResult {
 	FarmTool tool = FarmTool::Hoe;
 	int tileIndex = -1;
 	int reward = 0;
+	FarmCropQualityResult harvestQuality{};
 
 	[[nodiscard]] bool Succeeded() const noexcept {
 		return status == FarmToolActionStatus::Applied ||
@@ -39,13 +43,23 @@ public:
 	static constexpr int kMinimumHeightLevel = 0;
 	static constexpr int kMaximumHeightLevel = 2;
 
+	void Initialize(const farm::FarmRules& rules = {}) noexcept;
+	[[nodiscard]] FarmCropQualityResult EvaluateHarvestQuality(
+		const farm::FarmTile& tile) const noexcept;
+
 	[[nodiscard]] FarmToolActionResult EvaluateTool(
-		const farm::FarmGrid& grid, FarmTool tool) const noexcept;
+		const farm::FarmGrid& grid, FarmTool tool, farm::CropType selectedCrop,
+		const FarmEconomySystem* economySystem = nullptr) const noexcept;
 	[[nodiscard]] FarmToolActionResult EvaluateTool(
-		const farm::FarmGrid& grid, int tileIndex, FarmTool tool) const noexcept;
-	bool ApplyTool(farm::FarmGrid& grid, FarmTool tool);
+		const farm::FarmGrid& grid, int tileIndex, FarmTool tool,
+		farm::CropType selectedCrop,
+		const FarmEconomySystem* economySystem = nullptr) const noexcept;
+	bool ApplyTool(
+		farm::FarmGrid& grid, FarmTool tool, farm::CropType selectedCrop,
+		FarmEconomySystem& economySystem);
 	[[nodiscard]] FarmToolActionResult ApplyToolDetailed(
-		farm::FarmGrid& grid, FarmTool tool, FarmEconomySystem* economySystem = nullptr);
+		farm::FarmGrid& grid, FarmTool tool, farm::CropType selectedCrop,
+		FarmEconomySystem& economySystem);
 	bool RaiseSelectedTile(farm::FarmGrid& grid);
 	bool LowerSelectedTile(farm::FarmGrid& grid);
 	bool Undo() { return history_.Undo(); }
@@ -58,7 +72,10 @@ private:
 		farm::FarmGrid& grid, int tileIndex, const farm::FarmTile& before,
 		const farm::FarmTile& after, const char* commandName,
 		FarmEconomySystem* economySystem = nullptr,
-		farm::CropType harvestedCrop = farm::CropType::None,
-		int harvestedQuantity = 0);
+		const FarmCropQualityResult& harvestedQuality = {},
+		int harvestedQuantity = 0,
+		farm::CropType plantedCrop = farm::CropType::None,
+		int plantedQuantity = 0);
 	CommandHistory history_{ 128 };
+	FarmCropQualitySystem cropQualitySystem_{};
 };

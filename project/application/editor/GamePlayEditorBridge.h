@@ -2,10 +2,13 @@
 
 #include "farm/core/FarmTypes.h"
 #include "farm/system/FarmDocumentSystem.h"
+#include "farm/system/FarmFeedbackSystem.h"
+#include "farm/system/FarmGrowthSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
 #include "math/Struct.h"
 
+#include <array>
 #include <cstdint>
 #include <cstddef>
 #include <string>
@@ -27,8 +30,11 @@ struct FarmTileEditorViewData {
 	int heightLevel = 0;
 	farm::FarmTileState state = farm::FarmTileState::Empty;
 	farm::CropType crop = farm::CropType::None;
+	farm::FarmCropGrowthStage growthStage = farm::FarmCropGrowthStage::None;
 	float moisture = 0.0f;
 	float growth = 0.0f;
+	FarmGrowthForecast growthForecast{};
+	FarmCropQualityResult quality{};
 	bool canHoe = false;
 	bool canWater = false;
 	bool canSeed = false;
@@ -156,6 +162,30 @@ struct SimulationEditorViewData {
 	uint64_t simulationTick = 0;
 };
 
+struct FarmPlaytestEditorViewData {
+	int money = 0;
+	int targetMoney = 1;
+	int remainingMoney = 1;
+	int cropCount = 0;
+	int cropSellPrice = 0;
+	int saleValue = 0;
+	int seedCount = 0;
+	int seedPrice = 0;
+	std::array<int, farm::kFarmCropTypeCount> cropCounts{};
+	std::array<int, farm::kFarmCropTypeCount> cropValues{};
+	std::array<int, farm::kFarmCropTypeCount> seedCounts{};
+	farm::CropType selectedSeedCrop = farm::CropType::TestCrop;
+	int requiredCropCount = -1;
+	float progress = 0.0f;
+	bool cleared = false;
+	bool inputLocked = false;
+	std::string feedbackMessage;
+	FarmFeedbackKind lastFeedbackKind = FarmFeedbackKind::None;
+	FarmFeedbackStats feedbackStats{};
+	std::uint32_t restartCount = 0;
+	FarmCropQualityResult lastHarvestQuality{};
+};
+
 struct FarmDocumentEditorViewData {
 	std::string id;
 	std::string displayName;
@@ -185,6 +215,7 @@ struct GamePlayEditorViewModel {
 	std::string redoName;
 	FarmTool currentFarmTool = FarmTool::Hoe;
 	FarmToolActionResult selectedFarmAction{};
+	FarmPlaytestEditorViewData farmPlaytest;
 	VisibilityEditorViewData visibility;
 	CameraEditorViewData camera;
 	ObjectInspectorEditorViewData objectInspector;
@@ -212,6 +243,7 @@ enum class GamePlayEditorCommandType {
 	LowerFarmTile,
 	UndoFarmEdit,
 	RedoFarmEdit,
+	RestartFarmSession,
 };
 
 struct GamePlayEditorCommand {
