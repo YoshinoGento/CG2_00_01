@@ -4,6 +4,7 @@
 #include "farm/system/FarmDocumentSystem.h"
 #include "farm/system/FarmFeedbackSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
+#include "farm/system/FarmIrrigationSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
 #include "math/Struct.h"
@@ -28,6 +29,7 @@ struct FarmTileEditorViewData {
 	int column = 0;
 	int row = 0;
 	int heightLevel = 0;
+	farm::FarmTileFeature feature = farm::FarmTileFeature::None;
 	farm::FarmTileState state = farm::FarmTileState::Empty;
 	farm::CropType crop = farm::CropType::None;
 	farm::FarmCropGrowthStage growthStage = farm::FarmCropGrowthStage::None;
@@ -39,6 +41,9 @@ struct FarmTileEditorViewData {
 	bool canWater = false;
 	bool canSeed = false;
 	bool canHarvest = false;
+	bool canToggleCanal = false;
+	bool canToggleWaterSource = false;
+	bool irrigationSupplied = false;
 };
 
 struct VisibilityEditorViewData {
@@ -241,6 +246,8 @@ enum class GamePlayEditorCommandType {
 	ApplyFarmTool,
 	RaiseFarmTile,
 	LowerFarmTile,
+	ToggleFarmCanal,
+	ToggleFarmWaterSource,
 	UndoFarmEdit,
 	RedoFarmEdit,
 	RestartFarmSession,
@@ -322,6 +329,7 @@ public:
 		GamePlayScene& scene,
 		farm::FarmGrid& farmGrid,
 		FarmToolActionSystem& farmToolActionSystem,
+		farm::FarmIrrigationSystem& farmIrrigationSystem,
 		FarmDocumentSystem& farmDocumentSystem) noexcept;
 	void Unbind() noexcept;
 
@@ -349,6 +357,7 @@ private:
 	GamePlayScene* scene_ = nullptr;
 	farm::FarmGrid* farmGrid_ = nullptr;
 	FarmToolActionSystem* farmToolActionSystem_ = nullptr;
+	farm::FarmIrrigationSystem* farmIrrigationSystem_ = nullptr;
 	FarmDocumentSystem* farmDocumentSystem_ = nullptr;
 };
 

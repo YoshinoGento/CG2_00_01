@@ -192,6 +192,8 @@ struct SelectedTileHUDData {
 	int height = 0;
 	int moisturePercent = 0;
 	int growthPercent = 0;
+	farm::FarmTileFeature feature = farm::FarmTileFeature::None;
+	bool irrigationSupplied = false;
 	farm::FarmTileState state = farm::FarmTileState::Empty;
 	farm::CropType crop = farm::CropType::None;
 	farm::FarmCropGrowthStage growthStage = farm::FarmCropGrowthStage::None;
@@ -216,6 +218,7 @@ FarmHUDMoistureStatus ToHUDMoistureStatus(FarmMoistureStatus status) noexcept
 
 SelectedTileHUDData BuildSelectedTileHUDData(
 	const farm::FarmGrid& grid,
+	const farm::FarmIrrigationSystem& irrigationSystem,
 	const FarmGrowthSystem& growthSystem,
 	float timeScale,
 	farm::CropType selectedSeedCrop,
@@ -238,9 +241,19 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 	data.height = selectedTile->heightLevel;
 	data.moisturePercent = moisturePercent;
 	data.growthPercent = growthPercent;
+	data.feature = selectedTile->feature;
+	data.irrigationSupplied = irrigationSystem.IsSupplied(data.index);
 	data.state = selectedTile->state;
 	data.crop = selectedTile->crop;
 	data.growthStage = farm::GetCropGrowthStage(*selectedTile);
+	if (selectedTile->feature == farm::FarmTileFeature::Canal) {
+		data.nextAction = FarmHUDNextAction::Canal;
+		return data;
+	}
+	if (selectedTile->feature == farm::FarmTileFeature::WaterSource) {
+		data.nextAction = FarmHUDNextAction::WaterSource;
+		return data;
+	}
 	data.moistureStatus = ToHUDMoistureStatus(
 		growthSystem.Evaluate(
 			*selectedTile, selectedSeedCrop, timeScale).moistureStatus);
@@ -416,11 +429,13 @@ void GamePlayScene::Initialize() {
 	farmToolSystem_.Initialize();
 	farmEconomySystem_.Initialize();
 	farmGrowthSystem_.Initialize();
+	farmIrrigationSystem_.Initialize();
 	farmToolActionSystem_.Initialize();
 	farmCropSelectionSystem_.Initialize();
 	farmFeedbackSystem_.Initialize();
 	farmProgressionSystem_.Initialize();
 	farmVisualSystem_.Initialize(kFarmVisualLayout);
+	farmIrrigationSystem_.Rebuild(farmGrid_);
 	if (!farmDocumentSystem_.Initialize(
 		kFarmDocumentDirectory, farmGrid_, farmEconomySystem_,
 		farmCropSelectionSystem_)) {
@@ -430,7 +445,8 @@ void GamePlayScene::Initialize() {
 			farmProgressionSystem_.EvaluateClear(farmEconomySystem_.GetMoney()));
 	}
 	gamePlayEditorBridge_.Bind(
-		*this, farmGrid_, farmToolActionSystem_, farmDocumentSystem_);
+		*this, farmGrid_, farmToolActionSystem_, farmIrrigationSystem_,
+		farmDocumentSystem_);
 
 	// ログ記録：UIと外部出力の両方に行われます
 	AddLog("Scene: GamePlay Initialized.");
@@ -624,6 +640,7 @@ void GamePlayScene::Update() {
 
 	// Farm input has priority; editor-camera input uses unpaused real time.
 	const bool farmGridInputConsumed = HandleFarmInput();
+	farmIrrigationSystem_.Rebuild(farmGrid_);
 	HandleCameraInput(realDeltaTime_, farmGridInputConsumed);
 	ClampCameraPitch();
 	if (!farmGridInputConsumed) {
@@ -1486,6 +1503,7 @@ void GamePlayScene::Draw() {
 
 	farmVisualSystem_.Draw(
 		farmGrid_,
+		farmIrrigationSystem_,
 		farmToolActionSystem_.EvaluateTool(
 			farmGrid_, farmToolSystem_.GetCurrentTool(),
 			farmCropSelectionSystem_.GetSelectedCrop(), &farmEconomySystem_),
@@ -1618,13 +1636,16 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.goalProgress = farmProgressionSystem_.GetProgress(farmEconomySystem_.GetMoney());
 	viewData.goalCleared = farmProgressionSystem_.IsCleared();
 	const SelectedTileHUDData selectedTileData = BuildSelectedTileHUDData(
-		farmGrid_, farmGrowthSystem_, farmDateSystem_.GetTimeScale(),
+		farmGrid_, farmIrrigationSystem_, farmGrowthSystem_,
+		farmDateSystem_.GetTimeScale(),
 		viewData.selectedSeedCrop, viewData.seedCount);
 	viewData.selectedTileValid = selectedTileData.valid;
 	viewData.selectedTileIndex = selectedTileData.index;
 	viewData.selectedTileHeight = selectedTileData.height;
 	viewData.selectedTileMoisturePercent = selectedTileData.moisturePercent;
 	viewData.selectedTileGrowthPercent = selectedTileData.growthPercent;
+	viewData.selectedTileFeature = selectedTileData.feature;
+	viewData.selectedTileIrrigationSupplied = selectedTileData.irrigationSupplied;
 	viewData.selectedTileState = selectedTileData.state;
 	viewData.selectedTileCrop = selectedTileData.crop;
 	viewData.selectedTileGrowthStage = selectedTileData.growthStage;
@@ -1832,10 +1853,12 @@ void GamePlayScene::ResetFarmSession()
 	farmDateSystem_.Initialize();
 	farmToolSystem_.Initialize();
 	farmEconomySystem_.Initialize();
+	farmIrrigationSystem_.Initialize();
 	farmToolActionSystem_.Initialize();
 	farmCropSelectionSystem_.Initialize();
 	farmProgressionSystem_.Initialize();
 	farmFeedbackSystem_.Initialize(false);
+	farmIrrigationSystem_.Rebuild(farmGrid_);
 	farmDocumentSystem_.MarkDirty();
 	if (farmRestartCount_ < (std::numeric_limits<std::uint32_t>::max)()) {
 		++farmRestartCount_;

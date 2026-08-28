@@ -11,6 +11,9 @@ namespace {
 #ifdef USE_IMGUI
 enum class FarmMapVisualState {
 	Empty,
+	CanalDry,
+	CanalSupplied,
+	WaterSource,
 	Tilled,
 	Watered,
 	Growing,
@@ -18,6 +21,14 @@ enum class FarmMapVisualState {
 };
 
 FarmMapVisualState GetVisualState(const editor::FarmTileEditorViewData& tile) noexcept {
+	if (tile.feature == farm::FarmTileFeature::Canal) {
+		return tile.irrigationSupplied
+			? FarmMapVisualState::CanalSupplied
+			: FarmMapVisualState::CanalDry;
+	}
+	if (tile.feature == farm::FarmTileFeature::WaterSource) {
+		return FarmMapVisualState::WaterSource;
+	}
 	if (tile.canHarvest) {
 		return FarmMapVisualState::Ready;
 	}
@@ -34,6 +45,9 @@ FarmMapVisualState GetVisualState(const editor::FarmTileEditorViewData& tile) no
 
 ImVec4 GetStateColor(FarmMapVisualState state) noexcept {
 	switch (state) {
+	case FarmMapVisualState::CanalDry: return { 0.10f, 0.30f, 0.48f, 1.0f };
+	case FarmMapVisualState::CanalSupplied: return { 0.08f, 0.72f, 0.98f, 1.0f };
+	case FarmMapVisualState::WaterSource: return { 0.14f, 0.90f, 1.0f, 1.0f };
 	case FarmMapVisualState::Tilled: return { 0.68f, 0.43f, 0.22f, 1.0f };
 	case FarmMapVisualState::Watered: return { 0.30f, 0.52f, 0.72f, 1.0f };
 	case FarmMapVisualState::Growing: return { 0.28f, 0.68f, 0.30f, 1.0f };
@@ -46,6 +60,9 @@ ImVec4 GetStateColor(FarmMapVisualState state) noexcept {
 const char* GetStateName(FarmMapVisualState state, EditorLanguage language) noexcept {
 	const char* stateName = "Empty";
 	switch (state) {
+	case FarmMapVisualState::CanalDry: stateName = "Dry Canal"; break;
+	case FarmMapVisualState::CanalSupplied: stateName = "Supplied"; break;
+	case FarmMapVisualState::WaterSource: stateName = "Water Source"; break;
 	case FarmMapVisualState::Tilled: stateName = "Tilled"; break;
 	case FarmMapVisualState::Watered: stateName = "Watered"; break;
 	case FarmMapVisualState::Growing: stateName = "Growing"; break;
@@ -174,6 +191,9 @@ FarmMapActions FarmMapWindow::Draw(
 	ImGui::Spacing();
 	ImGui::SeparatorText(text("Legend"));
 	DrawLegendItem(text("Empty"), GetStateColor(FarmMapVisualState::Empty));
+	DrawLegendItem(text("Dry Canal"), GetStateColor(FarmMapVisualState::CanalDry));
+	DrawLegendItem(text("Supplied"), GetStateColor(FarmMapVisualState::CanalSupplied));
+	DrawLegendItem(text("Water Source"), GetStateColor(FarmMapVisualState::WaterSource));
 	DrawLegendItem(text("Tilled"), GetStateColor(FarmMapVisualState::Tilled));
 	DrawLegendItem(text("Watered"), GetStateColor(FarmMapVisualState::Watered));
 	DrawLegendItem(text("Growing"), GetStateColor(FarmMapVisualState::Growing));

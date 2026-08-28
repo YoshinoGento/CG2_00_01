@@ -150,8 +150,11 @@ constexpr std::array<const char*, 4> kCurrentToolPaths = {
 	"Resources/generated/text/hud_tool_harvest.png",
 };
 
-constexpr std::array<const char*, 8> kTileStatePaths = {
+constexpr std::array<const char*, 11> kTileStatePaths = {
 	"Resources/generated/text/hud_state_invalid.png",
+	"Resources/generated/text/hud_state_canal.png",
+	"Resources/generated/text/hud_state_canal_supplied.png",
+	"Resources/generated/text/hud_state_water_source.png",
 	"Resources/generated/text/hud_state_empty.png",
 	"Resources/generated/text/hud_state_tilled.png",
 	"Resources/generated/text/hud_state_watered.png",
@@ -175,8 +178,10 @@ constexpr std::array<const char*, 2> kCropPieTraitPaths = {
 	"Resources/generated/text/hud_crop_trait_carrot.png",
 };
 
-constexpr std::array<const char*, 8> kNextActionPaths = {
+constexpr std::array<const char*, 10> kNextActionPaths = {
 	"Resources/generated/text/hud_next_select.png",
+	"Resources/generated/text/hud_next_canal.png",
+	"Resources/generated/text/hud_next_water_source.png",
 	"Resources/generated/text/hud_next_hoe.png",
 	"Resources/generated/text/hud_next_water_or_seed.png",
 	"Resources/generated/text/hud_next_buy_seed.png",
@@ -246,17 +251,23 @@ std::size_t GetTileStateTextureIndex(const FarmHUDViewData& viewData) {
 	if (!viewData.selectedTileValid) {
 		return 0;
 	}
+	if (viewData.selectedTileFeature == farm::FarmTileFeature::Canal) {
+		return viewData.selectedTileIrrigationSupplied ? 2 : 1;
+	}
+	if (viewData.selectedTileFeature == farm::FarmTileFeature::WaterSource) {
+		return 3;
+	}
 	if (viewData.selectedTileState == farm::FarmTileState::Planted ||
 		viewData.selectedTileState == farm::FarmTileState::ReadyToHarvest) {
 		switch (viewData.selectedTileGrowthStage) {
 		case farm::FarmCropGrowthStage::Sprout:
-			return 4;
-		case farm::FarmCropGrowthStage::Growing:
-			return 5;
-		case farm::FarmCropGrowthStage::AlmostReady:
-			return 6;
-		case farm::FarmCropGrowthStage::Ready:
 			return 7;
+		case farm::FarmCropGrowthStage::Growing:
+			return 8;
+		case farm::FarmCropGrowthStage::AlmostReady:
+			return 9;
+		case farm::FarmCropGrowthStage::Ready:
+			return 10;
 		case farm::FarmCropGrowthStage::None:
 		default:
 			return 0;
@@ -264,11 +275,11 @@ std::size_t GetTileStateTextureIndex(const FarmHUDViewData& viewData) {
 	}
 	switch (viewData.selectedTileState) {
 	case farm::FarmTileState::Empty:
-		return 1;
+		return 4;
 	case farm::FarmTileState::Tilled:
-		return 2;
+		return 5;
 	case farm::FarmTileState::Watered:
-		return 3;
+		return 6;
 	case farm::FarmTileState::ReadyToHarvest:
 	case farm::FarmTileState::Planted:
 		return 0;
@@ -509,11 +520,20 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 		sanitized.selectedTileHeight = 0;
 		sanitized.selectedTileMoisturePercent = 0;
 		sanitized.selectedTileGrowthPercent = 0;
+		sanitized.selectedTileFeature = farm::FarmTileFeature::None;
+		sanitized.selectedTileIrrigationSupplied = false;
 		sanitized.selectedTileCrop = farm::CropType::None;
 		sanitized.selectedTileGrowthStage = farm::FarmCropGrowthStage::None;
 		sanitized.selectedTileMoistureStatus = FarmHUDMoistureStatus::None;
 		sanitized.nextAction = FarmHUDNextAction::SelectTile;
 	} else {
+		if (!farm::IsValidFarmTileFeature(sanitized.selectedTileFeature)) {
+			sanitized.selectedTileFeature = farm::FarmTileFeature::None;
+			sanitized.selectedTileIrrigationSupplied = false;
+		}
+		if (sanitized.selectedTileFeature == farm::FarmTileFeature::None) {
+			sanitized.selectedTileIrrigationSupplied = false;
+		}
 		sanitized.selectedTileMoisturePercent =
 			std::clamp(sanitized.selectedTileMoisturePercent, 0, 100);
 		sanitized.selectedTileGrowthPercent =
@@ -563,6 +583,8 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 		viewData_.selectedTileHeight != sanitized.selectedTileHeight ||
 		viewData_.selectedTileMoisturePercent != sanitized.selectedTileMoisturePercent ||
 		viewData_.selectedTileGrowthPercent != sanitized.selectedTileGrowthPercent ||
+		viewData_.selectedTileFeature != sanitized.selectedTileFeature ||
+		viewData_.selectedTileIrrigationSupplied != sanitized.selectedTileIrrigationSupplied ||
 		viewData_.selectedTileState != sanitized.selectedTileState ||
 		viewData_.selectedTileCrop != sanitized.selectedTileCrop ||
 		viewData_.selectedTileGrowthStage != sanitized.selectedTileGrowthStage ||
@@ -867,7 +889,7 @@ void FarmHUD::UpdateLocalizedSelections() {
 		cropTextureHandles_[GetCropTextureIndex(viewData_.selectedSeedCrop)], 0.72f);
 	SetLocalizedTexture(
 		localizedNextAction_,
-		nextActionTextureHandles_[ToBoundedIndex<FarmHUDNextAction, 8>(viewData_.nextAction)],
+		nextActionTextureHandles_[ToBoundedIndex<FarmHUDNextAction, 10>(viewData_.nextAction)],
 		0.75f);
 	if (viewData_.selectedTileMoistureStatus != FarmHUDMoistureStatus::None) {
 		SetLocalizedTexture(

@@ -16,6 +16,7 @@ constexpr float kHarvestMoistureCost = 0.25f;
 bool TilesEqual(const farm::FarmTile& left, const farm::FarmTile& right)
 {
 	return left.heightLevel == right.heightLevel &&
+		left.feature == right.feature &&
 		left.state == right.state &&
 		left.crop == right.crop &&
 		left.moisture == right.moisture &&
@@ -158,6 +159,10 @@ FarmToolActionResult FarmToolActionSystem::EvaluateTool(
 	const farm::FarmTile* tile = grid.GetTile(tileIndex);
 	if (tile == nullptr) {
 		result.status = FarmToolActionStatus::InvalidTarget;
+		return result;
+	}
+	if (tile->feature != farm::FarmTileFeature::None) {
+		result.status = FarmToolActionStatus::InvalidState;
 		return result;
 	}
 
@@ -318,6 +323,82 @@ bool FarmToolActionSystem::LowerSelectedTile(farm::FarmGrid& grid)
 		FarmToolActionSystem::kMinimumHeightLevel,
 		FarmToolActionSystem::kMaximumHeightLevel);
 	return CommitTileChange(grid, tileIndex, before, after, "Lower Tile");
+}
+
+bool FarmToolActionSystem::ToggleSelectedCanal(farm::FarmGrid& grid)
+{
+	const int tileIndex = grid.GetSelectedIndex();
+	const farm::FarmTile* selectedTile = grid.GetTile(tileIndex);
+	if (selectedTile == nullptr || !CanToggleCanal(grid, tileIndex)) {
+		return false;
+	}
+
+	const farm::FarmTile before = *selectedTile;
+	farm::FarmTile after = before;
+	const char* commandName = "Remove Canal";
+	if (before.feature == farm::FarmTileFeature::Canal) {
+		after.feature = farm::FarmTileFeature::None;
+	} else {
+		after.feature = farm::FarmTileFeature::Canal;
+		commandName = "Place Canal";
+	}
+	return CommitTileChange(grid, tileIndex, before, after, commandName);
+}
+
+bool FarmToolActionSystem::CanToggleCanal(
+	const farm::FarmGrid& grid, int tileIndex) const noexcept
+{
+	const farm::FarmTile* tile = grid.GetTile(tileIndex);
+	if (tile == nullptr || !farm::IsValidFarmTileFeature(tile->feature)) {
+		return false;
+	}
+	if (tile->feature == farm::FarmTileFeature::Canal) {
+		return true;
+	}
+	if (tile->feature != farm::FarmTileFeature::None) {
+		return false;
+	}
+	return tile->state == farm::FarmTileState::Empty &&
+		tile->crop == farm::CropType::None &&
+		tile->moisture == 0.0f && tile->growth == 0.0f;
+}
+
+bool FarmToolActionSystem::ToggleSelectedWaterSource(farm::FarmGrid& grid)
+{
+	const int tileIndex = grid.GetSelectedIndex();
+	const farm::FarmTile* selectedTile = grid.GetTile(tileIndex);
+	if (selectedTile == nullptr || !CanToggleWaterSource(grid, tileIndex)) {
+		return false;
+	}
+
+	const farm::FarmTile before = *selectedTile;
+	farm::FarmTile after = before;
+	const char* commandName = "Remove Water Source";
+	if (before.feature == farm::FarmTileFeature::WaterSource) {
+		after.feature = farm::FarmTileFeature::None;
+	} else {
+		after.feature = farm::FarmTileFeature::WaterSource;
+		commandName = "Place Water Source";
+	}
+	return CommitTileChange(grid, tileIndex, before, after, commandName);
+}
+
+bool FarmToolActionSystem::CanToggleWaterSource(
+	const farm::FarmGrid& grid, int tileIndex) const noexcept
+{
+	const farm::FarmTile* tile = grid.GetTile(tileIndex);
+	if (tile == nullptr || !farm::IsValidFarmTileFeature(tile->feature)) {
+		return false;
+	}
+	if (tile->feature == farm::FarmTileFeature::WaterSource) {
+		return true;
+	}
+	if (tile->feature != farm::FarmTileFeature::None) {
+		return false;
+	}
+	return tile->state == farm::FarmTileState::Empty &&
+		tile->crop == farm::CropType::None &&
+		tile->moisture == 0.0f && tile->growth == 0.0f;
 }
 
 bool FarmToolActionSystem::CommitTileChange(

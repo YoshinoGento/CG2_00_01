@@ -32,6 +32,8 @@ FarmLockedInputResult FarmInputSystem::PollLockedInput(
 		input.TriggerKey(InputKey::Q) ||
 		input.TriggerKey(InputKey::E) ||
 		input.TriggerKey(InputKey::C) ||
+		input.TriggerKey(InputKey::N) ||
+		input.TriggerKey(InputKey::M) ||
 		input.TriggerKey(InputKey::B) ||
 		input.TriggerKey(InputKey::V) ||
 		input.TriggerKey(InputKey::Enter) ||
@@ -76,6 +78,12 @@ FarmInputResult FarmInputSystem::Update(
 	}
 	if (input.TriggerKey(InputKey::PageDown)) {
 		result.contentChanged |= actionSystem.LowerSelectedTile(grid);
+	}
+	if (input.TriggerKey(InputKey::N)) {
+		result.contentChanged |= actionSystem.ToggleSelectedCanal(grid);
+	}
+	if (input.TriggerKey(InputKey::M)) {
+		result.contentChanged |= actionSystem.ToggleSelectedWaterSource(grid);
 	}
 
 	const FarmTool previousTool = toolSystem.GetCurrentTool();

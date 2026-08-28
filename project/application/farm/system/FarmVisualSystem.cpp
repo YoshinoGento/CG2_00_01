@@ -2,6 +2,7 @@
 
 #include "3d/LineDrawer.h"
 #include "farm/core/FarmGrid.h"
+#include "farm/system/FarmIrrigationSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -28,8 +29,19 @@ void DrawHorizontalRectangle(
 	lineDrawer.DrawLine(bottomLeft, topLeft, color);
 }
 
-Vector4 GetTileColor(const FarmTile& tile)
+Vector4 GetTileColor(
+	const FarmTile& tile,
+	int tileIndex,
+	const FarmIrrigationSystem& irrigationSystem)
 {
+	if (tile.feature == FarmTileFeature::Canal) {
+		return irrigationSystem.IsSupplied(tileIndex)
+			? Vector4{ 0.08f, 0.78f, 1.0f, 1.0f }
+			: Vector4{ 0.10f, 0.32f, 0.52f, 1.0f };
+	}
+	if (tile.feature == FarmTileFeature::WaterSource) {
+		return { 0.16f, 0.92f, 1.0f, 1.0f };
+	}
 	if (tile.state == FarmTileState::Planted) {
 		return IsHarvestReady(tile)
 			? Vector4{ 1.0f, 0.78f, 0.12f, 1.0f }
@@ -187,6 +199,7 @@ bool FarmVisualSystem::TryPickTile(
 
 void FarmVisualSystem::Draw(
 	const FarmGrid& grid,
+	const FarmIrrigationSystem& irrigationSystem,
 	const FarmToolActionResult& selectedAction,
 	LineDrawer& lineDrawer) const
 {
@@ -198,15 +211,41 @@ void FarmVisualSystem::Draw(
 		}
 
 		const Vector3 center = GetTileCenter(grid, index);
-		const Vector4 tileColor = GetTileColor(*tile);
+		const Vector4 tileColor = GetTileColor(*tile, index, irrigationSystem);
 		DrawHorizontalRectangle(lineDrawer, center, halfExtent, tileColor);
+		if (tile->feature == FarmTileFeature::Canal) {
+			Vector3 canalCenter = center;
+			canalCenter.y += 0.025f;
+			const Vector4 flowColor = irrigationSystem.IsSupplied(index)
+				? Vector4{ 0.45f, 0.94f, 1.0f, 1.0f }
+				: Vector4{ 0.20f, 0.48f, 0.66f, 1.0f };
+			DrawHorizontalRectangle(
+				lineDrawer, canalCenter, halfExtent * 0.62f,
+				flowColor);
+			lineDrawer.DrawLine(
+				{ canalCenter.x - halfExtent * 0.45f, canalCenter.y, canalCenter.z },
+				{ canalCenter.x + halfExtent * 0.45f, canalCenter.y, canalCenter.z },
+				flowColor);
+		} else if (tile->feature == FarmTileFeature::WaterSource) {
+			Vector3 sourceCenter = center;
+			sourceCenter.y += 0.18f;
+			lineDrawer.DrawWireSphere(
+				sourceCenter,
+				halfExtent * 0.28f,
+				{ 0.20f, 0.94f, 1.0f, 1.0f },
+				12);
+			lineDrawer.DrawLine(
+				{ sourceCenter.x, center.y + 0.02f, sourceCenter.z },
+				{ sourceCenter.x, sourceCenter.y + halfExtent * 0.58f, sourceCenter.z },
+				{ 0.72f, 0.98f, 1.0f, 1.0f });
+		}
 
-		if (tile->state != FarmTileState::Empty) {
+		if (tile->feature == FarmTileFeature::None && tile->state != FarmTileState::Empty) {
 			Vector3 moundCenter = center;
 			moundCenter.y += 0.02f;
 			DrawHorizontalRectangle(lineDrawer, moundCenter, halfExtent * 0.58f, tileColor);
 		}
-		if (tile->moisture > 0.05f) {
+		if (tile->feature == FarmTileFeature::None && tile->moisture > 0.05f) {
 			const Vector4 moistureColor = { 0.18f, 0.68f, 1.0f, 1.0f };
 			const float moistureExtent = halfExtent * std::clamp(tile->moisture, 0.15f, 0.85f);
 			Vector3 moistureCenter = center;
@@ -217,7 +256,9 @@ void FarmVisualSystem::Draw(
 				moistureColor);
 		}
 
-		DrawCropSilhouette(lineDrawer, *tile, center);
+		if (tile->feature == FarmTileFeature::None) {
+			DrawCropSilhouette(lineDrawer, *tile, center);
+		}
 
 		if (index == grid.GetSelectedIndex()) {
 			const Vector4 selectionColor = selectedAction.Succeeded()

@@ -594,6 +594,20 @@ void EditorShell::DrawFarmController(GamePlayScene& playScene) {
 		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
 		changed |= bridge.Execute(command);
 	}
+	if (actions.toggleCanal) {
+		editor::GamePlayEditorCommand command;
+		command.type = editor::GamePlayEditorCommandType::ToggleFarmCanal;
+		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
+		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
+		changed |= bridge.Execute(command);
+	}
+	if (actions.toggleWaterSource) {
+		editor::GamePlayEditorCommand command;
+		command.type = editor::GamePlayEditorCommandType::ToggleFarmWaterSource;
+		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
+		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
+		changed |= bridge.Execute(command);
+	}
 	if (actions.restartFarm) {
 		editor::GamePlayEditorCommand command;
 		command.type = editor::GamePlayEditorCommandType::RestartFarmSession;

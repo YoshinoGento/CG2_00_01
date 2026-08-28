@@ -112,6 +112,14 @@ bool FarmGrid::SetTile(int index, const FarmTile& tile)
 	if (tile.heightLevel < 0 || tile.heightLevel > 2) {
 		return false;
 	}
+	if (!IsValidFarmTileFeature(tile.feature)) {
+		return false;
+	}
+	if (tile.feature != FarmTileFeature::None &&
+		(tile.state != FarmTileState::Empty || tile.crop != CropType::None ||
+		 tile.moisture != 0.0f || tile.growth != 0.0f)) {
+		return false;
+	}
 
 	*destination = tile;
 	return true;
@@ -135,7 +143,13 @@ bool FarmGrid::RestoreSnapshot(const Snapshot& snapshot)
 
 	for (const FarmTile& tile : snapshot.tiles) {
 		if (tile.heightLevel < 0 || tile.heightLevel > 2 ||
+			!IsValidFarmTileFeature(tile.feature) ||
 			!std::isfinite(tile.moisture) || !std::isfinite(tile.growth)) {
+			return false;
+		}
+		if (tile.feature != FarmTileFeature::None &&
+			(tile.state != FarmTileState::Empty || tile.crop != CropType::None ||
+			 tile.moisture != 0.0f || tile.growth != 0.0f)) {
 			return false;
 		}
 	}

@@ -317,8 +317,8 @@
       "output": "Resources/generated/text/hud_tool_label.png", "fontSize": 28, "padding": [8, 4], "overwrite": true
     },
     {
-      "id": "hud_tool_guide_label", "text": "Q/E \u9053\u5177  C \u4f5c\u7269  ENTER \u4f7f\u7528", "font": "Resources/fonts/NotoSansJP-VF.ttf",
-      "output": "Resources/generated/text/hud_tool_guide_label.png", "fontSize": 20, "padding": [8, 4], "overwrite": true
+      "id": "hud_tool_guide_label", "text": "Q/E \u9053\u5177  C \u4f5c\u7269  N \u7528\u6c34\u8def  M \u6c34\u6e90  ENTER \u4f7f\u7528", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_tool_guide_label.png", "fontSize": 18, "padding": [8, 4], "overwrite": true
     },
     {
       "id": "hud_tool_slot_hoe", "text": "1 \u30af\u30ef", "font": "Resources/fonts/NotoSansJP-VF.ttf",
@@ -355,6 +355,18 @@
     {
       "id": "hud_state_invalid", "text": "\u7121\u52b9", "font": "Resources/fonts/NotoSansJP-VF.ttf",
       "output": "Resources/generated/text/hud_state_invalid.png", "fontSize": 24, "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_state_canal", "text": "\u672a\u901a\u6c34", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_state_canal.png", "fontSize": 24, "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_state_canal_supplied", "text": "\u901a\u6c34\u4e2d", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_state_canal_supplied.png", "fontSize": 24, "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_state_water_source", "text": "\u6c34\u6e90", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_state_water_source.png", "fontSize": 24, "padding": [8, 4], "overwrite": true
     },
     {
       "id": "hud_state_empty", "text": "\u672a\u8015\u4f5c", "font": "Resources/fonts/NotoSansJP-VF.ttf",
@@ -411,6 +423,14 @@
     {
       "id": "hud_next_select", "text": "\u30de\u30b9\u3092\u9078\u629e", "font": "Resources/fonts/NotoSansJP-VF.ttf",
       "output": "Resources/generated/text/hud_next_select.png", "fontSize": 22, "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_next_canal", "text": "N\u3067\u901a\u5e38\u5730\u9762\u306b\u623b\u3059", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_next_canal.png", "fontSize": 22, "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_next_water_source", "text": "M\u3067\u6c34\u6e90\u3092\u64a4\u53bb", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_next_water_source.png", "fontSize": 22, "padding": [8, 4], "overwrite": true
     },
     {
       "id": "hud_next_hoe", "text": "\u30af\u30ef\u3067\u8015\u3059", "font": "Resources/fonts/NotoSansJP-VF.ttf",

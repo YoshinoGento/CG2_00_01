@@ -12,6 +12,8 @@ class SpriteCommon;
 
 enum class FarmHUDNextAction : std::uint8_t {
 	SelectTile,
+	Canal,
+	WaterSource,
 	Hoe,
 	WaterOrSeed,
 	BuySeed,
@@ -67,6 +69,8 @@ struct FarmHUDViewData {
 	int selectedTileHeight = 0;
 	int selectedTileMoisturePercent = 0;
 	int selectedTileGrowthPercent = 0;
+	farm::FarmTileFeature selectedTileFeature = farm::FarmTileFeature::None;
+	bool selectedTileIrrigationSupplied = false;
 	farm::FarmTileState selectedTileState = farm::FarmTileState::Empty;
 	farm::CropType selectedTileCrop = farm::CropType::None;
 	farm::FarmCropGrowthStage selectedTileGrowthStage = farm::FarmCropGrowthStage::None;
@@ -140,9 +144,9 @@ private:
 	Sprite localizedFeedbackCrop_;
 
 	std::array<Texture2DHandle, 4> currentToolTextureHandles_;
-	std::array<Texture2DHandle, 8> tileStateTextureHandles_;
+	std::array<Texture2DHandle, 11> tileStateTextureHandles_;
 	std::array<Texture2DHandle, 3> cropTextureHandles_;
-	std::array<Texture2DHandle, 8> nextActionTextureHandles_;
+	std::array<Texture2DHandle, 10> nextActionTextureHandles_;
 	std::array<Texture2DHandle, 3> moistureStatusTextureHandles_;
 	std::array<Texture2DHandle, 13> feedbackTextureHandles_;
 

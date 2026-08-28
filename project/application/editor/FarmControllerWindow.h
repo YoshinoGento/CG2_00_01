@@ -10,6 +10,8 @@ struct FarmControllerActions {
 	bool applyCurrentTool = false;
 	bool raiseTile = false;
 	bool lowerTile = false;
+	bool toggleCanal = false;
+	bool toggleWaterSource = false;
 	bool restartFarm = false;
 };
 

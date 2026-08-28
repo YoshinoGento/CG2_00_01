@@ -8,6 +8,7 @@ class LineDrawer;
 namespace farm {
 
 class FarmGrid;
+class FarmIrrigationSystem;
 
 struct FarmVisualLayout {
 	Vector3 center = { 0.0f, 0.05f, 8.0f };
@@ -30,6 +31,7 @@ public:
 
 	void Draw(
 		const FarmGrid& grid,
+		const FarmIrrigationSystem& irrigationSystem,
 		const FarmToolActionResult& selectedAction,
 		LineDrawer& lineDrawer) const;
 

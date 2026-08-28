@@ -13,6 +13,12 @@ enum class FarmTileState {
 	ReadyToHarvest,
 };
 
+enum class FarmTileFeature : std::uint8_t {
+	None,
+	Canal,
+	WaterSource,
+};
+
 enum class CropType {
 	None,
 	TestCrop,
@@ -64,11 +70,19 @@ inline bool IsPlantableCrop(CropType crop) noexcept
 
 struct FarmTile {
 	int heightLevel = 0;
+	FarmTileFeature feature = FarmTileFeature::None;
 	FarmTileState state = FarmTileState::Empty;
 	CropType crop = CropType::None;
 	float moisture = 0.0f;
 	float growth = 0.0f;
 };
+
+inline bool IsValidFarmTileFeature(FarmTileFeature feature) noexcept
+{
+	return feature == FarmTileFeature::None ||
+		feature == FarmTileFeature::Canal ||
+		feature == FarmTileFeature::WaterSource;
+}
 
 inline bool IsHarvestReady(const FarmTile& tile)
 {
@@ -108,6 +122,20 @@ inline const char* ToString(FarmTileState state)
 		return "Planted";
 	case FarmTileState::ReadyToHarvest:
 		return "ReadyToHarvest";
+	default:
+		return "Unknown";
+	}
+}
+
+inline const char* ToString(FarmTileFeature feature)
+{
+	switch (feature) {
+	case FarmTileFeature::None:
+		return "None";
+	case FarmTileFeature::Canal:
+		return "Canal";
+	case FarmTileFeature::WaterSource:
+		return "WaterSource";
 	default:
 		return "Unknown";
 	}

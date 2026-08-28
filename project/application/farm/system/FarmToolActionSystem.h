@@ -62,6 +62,12 @@ public:
 		FarmEconomySystem& economySystem);
 	bool RaiseSelectedTile(farm::FarmGrid& grid);
 	bool LowerSelectedTile(farm::FarmGrid& grid);
+	[[nodiscard]] bool CanToggleCanal(
+		const farm::FarmGrid& grid, int tileIndex) const noexcept;
+	bool ToggleSelectedCanal(farm::FarmGrid& grid);
+	[[nodiscard]] bool CanToggleWaterSource(
+		const farm::FarmGrid& grid, int tileIndex) const noexcept;
+	bool ToggleSelectedWaterSource(farm::FarmGrid& grid);
 	bool Undo() { return history_.Undo(); }
 	bool Redo() { return history_.Redo(); }
 	void ClearHistory() noexcept { history_.Clear(); }

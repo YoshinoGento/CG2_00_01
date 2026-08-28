@@ -63,10 +63,12 @@ void GamePlayEditorBridge::Bind(
 	GamePlayScene& scene,
 	farm::FarmGrid& farmGrid,
 	FarmToolActionSystem& farmToolActionSystem,
+	farm::FarmIrrigationSystem& farmIrrigationSystem,
 	FarmDocumentSystem& farmDocumentSystem) noexcept {
 	scene_ = &scene;
 	farmGrid_ = &farmGrid;
 	farmToolActionSystem_ = &farmToolActionSystem;
+	farmIrrigationSystem_ = &farmIrrigationSystem;
 	farmDocumentSystem_ = &farmDocumentSystem;
 }
 
@@ -74,12 +76,14 @@ void GamePlayEditorBridge::Unbind() noexcept {
 	scene_ = nullptr;
 	farmGrid_ = nullptr;
 	farmToolActionSystem_ = nullptr;
+	farmIrrigationSystem_ = nullptr;
 	farmDocumentSystem_ = nullptr;
 }
 
 bool GamePlayEditorBridge::IsBound() const noexcept {
 	return scene_ != nullptr && farmGrid_ != nullptr &&
-		farmToolActionSystem_ != nullptr && farmDocumentSystem_ != nullptr;
+		farmToolActionSystem_ != nullptr && farmIrrigationSystem_ != nullptr &&
+		farmDocumentSystem_ != nullptr;
 }
 
 void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const {
@@ -152,6 +156,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 			const farm::CropType selectedCrop =
 				scene_->farmCropSelectionSystem_.GetSelectedCrop();
 			destination.heightLevel = tile->heightLevel;
+			destination.feature = tile->feature;
 			destination.state = tile->state;
 			destination.crop = tile->crop;
 			destination.growthStage = farm::GetCropGrowthStage(*tile);
@@ -169,6 +174,11 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 				&scene_->farmEconomySystem_).Succeeded();
 			destination.canHarvest = farmToolActionSystem_->EvaluateTool(
 				*farmGrid_, index, FarmTool::Harvest, selectedCrop).Succeeded();
+			destination.canToggleCanal =
+				farmToolActionSystem_->CanToggleCanal(*farmGrid_, index);
+			destination.canToggleWaterSource =
+				farmToolActionSystem_->CanToggleWaterSource(*farmGrid_, index);
+			destination.irrigationSupplied = farmIrrigationSystem_->IsSupplied(index);
 		}
 	}
 
@@ -383,24 +393,44 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		return false;
 	case GamePlayEditorCommandType::RaiseFarmTile:
 		if (SelectCommandTarget(command) && farmToolActionSystem_->RaiseSelectedTile(*farmGrid_)) {
+			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
 		return false;
 	case GamePlayEditorCommandType::LowerFarmTile:
 		if (SelectCommandTarget(command) && farmToolActionSystem_->LowerSelectedTile(*farmGrid_)) {
+			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
 		return false;
 	case GamePlayEditorCommandType::UndoFarmEdit:
 		if (farmToolActionSystem_->Undo()) {
+			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
 		return false;
 	case GamePlayEditorCommandType::RedoFarmEdit:
 		if (farmToolActionSystem_->Redo()) {
+			farmIrrigationSystem_->Rebuild(*farmGrid_);
+			farmDocumentSystem_->MarkDirty();
+			return true;
+		}
+		return false;
+	case GamePlayEditorCommandType::ToggleFarmCanal:
+		if (SelectCommandTarget(command) &&
+			farmToolActionSystem_->ToggleSelectedCanal(*farmGrid_)) {
+			farmIrrigationSystem_->Rebuild(*farmGrid_);
+			farmDocumentSystem_->MarkDirty();
+			return true;
+		}
+		return false;
+	case GamePlayEditorCommandType::ToggleFarmWaterSource:
+		if (SelectCommandTarget(command) &&
+			farmToolActionSystem_->ToggleSelectedWaterSource(*farmGrid_)) {
+			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
@@ -450,6 +480,7 @@ bool GamePlayEditorBridge::Execute(const FarmDocumentCommand& command) {
 		farmToolActionSystem_->ClearHistory();
 		if (command.type == FarmDocumentCommandType::NewDocument ||
 			command.type == FarmDocumentCommandType::Load) {
+			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			scene_->farmProgressionSystem_.Initialize();
 			static_cast<void>(scene_->farmProgressionSystem_.EvaluateClear(
 				scene_->farmEconomySystem_.GetMoney()));

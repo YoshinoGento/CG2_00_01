@@ -55,6 +55,12 @@ const char* GetActionStatusLabel(FarmToolActionStatus status, EditorLanguage lan
 const char* GetStateLabel(
 	const editor::FarmTileEditorViewData& tile,
 	EditorLanguage language) noexcept {
+	if (tile.feature == farm::FarmTileFeature::Canal) {
+		return editor::Localize(language, tile.irrigationSupplied ? "Supplied" : "Dry Canal");
+	}
+	if (tile.feature == farm::FarmTileFeature::WaterSource) {
+		return editor::Localize(language, "Water Source");
+	}
 	const char* label = farm::ToString(tile.state);
 	if (tile.canHarvest) {
 		label = "Ready";
@@ -82,6 +88,14 @@ const char* GetStateLabel(
 }
 
 ImVec4 GetStateColor(const editor::FarmTileEditorViewData& tile) noexcept {
+	if (tile.feature == farm::FarmTileFeature::Canal) {
+		return tile.irrigationSupplied
+			? ImVec4(0.10f, 0.78f, 1.0f, 1.0f)
+			: ImVec4(0.10f, 0.34f, 0.54f, 1.0f);
+	}
+	if (tile.feature == farm::FarmTileFeature::WaterSource) {
+		return { 0.14f, 0.92f, 1.0f, 1.0f };
+	}
 	if (tile.canHarvest) {
 		return { 0.95f, 0.72f, 0.16f, 1.0f };
 	}
@@ -100,7 +114,13 @@ const char* GetNextActionLabel(
 	const editor::FarmTileEditorViewData& tile,
 	EditorLanguage language) noexcept {
 	const char* label = "Growing: wait until the crop is ready.";
-	if (tile.canHarvest) {
+	if (tile.feature == farm::FarmTileFeature::Canal) {
+		label = tile.irrigationSupplied
+			? "Supplied from a water source. N removes this canal."
+			: "Dry canal: connect it to an equal or higher water source.";
+	} else if (tile.feature == farm::FarmTileFeature::WaterSource) {
+		label = "Next: connect a canal or press M to remove the source.";
+	} else if (tile.canHarvest) {
 		label = "Next: select Harvest and apply.";
 	} else if (tile.state == farm::FarmTileState::Empty) {
 		label = "Next: select Hoe to prepare this tile.";
@@ -494,6 +514,31 @@ FarmControllerActions FarmControllerWindow::Draw(
 		}
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
 			ImGui::SetTooltip("%s", text("Raise selected tile (Page Up)"));
+		}
+		ImGui::EndDisabled();
+		ImGui::Text(
+			text("Feature: %s"),
+			text(farm::ToString(tile->feature)));
+		ImGui::BeginDisabled(!tile->canToggleCanal);
+		const char* canalButtonLabel = tile->feature == farm::FarmTileFeature::Canal
+			? "Remove Canal"
+			: "Place Canal";
+		if (ImGui::Button(text(canalButtonLabel), ImVec2(-1.0f, 0.0f))) {
+			actions.toggleCanal = true;
+		}
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+			ImGui::SetTooltip("%s", text("Toggle canal on selected tile (N)"));
+		}
+		ImGui::EndDisabled();
+		ImGui::BeginDisabled(!tile->canToggleWaterSource);
+		const char* sourceButtonLabel = tile->feature == farm::FarmTileFeature::WaterSource
+			? "Remove Water Source"
+			: "Place Water Source";
+		if (ImGui::Button(text(sourceButtonLabel), ImVec2(-1.0f, 0.0f))) {
+			actions.toggleWaterSource = true;
+		}
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+			ImGui::SetTooltip("%s", text("Toggle water source on selected tile (M)"));
 		}
 		ImGui::EndDisabled();
 

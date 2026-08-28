@@ -22,7 +22,7 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 2;
+constexpr int kSchemaVersion = 4;
 constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
@@ -72,10 +72,30 @@ bool TryParseCrop(const std::string& value, farm::CropType& output) {
 	return false;
 }
 
+bool TryParseFeature(const std::string& value, farm::FarmTileFeature& output) {
+	if (value == "None") {
+		output = farm::FarmTileFeature::None;
+		return true;
+	}
+	if (value == "Canal") {
+		output = farm::FarmTileFeature::Canal;
+		return true;
+	}
+	if (value == "WaterSource") {
+		output = farm::FarmTileFeature::WaterSource;
+		return true;
+	}
+	return false;
+}
+
 bool ValidateTile(const farm::FarmTile& tile, std::string& error) {
 	if (tile.heightLevel < FarmToolActionSystem::kMinimumHeightLevel ||
 		tile.heightLevel > FarmToolActionSystem::kMaximumHeightLevel) {
 		error = "Tile height is outside the supported range.";
+		return false;
+	}
+	if (!farm::IsValidFarmTileFeature(tile.feature)) {
+		error = "Tile feature is unsupported.";
 		return false;
 	}
 	if (!std::isfinite(tile.moisture) || !std::isfinite(tile.growth) ||
@@ -91,6 +111,12 @@ bool ValidateTile(const farm::FarmTile& tile, std::string& error) {
 		}
 	} else if (tile.crop != farm::CropType::None || tile.growth != 0.0f) {
 		error = "Only planted tiles may contain crop growth data.";
+		return false;
+	}
+	if (tile.feature != farm::FarmTileFeature::None &&
+		(tile.state != farm::FarmTileState::Empty ||
+		 tile.crop != farm::CropType::None || tile.moisture != 0.0f || tile.growth != 0.0f)) {
+		error = "A Farm infrastructure tile cannot contain cultivation data.";
 		return false;
 	}
 	return true;
@@ -258,6 +284,7 @@ nlohmann::json BuildJson(
 	for (const farm::FarmTile& tile : snapshot.tiles) {
 		document["tiles"].push_back({
 			{ "height", tile.heightLevel },
+			{ "feature", farm::ToString(tile.feature) },
 			{ "state", farm::ToString(tile.state) },
 			{ "crop", farm::ToString(tile.crop) },
 			{ "moisture", tile.moisture },
@@ -386,6 +413,13 @@ bool ParseSnapshot(
 				!TryParseCrop(tileJson["crop"].get<std::string>(), tile.crop)) {
 				error = "Farm tile contains an unsupported state or crop.";
 				return false;
+			}
+			if (schemaVersion >= 3) {
+				if (!tileJson.contains("feature") || !tileJson["feature"].is_string() ||
+					!TryParseFeature(tileJson["feature"].get<std::string>(), tile.feature)) {
+					error = "Farm tile contains an unsupported feature.";
+					return false;
+				}
 			}
 			candidate.tiles.push_back(tile);
 		}
