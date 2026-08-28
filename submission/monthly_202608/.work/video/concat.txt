@@ -1,0 +1,7 @@
+file 'C:/CG/CG2_00_01/submission/monthly_202608/.work/video/segment_00.mp4'
+file 'C:/CG/CG2_00_01/submission/monthly_202608/.work/video/segment_01.mp4'
+file 'C:/CG/CG2_00_01/submission/monthly_202608/.work/video/segment_02.mp4'
+file 'C:/CG/CG2_00_01/submission/monthly_202608/.work/video/segment_03.mp4'
+file 'C:/CG/CG2_00_01/submission/monthly_202608/.work/video/segment_04.mp4'
+file 'C:/CG/CG2_00_01/submission/monthly_202608/.work/video/segment_05.mp4'
+file 'C:/CG/CG2_00_01/submission/monthly_202608/.work/video/segment_06.mp4'

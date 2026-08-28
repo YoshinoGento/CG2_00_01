@@ -1,0 +1,24 @@
+Source basis
+- Repository: https://github.com/YoshinoGento/CG2_00_01
+- Branch: 個人就職作品
+- Local Git HEAD: 35c1bb0
+- Snapshot date: 2026-08-28
+
+Packaging method
+- project / docs / README and repository settings were extracted with git archive from HEAD.
+- Four tracked files were then overlaid from the current worktree so this source reproduces
+  the verified Release build included in this submission:
+  - project/CG2_00_01.vcxproj
+  - project/application/FieldManager.cpp
+  - project/application/GameplayEffectManager.cpp
+  - project/engine/3d/SkyboxManager.cpp
+
+Release repair
+- Release|x64 no longer defines USE_IMGUI.
+- Remaining unguarded Debug UI calls are excluded only when USE_IMGUI is disabled.
+- Debug and Development keep the existing ImGui Editor behavior.
+
+Build
+- Open project/CG2_00_01.sln.
+- Select x64 and Release or Debug.
+- The submitted build was verified with PlatformToolset v143.

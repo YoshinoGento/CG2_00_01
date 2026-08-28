@@ -1,0 +1,16 @@
+動作環境
+- Windows 10 / 11 x64
+- DirectX 12対応GPU
+
+起動方法
+1. この「03_実行版」フォルダを丸ごと同じ場所へ展開してください。
+2. CG2_00_01.exe を実行してください。
+3. Resources、Settings、dxcompiler.dll、dxil.dllは移動・削除しないでください。
+
+確認済み
+- Release x64 / PlatformToolset v143 でビルド成功
+- このフォルダ構成で12秒間の起動smoke testに成功
+
+補足
+- Release版では開発用ImGui Editorを無効化しています。
+- ゲーム用HUD、農業システム、品質、販売、水源・用水路はRuntime側で動作します。
