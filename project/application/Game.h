@@ -4,16 +4,14 @@
 #include <memory>
 
 class SceneFactory;
-class SkinningDebugWindow;
-class DebugEditorWindow;
-class EngineDebugWindowManager;
+class EditorShell;
 class PostEffectSystem;
-class PostEffectDebugWindow;
+class PostEffectSubmissionDemo;
+class PostEffectSubmissionHUD;
 
 /**
  * Gameクラス
- * プロジェクトのメイン管理者。エディタUI（DockSpace）と
- * ゲーム画面の表示・座標補正を担当します。
+ * Application entry point. It owns the main loop, scene flow, and top-level systems.
  */
 class Game : public Framework {
 public:
@@ -29,33 +27,15 @@ public:
 	static Vector2 GetMousePosInViewport() { return mousePosInViewport_; }
 
 private:
-#ifdef USE_IMGUI
-	enum class DebugUiLanguage {
-		Japanese,
-		English,
-	};
-
-	void DrawDebugMasterTopBar(class GamePlayScene* playScene);
-	void DrawDebugEditor(class GamePlayScene* playScene);
-	const char* DebugLabel(const char* japanese, const char* english) const;
-	void LoadDebugUiSettings();
-	void SaveDebugUiSettings() const;
-	bool ShouldDrawLegacyDebugWindows() const;
-	bool ShouldDrawSceneDebugWindows() const;
-	bool ShouldDrawFarmDebugWindows() const;
-#endif
-
 	std::unique_ptr<SceneFactory> sceneFactory_;
 
 	// 計算・補正されたマウス座標を保持
 	static Vector2 mousePosInViewport_;
 
 	std::unique_ptr<PostEffectSystem> postEffectSystem_;
+	std::unique_ptr<PostEffectSubmissionDemo> postEffectSubmissionDemo_;
+	std::unique_ptr<PostEffectSubmissionHUD> postEffectSubmissionHud_;
 #ifdef USE_IMGUI
-	std::unique_ptr<DebugEditorWindow> debugEditorWindow_;
-	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
-	std::unique_ptr<EngineDebugWindowManager> engineDebugWindowManager_;
-	std::unique_ptr<PostEffectDebugWindow> postEffectDebugWindow_;
-	DebugUiLanguage debugUiLanguage_ = DebugUiLanguage::Japanese;
+	std::unique_ptr<EditorShell> editorShell_;
 #endif
 };

@@ -33,6 +33,7 @@ public:
         Vignette,
         RandomNoise,
         HSVFilter,
+        GaussianFilter,
         LinearToSRGB,
         Count,
     };
@@ -62,8 +63,10 @@ public:
         float normalOutlineIntensity = 1.0f;
         float normalOutlineThickness = 1.0f;
         float normalOutlinePadding = 0.0f;
+        float gaussianSigma = 1.0f;
+        float gaussianPadding[3] = {};
     };
-    static_assert(sizeof(FullscreenPostEffectParameter) == 96);
+    static_assert(sizeof(FullscreenPostEffectParameter) == 112);
 
     struct VignetteParamForGPU {
         float scale = 16.0f;

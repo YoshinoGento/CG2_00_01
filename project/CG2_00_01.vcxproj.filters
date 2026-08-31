@@ -55,6 +55,9 @@
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\ui">
       <UniqueIdentifier>{3df8a0bb-f0d2-4285-aed8-4fa841b6ba44}</UniqueIdentifier>
     </Filter>
+    <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo">
+      <UniqueIdentifier>{27b94f22-239e-446f-ad5e-b0cdac6d1f75}</UniqueIdentifier>
+    </Filter>
     <Filter Include="繝ｪ繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\Resources">
       <UniqueIdentifier>{b1b01ead-a50b-431e-aab4-09931dab71f1}</UniqueIdentifier>
     </Filter>
@@ -75,9 +78,35 @@
     <ClCompile Include="application\farm\system\FarmDateSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClCompile>
+	<ClCompile Include="application\farm\system\FarmDocumentSystem.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClCompile>
+    <ClCompile Include="application\farm\system\FarmGrowthSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
+    <ClCompile Include="application\farm\system\FarmInputSystem.cpp">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClCompile>
     <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClCompile>
+	<ClCompile Include="application\farm\system\FarmVisualSystem.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClCompile>
+	<ClCompile Include="application\editor\FarmControllerWindow.cpp" />
+	<ClCompile Include="application\editor\FarmHierarchyWindow.cpp" />
+	<ClCompile Include="application\editor\ConsoleWindow.cpp" />
+	<ClCompile Include="application\editor\CG5DemoWindow.cpp" />
+	<ClCompile Include="application\demo\PostEffectSubmissionDemo.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo</Filter>
+	</ClCompile>
+	<ClCompile Include="application\demo\PostEffectSubmissionHUD.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo</Filter>
+	</ClCompile>
+	<ClCompile Include="application\editor\FarmHistoryWindow.cpp" />
+	<ClCompile Include="application\editor\FarmMapWindow.cpp" />
+	<ClCompile Include="application\editor\FarmToolbarWindow.cpp" />
+	<ClCompile Include="application\editor\EditorLocalization.cpp" />
     <ClCompile Include="engine\command\CommandHistory.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ</Filter>
     </ClCompile>
@@ -272,9 +301,35 @@
     <ClInclude Include="application\farm\system\FarmDateSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
+	<ClInclude Include="application\farm\system\FarmDocumentSystem.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClInclude>
+    <ClInclude Include="application\farm\system\FarmGrowthSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmInputSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
     <ClInclude Include="application\farm\system\FarmToolActionSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
+	<ClInclude Include="application\farm\system\FarmVisualSystem.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClInclude>
+	<ClInclude Include="application\editor\FarmControllerWindow.h" />
+	<ClInclude Include="application\editor\FarmHierarchyWindow.h" />
+	<ClInclude Include="application\editor\ConsoleWindow.h" />
+	<ClInclude Include="application\editor\CG5DemoWindow.h" />
+	<ClInclude Include="application\demo\PostEffectSubmissionDemo.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo</Filter>
+	</ClInclude>
+	<ClInclude Include="application\demo\PostEffectSubmissionHUD.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\demo</Filter>
+	</ClInclude>
+	<ClInclude Include="application\editor\FarmHistoryWindow.h" />
+	<ClInclude Include="application\editor\FarmMapWindow.h" />
+	<ClInclude Include="application\editor\FarmToolbarWindow.h" />
+	<ClInclude Include="application\editor\EditorLocalization.h" />
     <ClInclude Include="engine\command\CommandHistory.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
@@ -525,5 +580,7 @@
     <ClInclude Include="application\level\LevelLoader.h" />
     <ClCompile Include="application\level\LevelGameplaySystem.cpp" />
     <ClInclude Include="application\level\LevelGameplaySystem.h" />
+    <ClCompile Include="application\level\ui\StageClearHUD.cpp" />
+    <ClInclude Include="application\level\ui\StageClearHUD.h" />
   </ItemGroup>
 </Project>

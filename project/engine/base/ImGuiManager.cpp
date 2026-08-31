@@ -1,92 +1,148 @@
 #include "ImGuiManager.h"
-
-#include "base/Logger.h"
+#include "Logger.h"
 
 #ifdef USE_IMGUI
+#include <array>
 #include <filesystem>
-#include <string>
-#include <cstring>
+
+namespace {
+constexpr float kEditorFontSize = 18.0f;
+constexpr std::array<const char*, 2> kNotoSansJpPaths = {
+	"Resources/fonts/NotoSansJP-VF.ttf",
+	"C:/Windows/Fonts/NotoSansJP-VF.ttf",
+};
+
+const char* FindFirstExistingPath(const std::array<const char*, 2>& paths) {
+	for (const char* path : paths) {
+		std::error_code error;
+		if (std::filesystem::exists(path, error) && !error) {
+			return path;
+		}
+	}
+	return nullptr;
+}
+} // namespace
 #endif
 
+#ifdef USE_IMGUI
+void ImGuiManager::AllocateSrvDescriptor(
+	ImGui_ImplDX12_InitInfo* info,
+	D3D12_CPU_DESCRIPTOR_HANDLE* outCpuHandle,
+	D3D12_GPU_DESCRIPTOR_HANDLE* outGpuHandle) {
+	auto* manager = info ? static_cast<ImGuiManager*>(info->UserData) : nullptr;
+	if (manager == nullptr || manager->srvManager_ == nullptr || outCpuHandle == nullptr || outGpuHandle == nullptr) {
+		Logger::Log("ImGui SRV allocation rejected invalid input.");
+		return;
+	}
+
+	const uint32_t index = manager->srvManager_->Allocate();
+	if (index == SrvManager::kInvalidIndex) {
+		*outCpuHandle = {};
+		*outGpuHandle = {};
+		return;
+	}
+
+	*outCpuHandle = manager->srvManager_->GetCPUDescriptorHandle(index);
+	*outGpuHandle = manager->srvManager_->GetGPUDescriptorHandle(index);
+	manager->srvDescriptorIndices_.emplace(outCpuHandle->ptr, index);
+}
+
+void ImGuiManager::FreeSrvDescriptor(
+	ImGui_ImplDX12_InitInfo* info,
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+	[[maybe_unused]] D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle) {
+	auto* manager = info ? static_cast<ImGuiManager*>(info->UserData) : nullptr;
+	if (manager == nullptr || manager->srvManager_ == nullptr) {
+		Logger::Log("ImGui SRV release rejected invalid input.");
+		return;
+	}
+
+	const auto descriptor = manager->srvDescriptorIndices_.find(cpuHandle.ptr);
+	if (descriptor == manager->srvDescriptorIndices_.end()) {
+		Logger::Log("ImGui SRV release rejected an unknown descriptor.");
+		return;
+	}
+
+	if (manager->srvManager_->IsAllocated(descriptor->second)) {
+		manager->srvManager_->Release(descriptor->second);
+	}
+	manager->srvDescriptorIndices_.erase(descriptor);
+}
+#endif
+
+#ifdef USE_IMGUI
+bool ImGuiManager::TryAddFontOption(
+	ImGuiIO& io,
+	const char* displayName,
+	const char* fontPath,
+	float pixelSize) {
+	if (displayName == nullptr || fontPath == nullptr || pixelSize <= 0.0f) {
+		return false;
+	}
+
+	std::error_code error;
+	if (!std::filesystem::exists(fontPath, error) || error) {
+		return false;
+	}
+
+	// ImGui 1.92 loads glyphs on demand, so full CJK ranges are not pre-baked.
+	ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath, pixelSize);
+	if (font == nullptr) {
+		Logger::Log(std::string("ImGui font registration failed: ") + fontPath);
+		return false;
+	}
+
+	fontOptions_.push_back({ displayName, font });
+	Logger::Log(std::string("ImGui font registered: ") + displayName + " <- " + fontPath);
+	return true;
+}
+
+void ImGuiManager::ConfigureFonts(ImGuiIO& io) {
+	fontOptions_.clear();
+	selectedFontIndex_ = 0;
+
+	if (const char* notoSansJpPath = FindFirstExistingPath(kNotoSansJpPaths)) {
+		TryAddFontOption(io, "Noto Sans JP", notoSansJpPath, kEditorFontSize);
+	}
+	TryAddFontOption(io, "Yu Gothic", "C:/Windows/Fonts/YuGothM.ttc", kEditorFontSize);
+	TryAddFontOption(io, "Meiryo", "C:/Windows/Fonts/meiryo.ttc", kEditorFontSize);
+
+	if (fontOptions_.empty()) {
+		if (ImFont* builtInFont = io.Fonts->AddFontDefault()) {
+			fontOptions_.push_back({ "ImGui Default (Japanese unsupported)", builtInFont });
+		}
+		Logger::Log("ImGui Japanese fonts were not found. Using the built-in font.");
+	}
+
+	if (!fontOptions_.empty()) {
+		io.FontDefault = fontOptions_.front().font;
+		Logger::Log(std::string("ImGui default font: ") + fontOptions_.front().displayName);
+	}
+}
+#endif
+
+// シングルトンの実体取得
 ImGuiManager* ImGuiManager::GetInstance() {
 	static ImGuiManager instance;
 	return &instance;
 }
 
-#ifdef USE_IMGUI
-namespace {
-const char* FindJapaneseFontPath() {
-	static constexpr const char* kFontPaths[] = {
-		"Resources/fonts/NotoSansJP-VF.ttf",
-		"C:/Windows/Fonts/NotoSansJP-VF.ttf",
-		"C:/Windows/Fonts/meiryo.ttc",
-		"C:/Windows/Fonts/YuGothM.ttc",
-		"C:/Windows/Fonts/msgothic.ttc",
-	};
-
-	for (const char* path : kFontPaths) {
-		std::error_code error;
-		if (std::filesystem::exists(path, error)) {
-			return path;
-		}
-	}
-
-	return nullptr;
-}
-
-ImFont* LoadDebugFont(ImGuiIO& io, const char* name, const char* path, float size) {
-	ImFont* font = io.Fonts->AddFontFromFileTTF(path, size, nullptr, io.Fonts->GetGlyphRangesJapanese());
-	if (!font) {
-		Logger::Log(std::string("ImGuiManager: failed to load debug font: ") + name + " from " + path);
-		return nullptr;
-	}
-
-	Logger::Log(std::string("ImGuiManager: loaded debug font: ") + name + " from " + path);
-	return font;
-}
-}
-#endif
-
 void ImGuiManager::Initialize([[maybe_unused]] WinApp* winApp, [[maybe_unused]] DirectXCommon* dxCommon, [[maybe_unused]] SrvManager* srvManager) {
 #ifdef USE_IMGUI
 	dxCommon_ = dxCommon;
 	srvManager_ = srvManager;
-	debugFonts_.clear();
-	currentDebugFontIndex_ = 0;
-	debugFontPushedThisFrame_ = false;
+	srvDescriptorIndices_.clear();
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
 
+	// ドッキングとマルチビューポートを有効化
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+	ConfigureFonts(io);
 
 	ImGui::StyleColorsDark();
-
-	ImFont* defaultFont = io.Fonts->AddFontDefault();
-	debugFonts_.push_back({ "Default", defaultFont });
-	io.FontDefault = defaultFont;
-
-	if (const char* japaneseFontPath = FindJapaneseFontPath()) {
-		const int firstJapaneseFontIndex = static_cast<int>(debugFonts_.size());
-		if (ImFont* font = LoadDebugFont(io, "Japanese 16", japaneseFontPath, 16.0f)) {
-			debugFonts_.push_back({ "Japanese 16", font });
-		}
-		if (ImFont* font = LoadDebugFont(io, "Japanese 18", japaneseFontPath, 18.0f)) {
-			debugFonts_.push_back({ "Japanese 18", font });
-		}
-		if (ImFont* font = LoadDebugFont(io, "Japanese 20", japaneseFontPath, 20.0f)) {
-			debugFonts_.push_back({ "Japanese 20", font });
-		}
-
-		if (static_cast<int>(debugFonts_.size()) > firstJapaneseFontIndex) {
-			currentDebugFontIndex_ = firstJapaneseFontIndex;
-			io.FontDefault = debugFonts_[currentDebugFontIndex_].font;
-		}
-	} else {
-		Logger::Log("ImGuiManager: Japanese-capable font was not found. Using default ImGui font.");
-	}
 
 	ImGuiStyle& style = ImGui::GetStyle();
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
@@ -96,35 +152,47 @@ void ImGuiManager::Initialize([[maybe_unused]] WinApp* winApp, [[maybe_unused]] 
 
 	ImGui_ImplWin32_Init(winApp->GetHwnd());
 
-	srvIndex_ = srvManager_->Allocate();
-
+	// --- 初期化設定の修正 ---
 	ImGui_ImplDX12_InitInfo initInfo = {};
 	initInfo.Device = dxCommon_->GetDevice();
 	initInfo.CommandQueue = dxCommon_->GetCommandQueue();
-	initInfo.NumFramesInFlight = static_cast<uint32_t>(dxCommon_->GetSwapChainResourcesNum());
+	initInfo.NumFramesInFlight = (uint32_t)dxCommon_->GetSwapChainResourcesNum();
+
+	// ★【重要修正】エラーログに合わせて _SRGB を取ります
+	// ログにて render target format = R8G8B8A8_UNORM と出ていたためこちらに合わせます
 	initInfo.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+	// DSV(深度)もエンジンの設定に合わせます。
+	// もしエンジンの DirectXCommon で D32_FLOAT を使っているなら D32_FLOAT にしてください。
 	initInfo.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+
+	initInfo.UserData = this;
 	initInfo.SrvDescriptorHeap = srvManager_->GetSrvDescriptorHeap();
-	initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* outCpuHandle, D3D12_GPU_DESCRIPTOR_HANDLE* outGpuHandle) {
-		ImGuiManager* manager = ImGuiManager::GetInstance();
-		*outCpuHandle = manager->srvManager_->GetCPUDescriptorHandle(manager->srvIndex_);
-		*outGpuHandle = manager->srvManager_->GetGPUDescriptorHandle(manager->srvIndex_);
-	};
-	initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLE) {};
+
+	initInfo.SrvDescriptorAllocFn = &ImGuiManager::AllocateSrvDescriptor;
+	initInfo.SrvDescriptorFreeFn = &ImGuiManager::FreeSrvDescriptor;
 
 	ImGui_ImplDX12_Init(&initInfo);
-	ImGui::GetIO().Fonts->Build();
+	if (!ImGui::GetIO().Fonts->Build()) {
+		Logger::Log("ImGui font atlas build failed.");
+	}
 #endif
 }
 
 void ImGuiManager::Finalize() {
 #ifdef USE_IMGUI
 	ImGui_ImplDX12_Shutdown();
+	for (const auto& [handle, index] : srvDescriptorIndices_) {
+		(void)handle;
+		if (srvManager_ != nullptr && srvManager_->IsAllocated(index)) {
+			srvManager_->Release(index);
+		}
+	}
+	srvDescriptorIndices_.clear();
+	fontOptions_.clear();
+	selectedFontIndex_ = 0;
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
-	debugFonts_.clear();
-	currentDebugFontIndex_ = 0;
-	debugFontPushedThisFrame_ = false;
 #endif
 }
 
@@ -133,24 +201,11 @@ void ImGuiManager::Begin() {
 	ImGui_ImplDX12_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
-
-	debugFontPushedThisFrame_ = false;
-	if (currentDebugFontIndex_ >= 0 && currentDebugFontIndex_ < static_cast<int>(debugFonts_.size())) {
-		ImFont* font = debugFonts_[currentDebugFontIndex_].font;
-		if (font) {
-			ImGui::PushFont(font);
-			debugFontPushedThisFrame_ = true;
-		}
-	}
 #endif
 }
 
 void ImGuiManager::End() {
 #ifdef USE_IMGUI
-	if (debugFontPushedThisFrame_) {
-		ImGui::PopFont();
-		debugFontPushedThisFrame_ = false;
-	}
 	ImGui::Render();
 #endif
 }
@@ -166,7 +221,7 @@ void ImGuiManager::Draw() {
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
 		ImGui::UpdatePlatformWindows();
-		ImGui::RenderPlatformWindowsDefault(nullptr, static_cast<void*>(commandList));
+		ImGui::RenderPlatformWindowsDefault(nullptr, (void*)commandList);
 	}
 #endif
 }
@@ -187,63 +242,55 @@ bool ImGuiManager::WantsCaptureMouse() const noexcept {
 #endif
 }
 
-int ImGuiManager::GetDebugFontCount() const noexcept {
+bool ImGuiManager::WantsTextInput() const noexcept {
 #ifdef USE_IMGUI
-	return static_cast<int>(debugFonts_.size());
+	return ImGui::GetCurrentContext() &&
+		(ImGui::GetIO().WantTextInput || ImGui::IsAnyItemActive());
+#else
+	return false;
+#endif
+}
+
+std::size_t ImGuiManager::GetFontOptionCount() const noexcept {
+#ifdef USE_IMGUI
+	return fontOptions_.size();
 #else
 	return 0;
 #endif
 }
 
-int ImGuiManager::GetCurrentDebugFontIndex() const noexcept {
+const char* ImGuiManager::GetFontOptionName(std::size_t index) const noexcept {
 #ifdef USE_IMGUI
-	return currentDebugFontIndex_;
+	if (index < fontOptions_.size()) {
+		return fontOptions_[index].displayName.c_str();
+	}
+#else
+	(void)index;
+#endif
+	return "";
+}
+
+std::size_t ImGuiManager::GetSelectedFontIndex() const noexcept {
+#ifdef USE_IMGUI
+	return selectedFontIndex_;
 #else
 	return 0;
 #endif
 }
 
-const char* ImGuiManager::GetDebugFontName(int index) const noexcept {
+bool ImGuiManager::SelectFont(std::size_t index) {
 #ifdef USE_IMGUI
-	if (index < 0 || index >= static_cast<int>(debugFonts_.size())) {
-		return "Unknown";
-	}
-
-	return debugFonts_[index].name;
-#else
-	(void)index;
-	return "Unavailable";
-#endif
-}
-
-void ImGuiManager::SetCurrentDebugFontIndex(int index) noexcept {
-#ifdef USE_IMGUI
-	if (index < 0 || index >= static_cast<int>(debugFonts_.size())) {
-		return;
-	}
-
-	currentDebugFontIndex_ = index;
-#else
-	(void)index;
-#endif
-}
-
-bool ImGuiManager::SetCurrentDebugFontByName(const char* name) noexcept {
-#ifdef USE_IMGUI
-	if (!name) {
+	if (index >= fontOptions_.size() || fontOptions_[index].font == nullptr ||
+		ImGui::GetCurrentContext() == nullptr) {
 		return false;
 	}
 
-	for (int index = 0; index < static_cast<int>(debugFonts_.size()); ++index) {
-		if (debugFonts_[index].name && std::strcmp(debugFonts_[index].name, name) == 0) {
-			currentDebugFontIndex_ = index;
-			return true;
-		}
-	}
-
-	return false;
+	selectedFontIndex_ = index;
+	ImGui::GetIO().FontDefault = fontOptions_[index].font;
+	Logger::Log(std::string("ImGui font selected: ") + fontOptions_[index].displayName);
+	return true;
 #else
-	(void)name;
+	(void)index;
 	return false;
 #endif
 }

@@ -180,6 +180,41 @@
             },
             "file_name": "tl1/ground.obj",
             "gameplay_role": "GROUND"
+        },
+        {
+            "type": "EVENT_TRIGGER",
+            "name": "GoalTrigger",
+            "transform": {
+                "translation": [
+                    0.0,
+                    8.0,
+                    1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "event_id": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    2.0,
+                    2.0,
+                    2.0
+                ]
+            }
         }
     ]
 }

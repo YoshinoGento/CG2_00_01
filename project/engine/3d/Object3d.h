@@ -5,6 +5,7 @@
 #include "3d/Camera.h"
 #include "3d/Skeleton.h"
 #include "2d/TextureManager.h"
+#include <cstdint>
 #include <optional>
 #include <wrl.h>
 #include <d3d12.h>
@@ -16,6 +17,11 @@
  */
 class Object3d {
 public:
+	enum class SpecularType : int32_t {
+		Phong = 0,
+		BlinnPhong = 1,
+	};
+
 	// シェーダーと一致させる構造体 (16バイト境界に注意)
 	void Initialize(Object3dCommon* object3dCommon);
 	void Update(Camera* camera, float deltaTime);
@@ -45,6 +51,7 @@ public:
 	void SetEnvironmentCoefficient(float coef) { materialData_->environmentCoefficient = coef; }
 	void SetCullMode(int cullMode);
 	void SetShininess(float shininess) { materialData_->shininess = shininess; }
+	void SetSpecularType(SpecularType type) { materialData_->specularType = static_cast<int32_t>(type); }
 
 
 	// 平行光源の設定
@@ -91,9 +98,10 @@ private:
 		int32_t enableLighting;
 		float shininess;
 		float environmentCoefficient;
-		float padding[2];
+		int32_t specularType;
 		Matrix4x4 uvTransform;
 	};
+	static_assert(sizeof(Material) == 96);
 
 	// GPUに送るための頂点スキンデータ
 	struct VertexShaderSkinning
