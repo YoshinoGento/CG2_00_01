@@ -289,10 +289,6 @@ void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectP
     mappedFullscreenPostEffectParameter_->normalOutlineIntensity = std::clamp(parameter.normalOutlineIntensity, 0.0f, 8.0f);
     mappedFullscreenPostEffectParameter_->normalOutlineThickness = std::clamp(parameter.normalOutlineThickness, 1.0f, 8.0f);
     mappedFullscreenPostEffectParameter_->normalOutlinePadding = 0.0f;
-    mappedFullscreenPostEffectParameter_->gaussianSigma = std::clamp(parameter.gaussianSigma, 0.1f, 4.0f);
-    mappedFullscreenPostEffectParameter_->gaussianPadding[0] = 0.0f;
-    mappedFullscreenPostEffectParameter_->gaussianPadding[1] = 0.0f;
-    mappedFullscreenPostEffectParameter_->gaussianPadding[2] = 0.0f;
 }
 
 void DirectXCommon::SetVignetteParameter(const VignetteParamForGPU& parameter) {

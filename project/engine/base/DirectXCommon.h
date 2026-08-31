@@ -33,7 +33,6 @@ public:
         Vignette,
         RandomNoise,
         HSVFilter,
-        GaussianFilter,
         LinearToSRGB,
         Count,
     };
@@ -63,10 +62,8 @@ public:
         float normalOutlineIntensity = 1.0f;
         float normalOutlineThickness = 1.0f;
         float normalOutlinePadding = 0.0f;
-        float gaussianSigma = 1.0f;
-        float gaussianPadding[3] = {};
     };
-    static_assert(sizeof(FullscreenPostEffectParameter) == 112);
+    static_assert(sizeof(FullscreenPostEffectParameter) == 96);
 
     struct VignetteParamForGPU {
         float scale = 16.0f;
@@ -157,7 +154,6 @@ public:
     ID3D12Resource* GetFinalDisplayTextureResource() const { return finalDisplayTexture_.GetResource(); }
     ID3D12Resource* GetDepthBufferResource() const { return depthBuffer_.Get(); }
     ID3D12Resource* GetNormalTextureResource() const { return normalTexture_.GetResource(); }
-    void SetSceneClearColor(const Vector4& clearColor) { sceneRenderTexture_.SetClearColor(clearColor); }
     void SetSceneRenderTarget();
     void SetSceneRenderTargetsWithNormal();
 
