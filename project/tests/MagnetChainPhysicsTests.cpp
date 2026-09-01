@@ -18,6 +18,8 @@ constexpr float kMaximumAllowedJointBendRadians = 1.40f;
 constexpr float kMinimumVisibleJointBendRadians = 0.10f;
 constexpr float kMinimumRootSideProjection = 0.35f;
 constexpr float kMinimumRootReleaseTravel = 0.50f;
+constexpr float kMaximumReleaseConvergenceCorrectionRadians = 0.21f;
+constexpr float kMaximumReleaseConvergenceSpreadRatio = 0.95f;
 constexpr float kFirstHorizontalOffset = 1.2247449f;
 constexpr float kLinkLength = 1.0f;
 
@@ -360,6 +362,37 @@ int main()
 		std::cerr << "MAGNET OFF did not deactivate every chain constraint.\n";
 		return 22;
 	}
+	const magnet::MagnetChainSystem::ReleaseConvergenceDiagnostics& convergenceDiagnostics =
+		system.GetLastReleaseConvergenceDiagnostics();
+	std::cout << "release_predicted_rms_spread_before="
+		<< convergenceDiagnostics.predictedRmsSpreadBefore << '\n';
+	std::cout << "release_predicted_rms_spread_after="
+		<< convergenceDiagnostics.predictedRmsSpreadAfter << '\n';
+	std::cout << "release_maximum_direction_correction_radians="
+		<< convergenceDiagnostics.maximumDirectionCorrectionRadians << '\n';
+	std::cout << "release_focus=" << convergenceDiagnostics.focusPoint.x << ','
+		<< convergenceDiagnostics.focusPoint.z << '\n';
+	if (!convergenceDiagnostics.valid || !convergenceDiagnostics.applied ||
+		!IsFinite(convergenceDiagnostics.focusPoint) ||
+		!std::isfinite(convergenceDiagnostics.predictedRmsSpreadBefore) ||
+		!std::isfinite(convergenceDiagnostics.predictedRmsSpreadAfter) ||
+		convergenceDiagnostics.predictedRmsSpreadAfter >=
+			convergenceDiagnostics.predictedRmsSpreadBefore) {
+		std::cerr << "Release convergence assist did not reduce predicted trajectory spread.\n";
+		return 34;
+	}
+	if (!std::isfinite(convergenceDiagnostics.maximumDirectionCorrectionRadians) ||
+		convergenceDiagnostics.maximumDirectionCorrectionRadians >
+			kMaximumReleaseConvergenceCorrectionRadians) {
+		std::cerr << "Release convergence assist exceeded its direction-correction bound.\n";
+		return 35;
+	}
+	if (convergenceDiagnostics.predictedRmsSpreadAfter >
+		convergenceDiagnostics.predictedRmsSpreadBefore *
+			kMaximumReleaseConvergenceSpreadRatio) {
+		std::cerr << "Release convergence assist was too weak to be meaningful.\n";
+		return 36;
+	}
 	command = {};
 	for (int step = 0; step < kReleaseTravelStepCount; ++step) {
 		system.SetPlayerCommand(command);
@@ -414,6 +447,10 @@ int main()
 	if (!system.Reset() || !ValidateFiniteBodies(system)) {
 		std::cerr << "Reset failed.\n";
 		return 8;
+	}
+	if (system.GetLastReleaseConvergenceDiagnostics().valid) {
+		std::cerr << "Reset retained stale release-convergence diagnostics.\n";
+		return 37;
 	}
 	const physics::SphereBody* resetPlayer =
 		system.GetPhysicsWorld().GetBody(system.GetPlayerBody());

@@ -28,6 +28,15 @@ public:
 		bool releaseChains = false;
 	};
 
+	struct ReleaseConvergenceDiagnostics {
+		Vector3 focusPoint{};
+		float predictedRmsSpreadBefore = 0.0f;
+		float predictedRmsSpreadAfter = 0.0f;
+		float maximumDirectionCorrectionRadians = 0.0f;
+		bool applied = false;
+		bool valid = false;
+	};
+
 	[[nodiscard]] bool Initialize();
 	[[nodiscard]] bool Reset();
 	void SetPlayerCommand(const PlayerCommand& command) noexcept { command_ = command; }
@@ -44,6 +53,10 @@ public:
 	[[nodiscard]] float GetPlayerHeadingRadians() const noexcept { return playerHeadingRadians_; }
 	[[nodiscard]] bool AreChainsAttached() const noexcept { return chainsAttached_; }
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
+	[[nodiscard]] const ReleaseConvergenceDiagnostics&
+		GetLastReleaseConvergenceDiagnostics() const noexcept {
+		return lastReleaseConvergenceDiagnostics_;
+	}
 
 private:
 	static constexpr std::size_t kBendConstraintsPerSide = kLinksPerSide - 1;
@@ -76,6 +89,7 @@ private:
 	std::array<physics::BodyHandle, kTestBallCapacity> testBalls_{};
 	PlayerCommand command_{};
 	EmitterSettings emitterSettings_{};
+	ReleaseConvergenceDiagnostics lastReleaseConvergenceDiagnostics_{};
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;
 	float emitterTimer_ = 0.0f;

@@ -34,6 +34,14 @@ constexpr float kTwoPi = 6.28318530717958647692f;
 constexpr float kDegreesToRadians = 0.01745329251994329577f;
 constexpr float kReleaseMemoryAttackSeconds = 0.055f;
 constexpr float kReleaseMemoryDecaySeconds = 0.20f;
+constexpr float kReleaseConvergenceTimeSeconds = 0.45f;
+constexpr float kReleaseConvergenceDirectionBlend = 0.25f;
+constexpr float kReleaseConvergenceSpeedBlend = 0.10f;
+constexpr float kReleaseConvergenceMaximumDirectionCorrectionRadians =
+	12.0f * kDegreesToRadians;
+constexpr float kReleaseConvergenceMaximumRelativeSpeedChange = 0.10f;
+constexpr float kReleaseConvergenceMinimumSpeed = 0.20f;
+constexpr float kReleaseConvergenceMinimumSpread = 0.05f;
 constexpr std::array<float, MagnetChainSystem::kLinksPerSide> kSegmentStiffness = {
 	58.0f, 38.0f, 26.0f, 18.0f,
 };
@@ -158,6 +166,7 @@ bool MagnetChainSystem::Reset()
 	rightBendConstraintIndices_.fill(kInvalidConstraintIndex);
 	leftReleaseVelocityMemory_.fill(Vector3{});
 	rightReleaseVelocityMemory_.fill(Vector3{});
+	lastReleaseConvergenceDiagnostics_ = {};
 	chainsAttached_ = true;
 	healthy_ = false;
 
@@ -411,6 +420,7 @@ bool MagnetChainSystem::UpdateReleaseVelocityMemory(float fixedDeltaTime) noexce
 
 bool MagnetChainSystem::ApplyReleaseVelocityMemory() noexcept
 {
+	constexpr std::size_t kReleasedBallCount = kLinksPerSide * 2;
 	std::array<Vector3, kLinksPerSide> leftReleaseVelocities{};
 	std::array<Vector3, kLinksPerSide> rightReleaseVelocities{};
 	const auto calculateChain = [&](
@@ -442,12 +452,135 @@ bool MagnetChainSystem::ApplyReleaseVelocityMemory() noexcept
 		!calculateChain(rightChain_, rightReleaseVelocityMemory_, rightReleaseVelocities)) {
 		return false;
 	}
+
+	std::array<Vector3, kReleasedBallCount> releasePositions{};
+	std::array<Vector3, kReleasedBallCount> releaseVelocities{};
+	for (std::size_t linkIndex = 0; linkIndex < kLinksPerSide; ++linkIndex) {
+		const physics::SphereBody* leftBody = physicsWorld_.GetBody(leftChain_[linkIndex]);
+		const physics::SphereBody* rightBody = physicsWorld_.GetBody(rightChain_[linkIndex]);
+		if (!leftBody || !rightBody || !IsFinite(leftBody->position) ||
+			!IsFinite(rightBody->position)) {
+			return false;
+		}
+		releasePositions[linkIndex] = leftBody->position;
+		releasePositions[linkIndex + kLinksPerSide] = rightBody->position;
+		releaseVelocities[linkIndex] = leftReleaseVelocities[linkIndex];
+		releaseVelocities[linkIndex + kLinksPerSide] = rightReleaseVelocities[linkIndex];
+	}
+
+	ReleaseConvergenceDiagnostics convergenceDiagnostics{};
+	Vector3 focusPoint{};
+	for (std::size_t index = 0; index < kReleasedBallCount; ++index) {
+		focusPoint += releasePositions[index] +
+			releaseVelocities[index] * kReleaseConvergenceTimeSeconds;
+	}
+	const float inverseReleasedBallCount =
+		1.0f / static_cast<float>(kReleasedBallCount);
+	focusPoint.x *= inverseReleasedBallCount;
+	focusPoint.y *= inverseReleasedBallCount;
+	focusPoint.z *= inverseReleasedBallCount;
+	if (!IsFinite(focusPoint)) {
+		return false;
+	}
+	convergenceDiagnostics.focusPoint = focusPoint;
+
+	const auto calculatePredictedRmsSpread = [&focusPoint](
+		const auto& positions,
+		const auto& velocities) noexcept {
+		float squaredDistanceSum = 0.0f;
+		for (std::size_t index = 0; index < positions.size(); ++index) {
+			const Vector3 predictedPosition =
+				positions[index] + velocities[index] * kReleaseConvergenceTimeSeconds;
+			const Vector3 offset = predictedPosition - focusPoint;
+			const float squaredDistance = LengthSquaredXZ(offset);
+			if (!std::isfinite(squaredDistance)) {
+				return INFINITY;
+			}
+			squaredDistanceSum += squaredDistance;
+		}
+		return std::sqrt(squaredDistanceSum / static_cast<float>(positions.size()));
+	};
+
+	convergenceDiagnostics.predictedRmsSpreadBefore =
+		calculatePredictedRmsSpread(releasePositions, releaseVelocities);
+	std::array<Vector3, kReleasedBallCount> convergenceVelocities = releaseVelocities;
+	float maximumDirectionCorrection = 0.0f;
+	if (std::isfinite(convergenceDiagnostics.predictedRmsSpreadBefore) &&
+		convergenceDiagnostics.predictedRmsSpreadBefore > kReleaseConvergenceMinimumSpread) {
+		for (std::size_t index = 0; index < kReleasedBallCount; ++index) {
+			const Vector3 rawVelocity = releaseVelocities[index];
+			const float rawSpeedSquared = LengthSquaredXZ(rawVelocity);
+			if (!std::isfinite(rawSpeedSquared) ||
+				rawSpeedSquared <= kReleaseConvergenceMinimumSpeed * kReleaseConvergenceMinimumSpeed) {
+				continue;
+			}
+
+			const float rawSpeed = std::sqrt(rawSpeedSquared);
+			const Vector3 rawDirection = rawVelocity * (1.0f / rawSpeed);
+			const Vector3 focusOffset = focusPoint - releasePositions[index];
+			const float focusDistanceSquared = LengthSquaredXZ(focusOffset);
+			if (!std::isfinite(focusDistanceSquared) ||
+				focusDistanceSquared <= kDirectionEpsilonSquared) {
+				continue;
+			}
+			const float focusDistance = std::sqrt(focusDistanceSquared);
+			const Vector3 focusDirection = focusOffset * (1.0f / focusDistance);
+			const float directionCorrection = std::clamp(
+				SignedAngleXZ(rawDirection, focusDirection) *
+					kReleaseConvergenceDirectionBlend,
+				-kReleaseConvergenceMaximumDirectionCorrectionRadians,
+				kReleaseConvergenceMaximumDirectionCorrectionRadians);
+			const Vector3 correctedDirection = RotateXZ(rawDirection, directionCorrection);
+			const float desiredSpeed = focusDistance / kReleaseConvergenceTimeSeconds;
+			const float minimumSpeed =
+				rawSpeed * (1.0f - kReleaseConvergenceMaximumRelativeSpeedChange);
+			const float maximumSpeed =
+				rawSpeed * (1.0f + kReleaseConvergenceMaximumRelativeSpeedChange);
+			const float correctedSpeed = std::clamp(
+				rawSpeed + (desiredSpeed - rawSpeed) * kReleaseConvergenceSpeedBlend,
+				minimumSpeed,
+				maximumSpeed);
+			Vector3 correctedVelocity = correctedDirection * correctedSpeed;
+			correctedVelocity.y = rawVelocity.y;
+			convergenceVelocities[index] =
+				ClampMagnitudeXZ(correctedVelocity, kMaximumReleaseSpeed);
+			maximumDirectionCorrection = (std::max)(
+				maximumDirectionCorrection,
+				std::abs(directionCorrection));
+		}
+	}
+
+	convergenceDiagnostics.predictedRmsSpreadAfter =
+		calculatePredictedRmsSpread(releasePositions, convergenceVelocities);
+	if (!std::isfinite(convergenceDiagnostics.predictedRmsSpreadBefore) ||
+		!std::isfinite(convergenceDiagnostics.predictedRmsSpreadAfter) ||
+		!std::isfinite(maximumDirectionCorrection)) {
+		return false;
+	}
+	if (convergenceDiagnostics.predictedRmsSpreadAfter <
+		convergenceDiagnostics.predictedRmsSpreadBefore) {
+		releaseVelocities = convergenceVelocities;
+		convergenceDiagnostics.applied = true;
+		convergenceDiagnostics.maximumDirectionCorrectionRadians =
+			maximumDirectionCorrection;
+	} else {
+		convergenceDiagnostics.predictedRmsSpreadAfter =
+			convergenceDiagnostics.predictedRmsSpreadBefore;
+	}
+	convergenceDiagnostics.valid = true;
+	for (std::size_t linkIndex = 0; linkIndex < kLinksPerSide; ++linkIndex) {
+		leftReleaseVelocities[linkIndex] = releaseVelocities[linkIndex];
+		rightReleaseVelocities[linkIndex] =
+			releaseVelocities[linkIndex + kLinksPerSide];
+	}
+
 	for (std::size_t linkIndex = 0; linkIndex < kLinksPerSide; ++linkIndex) {
 		if (!physicsWorld_.SetLinearVelocity(leftChain_[linkIndex], leftReleaseVelocities[linkIndex]) ||
 			!physicsWorld_.SetLinearVelocity(rightChain_[linkIndex], rightReleaseVelocities[linkIndex])) {
 			return false;
 		}
 	}
+	lastReleaseConvergenceDiagnostics_ = convergenceDiagnostics;
 	return true;
 }
 
