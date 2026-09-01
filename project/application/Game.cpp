@@ -288,12 +288,23 @@ void Game::Update() {
 		SceneManager::GetInstance()->FixedUpdate(frameClock_->GetFixedDeltaSeconds());
 	}
 #ifdef USE_IMGUI
+	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
+	if (current && !current->UsesEditorShell()) {
+		mousePosInViewport_ = {};
+		current->DrawEditorUi({
+			.srvManager = srvManager_.get(),
+			.finalDisplaySrvIndex = postEffectSystem_
+				? postEffectSystem_->GetFinalDisplaySrvIndex()
+				: SrvManager::kInvalidIndex,
+			.virtualWidth = static_cast<float>(WinApp::kClientWidth),
+			.virtualHeight = static_cast<float>(WinApp::kClientHeight),
+		});
+	} else {
 	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 	if (ShouldDrawLegacyDebugWindows() && engineDebugWindowManager_ && input_) {
 		engineDebugWindowManager_->Draw(*input_);
 	}
 
-	BaseScene* current = SceneManager::GetInstance()->GetCurrentScene();
 	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(current);
 	if (playScene) {
 		playScene->viewportHovered_ = false;
@@ -601,6 +612,7 @@ void Game::Update() {
 				postEffectSystem_->ResetSettings();
 			}
 		}
+	}
 	}
 #endif
 
