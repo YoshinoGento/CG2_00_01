@@ -2,6 +2,30 @@
 [![ReleaseBuild](https://github.com/YoshinoGento/CG2_00_01/actions/workflows/ReleaseBuild.yml/badge.svg)](https://github.com/YoshinoGento/CG2_00_01/actions/workflows/ReleaseBuild.yml)
 [![DevelopmentBuild](https://github.com/YoshinoGento/CG2_00_01/actions/workflows/DevelopmentBuild.yml/badge.svg)](https://github.com/YoshinoGento/CG2_00_01/actions/workflows/DevelopmentBuild.yml)
 
+# クローン後のビルドと実行
+
+## 必要環境
+
+- Windows 10 または Windows 11（x64、DirectX 12対応環境）
+- Visual Studio 2022
+- Visual Studio Installerのワークロード「C++によるデスクトップ開発」
+- MSVC v143 C++ x64/x86 build tools
+- Windows 10 SDKまたはWindows 11 SDK（DirectX Shader Compilerを含むもの）
+
+DirectXTex、Dear ImGui、Assimpのビルドに必要なソース・静的ライブラリはリポジトリに含めます。submodule、Git LFS、個別のパッケージダウンロードは不要です。
+
+## 手順
+
+1. リポジトリを通常どおりクローンし、使用するブランチをcheckoutします。
+2. `project/CG2_00_01.sln` をVisual Studio 2022で開きます。
+3. 構成を `Debug`、プラットフォームを `x64` にします。
+4. 「ビルド > ソリューションのビルド」を実行します。
+5. 「ローカル Windows デバッガー」または `F5` で起動します。
+
+コマンドラインから実行する場合、作業ディレクトリは `project` にしてください。ShaderやResourcesはこのディレクトリを基準に読み込みます。
+
+`CG2_00_01 (アンロード済み)` と表示された場合は、プロジェクトを右クリックして「プロジェクトの再読み込み」を選びます。再読み込みに失敗する場合は、Visual Studio Installerで上記のC++ワークロード、v143、Windows SDKを確認してください。
+
 # 加点項目
 
 * ローダーと配置
