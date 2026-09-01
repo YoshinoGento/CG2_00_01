@@ -1,7 +1,18 @@
 #pragma once
 
+#include <cstdint>
+#include <limits>
+
 // 前方宣言
 class SceneManager;
+class SrvManager;
+
+struct SceneEditorContext {
+	SrvManager* srvManager = nullptr;
+	uint32_t finalDisplaySrvIndex = (std::numeric_limits<uint32_t>::max)();
+	float virtualWidth = 0.0f;
+	float virtualHeight = 0.0f;
+};
 
 /**
  * BaseSceneクラス
@@ -22,6 +33,8 @@ public:
 	virtual void FixedUpdate(float fixedDeltaTime) { (void)fixedDeltaTime; }
 	virtual void Update() = 0;
 	virtual void Draw() = 0;
+	virtual bool UsesEditorShell() const noexcept { return true; }
+	virtual void DrawEditorUi(const SceneEditorContext& context) { (void)context; }
 
 	// シーンマネージャをセットするSetter（スライド25準拠）
 	virtual void SetSceneManager(SceneManager* sceneManager) {

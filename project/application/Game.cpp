@@ -6,6 +6,7 @@
 #include "base/ImGuiManager.h"
 #include "base/Logger.h"
 #include "base/SrvManager.h"
+#include "base/WinApp.h"
 #include "demo/PostEffectSubmissionDemo.h"
 #include "demo/PostEffectSubmissionHUD.h"
 #include "editor/EditorShell.h"
@@ -102,13 +103,26 @@ void Game::Update() {
 	}
 
 #ifdef USE_IMGUI
-	if (editorShell_) {
+	BaseScene* currentScene = sceneManager->GetCurrentScene();
+	if (editorShell_ && (!currentScene || currentScene->UsesEditorShell())) {
 		editorShell_->Draw(
-			sceneManager->GetCurrentScene(),
+			currentScene,
 			input_.get(),
 			srvManager_.get(),
 			postEffectSystem_.get());
 		mousePosInViewport_ = editorShell_->GetMousePositionInViewport();
+	} else {
+		mousePosInViewport_ = {};
+		if (currentScene) {
+			currentScene->DrawEditorUi({
+				.srvManager = srvManager_.get(),
+				.finalDisplaySrvIndex = postEffectSystem_
+					? postEffectSystem_->GetFinalDisplaySrvIndex()
+					: SrvManager::kInvalidIndex,
+				.virtualWidth = static_cast<float>(WinApp::kClientWidth),
+				.virtualHeight = static_cast<float>(WinApp::kClientHeight),
+			});
+		}
 	}
 #endif
 

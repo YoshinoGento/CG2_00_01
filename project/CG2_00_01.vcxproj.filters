@@ -1,6 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+	<ClCompile Include="application\magnet\system\MagnetChainSystem.cpp" />
+	<ClCompile Include="application\magnet\ui\MagnetPrototypeWindow.cpp" />
+	<ClCompile Include="application\scene\MagnetPrototypeScene.cpp" />
+	<ClCompile Include="engine\physics\PhysicsWorld.cpp" />
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
@@ -66,6 +70,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+	<ClInclude Include="application\magnet\system\MagnetChainSystem.h" />
+	<ClInclude Include="application\magnet\ui\MagnetPrototypeWindow.h" />
+	<ClInclude Include="application\scene\MagnetPrototypeScene.h" />
+	<ClInclude Include="engine\physics\PhysicsWorld.h" />
     <ClCompile Include="application\farm\core\FarmGrid.cpp">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\core</Filter>
     </ClCompile>
