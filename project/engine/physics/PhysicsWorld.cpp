@@ -112,6 +112,7 @@ bool PhysicsWorld::CreateDistanceConstraint(const DistanceConstraintDesc& desc)
 		desc.maximumCorrection,
 		0.0f,
 		true,
+		desc.debugDraw,
 	});
 	return true;
 }

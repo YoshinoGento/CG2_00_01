@@ -55,6 +55,7 @@ struct DistanceConstraintDesc {
 	float restLength = 1.0f;
 	float compliance = 0.0f;
 	float maximumCorrection = 0.5f;
+	bool debugDraw = true;
 };
 
 struct DistanceConstraint {
@@ -65,6 +66,7 @@ struct DistanceConstraint {
 	float maximumCorrection = 0.5f;
 	float accumulatedLambda = 0.0f;
 	bool active = true;
+	bool debugDraw = true;
 };
 
 // CPU-only fixed-step sphere and distance-constraint simulation.

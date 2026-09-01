@@ -46,16 +46,20 @@ public:
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
 
 private:
+	static constexpr std::size_t kBendConstraintsPerSide = kLinksPerSide - 1;
 	static constexpr std::size_t kInvalidConstraintIndex =
 		(std::numeric_limits<std::size_t>::max)();
 
 	[[nodiscard]] bool CreateChain(
 		float sideSign,
 		std::array<physics::BodyHandle, kLinksPerSide>& outputChain,
-		std::array<std::size_t, kLinksPerSide>& outputConstraintIndices);
+		std::array<std::size_t, kLinksPerSide>& outputConstraintIndices,
+		std::array<std::size_t, kBendConstraintsPerSide>& outputBendConstraintIndices);
 	[[nodiscard]] bool CreateTestBallPool();
 	[[nodiscard]] bool EmitTestBall() noexcept;
 	[[nodiscard]] bool ApplyMagneticRestoringForces(float fixedDeltaTime) noexcept;
+	[[nodiscard]] bool UpdateReleaseVelocityMemory(float fixedDeltaTime) noexcept;
+	[[nodiscard]] bool ApplyReleaseVelocityMemory() noexcept;
 	[[nodiscard]] bool ReleaseChains() noexcept;
 	void DeactivateDistantTestBalls() noexcept;
 
@@ -65,6 +69,10 @@ private:
 	std::array<physics::BodyHandle, kLinksPerSide> rightChain_{};
 	std::array<std::size_t, kLinksPerSide> leftConstraintIndices_{};
 	std::array<std::size_t, kLinksPerSide> rightConstraintIndices_{};
+	std::array<std::size_t, kBendConstraintsPerSide> leftBendConstraintIndices_{};
+	std::array<std::size_t, kBendConstraintsPerSide> rightBendConstraintIndices_{};
+	std::array<Vector3, kLinksPerSide> leftReleaseVelocityMemory_{};
+	std::array<Vector3, kLinksPerSide> rightReleaseVelocityMemory_{};
 	std::array<physics::BodyHandle, kTestBallCapacity> testBalls_{};
 	PlayerCommand command_{};
 	EmitterSettings emitterSettings_{};

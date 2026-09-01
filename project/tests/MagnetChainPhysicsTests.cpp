@@ -11,8 +11,13 @@ constexpr float kFixedDeltaTime = 1.0f / 60.0f;
 constexpr int kDriveStepCount = 120;
 constexpr int kStopObservationStepCount = 180;
 constexpr int kTurnObservationStepCount = 90;
+constexpr int kAlternatingTurnStepCount = 240;
 constexpr int kReleaseTravelStepCount = 30;
 constexpr float kMaximumAllowedConstraintError = 0.08f;
+constexpr float kMaximumAllowedJointBendRadians = 1.40f;
+constexpr float kMinimumVisibleJointBendRadians = 0.10f;
+constexpr float kMinimumRootSideProjection = 0.35f;
+constexpr float kMinimumRootReleaseTravel = 0.50f;
 constexpr float kFirstHorizontalOffset = 1.2247449f;
 constexpr float kLinkLength = 1.0f;
 
@@ -32,6 +37,31 @@ float DistanceXZ(const Vector3& a, const Vector3& b)
 	const float deltaX = b.x - a.x;
 	const float deltaZ = b.z - a.z;
 	return std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
+}
+
+Vector3 NormalizeXZ(const Vector3& value)
+{
+	const float length = DistanceXZ(Vector3{}, value);
+	if (!std::isfinite(length) || length <= 1.0e-5f) {
+		return {};
+	}
+	return value * (1.0f / length);
+}
+
+float DotXZ(const Vector3& a, const Vector3& b)
+{
+	return a.x * b.x + a.z * b.z;
+}
+
+float AngleBetweenXZ(const Vector3& a, const Vector3& b)
+{
+	const Vector3 normalizedA = NormalizeXZ(a);
+	const Vector3 normalizedB = NormalizeXZ(b);
+	if (DistanceXZ(Vector3{}, normalizedA) <= 1.0e-5f ||
+		DistanceXZ(Vector3{}, normalizedB) <= 1.0e-5f) {
+		return INFINITY;
+	}
+	return std::acos(std::clamp(DotXZ(normalizedA, normalizedB), -1.0f, 1.0f));
 }
 
 bool ValidateFiniteBodies(const magnet::MagnetChainSystem& system)
@@ -94,7 +124,7 @@ int main()
 	if (system.GetPhysicsWorld().GetBodyCount() !=
 			1 + magnet::MagnetChainSystem::kLinksPerSide * 2 +
 			magnet::MagnetChainSystem::kTestBallCapacity ||
-		system.GetPhysicsWorld().GetConstraints().size() != 8) {
+		system.GetPhysicsWorld().GetConstraints().size() != 14) {
 		std::cerr << "Unexpected prototype topology.\n";
 		return 2;
 	}
@@ -221,6 +251,72 @@ int main()
 		return 17;
 	}
 
+	float maximumObservedJointBend = 0.0f;
+	float minimumObservedRootProjection = 1.0f;
+	for (int step = 0; step < kAlternatingTurnStepCount; ++step) {
+		command = {};
+		command.moveDirection = ((step / 30) % 2 == 0)
+			? Vector3{ 1.0f, 0.0f, 0.0f }
+			: Vector3{ -1.0f, 0.0f, 0.0f };
+		system.SetPlayerCommand(command);
+		if (!system.FixedUpdate(kFixedDeltaTime) || !ValidateFiniteBodies(system)) {
+			std::cerr << "Alternating turn simulation became invalid at step " << step << ".\n";
+			return 27;
+		}
+		const physics::PhysicsWorld& world = system.GetPhysicsWorld();
+		const physics::SphereBody* player = world.GetBody(system.GetPlayerBody());
+		if (!player) {
+			std::cerr << "Player missing during alternating turn test.\n";
+			return 28;
+		}
+		const float heading = system.GetPlayerHeadingRadians();
+		const Vector3 rightAxis = { std::cos(heading), 0.0f, -std::sin(heading) };
+		const auto measureChain = [&](float sideSign, const auto& chain) {
+			Vector3 parentPosition = player->position;
+			Vector3 previousSegment = rightAxis * sideSign;
+			for (std::size_t linkIndex = 0; linkIndex < chain.size(); ++linkIndex) {
+				const physics::SphereBody* body = world.GetBody(chain[linkIndex]);
+				if (!body) {
+					return false;
+				}
+				const Vector3 segment = body->position - parentPosition;
+				if (linkIndex == 0) {
+					minimumObservedRootProjection = (std::min)(
+						minimumObservedRootProjection,
+						DotXZ(NormalizeXZ(segment), previousSegment));
+				} else {
+					maximumObservedJointBend = (std::max)(
+						maximumObservedJointBend,
+						AngleBetweenXZ(previousSegment, segment));
+				}
+				previousSegment = segment;
+				parentPosition = body->position;
+			}
+			return true;
+		};
+		if (!measureChain(-1.0f, system.GetLeftChain()) ||
+			!measureChain(1.0f, system.GetRightChain())) {
+			std::cerr << "Chain geometry missing during alternating turn test.\n";
+			return 29;
+		}
+	}
+	std::cout << "maximum_joint_bend_radians=" << maximumObservedJointBend << '\n';
+	std::cout << "minimum_root_side_projection=" << minimumObservedRootProjection << '\n';
+	if (!std::isfinite(maximumObservedJointBend) ||
+		maximumObservedJointBend > kMaximumAllowedJointBendRadians) {
+		std::cerr << "Chain exceeded the bounded bend angle and may orbit the Player.\n";
+		return 30;
+	}
+	if (maximumObservedJointBend < kMinimumVisibleJointBendRadians) {
+		std::cerr << "Chain became too rigid to show visible bending.\n";
+		return 31;
+	}
+	if (!std::isfinite(minimumObservedRootProjection) ||
+		minimumObservedRootProjection < kMinimumRootSideProjection) {
+		std::cerr << "A root link crossed behind the Player side axis.\n";
+		return 32;
+	}
+
 	command = {};
 	command.emergencyStop = true;
 	for (int step = 0; step < 6; ++step) {
@@ -282,6 +378,8 @@ int main()
 		return 24;
 	}
 	float releasedChainTravel = 0.0f;
+	float releasedRootTravel = 0.0f;
+	float releasedOuterTravel = 0.0f;
 	for (std::size_t index = 0; index < magnet::MagnetChainSystem::kLinksPerSide; ++index) {
 		const physics::SphereBody* left = worldAfterRelease.GetBody(system.GetLeftChain()[index]);
 		const physics::SphereBody* right = worldAfterRelease.GetBody(system.GetRightChain()[index]);
@@ -289,15 +387,28 @@ int main()
 			std::cerr << "Released chain body handle became stale.\n";
 			return 25;
 		}
-		releasedChainTravel += DistanceXZ(releasePositions[index], left->position);
-		releasedChainTravel += DistanceXZ(
+		const float leftTravel = DistanceXZ(releasePositions[index], left->position);
+		const float rightTravel = DistanceXZ(
 			releasePositions[index + magnet::MagnetChainSystem::kLinksPerSide],
 			right->position);
+		releasedChainTravel += leftTravel + rightTravel;
+		if (index == 0) {
+			releasedRootTravel = leftTravel + rightTravel;
+		} else if (index + 1 == magnet::MagnetChainSystem::kLinksPerSide) {
+			releasedOuterTravel = leftTravel + rightTravel;
+		}
 	}
 	std::cout << "released_chain_total_travel=" << releasedChainTravel << '\n';
+	std::cout << "released_root_total_travel=" << releasedRootTravel << '\n';
+	std::cout << "released_outer_total_travel=" << releasedOuterTravel << '\n';
 	if (releasedChainTravel <= 0.25f) {
 		std::cerr << "Released chains did not preserve meaningful inertia.\n";
 		return 26;
+	}
+	if (!std::isfinite(releasedRootTravel) ||
+		releasedRootTravel < kMinimumRootReleaseTravel) {
+		std::cerr << "Root links still lost too much inertia before release.\n";
+		return 33;
 	}
 
 	if (!system.Reset() || !ValidateFiniteBodies(system)) {

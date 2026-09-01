@@ -176,7 +176,7 @@ void MagnetPrototypeScene::Draw()
 
 	const physics::PhysicsWorld& physicsWorld = magnetChainSystem_.GetPhysicsWorld();
 	for (const physics::DistanceConstraint& constraint : physicsWorld.GetConstraints()) {
-		if (!constraint.active) {
+		if (!constraint.active || !constraint.debugDraw) {
 			continue;
 		}
 		const physics::SphereBody* bodyA = physicsWorld.GetBody(constraint.bodyA);
