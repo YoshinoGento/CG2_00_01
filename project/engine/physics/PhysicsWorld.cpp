@@ -111,7 +111,19 @@ bool PhysicsWorld::CreateDistanceConstraint(const DistanceConstraintDesc& desc)
 		desc.compliance,
 		desc.maximumCorrection,
 		0.0f,
+		true,
 	});
+	return true;
+}
+
+bool PhysicsWorld::SetDistanceConstraintActive(std::size_t index, bool active) noexcept
+{
+	if (index >= constraints_.size()) {
+		return false;
+	}
+	DistanceConstraint& constraint = constraints_[index];
+	constraint.active = active;
+	constraint.accumulatedLambda = 0.0f;
 	return true;
 }
 
@@ -182,6 +194,14 @@ const SphereBody* PhysicsWorld::GetBody(BodyHandle handle) const noexcept
 	return IsValidHandle(handle) ? &bodies_[handle.index] : nullptr;
 }
 
+std::size_t PhysicsWorld::GetActiveConstraintCount() const noexcept
+{
+	return static_cast<std::size_t>(std::count_if(
+		constraints_.begin(),
+		constraints_.end(),
+		[](const DistanceConstraint& constraint) { return constraint.active; }));
+}
+
 SphereBody* PhysicsWorld::GetBodyMutable(BodyHandle handle) noexcept
 {
 	return IsValidHandle(handle) ? &bodies_[handle.index] : nullptr;
@@ -226,6 +246,9 @@ bool PhysicsWorld::SolveDistanceConstraints(float deltaTime, uint32_t solverIter
 
 	for (uint32_t iteration = 0; iteration < solverIterations; ++iteration) {
 		for (DistanceConstraint& constraint : constraints_) {
+			if (!constraint.active) {
+				continue;
+			}
 			SphereBody* bodyA = GetBodyMutable(constraint.bodyA);
 			SphereBody* bodyB = GetBodyMutable(constraint.bodyB);
 			if (!bodyA || !bodyB) {

@@ -13,9 +13,11 @@ struct MagnetPrototypeViewData {
 	bool healthy = false;
 	std::size_t bodyCount = 0;
 	std::size_t constraintCount = 0;
+	std::size_t activeConstraintCount = 0;
 	std::size_t activeTestBallCount = 0;
 	float playerSpeed = 0.0f;
 	float maximumConstraintError = 0.0f;
+	bool chainsAttached = true;
 };
 
 struct MagnetPrototypeUiRequest {
@@ -23,6 +25,7 @@ struct MagnetPrototypeUiRequest {
 	bool reset = false;
 	bool emergencyStop = false;
 	bool emitOne = false;
+	bool releaseChains = false;
 	bool showGrid = true;
 	bool showVelocity = true;
 	bool cameraFollow = true;

@@ -156,6 +156,11 @@ void MagnetPrototypeWindow::DrawHierarchy(const MagnetPrototypeViewData& viewDat
 		ImGui::TextDisabled("SIMULATION OBJECTS");
 		ImGui::Separator();
 		ImGui::BulletText("Player (Kinematic)");
+		ImGui::TextColored(
+			viewData.chainsAttached
+				? ImVec4{ 0.25f, 0.95f, 0.45f, 1.0f }
+				: ImVec4{ 1.0f, 0.65f, 0.18f, 1.0f },
+			viewData.chainsAttached ? "Magnet: ATTACHED" : "Magnet: RELEASED");
 
 		if (ImGui::TreeNodeEx("Left Chain", ImGuiTreeNodeFlags_DefaultOpen)) {
 			for (std::size_t index = 0; index < MagnetChainSystem::kLinksPerSide; ++index) {
@@ -260,7 +265,25 @@ void MagnetPrototypeWindow::DrawInspector(
 		}
 		request.reset = ImGui::Button("RESET", { buttonWidth, 36.0f });
 
+		ImGui::SeparatorText("Magnetic Coupling");
+		ImGui::TextWrapped(
+			"Release the left/right chains with their current velocity. "
+			"The Player receives no release impulse.");
+		if (!viewData.chainsAttached) {
+			ImGui::BeginDisabled();
+		}
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.88f, 0.38f, 0.08f, 1.0f });
+		request.releaseChains = ImGui::Button(
+			"MAGNET OFF - RELEASE CHAINS",
+			{ (std::max)(ImGui::GetContentRegionAvail().x, 1.0f), 36.0f });
+		ImGui::PopStyleColor();
+		if (!viewData.chainsAttached) {
+			ImGui::EndDisabled();
+			ImGui::TextDisabled("RESET reattaches the chains.");
+		}
+
 		ImGui::SeparatorText("Test Ball Emitter");
+		ImGui::TextDisabled("Separate future attraction test; not chain release.");
 		request.emitOne = ImGui::Button(
 			"EMIT ONE",
 			{ (std::max)(ImGui::GetContentRegionAvail().x, 1.0f), 32.0f });
@@ -307,7 +330,10 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 			ImGui::Text("%zu", viewData.bodyCount);
 			ImGui::TableNextColumn();
 			ImGui::TextDisabled("CONSTRAINTS");
-			ImGui::Text("%zu", viewData.constraintCount);
+			ImGui::Text(
+				"%zu / %zu active",
+				viewData.activeConstraintCount,
+				viewData.constraintCount);
 			ImGui::TableNextColumn();
 			ImGui::TextDisabled("PLAYER SPEED");
 			ImGui::Text("%.2f", viewData.playerSpeed);
@@ -339,7 +365,8 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 				1.0f)
 			: 1.0f;
 		ImGui::ProgressBar(normalizedError, { -1.0f, 0.0f }, "constraint stability");
-		ImGui::TextDisabled("WASD Move  |  Space Stop  |  E Emit  |  R Reset");
+		ImGui::TextDisabled(
+			"WASD Move  |  Space Stop  |  Q Magnet OFF  |  E Test Emit  |  R Reset");
 	}
 	ImGui::End();
 #else

@@ -15,11 +15,21 @@ constexpr float kPlaneHeight = kPlayerRadius;
 constexpr float kPlayerMaximumSpeed = 6.0f;
 constexpr float kPlayerAcceleration = 12.0f;
 constexpr float kPlayerDeceleration = 9.0f;
+constexpr float kPlayerTurnRateRadians = 4.5f;
 constexpr float kDirectionEpsilonSquared = 1.0e-8f;
 constexpr float kDynamicBodyMass = 1.0f;
-constexpr float kDynamicBodyDamping = 0.35f;
-constexpr float kConstraintCompliance = 0.00002f;
+constexpr float kDynamicBodyDamping = 0.12f;
+constexpr float kConstraintCompliance = 0.00008f;
 constexpr float kMaximumConstraintCorrection = 0.35f;
+constexpr float kMaximumMagneticAcceleration = 42.0f;
+constexpr float kMaximumMagneticVelocityChange = 1.25f;
+constexpr float kTwoPi = 6.28318530717958647692f;
+constexpr std::array<float, MagnetChainSystem::kLinksPerSide> kMagneticStiffness = {
+	24.0f, 14.0f, 8.0f, 4.5f,
+};
+constexpr std::array<float, MagnetChainSystem::kLinksPerSide> kMagneticDamping = {
+	4.2f, 3.0f, 2.0f, 1.2f,
+};
 constexpr float kTestBallRadius = 0.3f;
 constexpr float kTestBallSpawnForwardOffset = 1.8f;
 constexpr float kTestBallMaximumDistance = 32.0f;
@@ -51,6 +61,25 @@ Vector3 MoveTowards(const Vector3& current, const Vector3& target, float maximum
 	return current + delta * (maximumDelta / distance);
 }
 
+float MoveAngleTowards(float current, float target, float maximumDelta) noexcept
+{
+	const float delta = std::remainder(target - current, kTwoPi);
+	if (std::abs(delta) <= maximumDelta) {
+		return current + delta;
+	}
+	return current + std::copysign(maximumDelta, delta);
+}
+
+Vector3 ClampMagnitudeXZ(const Vector3& value, float maximumMagnitude) noexcept
+{
+	const float lengthSquared = LengthSquaredXZ(value);
+	const float maximumMagnitudeSquared = maximumMagnitude * maximumMagnitude;
+	if (lengthSquared <= maximumMagnitudeSquared || lengthSquared <= kDirectionEpsilonSquared) {
+		return value;
+	}
+	return value * (maximumMagnitude / std::sqrt(lengthSquared));
+}
+
 } // namespace
 
 bool MagnetChainSystem::Initialize()
@@ -62,10 +91,14 @@ bool MagnetChainSystem::Reset()
 {
 	physicsWorld_.Clear();
 	playerVelocity_ = {};
+	playerHeadingRadians_ = 0.0f;
 	command_ = {};
 	emitterTimer_ = 0.0f;
 	nextTestBallIndex_ = 0;
 	emittedBallSequence_ = 0;
+	leftConstraintIndices_.fill(kInvalidConstraintIndex);
+	rightConstraintIndices_.fill(kInvalidConstraintIndex);
+	chainsAttached_ = true;
 	healthy_ = false;
 
 	physics::SphereBodyDesc playerDesc{};
@@ -78,7 +111,8 @@ bool MagnetChainSystem::Reset()
 		return false;
 	}
 
-	if (!CreateChain(-1.0f, leftChain_) || !CreateChain(1.0f, rightChain_) ||
+	if (!CreateChain(-1.0f, leftChain_, leftConstraintIndices_) ||
+		!CreateChain(1.0f, rightChain_, rightConstraintIndices_) ||
 		!CreateTestBallPool()) {
 		return false;
 	}
@@ -126,8 +160,15 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		playerVelocity_ = MoveTowards(
 			playerVelocity_, targetVelocity, acceleration * fixedDeltaTime);
 	}
+	if (directionLengthSquared > kDirectionEpsilonSquared) {
+		const float targetHeading = std::atan2(requestedDirection.x, requestedDirection.z);
+		playerHeadingRadians_ = MoveAngleTowards(
+			playerHeadingRadians_, targetHeading, kPlayerTurnRateRadians * fixedDeltaTime);
+	}
 
 	if (!physicsWorld_.SetLinearVelocity(playerBody_, playerVelocity_) ||
+		(chainsAttached_ && !ApplyMagneticRestoringForces(fixedDeltaTime)) ||
+		(command_.releaseChains && chainsAttached_ && !ReleaseChains()) ||
 		(command_.emitOne && !EmitTestBall())) {
 		healthy_ = false;
 		return false;
@@ -154,7 +195,8 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 
 bool MagnetChainSystem::CreateChain(
 	float sideSign,
-	std::array<physics::BodyHandle, kLinksPerSide>& outputChain)
+	std::array<physics::BodyHandle, kLinksPerSide>& outputChain,
+	std::array<std::size_t, kLinksPerSide>& outputConstraintIndices)
 {
 	physics::BodyHandle previousBody = playerBody_;
 	float distanceFromPlayer = kFirstHorizontalOffset;
@@ -177,13 +219,89 @@ bool MagnetChainSystem::CreateChain(
 		constraintDesc.restLength = linkIndex == 0 ? kFirstLinkLength : kLinkLength;
 		constraintDesc.compliance = kConstraintCompliance;
 		constraintDesc.maximumCorrection = kMaximumConstraintCorrection;
+		outputConstraintIndices[linkIndex] = physicsWorld_.GetConstraintCount();
 		if (!physicsWorld_.CreateDistanceConstraint(constraintDesc)) {
+			outputConstraintIndices[linkIndex] = kInvalidConstraintIndex;
 			return false;
 		}
 
 		previousBody = outputChain[linkIndex];
 		distanceFromPlayer += kLinkLength;
 	}
+	return true;
+}
+
+bool MagnetChainSystem::ApplyMagneticRestoringForces(float fixedDeltaTime) noexcept
+{
+	const physics::SphereBody* player = physicsWorld_.GetBody(playerBody_);
+	if (!player || !player->active) {
+		return false;
+	}
+
+	const Vector3 rightAxis = {
+		std::cos(playerHeadingRadians_),
+		0.0f,
+		-std::sin(playerHeadingRadians_),
+	};
+	const auto applyToChain = [&](float sideSign, const auto& chain) noexcept {
+		for (std::size_t linkIndex = 0; linkIndex < chain.size(); ++linkIndex) {
+			const physics::SphereBody* body = physicsWorld_.GetBody(chain[linkIndex]);
+			if (!body || !body->active || body->motionType != physics::MotionType::Dynamic) {
+				return false;
+			}
+			const float horizontalDistance =
+				kFirstHorizontalOffset + static_cast<float>(linkIndex) * kLinkLength;
+			Vector3 targetPosition =
+				player->position + rightAxis * (sideSign * horizontalDistance);
+			targetPosition.y = body->planeHeight;
+			Vector3 positionError = targetPosition - body->position;
+			positionError.y = 0.0f;
+			Vector3 relativeVelocity = body->linearVelocity - playerVelocity_;
+			relativeVelocity.y = 0.0f;
+			Vector3 acceleration =
+				positionError * kMagneticStiffness[linkIndex] -
+				relativeVelocity * kMagneticDamping[linkIndex];
+			acceleration = ClampMagnitudeXZ(acceleration, kMaximumMagneticAcceleration);
+			const Vector3 velocityChange = ClampMagnitudeXZ(
+				acceleration * fixedDeltaTime,
+				kMaximumMagneticVelocityChange);
+			if (!IsFinite(velocityChange) ||
+				!physicsWorld_.SetLinearVelocity(
+					chain[linkIndex], body->linearVelocity + velocityChange)) {
+				return false;
+			}
+		}
+		return true;
+	};
+
+	return applyToChain(-1.0f, leftChain_) && applyToChain(1.0f, rightChain_);
+}
+
+bool MagnetChainSystem::ReleaseChains() noexcept
+{
+	const std::size_t constraintCount = physicsWorld_.GetConstraintCount();
+	for (std::size_t index : leftConstraintIndices_) {
+		if (index == kInvalidConstraintIndex || index >= constraintCount) {
+			return false;
+		}
+	}
+	for (std::size_t index : rightConstraintIndices_) {
+		if (index == kInvalidConstraintIndex || index >= constraintCount) {
+			return false;
+		}
+	}
+
+	for (std::size_t index : leftConstraintIndices_) {
+		if (!physicsWorld_.SetDistanceConstraintActive(index, false)) {
+			return false;
+		}
+	}
+	for (std::size_t index : rightConstraintIndices_) {
+		if (!physicsWorld_.SetDistanceConstraintActive(index, false)) {
+			return false;
+		}
+	}
+	chainsAttached_ = false;
 	return true;
 }
 
@@ -268,6 +386,9 @@ float MagnetChainSystem::GetMaximumConstraintError() const noexcept
 {
 	float maximumError = 0.0f;
 	for (const physics::DistanceConstraint& constraint : physicsWorld_.GetConstraints()) {
+		if (!constraint.active) {
+			continue;
+		}
 		const physics::SphereBody* bodyA = physicsWorld_.GetBody(constraint.bodyA);
 		const physics::SphereBody* bodyB = physicsWorld_.GetBody(constraint.bodyB);
 		if (!bodyA || !bodyB || !bodyA->active || !bodyB->active) {

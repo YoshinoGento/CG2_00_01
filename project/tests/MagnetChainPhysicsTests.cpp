@@ -1,6 +1,7 @@
 #include "application/magnet/system/MagnetChainSystem.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 
@@ -9,7 +10,11 @@ namespace {
 constexpr float kFixedDeltaTime = 1.0f / 60.0f;
 constexpr int kDriveStepCount = 120;
 constexpr int kStopObservationStepCount = 180;
+constexpr int kTurnObservationStepCount = 90;
+constexpr int kReleaseTravelStepCount = 30;
 constexpr float kMaximumAllowedConstraintError = 0.08f;
+constexpr float kFirstHorizontalOffset = 1.2247449f;
+constexpr float kLinkLength = 1.0f;
 
 bool IsFinite(const Vector3& value)
 {
@@ -20,6 +25,13 @@ float Distance(const Vector3& a, const Vector3& b)
 {
 	const Vector3 delta = b - a;
 	return std::sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
+}
+
+float DistanceXZ(const Vector3& a, const Vector3& b)
+{
+	const float deltaX = b.x - a.x;
+	const float deltaZ = b.z - a.z;
+	return std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
 }
 
 bool ValidateFiniteBodies(const magnet::MagnetChainSystem& system)
@@ -55,6 +67,9 @@ float GetMaximumConstraintError(const magnet::MagnetChainSystem& system)
 	const physics::PhysicsWorld& world = system.GetPhysicsWorld();
 	float maximumError = 0.0f;
 	for (const physics::DistanceConstraint& constraint : world.GetConstraints()) {
+		if (!constraint.active) {
+			continue;
+		}
 		const physics::SphereBody* bodyA = world.GetBody(constraint.bodyA);
 		const physics::SphereBody* bodyB = world.GetBody(constraint.bodyB);
 		if (!bodyA || !bodyB) {
@@ -155,6 +170,134 @@ int main()
 		maximumConstraintError > kMaximumAllowedConstraintError) {
 		std::cerr << "Constraint error exceeded the prototype bound.\n";
 		return 7;
+	}
+
+	if (!system.Reset()) {
+		std::cerr << "Reset before turn test failed.\n";
+		return 13;
+	}
+	command = {};
+	command.moveDirection = { 0.0f, 0.0f, 1.0f };
+	for (int step = 0; step < 60; ++step) {
+		system.SetPlayerCommand(command);
+		if (!system.FixedUpdate(kFixedDeltaTime) || !ValidateFiniteBodies(system)) {
+			std::cerr << "Turn setup became invalid at step " << step << ".\n";
+			return 14;
+		}
+	}
+	command.moveDirection = { 1.0f, 0.0f, 0.0f };
+	float maximumInnerPoseError = 0.0f;
+	float maximumOuterPoseError = 0.0f;
+	for (int step = 0; step < kTurnObservationStepCount; ++step) {
+		system.SetPlayerCommand(command);
+		if (!system.FixedUpdate(kFixedDeltaTime) || !ValidateFiniteBodies(system)) {
+			std::cerr << "Turn simulation became invalid at step " << step << ".\n";
+			return 15;
+		}
+		const physics::PhysicsWorld& world = system.GetPhysicsWorld();
+		const physics::SphereBody* player = world.GetBody(system.GetPlayerBody());
+		const physics::SphereBody* inner = world.GetBody(system.GetRightChain().front());
+		const physics::SphereBody* outer = world.GetBody(system.GetRightChain().back());
+		if (!player || !inner || !outer) {
+			std::cerr << "Turn test body handle became stale.\n";
+			return 16;
+		}
+		const float heading = system.GetPlayerHeadingRadians();
+		const Vector3 rightAxis = { std::cos(heading), 0.0f, -std::sin(heading) };
+		const Vector3 innerTarget = player->position + rightAxis * kFirstHorizontalOffset;
+		const Vector3 outerTarget = player->position + rightAxis *
+			(kFirstHorizontalOffset + kLinkLength *
+				static_cast<float>(magnet::MagnetChainSystem::kLinksPerSide - 1));
+		maximumInnerPoseError = (std::max)(
+			maximumInnerPoseError, DistanceXZ(inner->position, innerTarget));
+		maximumOuterPoseError = (std::max)(
+			maximumOuterPoseError, DistanceXZ(outer->position, outerTarget));
+	}
+	std::cout << "inner_turn_pose_error=" << maximumInnerPoseError << '\n';
+	std::cout << "outer_turn_pose_error=" << maximumOuterPoseError << '\n';
+	if (!(maximumOuterPoseError > maximumInnerPoseError) ||
+		maximumInnerPoseError <= 0.0f) {
+		std::cerr << "Outer link did not show the expected larger elastic turn lag.\n";
+		return 17;
+	}
+
+	command = {};
+	command.emergencyStop = true;
+	for (int step = 0; step < 6; ++step) {
+		system.SetPlayerCommand(command);
+		if (!system.FixedUpdate(kFixedDeltaTime) || !ValidateFiniteBodies(system)) {
+			std::cerr << "Release setup became invalid at step " << step << ".\n";
+			return 18;
+		}
+		command.emergencyStop = false;
+	}
+	const physics::PhysicsWorld& worldBeforeRelease = system.GetPhysicsWorld();
+	const physics::SphereBody* playerBeforeRelease =
+		worldBeforeRelease.GetBody(system.GetPlayerBody());
+	if (!playerBeforeRelease) {
+		std::cerr << "Player missing before release.\n";
+		return 19;
+	}
+	const Vector3 playerReleasePosition = playerBeforeRelease->position;
+	std::array<Vector3, magnet::MagnetChainSystem::kLinksPerSide * 2> releasePositions{};
+	for (std::size_t index = 0; index < magnet::MagnetChainSystem::kLinksPerSide; ++index) {
+		const physics::SphereBody* left = worldBeforeRelease.GetBody(system.GetLeftChain()[index]);
+		const physics::SphereBody* right = worldBeforeRelease.GetBody(system.GetRightChain()[index]);
+		if (!left || !right) {
+			std::cerr << "Chain body missing before release.\n";
+			return 20;
+		}
+		releasePositions[index] = left->position;
+		releasePositions[index + magnet::MagnetChainSystem::kLinksPerSide] = right->position;
+	}
+
+	command = {};
+	command.emergencyStop = true;
+	command.releaseChains = true;
+	system.SetPlayerCommand(command);
+	if (!system.FixedUpdate(kFixedDeltaTime) || !ValidateFiniteBodies(system)) {
+		std::cerr << "Release step became invalid.\n";
+		return 21;
+	}
+	if (system.AreChainsAttached() ||
+		system.GetPhysicsWorld().GetActiveConstraintCount() != 0) {
+		std::cerr << "MAGNET OFF did not deactivate every chain constraint.\n";
+		return 22;
+	}
+	command = {};
+	for (int step = 0; step < kReleaseTravelStepCount; ++step) {
+		system.SetPlayerCommand(command);
+		if (!system.FixedUpdate(kFixedDeltaTime) || !ValidateFiniteBodies(system)) {
+			std::cerr << "Released-chain simulation became invalid at step " << step << ".\n";
+			return 23;
+		}
+	}
+	const physics::PhysicsWorld& worldAfterRelease = system.GetPhysicsWorld();
+	const physics::SphereBody* playerAfterRelease =
+		worldAfterRelease.GetBody(system.GetPlayerBody());
+	if (!playerAfterRelease ||
+		DistanceXZ(playerReleasePosition, playerAfterRelease->position) > 1.0e-4f ||
+		DistanceXZ(Vector3{}, playerAfterRelease->linearVelocity) > 1.0e-4f) {
+		std::cerr << "Player moved because of chain release.\n";
+		return 24;
+	}
+	float releasedChainTravel = 0.0f;
+	for (std::size_t index = 0; index < magnet::MagnetChainSystem::kLinksPerSide; ++index) {
+		const physics::SphereBody* left = worldAfterRelease.GetBody(system.GetLeftChain()[index]);
+		const physics::SphereBody* right = worldAfterRelease.GetBody(system.GetRightChain()[index]);
+		if (!left || !right) {
+			std::cerr << "Released chain body handle became stale.\n";
+			return 25;
+		}
+		releasedChainTravel += DistanceXZ(releasePositions[index], left->position);
+		releasedChainTravel += DistanceXZ(
+			releasePositions[index + magnet::MagnetChainSystem::kLinksPerSide],
+			right->position);
+	}
+	std::cout << "released_chain_total_travel=" << releasedChainTravel << '\n';
+	if (releasedChainTravel <= 0.25f) {
+		std::cerr << "Released chains did not preserve meaningful inertia.\n";
+		return 26;
 	}
 
 	if (!system.Reset() || !ValidateFiniteBodies(system)) {

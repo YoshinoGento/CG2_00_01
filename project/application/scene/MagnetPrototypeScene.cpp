@@ -73,6 +73,8 @@ void MagnetPrototypeScene::PrepareFixedUpdate()
 	pendingCommand_.emergencyStop =
 		pendingCommand_.emergencyStop || input->TriggerKey(InputKey::Space);
 	pendingCommand_.emitOne = pendingCommand_.emitOne || input->TriggerKey(InputKey::E);
+	pendingCommand_.releaseChains =
+		pendingCommand_.releaseChains || input->TriggerKey(InputKey::Q);
 	resetRequested_ = resetRequested_ || input->TriggerKey(InputKey::R);
 }
 
@@ -99,6 +101,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 	}
 	pendingCommand_.emergencyStop = false;
 	pendingCommand_.emitOne = false;
+	pendingCommand_.releaseChains = false;
 }
 
 void MagnetPrototypeScene::Update()
@@ -121,8 +124,11 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	viewData.healthy = prototypeReady_ && magnetChainSystem_.IsHealthy();
 	viewData.bodyCount = magnetChainSystem_.GetPhysicsWorld().GetBodyCount();
 	viewData.constraintCount = magnetChainSystem_.GetPhysicsWorld().GetConstraints().size();
+	viewData.activeConstraintCount =
+		magnetChainSystem_.GetPhysicsWorld().GetActiveConstraintCount();
 	viewData.activeTestBallCount = magnetChainSystem_.GetActiveTestBallCount();
 	viewData.maximumConstraintError = magnetChainSystem_.GetMaximumConstraintError();
+	viewData.chainsAttached = magnetChainSystem_.AreChainsAttached();
 	const physics::SphereBody* player = magnetChainSystem_.GetPhysicsWorld().GetBody(
 		magnetChainSystem_.GetPlayerBody());
 	if (player) {
@@ -140,6 +146,7 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	resetRequested_ = resetRequested_ || request.reset;
 	pendingCommand_.emergencyStop = pendingCommand_.emergencyStop || request.emergencyStop;
 	pendingCommand_.emitOne = pendingCommand_.emitOne || request.emitOne;
+	pendingCommand_.releaseChains = pendingCommand_.releaseChains || request.releaseChains;
 	magnetChainSystem_.SetEmitterSettings(request.emitterSettings);
 	showGrid_ = request.showGrid;
 	showVelocity_ = request.showVelocity;
@@ -169,6 +176,9 @@ void MagnetPrototypeScene::Draw()
 
 	const physics::PhysicsWorld& physicsWorld = magnetChainSystem_.GetPhysicsWorld();
 	for (const physics::DistanceConstraint& constraint : physicsWorld.GetConstraints()) {
+		if (!constraint.active) {
+			continue;
+		}
 		const physics::SphereBody* bodyA = physicsWorld.GetBody(constraint.bodyA);
 		const physics::SphereBody* bodyB = physicsWorld.GetBody(constraint.bodyB);
 		if (bodyA && bodyB) {

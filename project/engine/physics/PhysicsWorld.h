@@ -64,6 +64,7 @@ struct DistanceConstraint {
 	float compliance = 0.0f;
 	float maximumCorrection = 0.5f;
 	float accumulatedLambda = 0.0f;
+	bool active = true;
 };
 
 // CPU-only fixed-step sphere and distance-constraint simulation.
@@ -78,6 +79,7 @@ public:
 	void Clear() noexcept;
 	[[nodiscard]] BodyHandle CreateSphereBody(const SphereBodyDesc& desc);
 	[[nodiscard]] bool CreateDistanceConstraint(const DistanceConstraintDesc& desc);
+	[[nodiscard]] bool SetDistanceConstraintActive(std::size_t index, bool active) noexcept;
 	[[nodiscard]] bool SetLinearVelocity(BodyHandle handle, const Vector3& velocity) noexcept;
 	[[nodiscard]] bool SetPosition(BodyHandle handle, const Vector3& position) noexcept;
 	[[nodiscard]] bool SetActive(BodyHandle handle, bool active) noexcept;
@@ -86,6 +88,8 @@ public:
 	[[nodiscard]] const SphereBody* GetBody(BodyHandle handle) const noexcept;
 	[[nodiscard]] const std::vector<DistanceConstraint>& GetConstraints() const noexcept { return constraints_; }
 	[[nodiscard]] std::size_t GetBodyCount() const noexcept { return bodies_.size(); }
+	[[nodiscard]] std::size_t GetConstraintCount() const noexcept { return constraints_.size(); }
+	[[nodiscard]] std::size_t GetActiveConstraintCount() const noexcept;
 
 private:
 	[[nodiscard]] SphereBody* GetBodyMutable(BodyHandle handle) noexcept;

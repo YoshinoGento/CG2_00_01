@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
 
 namespace magnet {
 
@@ -24,6 +25,7 @@ public:
 		Vector3 moveDirection{};
 		bool emergencyStop = false;
 		bool emitOne = false;
+		bool releaseChains = false;
 	};
 
 	[[nodiscard]] bool Initialize();
@@ -39,27 +41,39 @@ public:
 	[[nodiscard]] const std::array<physics::BodyHandle, kTestBallCapacity>& GetTestBalls() const noexcept { return testBalls_; }
 	[[nodiscard]] std::size_t GetActiveTestBallCount() const noexcept;
 	[[nodiscard]] float GetMaximumConstraintError() const noexcept;
+	[[nodiscard]] float GetPlayerHeadingRadians() const noexcept { return playerHeadingRadians_; }
+	[[nodiscard]] bool AreChainsAttached() const noexcept { return chainsAttached_; }
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
 
 private:
+	static constexpr std::size_t kInvalidConstraintIndex =
+		(std::numeric_limits<std::size_t>::max)();
+
 	[[nodiscard]] bool CreateChain(
 		float sideSign,
-		std::array<physics::BodyHandle, kLinksPerSide>& outputChain);
+		std::array<physics::BodyHandle, kLinksPerSide>& outputChain,
+		std::array<std::size_t, kLinksPerSide>& outputConstraintIndices);
 	[[nodiscard]] bool CreateTestBallPool();
 	[[nodiscard]] bool EmitTestBall() noexcept;
+	[[nodiscard]] bool ApplyMagneticRestoringForces(float fixedDeltaTime) noexcept;
+	[[nodiscard]] bool ReleaseChains() noexcept;
 	void DeactivateDistantTestBalls() noexcept;
 
 	physics::PhysicsWorld physicsWorld_;
 	physics::BodyHandle playerBody_{};
 	std::array<physics::BodyHandle, kLinksPerSide> leftChain_{};
 	std::array<physics::BodyHandle, kLinksPerSide> rightChain_{};
+	std::array<std::size_t, kLinksPerSide> leftConstraintIndices_{};
+	std::array<std::size_t, kLinksPerSide> rightConstraintIndices_{};
 	std::array<physics::BodyHandle, kTestBallCapacity> testBalls_{};
 	PlayerCommand command_{};
 	EmitterSettings emitterSettings_{};
 	Vector3 playerVelocity_{};
+	float playerHeadingRadians_ = 0.0f;
 	float emitterTimer_ = 0.0f;
 	std::size_t nextTestBallIndex_ = 0;
 	uint32_t emittedBallSequence_ = 0;
+	bool chainsAttached_ = true;
 	bool healthy_ = false;
 };
 
