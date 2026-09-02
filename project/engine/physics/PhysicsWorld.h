@@ -55,6 +55,7 @@ struct DistanceConstraintDesc {
 	float restLength = 1.0f;
 	float compliance = 0.0f;
 	float maximumCorrection = 0.5f;
+	bool active = true;
 	bool debugDraw = true;
 };
 
@@ -81,6 +82,9 @@ public:
 	void Clear() noexcept;
 	[[nodiscard]] BodyHandle CreateSphereBody(const SphereBodyDesc& desc);
 	[[nodiscard]] bool CreateDistanceConstraint(const DistanceConstraintDesc& desc);
+	[[nodiscard]] bool ConfigureDistanceConstraint(
+		std::size_t index,
+		const DistanceConstraintDesc& desc) noexcept;
 	[[nodiscard]] bool SetDistanceConstraintActive(std::size_t index, bool active) noexcept;
 	[[nodiscard]] bool SetLinearVelocity(BodyHandle handle, const Vector3& velocity) noexcept;
 	[[nodiscard]] bool SetPosition(BodyHandle handle, const Vector3& position) noexcept;

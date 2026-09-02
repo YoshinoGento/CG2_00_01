@@ -111,9 +111,34 @@ bool PhysicsWorld::CreateDistanceConstraint(const DistanceConstraintDesc& desc)
 		desc.compliance,
 		desc.maximumCorrection,
 		0.0f,
-		true,
+		desc.active,
 		desc.debugDraw,
 	});
+	return true;
+}
+
+bool PhysicsWorld::ConfigureDistanceConstraint(
+	std::size_t index,
+	const DistanceConstraintDesc& desc) noexcept
+{
+	if (index >= constraints_.size() ||
+		!IsValidHandle(desc.bodyA) || !IsValidHandle(desc.bodyB) ||
+		desc.bodyA.index == desc.bodyB.index ||
+		!IsFinite(desc.restLength) || desc.restLength < kMinimumRadius ||
+		!IsFinite(desc.compliance) || desc.compliance < 0.0f ||
+		!IsFinite(desc.maximumCorrection) || desc.maximumCorrection <= 0.0f) {
+		return false;
+	}
+
+	DistanceConstraint& constraint = constraints_[index];
+	constraint.bodyA = desc.bodyA;
+	constraint.bodyB = desc.bodyB;
+	constraint.restLength = desc.restLength;
+	constraint.compliance = desc.compliance;
+	constraint.maximumCorrection = desc.maximumCorrection;
+	constraint.accumulatedLambda = 0.0f;
+	constraint.active = desc.active;
+	constraint.debugDraw = desc.debugDraw;
 	return true;
 }
 

@@ -24,6 +24,13 @@ void BallMomentumTracker::Reset() noexcept
 	storedVelocities_.fill(Vector3{});
 }
 
+void BallMomentumTracker::Reset(std::size_t ballIndex) noexcept
+{
+	if (ballIndex < storedVelocities_.size()) {
+		storedVelocities_[ballIndex] = {};
+	}
+}
+
 bool BallMomentumTracker::Update(
 	std::size_t ballIndex,
 	const Vector3& currentVelocity,

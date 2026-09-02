@@ -15,10 +15,11 @@ namespace {
 constexpr Vector4 kPlayerColor = { 1.0f, 0.15f, 0.12f, 1.0f };
 constexpr Vector4 kLeftChainColor = { 0.15f, 0.65f, 1.0f, 1.0f };
 constexpr Vector4 kRightChainColor = { 0.25f, 0.9f, 0.75f, 1.0f };
+constexpr Vector4 kAvailableBallColor = { 1.0f, 0.8f, 0.12f, 1.0f };
+constexpr Vector4 kReleasedBallColor = { 1.0f, 0.42f, 0.08f, 1.0f };
 constexpr Vector4 kConstraintColor = { 0.82f, 0.86f, 0.92f, 1.0f };
 constexpr Vector4 kGridColor = { 0.18f, 0.22f, 0.28f, 1.0f };
 constexpr Vector4 kVelocityColor = { 1.0f, 0.55f, 0.08f, 1.0f };
-constexpr Vector4 kTestBallColor = { 1.0f, 0.8f, 0.12f, 1.0f };
 constexpr int kGridHalfCount = 10;
 constexpr float kGridSpacing = 1.0f;
 constexpr float kVelocityDisplayScale = 0.22f;
@@ -36,7 +37,8 @@ void MagnetPrototypeScene::Initialize()
 	camera_->Update();
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
 
-	prototypeReady_ = magnetChainSystem_.Initialize();
+	prototypeReady_ = magnetStageSystem_.Initialize() &&
+		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
 	if (!prototypeReady_) {
 		Logger::Log("MagnetPrototypeScene: MagnetChainSystem initialization failed.");
 		assert(false && "MagnetChainSystem initialization failed.");
@@ -72,7 +74,6 @@ void MagnetPrototypeScene::PrepareFixedUpdate()
 	if (input->PushKey(InputKey::A)) { pendingCommand_.moveDirection.x -= 1.0f; }
 	pendingCommand_.emergencyStop =
 		pendingCommand_.emergencyStop || input->TriggerKey(InputKey::Space);
-	pendingCommand_.emitOne = pendingCommand_.emitOne || input->TriggerKey(InputKey::E);
 	pendingCommand_.releaseChains =
 		pendingCommand_.releaseChains || input->TriggerKey(InputKey::Q);
 	resetRequested_ = resetRequested_ || input->TriggerKey(InputKey::R);
@@ -100,7 +101,6 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		assert(false && "MagnetChainSystem fixed update failed.");
 	}
 	pendingCommand_.emergencyStop = false;
-	pendingCommand_.emitOne = false;
 	pendingCommand_.releaseChains = false;
 }
 
@@ -126,9 +126,19 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	viewData.constraintCount = magnetChainSystem_.GetPhysicsWorld().GetConstraints().size();
 	viewData.activeConstraintCount =
 		magnetChainSystem_.GetPhysicsWorld().GetActiveConstraintCount();
-	viewData.activeTestBallCount = magnetChainSystem_.GetActiveTestBallCount();
+	viewData.availableBallCount = magnetChainSystem_.GetAvailableBallCount();
+	viewData.attachedBallCount = magnetChainSystem_.GetAttachedBallCount();
+	viewData.releasedBallCount = magnetChainSystem_.GetReleasedBallCount();
+	viewData.leftChainCount = magnetChainSystem_.GetLeftChainCount();
+	viewData.rightChainCount = magnetChainSystem_.GetRightChainCount();
 	viewData.maximumConstraintError = magnetChainSystem_.GetMaximumConstraintError();
-	viewData.chainsAttached = magnetChainSystem_.AreChainsAttached();
+	viewData.attachmentRadius = magnet::MagnetChainSystem::GetAttachmentRadius();
+	viewData.stageData = &magnetStageSystem_.GetStageData();
+	viewData.saveEntries = magnetStageSystem_.GetSaveEntries().data();
+	viewData.saveEntryCount = magnetStageSystem_.GetSaveEntryCount();
+	viewData.stageOperationMessage = magnetStageSystem_.GetLastOperationMessage().c_str();
+	viewData.stageOperationSucceeded = magnetStageSystem_.DidLastOperationSucceed();
+	viewData.stageDirty = magnetStageSystem_.IsDirty();
 	const physics::SphereBody* player = magnetChainSystem_.GetPhysicsWorld().GetBody(
 		magnetChainSystem_.GetPlayerBody());
 	if (player) {
@@ -145,9 +155,8 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 		context.virtualHeight);
 	resetRequested_ = resetRequested_ || request.reset;
 	pendingCommand_.emergencyStop = pendingCommand_.emergencyStop || request.emergencyStop;
-	pendingCommand_.emitOne = pendingCommand_.emitOne || request.emitOne;
 	pendingCommand_.releaseChains = pendingCommand_.releaseChains || request.releaseChains;
-	magnetChainSystem_.SetEmitterSettings(request.emitterSettings);
+	ProcessStageEditorRequest(request);
 	showGrid_ = request.showGrid;
 	showVelocity_ = request.showVelocity;
 	cameraFollow_ = request.cameraFollow;
@@ -188,20 +197,73 @@ void MagnetPrototypeScene::Draw()
 
 	DrawBody(magnetChainSystem_.GetPlayerBody(), kPlayerColor);
 	DrawVelocity(magnetChainSystem_.GetPlayerBody());
-	for (physics::BodyHandle handle : magnetChainSystem_.GetLeftChain()) {
-		DrawBody(handle, kLeftChainColor);
-		DrawVelocity(handle);
-	}
-	for (physics::BodyHandle handle : magnetChainSystem_.GetRightChain()) {
-		DrawBody(handle, kRightChainColor);
-		DrawVelocity(handle);
-	}
-	for (physics::BodyHandle handle : magnetChainSystem_.GetTestBalls()) {
-		DrawBody(handle, kTestBallColor);
-		DrawVelocity(handle);
+	const auto& stageBalls = magnetChainSystem_.GetStageBalls();
+	const auto& stageBallStates = magnetChainSystem_.GetStageBallStates();
+	for (std::size_t index = 0; index < magnetChainSystem_.GetStageBallCount(); ++index) {
+		Vector4 color = kAvailableBallColor;
+		switch (stageBallStates[index]) {
+		case magnet::MagnetChainSystem::StageBallState::AttachedLeft:
+			color = kLeftChainColor;
+			break;
+		case magnet::MagnetChainSystem::StageBallState::AttachedRight:
+			color = kRightChainColor;
+			break;
+		case magnet::MagnetChainSystem::StageBallState::Released:
+			color = kReleasedBallColor;
+			break;
+		case magnet::MagnetChainSystem::StageBallState::Inactive:
+			continue;
+		case magnet::MagnetChainSystem::StageBallState::Available:
+		default:
+			break;
+		}
+		DrawBody(stageBalls[index], color);
+		DrawVelocity(stageBalls[index]);
 	}
 
 	lineDrawer->Draw(camera_->GetViewProjectionMatrix());
+}
+
+void MagnetPrototypeScene::ProcessStageEditorRequest(
+	const magnet::MagnetPrototypeUiRequest& request)
+{
+	bool stageChanged = false;
+	switch (request.stageAction) {
+	case magnet::MagnetStageEditorAction::GenerateBalanced:
+		stageChanged = magnetStageSystem_.GenerateBalanced(request.generationSettings);
+		break;
+	case magnet::MagnetStageEditorAction::AddBall:
+		stageChanged = magnetStageSystem_.AddBall(request.editedBallPosition);
+		break;
+	case magnet::MagnetStageEditorAction::RemoveBall:
+		stageChanged = magnetStageSystem_.RemoveBall(request.selectedBallId);
+		break;
+	case magnet::MagnetStageEditorAction::MoveBall:
+		stageChanged = magnetStageSystem_.SetBallPosition(
+			request.selectedBallId,
+			request.editedBallPosition);
+		break;
+	case magnet::MagnetStageEditorAction::SaveNamed:
+		(void)magnetStageSystem_.SaveNamed(
+			request.stageSaveName.data(),
+			request.allowOverwrite);
+		break;
+	case magnet::MagnetStageEditorAction::LoadNamed:
+		stageChanged = magnetStageSystem_.LoadNamed(request.stageSaveName.data());
+		break;
+	case magnet::MagnetStageEditorAction::RefreshSaves:
+		(void)magnetStageSystem_.RefreshSaveEntries();
+		break;
+	case magnet::MagnetStageEditorAction::None:
+	default:
+		break;
+	}
+	if (stageChanged &&
+		!magnetChainSystem_.ApplyStageLayout(magnetStageSystem_.GetStageData())) {
+		prototypeReady_ = false;
+		Logger::Log("MagnetPrototypeScene: applying edited stage layout failed.");
+		assert(false && "Applying edited magnet stage failed.");
+	}
 }
 
 void MagnetPrototypeScene::DrawBody(physics::BodyHandle handle, const Vector4& color) const
