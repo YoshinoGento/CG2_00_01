@@ -18,6 +18,8 @@ struct MagnetPrototypeViewData {
 	float playerSpeed = 0.0f;
 	float maximumConstraintError = 0.0f;
 	bool chainsAttached = true;
+	std::size_t goalHitCount = 0;
+	float goalWidth = 0.0f;
 };
 
 struct MagnetPrototypeUiRequest {

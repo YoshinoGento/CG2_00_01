@@ -15,6 +15,20 @@ class MagnetChainSystem final {
 public:
 	static constexpr std::size_t kLinksPerSide = 4;
 	static constexpr std::size_t kTestBallCapacity = 24;
+	static constexpr float kMagnetDiameter = 1.0f;
+
+	enum class GoalSize : uint8_t {
+		Small,
+		Standard,
+		Large,
+	};
+
+	struct Goal {
+		Vector3 center{};
+		float width = kMagnetDiameter * 2.5f;
+		float depth = 1.5f;
+		GoalSize size = GoalSize::Standard;
+	};
 
 	struct EmitterSettings {
 		bool autoEmit = false;
@@ -42,6 +56,7 @@ public:
 	[[nodiscard]] bool Reset();
 	void SetPlayerCommand(const PlayerCommand& command) noexcept { command_ = command; }
 	void SetEmitterSettings(const EmitterSettings& settings) noexcept;
+	void ConfigureGoal(GoalSize size, const Vector3& center) noexcept;
 	[[nodiscard]] bool FixedUpdate(float fixedDeltaTime) noexcept;
 
 	[[nodiscard]] const physics::PhysicsWorld& GetPhysicsWorld() const noexcept { return physicsWorld_; }
@@ -53,6 +68,8 @@ public:
 	[[nodiscard]] float GetMaximumConstraintError() const noexcept;
 	[[nodiscard]] float GetPlayerHeadingRadians() const noexcept { return playerHeadingRadians_; }
 	[[nodiscard]] bool AreChainsAttached() const noexcept { return chainsAttached_; }
+	[[nodiscard]] const Goal& GetGoal() const noexcept { return goal_; }
+	[[nodiscard]] std::size_t GetGoalHitCount() const noexcept { return goalHitCount_; }
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
 	[[nodiscard]] const ReleaseConvergenceDiagnostics&
 		GetLastReleaseConvergenceDiagnostics() const noexcept {
@@ -75,6 +92,7 @@ private:
 	[[nodiscard]] bool UpdateMomentumTrackers(float fixedDeltaTime) noexcept;
 	[[nodiscard]] bool ApplyMomentumLaunch() noexcept;
 	[[nodiscard]] bool ReleaseChains() noexcept;
+	[[nodiscard]] bool CollectReleasedMagnetsInGoal() noexcept;
 	void DeactivateDistantTestBalls() noexcept;
 
 	physics::PhysicsWorld physicsWorld_;
@@ -91,11 +109,13 @@ private:
 	PlayerCommand command_{};
 	EmitterSettings emitterSettings_{};
 	ReleaseConvergenceDiagnostics lastReleaseConvergenceDiagnostics_{};
+	Goal goal_{};
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;
 	float emitterTimer_ = 0.0f;
 	std::size_t nextTestBallIndex_ = 0;
 	uint32_t emittedBallSequence_ = 0;
+	std::size_t goalHitCount_ = 0;
 	bool chainsAttached_ = true;
 	bool healthy_ = false;
 };

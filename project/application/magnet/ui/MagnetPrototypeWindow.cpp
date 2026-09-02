@@ -156,6 +156,7 @@ void MagnetPrototypeWindow::DrawHierarchy(const MagnetPrototypeViewData& viewDat
 		ImGui::TextDisabled("SIMULATION OBJECTS");
 		ImGui::Separator();
 		ImGui::BulletText("Player (Kinematic)");
+		ImGui::BulletText("Goal (Standard, %.1f wide)", viewData.goalWidth);
 		ImGui::TextColored(
 			viewData.chainsAttached
 				? ImVec4{ 0.25f, 0.95f, 0.45f, 1.0f }
@@ -323,7 +324,7 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 	if (ImGui::Begin(kMonitorWindowName, nullptr, ImGuiWindowFlags_NoCollapse)) {
 		if (ImGui::BeginTable(
 			"MagnetMetrics",
-			4,
+			5,
 			ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame)) {
 			ImGui::TableNextColumn();
 			ImGui::TextDisabled("BODIES");
@@ -342,6 +343,9 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 			ImGui::Text("%zu / %zu",
 				viewData.activeTestBallCount,
 				MagnetChainSystem::kTestBallCapacity);
+			ImGui::TableNextColumn();
+			ImGui::TextDisabled("GOAL HITS");
+			ImGui::Text("%zu / %zu", viewData.goalHitCount, MagnetChainSystem::kLinksPerSide * 2);
 			ImGui::EndTable();
 		}
 

@@ -66,6 +66,8 @@ constexpr float kEmitterMinimumSpeed = 1.0f;
 constexpr float kEmitterMaximumSpeed = 20.0f;
 constexpr uint32_t kPhysicsSubsteps = 3;
 constexpr uint32_t kConstraintIterations = 8;
+constexpr Vector3 kStandardGoalCenter = { 0.0f, 0.0f, 9.0f };
+constexpr float kStandardGoalDepth = 1.5f;
 
 bool IsFinite(const Vector3& value) noexcept
 {
@@ -127,6 +129,39 @@ float SignedAngleXZ(const Vector3& from, const Vector3& to) noexcept
 	return std::atan2(crossY, DotXZ(from, to));
 }
 
+bool SegmentIntersectsExpandedGoal(
+	const Vector3& start,
+	const Vector3& end,
+	const MagnetChainSystem::Goal& goal,
+	float radius) noexcept
+{
+	const float halfWidth = goal.width * 0.5f + radius;
+	const float halfDepth = goal.depth * 0.5f + radius;
+	const float minimumX = goal.center.x - halfWidth;
+	const float maximumX = goal.center.x + halfWidth;
+	const float minimumZ = goal.center.z - halfDepth;
+	const float maximumZ = goal.center.z + halfDepth;
+	float entryTime = 0.0f;
+	float exitTime = 1.0f;
+
+	const auto clipAxis = [&](float origin, float delta, float minimum, float maximum) noexcept {
+		if (std::abs(delta) <= kDirectionEpsilonSquared) {
+			return origin >= minimum && origin <= maximum;
+		}
+		float nearTime = (minimum - origin) / delta;
+		float farTime = (maximum - origin) / delta;
+		if (nearTime > farTime) {
+			std::swap(nearTime, farTime);
+		}
+		entryTime = (std::max)(entryTime, nearTime);
+		exitTime = (std::min)(exitTime, farTime);
+		return entryTime <= exitTime;
+	};
+
+	return clipAxis(start.x, end.x - start.x, minimumX, maximumX) &&
+		clipAxis(start.z, end.z - start.z, minimumZ, maximumZ);
+}
+
 Vector3 RotateXZ(const Vector3& value, float radians) noexcept
 {
 	const float cosine = std::cos(radians);
@@ -154,6 +189,8 @@ bool MagnetChainSystem::Reset()
 	emitterTimer_ = 0.0f;
 	nextTestBallIndex_ = 0;
 	emittedBallSequence_ = 0;
+	ConfigureGoal(GoalSize::Standard, kStandardGoalCenter);
+	goalHitCount_ = 0;
 	leftConstraintIndices_.fill(kInvalidConstraintIndex);
 	rightConstraintIndices_.fill(kInvalidConstraintIndex);
 	leftBendConstraintIndices_.fill(kInvalidConstraintIndex);
@@ -184,6 +221,27 @@ bool MagnetChainSystem::Reset()
 
 	healthy_ = true;
 	return true;
+}
+
+void MagnetChainSystem::ConfigureGoal(GoalSize size, const Vector3& center) noexcept
+{
+	float widthInMagnets = 2.5f;
+	switch (size) {
+	case GoalSize::Small:
+		widthInMagnets = 2.0f;
+		break;
+	case GoalSize::Large:
+		widthInMagnets = 4.5f;
+		break;
+	case GoalSize::Standard:
+	default:
+		break;
+	}
+	goal_.center = IsFinite(center) ? center : kStandardGoalCenter;
+	goal_.center.y = 0.0f;
+	goal_.width = kMagnetDiameter * widthInMagnets;
+	goal_.depth = kStandardGoalDepth;
+	goal_.size = size;
 }
 
 void MagnetChainSystem::SetEmitterSettings(const EmitterSettings& settings) noexcept
@@ -258,8 +316,36 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		healthy_ = false;
 		return false;
 	}
+	if (!chainsAttached_ && !CollectReleasedMagnetsInGoal()) {
+		healthy_ = false;
+		return false;
+	}
 	DeactivateDistantTestBalls();
 	return true;
+}
+
+bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
+{
+	const auto collectChain = [&](const auto& chain) noexcept {
+		for (physics::BodyHandle handle : chain) {
+			const physics::SphereBody* body = physicsWorld_.GetBody(handle);
+			if (!body || !body->active) {
+				continue;
+			}
+			if (!SegmentIntersectsExpandedGoal(
+				body->previousPosition, body->position, goal_, body->radius)) {
+				continue;
+			}
+			if (!physicsWorld_.SetLinearVelocity(handle, {}) ||
+				!physicsWorld_.SetActive(handle, false)) {
+				return false;
+			}
+			++goalHitCount_;
+		}
+		return true;
+	};
+
+	return collectChain(leftChain_) && collectChain(rightChain_);
 }
 
 bool MagnetChainSystem::CreateChain(
