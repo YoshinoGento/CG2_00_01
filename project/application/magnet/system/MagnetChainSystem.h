@@ -22,7 +22,6 @@ public:
 	static constexpr std::size_t kStageBallCapacity = MagnetStageData::kMaximumBallCount;
 	static constexpr float kAttachmentRadius = 2.15f;
 	static constexpr float kMagnetDiameter = 1.0f;
-	static constexpr std::size_t kScorePerGoal = 1;
 
 	enum class GoalSize : uint8_t { Small, Standard, Large };
 
@@ -31,6 +30,7 @@ public:
 		float width = kMagnetDiameter * 2.5f;
 		float depth = 1.5f;
 		GoalSize size = GoalSize::Standard;
+		std::size_t score = 1;
 	};
 
 	enum class StageBallState : uint8_t {

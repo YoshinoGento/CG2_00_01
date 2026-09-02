@@ -390,6 +390,11 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 			request.editedObjectPosition,
 			request.editedObjectSize);
 		break;
+	case magnet::MagnetStageEditorAction::UpdateGoalScore:
+		stageChanged = magnetStageSystem_.SetGoalScore(
+			request.selectedObjectId,
+			request.editedGoalScore);
+		break;
 	case magnet::MagnetStageEditorAction::SaveNamed:
 		(void)magnetStageSystem_.SaveNamed(
 			request.stageSaveName.data(),

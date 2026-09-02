@@ -612,6 +612,16 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			request.editedObjectPosition = { position[0], position[1], position[2] };
 			request.editedObjectSize = { size[0], size[1], size[2] };
 		}
+		if (isGoal) {
+			int score = static_cast<int>(selectedBox->score);
+			ImGui::SetNextItemWidth(-1.0f);
+			if (ImGui::InputInt("得点##GoalScore", &score)) {
+				score = std::clamp(score, 1, 999);
+				request.stageAction = MagnetStageEditorAction::UpdateGoalScore;
+				request.selectedObjectId = selectedBox->id;
+				request.editedGoalScore = static_cast<uint32_t>(score);
+			}
+		}
 		if (ImGui::Button(
 			isGoal ? "選択したゴールを削除" : "選択した障害物を削除",
 			{ -1.0f, 0.0f })) {

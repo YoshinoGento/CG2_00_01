@@ -60,6 +60,7 @@ enum class MagnetStageEditorAction : uint8_t {
 	AddObstacle,
 	RemoveBoxObject,
 	MoveBoxObject,
+	UpdateGoalScore,
 	SaveNamed,
 	LoadNamed,
 	RefreshSaves,
@@ -74,6 +75,7 @@ struct MagnetPrototypeUiRequest {
 	uint32_t selectedObjectId = 0;
 	Vector3 editedObjectPosition{};
 	Vector3 editedObjectSize{ 1.0f, 1.0f, 1.0f };
+	uint32_t editedGoalScore = 1;
 	bool allowOverwrite = false;
 	SpinChargeController::Settings spinChargeSettings{};
 	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings{};

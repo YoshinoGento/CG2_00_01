@@ -26,6 +26,7 @@ struct MagnetStageBoxPlacement {
 	uint32_t id = 0;
 	Vector3 position{};
 	Vector3 size{ 1.0f, 1.0f, 1.0f };
+	uint32_t score = 1;
 };
 
 struct MagnetStageGenerationSettings {
@@ -40,7 +41,7 @@ struct MagnetStageGenerationSettings {
 };
 
 struct MagnetStageData {
-	static constexpr uint32_t kSchemaVersion = 3;
+	static constexpr uint32_t kSchemaVersion = 4;
 	static constexpr uint32_t kOldestSupportedSchemaVersion = 1;
 	static constexpr std::size_t kMaximumBallCount = 24;
 	static constexpr std::size_t kMaximumGoalCount = 4;
@@ -93,6 +94,7 @@ public:
 		uint32_t id,
 		const Vector3& position,
 		const Vector3& size);
+	[[nodiscard]] bool SetGoalScore(uint32_t id, uint32_t score);
 	[[nodiscard]] bool Save(const std::string& path);
 	[[nodiscard]] bool Load(const std::string& path);
 	[[nodiscard]] bool RefreshSaveEntries();
