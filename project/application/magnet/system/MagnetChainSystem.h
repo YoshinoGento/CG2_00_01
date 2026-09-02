@@ -2,6 +2,8 @@
 
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/BallMomentumTracker.h"
+#include "application/magnet/system/MagneticImpactAttachmentSystem.h"
+#include "application/magnet/system/SpinChargeController.h"
 #include "physics/PhysicsWorld.h"
 
 #include <array>
@@ -46,6 +48,13 @@ public:
 	[[nodiscard]] bool Reset();
 	[[nodiscard]] bool ApplyStageLayout(const MagnetStageData& stageData);
 	void SetPlayerCommand(const PlayerCommand& command) noexcept { command_ = command; }
+	void SetSpinChargeSettings(const SpinChargeController::Settings& settings) noexcept {
+		spinChargeController_.SetSettings(settings);
+	}
+	void SetImpactAttachmentSettings(
+		const MagneticImpactAttachmentSystem::Settings& settings) noexcept {
+		impactAttachmentSystem_.SetSettings(settings);
+	}
 	[[nodiscard]] bool FixedUpdate(float fixedDeltaTime) noexcept;
 
 	[[nodiscard]] const physics::PhysicsWorld& GetPhysicsWorld() const noexcept {
@@ -75,6 +84,11 @@ public:
 	[[nodiscard]] static constexpr float GetAttachmentRadius() noexcept { return kAttachmentRadius; }
 	[[nodiscard]] bool HasAttachedBalls() const noexcept { return GetAttachedBallCount() > 0; }
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
+	[[nodiscard]] float GetSpinChargeRatio() const noexcept { return spinChargeController_.GetChargeRatio(); }
+	[[nodiscard]] float GetSpinChargeRotationRadians() const noexcept { return spinChargeController_.GetAccumulatedRotationRadians(); }
+	[[nodiscard]] float GetSpinChargeSpeedMultiplier() const noexcept { return spinChargeController_.GetSpeedMultiplier(); }
+	[[nodiscard]] float GetSpinChargeTurnSpeedMultiplier() const noexcept { return spinChargeController_.GetTurnSpeedMultiplier(); }
+	[[nodiscard]] std::size_t GetMagneticAttachmentCount() const noexcept { return impactAttachmentSystem_.GetAttachmentCount(); }
 	[[nodiscard]] const ReleaseConvergenceDiagnostics&
 		GetLastReleaseConvergenceDiagnostics() const noexcept {
 		return lastReleaseConvergenceDiagnostics_;
@@ -110,6 +124,8 @@ private:
 	std::array<std::size_t, kBendConstraintsPerSide> rightBendConstraintIndices_{};
 	BallMomentumTracker leftMomentumTracker_{};
 	BallMomentumTracker rightMomentumTracker_{};
+	SpinChargeController spinChargeController_{};
+	MagneticImpactAttachmentSystem impactAttachmentSystem_{};
 	std::array<physics::BodyHandle, kStageBallCapacity> stageBalls_{};
 	std::array<StageBallState, kStageBallCapacity> stageBallStates_{};
 	std::array<uint32_t, kStageBallCapacity> stageBallIds_{};

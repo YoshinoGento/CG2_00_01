@@ -17,6 +17,8 @@ public:
 	struct Settings {
 		float attackSeconds = 0.045f;
 		float decaySeconds = 0.32f;
+		float stationaryDecaySeconds = 0.24f;
+		float stationarySpeedThreshold = 0.35f;
 		float boostStartSpeed = 2.0f;
 		float fullBoostSpeed = 14.0f;
 		float maximumSpeedBoost = 0.45f;

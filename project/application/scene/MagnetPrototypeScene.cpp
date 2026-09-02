@@ -133,6 +133,11 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	viewData.rightChainCount = magnetChainSystem_.GetRightChainCount();
 	viewData.maximumConstraintError = magnetChainSystem_.GetMaximumConstraintError();
 	viewData.attachmentRadius = magnet::MagnetChainSystem::GetAttachmentRadius();
+	viewData.spinChargeRatio = magnetChainSystem_.GetSpinChargeRatio();
+	viewData.spinChargeRotations = magnetChainSystem_.GetSpinChargeRotationRadians() / 6.28318530717958647692f;
+	viewData.spinChargeSpeedMultiplier = magnetChainSystem_.GetSpinChargeSpeedMultiplier();
+	viewData.spinChargeTurnSpeedMultiplier = magnetChainSystem_.GetSpinChargeTurnSpeedMultiplier();
+	viewData.magneticAttachmentCount = magnetChainSystem_.GetMagneticAttachmentCount();
 	viewData.stageData = &magnetStageSystem_.GetStageData();
 	viewData.saveEntries = magnetStageSystem_.GetSaveEntries().data();
 	viewData.saveEntryCount = magnetStageSystem_.GetSaveEntryCount();
@@ -157,6 +162,8 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	pendingCommand_.emergencyStop = pendingCommand_.emergencyStop || request.emergencyStop;
 	pendingCommand_.releaseChains = pendingCommand_.releaseChains || request.releaseChains;
 	ProcessStageEditorRequest(request);
+	magnetChainSystem_.SetSpinChargeSettings(request.spinChargeSettings);
+	magnetChainSystem_.SetImpactAttachmentSettings(request.impactAttachmentSettings);
 	showGrid_ = request.showGrid;
 	showVelocity_ = request.showVelocity;
 	cameraFollow_ = request.cameraFollow;

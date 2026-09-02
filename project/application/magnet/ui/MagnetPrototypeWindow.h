@@ -24,6 +24,11 @@ struct MagnetPrototypeViewData {
 	float playerSpeed = 0.0f;
 	float maximumConstraintError = 0.0f;
 	float attachmentRadius = 0.0f;
+	float spinChargeRatio = 0.0f;
+	float spinChargeRotations = 0.0f;
+	float spinChargeSpeedMultiplier = 1.0f;
+	float spinChargeTurnSpeedMultiplier = 1.0f;
+	std::size_t magneticAttachmentCount = 0;
 	const MagnetStageData* stageData = nullptr;
 	const MagnetStageSaveEntry* saveEntries = nullptr;
 	std::size_t saveEntryCount = 0;
@@ -50,6 +55,8 @@ struct MagnetPrototypeUiRequest {
 	uint32_t selectedBallId = 0;
 	Vector3 editedBallPosition{};
 	bool allowOverwrite = false;
+	SpinChargeController::Settings spinChargeSettings{};
+	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings{};
 	bool reset = false;
 	bool emergencyStop = false;
 	bool releaseChains = false;
@@ -104,6 +111,8 @@ private:
 	std::array<char, MagnetStageSystem::kMaximumSaveNameLength + 1> selectedSaveName_{};
 	std::array<char, MagnetStageSystem::kMaximumSaveNameLength + 1> pendingSaveName_{};
 	uint32_t selectedStageBallId_ = 0;
+	SpinChargeController::Settings spinChargeSettings_{};
+	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings_{};
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;

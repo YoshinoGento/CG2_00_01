@@ -72,6 +72,8 @@ MagnetPrototypeUiRequest MagnetPrototypeWindow::Draw(
 #endif
 
 	request.showGrid = showGrid_;
+	request.spinChargeSettings = spinChargeSettings_;
+	request.impactAttachmentSettings = impactAttachmentSettings_;
 	request.showVelocity = showVelocity_;
 	request.cameraFollow = cameraFollow_;
 	return request;
@@ -295,6 +297,17 @@ void MagnetPrototypeWindow::DrawInspector(
 		if (viewData.attachedBallCount == 0) {
 			ImGui::EndDisabled();
 		}
+		ImGui::SeparatorText("Spin Charge Launch");
+		ImGui::Checkbox("Enable Spin Charge Mode", &spinChargeSettings_.enabled);
+		ImGui::SliderFloat("Full Charge Rotations", &spinChargeSettings_.rotationsForFullCharge, 0.25f, 12.0f, "%.2f");
+		ImGui::SliderFloat("Maximum Turn Multiplier", &spinChargeSettings_.maximumTurnSpeedMultiplier, 1.0f, 12.0f, "x%.1f");
+		ImGui::SliderFloat("Maximum Launch Multiplier", &spinChargeSettings_.maximumSpeedMultiplier, 1.0f, 16.0f, "x%.1f");
+		ImGui::ProgressBar(viewData.spinChargeRatio, { -1.0f, 0.0f }, "spin charge");
+		ImGui::Text("Stored %.2f turns | Turn x%.2f | Launch x%.2f", viewData.spinChargeRotations, viewData.spinChargeTurnSpeedMultiplier, viewData.spinChargeSpeedMultiplier);
+		ImGui::SeparatorText("Magnetic Impact Attachment");
+		ImGui::Checkbox("Stick Magnets on Impact", &impactAttachmentSettings_.enabled);
+		ImGui::SliderFloat("Minimum Impact Speed", &impactAttachmentSettings_.minimumImpactSpeed, 0.0f, 20.0f, "%.1f");
+		ImGui::Text("Attached pairs: %zu", viewData.magneticAttachmentCount);
 
 		DrawStageEditor(viewData, request);
 

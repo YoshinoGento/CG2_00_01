@@ -48,10 +48,14 @@ bool BallMomentumTracker::Update(
 	const float storedSpeedSquared = LengthSquaredXZ(storedVelocity);
 	const float alignment =
 		planarVelocity.x * storedVelocity.x + planarVelocity.z * storedVelocity.z;
+	const bool stationary = currentSpeedSquared <=
+		settings_.stationarySpeedThreshold * settings_.stationarySpeedThreshold;
 	const bool reinforcing = currentSpeedSquared >= storedSpeedSquared && alignment >= 0.0f;
-	const float timeConstant = reinforcing
-		? (std::max)(settings_.attackSeconds, 1.0e-4f)
-		: (std::max)(settings_.decaySeconds, 1.0e-4f);
+	const float timeConstant = stationary
+		? (std::max)(settings_.stationaryDecaySeconds, 1.0e-4f)
+		: (reinforcing
+			? (std::max)(settings_.attackSeconds, 1.0e-4f)
+			: (std::max)(settings_.decaySeconds, 1.0e-4f));
 	const float blend = 1.0f - std::exp(-deltaTime / timeConstant);
 	storedVelocity += (planarVelocity - storedVelocity) * blend;
 	storedVelocity.y = 0.0f;

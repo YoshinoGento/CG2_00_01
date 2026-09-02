@@ -186,6 +186,8 @@ bool MagnetChainSystem::RebuildRuntime()
 	rightBendConstraintIndices_.fill(kInvalidConstraintIndex);
 	leftMomentumTracker_.Reset();
 	rightMomentumTracker_.Reset();
+	spinChargeController_.Reset();
+	impactAttachmentSystem_.Reset();
 	lastReleaseConvergenceDiagnostics_ = {};
 	stageBalls_.fill({});
 	stageBallStates_.fill(StageBallState::Inactive);
@@ -312,7 +314,11 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		playerHeadingRadians_ = MoveAngleTowards(
 			playerHeadingRadians_,
 			targetHeading,
-			kPlayerTurnRateRadians * fixedDeltaTime);
+			kPlayerTurnRateRadians * spinChargeController_.GetTurnSpeedMultiplier() * fixedDeltaTime);
+	}
+	if (!spinChargeController_.Update(playerHeadingRadians_, fixedDeltaTime)) {
+		healthy_ = false;
+		return false;
 	}
 
 	if (!physicsWorld_.SetLinearVelocity(playerBody_, playerVelocity_) ||
@@ -321,6 +327,18 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		(command_.releaseChains && HasAttachedBalls() && !ReleaseChains()) ||
 		!physicsWorld_.Step(fixedDeltaTime, kPhysicsSubsteps, kConstraintIterations) ||
 		(HasAttachedBalls() && !UpdateMomentumTrackers(fixedDeltaTime))) {
+		healthy_ = false;
+		return false;
+	}
+	MagneticImpactAttachmentSystem::MagnetHandles releasedMagnets{};
+	std::size_t releasedIndex = 0;
+	for (std::size_t index = 0; index < stageBallCount_ && releasedIndex < releasedMagnets.size(); ++index) {
+		if (stageBallStates_[index] == StageBallState::Released) {
+			releasedMagnets[releasedIndex++] = stageBalls_[index];
+		}
+	}
+	if (releasedIndex > 1 &&
+		!impactAttachmentSystem_.Update(physicsWorld_, releasedMagnets, fixedDeltaTime)) {
 		healthy_ = false;
 		return false;
 	}
@@ -597,6 +615,8 @@ bool MagnetChainSystem::ApplyMomentumLaunch() noexcept
 			releasePositions[releasedBallCount] = body->position;
 			releaseVelocities[releasedBallCount] =
 				momentumTracker.CalculateLaunchVelocity(linkIndex, body->linearVelocity);
+			releaseVelocities[releasedBallCount] =
+				spinChargeController_.ApplyToLaunchVelocity(releaseVelocities[releasedBallCount]);
 			if (!IsFinite(releaseVelocities[releasedBallCount])) {
 				return false;
 			}
@@ -716,6 +736,7 @@ bool MagnetChainSystem::ApplyMomentumLaunch() noexcept
 		return false;
 	}
 	lastReleaseConvergenceDiagnostics_ = diagnostics;
+	spinChargeController_.ResetCharge();
 	return true;
 }
 
@@ -752,6 +773,7 @@ bool MagnetChainSystem::ReleaseChains() noexcept
 	rightChainCount_ = 0;
 	leftMomentumTracker_.Reset();
 	rightMomentumTracker_.Reset();
+	impactAttachmentSystem_.BeginRelease();
 	return true;
 }
 
