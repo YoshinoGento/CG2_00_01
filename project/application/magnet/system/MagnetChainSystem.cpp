@@ -29,11 +29,8 @@ const float kFirstBendRestLength = std::sqrt(
 constexpr float kBendConstraintMaximumCorrection = 0.22f;
 constexpr float kMaximumMagneticAcceleration = 65.0f;
 constexpr float kMaximumMagneticVelocityChange = 1.40f;
-constexpr float kMaximumReleaseSpeed = 16.0f;
 constexpr float kTwoPi = 6.28318530717958647692f;
 constexpr float kDegreesToRadians = 0.01745329251994329577f;
-constexpr float kReleaseMemoryAttackSeconds = 0.055f;
-constexpr float kReleaseMemoryDecaySeconds = 0.20f;
 constexpr float kReleaseConvergenceTimeSeconds = 0.45f;
 constexpr float kReleaseConvergenceDirectionBlend = 0.25f;
 constexpr float kReleaseConvergenceSpeedBlend = 0.10f;
@@ -56,9 +53,6 @@ constexpr std::array<float, MagnetChainSystem::kLinksPerSide> kMaximumBendRadian
 	30.0f * kDegreesToRadians,
 	38.0f * kDegreesToRadians,
 	48.0f * kDegreesToRadians,
-};
-constexpr std::array<float, MagnetChainSystem::kLinksPerSide> kReleaseMemoryBlend = {
-	0.90f, 0.72f, 0.50f, 0.28f,
 };
 constexpr std::array<float, MagnetChainSystem::kLinksPerSide - 1> kBendCompliance = {
 	0.00022f, 0.00040f, 0.00065f,
@@ -164,8 +158,8 @@ bool MagnetChainSystem::Reset()
 	rightConstraintIndices_.fill(kInvalidConstraintIndex);
 	leftBendConstraintIndices_.fill(kInvalidConstraintIndex);
 	rightBendConstraintIndices_.fill(kInvalidConstraintIndex);
-	leftReleaseVelocityMemory_.fill(Vector3{});
-	rightReleaseVelocityMemory_.fill(Vector3{});
+	leftMomentumTracker_.Reset();
+	rightMomentumTracker_.Reset();
 	lastReleaseConvergenceDiagnostics_ = {};
 	chainsAttached_ = true;
 	healthy_ = false;
@@ -260,7 +254,7 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		healthy_ = false;
 		return false;
 	}
-	if (chainsAttached_ && !UpdateReleaseVelocityMemory(fixedDeltaTime)) {
+	if (chainsAttached_ && !UpdateMomentumTrackers(fixedDeltaTime)) {
 		healthy_ = false;
 		return false;
 	}
@@ -386,70 +380,47 @@ bool MagnetChainSystem::ApplyMagneticRestoringForces(float fixedDeltaTime) noexc
 	return applyToChain(-1.0f, leftChain_) && applyToChain(1.0f, rightChain_);
 }
 
-bool MagnetChainSystem::UpdateReleaseVelocityMemory(float fixedDeltaTime) noexcept
+bool MagnetChainSystem::UpdateMomentumTrackers(float fixedDeltaTime) noexcept
 {
-	const auto updateChain = [&](const auto& chain, auto& velocityMemory) noexcept {
+	const auto updateChain = [&](const auto& chain, auto& momentumTracker) noexcept {
 		for (std::size_t linkIndex = 0; linkIndex < chain.size(); ++linkIndex) {
 			const physics::SphereBody* body = physicsWorld_.GetBody(chain[linkIndex]);
-			if (!body || !body->active || !IsFinite(body->linearVelocity) ||
-				!IsFinite(velocityMemory[linkIndex])) {
-				return false;
-			}
-			const float currentSpeedSquared = LengthSquaredXZ(body->linearVelocity);
-			const float memorySpeedSquared = LengthSquaredXZ(velocityMemory[linkIndex]);
-			const bool reinforcing =
-				currentSpeedSquared >= memorySpeedSquared &&
-				DotXZ(body->linearVelocity, velocityMemory[linkIndex]) >= 0.0f;
-			const float timeConstant = reinforcing
-				? kReleaseMemoryAttackSeconds
-				: kReleaseMemoryDecaySeconds;
-			const float blend = 1.0f - std::exp(-fixedDeltaTime / timeConstant);
-			velocityMemory[linkIndex] +=
-				(body->linearVelocity - velocityMemory[linkIndex]) * blend;
-			velocityMemory[linkIndex].y = 0.0f;
-			if (!IsFinite(velocityMemory[linkIndex])) {
+			if (!body || !body->active ||
+				!momentumTracker.Update(linkIndex, body->linearVelocity, fixedDeltaTime)) {
 				return false;
 			}
 		}
 		return true;
 	};
 
-	return updateChain(leftChain_, leftReleaseVelocityMemory_) &&
-		updateChain(rightChain_, rightReleaseVelocityMemory_);
+	return updateChain(leftChain_, leftMomentumTracker_) &&
+		updateChain(rightChain_, rightMomentumTracker_);
 }
 
-bool MagnetChainSystem::ApplyReleaseVelocityMemory() noexcept
+bool MagnetChainSystem::ApplyMomentumLaunch() noexcept
 {
 	constexpr std::size_t kReleasedBallCount = kLinksPerSide * 2;
 	std::array<Vector3, kLinksPerSide> leftReleaseVelocities{};
 	std::array<Vector3, kLinksPerSide> rightReleaseVelocities{};
 	const auto calculateChain = [&](
 		const auto& chain,
-		const auto& velocityMemory,
+		const auto& momentumTracker,
 		auto& outputVelocities) noexcept {
 		for (std::size_t linkIndex = 0; linkIndex < chain.size(); ++linkIndex) {
 			const physics::SphereBody* body = physicsWorld_.GetBody(chain[linkIndex]);
-			if (!body || !body->active || !IsFinite(body->linearVelocity) ||
-				!IsFinite(velocityMemory[linkIndex])) {
+			if (!body || !body->active || !IsFinite(body->linearVelocity)) {
 				return false;
 			}
-			Vector3 releaseVelocity = body->linearVelocity;
-			if (LengthSquaredXZ(velocityMemory[linkIndex]) >
-				LengthSquaredXZ(body->linearVelocity)) {
-				releaseVelocity +=
-					(velocityMemory[linkIndex] - body->linearVelocity) *
-					kReleaseMemoryBlend[linkIndex];
-			}
-			outputVelocities[linkIndex] =
-				ClampMagnitudeXZ(releaseVelocity, kMaximumReleaseSpeed);
+			outputVelocities[linkIndex] = momentumTracker.CalculateLaunchVelocity(
+				linkIndex, body->linearVelocity);
 			if (!IsFinite(outputVelocities[linkIndex])) {
 				return false;
 			}
 		}
 		return true;
 	};
-	if (!calculateChain(leftChain_, leftReleaseVelocityMemory_, leftReleaseVelocities) ||
-		!calculateChain(rightChain_, rightReleaseVelocityMemory_, rightReleaseVelocities)) {
+	if (!calculateChain(leftChain_, leftMomentumTracker_, leftReleaseVelocities) ||
+		!calculateChain(rightChain_, rightMomentumTracker_, rightReleaseVelocities)) {
 		return false;
 	}
 
@@ -543,7 +514,7 @@ bool MagnetChainSystem::ApplyReleaseVelocityMemory() noexcept
 			Vector3 correctedVelocity = correctedDirection * correctedSpeed;
 			correctedVelocity.y = rawVelocity.y;
 			convergenceVelocities[index] =
-				ClampMagnitudeXZ(correctedVelocity, kMaximumReleaseSpeed);
+				ClampMagnitudeXZ(correctedVelocity, 22.0f);
 			maximumDirectionCorrection = (std::max)(
 				maximumDirectionCorrection,
 				std::abs(directionCorrection));
@@ -607,7 +578,7 @@ bool MagnetChainSystem::ReleaseChains() noexcept
 			return false;
 		}
 	}
-	if (!ApplyReleaseVelocityMemory()) {
+	if (!ApplyMomentumLaunch()) {
 		return false;
 	}
 

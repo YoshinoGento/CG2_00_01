@@ -1,4 +1,5 @@
 #include "application/magnet/system/MagnetChainSystem.h"
+#include "application/magnet/system/BallMomentumTracker.h"
 
 #include <algorithm>
 #include <array>
@@ -118,6 +119,32 @@ float GetMaximumConstraintError(const magnet::MagnetChainSystem& system)
 
 int main()
 {
+	magnet::BallMomentumTracker momentumTracker;
+	for (int step = 0; step < 30; ++step) {
+		if (!momentumTracker.Update(0, Vector3{ 0.0f, 0.0f, 4.0f }, kFixedDeltaTime)) {
+			std::cerr << "Low-speed momentum tracking failed.\n";
+			return 38;
+		}
+	}
+	const Vector3 lowMomentumLaunch =
+		momentumTracker.CalculateLaunchVelocity(0, Vector3{ 0.0f, 0.0f, 4.0f });
+	momentumTracker.Reset();
+	for (int step = 0; step < 30; ++step) {
+		if (!momentumTracker.Update(0, Vector3{ 0.0f, 0.0f, 14.0f }, kFixedDeltaTime)) {
+			std::cerr << "High-speed momentum tracking failed.\n";
+			return 39;
+		}
+	}
+	const Vector3 highMomentumLaunch =
+		momentumTracker.CalculateLaunchVelocity(0, Vector3{ 0.0f, 0.0f, 14.0f });
+	const float lowMomentumSpeed = DistanceXZ(Vector3{}, lowMomentumLaunch);
+	const float highMomentumSpeed = DistanceXZ(Vector3{}, highMomentumLaunch);
+	if (!std::isfinite(lowMomentumSpeed) || !std::isfinite(highMomentumSpeed) ||
+		highMomentumSpeed <= lowMomentumSpeed * 3.5f || highMomentumSpeed > 22.001f) {
+		std::cerr << "Momentum did not produce a bounded launch-speed increase.\n";
+		return 40;
+	}
+
 	magnet::MagnetChainSystem system;
 	if (!system.Initialize()) {
 		std::cerr << "Initialize failed.\n";

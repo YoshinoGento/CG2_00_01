@@ -1,5 +1,6 @@
 #pragma once
 
+#include "application/magnet/system/BallMomentumTracker.h"
 #include "physics/PhysicsWorld.h"
 
 #include <array>
@@ -71,8 +72,8 @@ private:
 	[[nodiscard]] bool CreateTestBallPool();
 	[[nodiscard]] bool EmitTestBall() noexcept;
 	[[nodiscard]] bool ApplyMagneticRestoringForces(float fixedDeltaTime) noexcept;
-	[[nodiscard]] bool UpdateReleaseVelocityMemory(float fixedDeltaTime) noexcept;
-	[[nodiscard]] bool ApplyReleaseVelocityMemory() noexcept;
+	[[nodiscard]] bool UpdateMomentumTrackers(float fixedDeltaTime) noexcept;
+	[[nodiscard]] bool ApplyMomentumLaunch() noexcept;
 	[[nodiscard]] bool ReleaseChains() noexcept;
 	void DeactivateDistantTestBalls() noexcept;
 
@@ -84,8 +85,8 @@ private:
 	std::array<std::size_t, kLinksPerSide> rightConstraintIndices_{};
 	std::array<std::size_t, kBendConstraintsPerSide> leftBendConstraintIndices_{};
 	std::array<std::size_t, kBendConstraintsPerSide> rightBendConstraintIndices_{};
-	std::array<Vector3, kLinksPerSide> leftReleaseVelocityMemory_{};
-	std::array<Vector3, kLinksPerSide> rightReleaseVelocityMemory_{};
+	BallMomentumTracker leftMomentumTracker_{};
+	BallMomentumTracker rightMomentumTracker_{};
 	std::array<physics::BodyHandle, kTestBallCapacity> testBalls_{};
 	PlayerCommand command_{};
 	EmitterSettings emitterSettings_{};
