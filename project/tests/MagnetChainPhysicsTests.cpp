@@ -1,6 +1,8 @@
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/BallMomentumTracker.h"
 #include "application/magnet/system/MagnetChainSystem.h"
+#include "application/magnet/system/MagneticImpactAttachmentSystem.h"
+#include "application/magnet/system/SpinChargeController.h"
 
 #include <algorithm>
 #include <array>
@@ -118,6 +120,78 @@ float GetMinimumPairDistance(const magnet::MagnetStageData& stage)
 
 int main()
 {
+	physics::PhysicsWorld attachmentWorld;
+	magnet::MagneticImpactAttachmentSystem attachmentSystem;
+	magnet::MagneticImpactAttachmentSystem::Settings attachmentSettings{};
+	attachmentSettings.releaseGraceSeconds = 0.0f;
+	attachmentSettings.minimumImpactSpeed = 1.0f;
+	attachmentSystem.SetSettings(attachmentSettings);
+	magnet::MagneticImpactAttachmentSystem::MagnetHandles attachmentMagnets{};
+	for (std::size_t index = 0; index < attachmentMagnets.size(); ++index) {
+		physics::SphereBodyDesc desc{};
+		desc.position = { static_cast<float>(index) * 10.0f, 0.5f, 0.0f };
+		if (index == 0) {
+			desc.position.x = 0.0f;
+			desc.linearVelocity.x = 2.0f;
+		} else if (index == 1) {
+			desc.position.x = 0.95f;
+			desc.linearVelocity.x = -2.0f;
+		}
+		attachmentMagnets[index] = attachmentWorld.CreateSphereBody(desc);
+		if (!attachmentMagnets[index].IsValid()) {
+			std::cerr << "Attachment test body creation failed.\n";
+			return 109;
+		}
+	}
+	attachmentSystem.BeginRelease();
+	if (!attachmentSystem.Update(attachmentWorld, attachmentMagnets, kFixedDeltaTime) ||
+		attachmentSystem.GetAttachmentCount() != 1 ||
+		attachmentWorld.GetActiveConstraintCount() != 1) {
+		std::cerr << "Magnetic impact did not create exactly one attachment.\n";
+		return 110;
+	}
+
+	magnet::SpinChargeController spinChargeController;
+	magnet::SpinChargeController::Settings spinSettings{};
+	spinSettings.enabled = true;
+	spinSettings.rotationsForFullCharge = 1.0f;
+	spinSettings.maximumTurnSpeedMultiplier = 4.0f;
+	spinSettings.maximumSpeedMultiplier = 8.0f;
+	spinSettings.maximumLaunchSpeed = 96.0f;
+	spinSettings.minimumBallSpeedForBoost = 1.5f;
+	spinSettings.ballSpeedForFullBoost = 10.0f;
+	spinChargeController.SetSettings(spinSettings);
+	if (!spinChargeController.Update(0.0f, kFixedDeltaTime)) {
+		std::cerr << "Spin charge initialization failed.\n";
+		return 111;
+	}
+	for (int step = 1; step <= 120; ++step) {
+		const float heading = static_cast<float>(step) * 0.0523598776f;
+		if (!spinChargeController.Update(heading, kFixedDeltaTime)) {
+			std::cerr << "Spin charge update failed.\n";
+			return 112;
+		}
+	}
+	const Vector3 chargedVelocity = spinChargeController.ApplyToLaunchVelocity(
+		{ 0.0f, 0.0f, 10.0f });
+	const Vector3 nearlyStationaryChargedVelocity =
+		spinChargeController.ApplyToLaunchVelocity({ 0.0f, 0.0f, 0.5f });
+	if (spinChargeController.GetChargeRatio() < 0.99f ||
+		spinChargeController.GetTurnSpeedMultiplier() < 3.99f ||
+		spinChargeController.GetSpeedMultiplier() < 7.99f ||
+		DistanceXZ({}, chargedVelocity) < 79.9f ||
+		DistanceXZ({}, nearlyStationaryChargedVelocity) > 0.501f) {
+		std::cerr << "Full spin charge did not produce the expected launch boost.\n";
+		return 113;
+	}
+	spinChargeController.ResetCharge();
+	if (spinChargeController.GetChargeRatio() != 0.0f ||
+		spinChargeController.GetTurnSpeedMultiplier() != 1.0f ||
+		spinChargeController.GetSpeedMultiplier() != 1.0f) {
+		std::cerr << "Spin charge was not consumed after release.\n";
+		return 114;
+	}
+
 	magnet::BallMomentumTracker momentumTracker;
 	for (int step = 0; step < 30; ++step) {
 		if (!momentumTracker.Update(0, { 0.0f, 0.0f, 4.0f }, kFixedDeltaTime)) {
@@ -180,11 +254,45 @@ int main()
 	}
 	std::cout << "generated_minimum_pair_distance="
 		<< GetMinimumPairDistance(generated) << '\n';
+	const Vector3 goalPosition{ 0.0f, 1.0f, 8.0f };
+	const Vector3 goalSize{ 4.0f, 2.0f, 1.0f };
+	const Vector3 obstaclePosition{ -3.0f, 1.0f, 2.0f };
+	const Vector3 obstacleSize{ 1.5f, 2.0f, 3.0f };
+	if (!stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Goal,
+			goalPosition,
+			goalSize) ||
+		!stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			obstaclePosition,
+			obstacleSize) ||
+		stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			obstaclePosition,
+			{ 0.0f, 2.0f, 3.0f }) ||
+		!stageSystem.GenerateBalanced(generation) ||
+		stageSystem.GetStageData().goalCount != 1 ||
+		stageSystem.GetStageData().obstacleCount != 1) {
+		std::cerr << "Goal/Obstacle validation or generator preservation failed.\n";
+		return 107;
+	}
 	magnet::MagnetStageSystem defaultStageSystem;
 	if (!defaultStageSystem.Load("project/Resources/levels/magnet/stage_01.json") ||
-		defaultStageSystem.GetStageData().ballCount != 16) {
+		defaultStageSystem.GetStageData().ballCount != 16 ||
+		defaultStageSystem.GetStageData().goalCount != 1 ||
+		defaultStageSystem.GetStageData().obstacleCount != 2) {
 		std::cerr << "Tracked default stage JSON is invalid.\n";
 		return 7;
+	}
+	magnet::MagnetChainSystem authoredGoalSystem;
+	const magnet::MagnetStageBoxPlacement& authoredGoal =
+		defaultStageSystem.GetStageData().goals[0];
+	if (!authoredGoalSystem.Initialize(defaultStageSystem.GetStageData()) ||
+		DistanceXZ(authoredGoalSystem.GetGoal().center, authoredGoal.position) > 1.0e-5f ||
+		std::abs(authoredGoalSystem.GetGoal().width - authoredGoal.size.x) > 1.0e-5f ||
+		std::abs(authoredGoalSystem.GetGoal().depth - authoredGoal.size.z) > 1.0e-5f) {
+		std::cerr << "Runtime Goal does not match the authored stage Goal.\n";
+		return 108;
 	}
 
 	const std::string roundTripPath = "generated/tests/magnet_stage_roundtrip.json";
@@ -194,7 +302,12 @@ int main()
 	}
 	magnet::MagnetStageSystem loadedStageSystem;
 	if (!loadedStageSystem.Load(roundTripPath) ||
-		loadedStageSystem.GetStageData().ballCount != generated.ballCount) {
+		loadedStageSystem.GetStageData().ballCount != generated.ballCount ||
+		loadedStageSystem.GetStageData().goalCount != 1 ||
+		loadedStageSystem.GetStageData().obstacleCount != 1 ||
+		DistanceXZ(loadedStageSystem.GetStageData().goals[0].position, goalPosition) >
+			1.0e-5f ||
+		DistanceXZ(loadedStageSystem.GetStageData().goals[0].size, goalSize) > 1.0e-5f) {
 		std::cerr << "Stage JSON load failed.\n";
 		return 9;
 	}
@@ -215,6 +328,14 @@ int main()
 	browserCleanupError.clear();
 	magnet::MagnetStageSystem saveBrowserSystem(saveBrowserDirectory.generic_string());
 	if (!saveBrowserSystem.GenerateBalanced(generation) ||
+		!saveBrowserSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Goal,
+			goalPosition,
+			goalSize) ||
+		!saveBrowserSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			obstaclePosition,
+			obstacleSize) ||
 		!saveBrowserSystem.IsDirty() ||
 		!saveBrowserSystem.RefreshSaveEntries() ||
 		saveBrowserSystem.GetSaveEntryCount() != 0) {
@@ -241,6 +362,8 @@ int main()
 		!saveBrowserSystem.IsDirty() ||
 		!saveBrowserSystem.LoadNamed("alpha") ||
 		saveBrowserSystem.IsDirty() ||
+		saveBrowserSystem.GetStageData().goalCount != 1 ||
+		saveBrowserSystem.GetStageData().obstacleCount != 1 ||
 		DistanceXZ(
 			saveBrowserSystem.GetStageData().balls[0].position,
 			savedFirstPosition) > 1.0e-5f) {

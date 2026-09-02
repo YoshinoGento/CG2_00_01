@@ -25,9 +25,17 @@ public:
 private:
 	void ProcessStageEditorRequest(
 		const magnet::MagnetPrototypeUiRequest& request);
+	void SetEditorMode(magnet::MagnetEditorMode mode);
+	[[nodiscard]] Vector3 ResolveEditorFocusPosition() const noexcept;
+	[[nodiscard]] Vector3 CalculatePlayCameraPosition() noexcept;
+	void DrawStageObjects() const;
+	void DrawSelectionHighlight() const;
+	void DrawWireBox(
+		const Vector3& center,
+		const Vector3& size,
+		const Vector4& color) const;
 	void DrawBody(physics::BodyHandle handle, const Vector4& color) const;
 	void DrawVelocity(physics::BodyHandle handle) const;
-	void DrawGoal() const;
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
@@ -40,4 +48,9 @@ private:
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;
+	magnet::MagnetEditorMode editorMode_ = magnet::MagnetEditorMode::Play;
+	magnet::MagnetStageObjectType selectedObjectType_ =
+		magnet::MagnetStageObjectType::None;
+	uint32_t selectedObjectId_ = 0;
+	bool releaseOverviewActive_ = false;
 };

@@ -177,16 +177,19 @@ void MagnetChainSystem::ConfigureGoal(GoalSize size, const Vector3& center) noex
 	float widthInMagnets = 2.5f;
 	if (size == GoalSize::Small) { widthInMagnets = 2.0f; }
 	if (size == GoalSize::Large) { widthInMagnets = 4.5f; }
-	goal_.center = IsFinite(center) ? center : kStandardGoalCenter;
-	goal_.center.y = 0.0f;
-	goal_.width = kMagnetDiameter * widthInMagnets;
-	goal_.depth = kStandardGoalDepth;
-	goal_.size = size;
+	goals_.fill({});
+	goalCount_ = 1;
+	goals_[0].center = IsFinite(center) ? center : kStandardGoalCenter;
+	goals_[0].center.y = 0.0f;
+	goals_[0].width = kMagnetDiameter * widthInMagnets;
+	goals_[0].depth = kStandardGoalDepth;
+	goals_[0].size = size;
 }
 
 bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 {
-	if (stageData.ballCount > stageLayoutBalls_.size()) {
+	if (stageData.ballCount > stageLayoutBalls_.size() ||
+		stageData.goalCount > stageData.goals.size()) {
 		return false;
 	}
 	for (std::size_t index = 0; index < stageData.ballCount; ++index) {
@@ -206,6 +209,24 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 	for (std::size_t index = 0; index < stageBallCount_; ++index) {
 		stageLayoutBalls_[index] = stageData.balls[index];
 		stageLayoutBalls_[index].position.y = kMagnetRadius;
+	}
+	ConfigureGoal(GoalSize::Standard, kStandardGoalCenter);
+	if (stageData.goalCount > 0) {
+		goals_.fill({});
+		goalCount_ = stageData.goalCount;
+		for (std::size_t index = 0; index < goalCount_; ++index) {
+			const MagnetStageBoxPlacement& authoredGoal = stageData.goals[index];
+			if (authoredGoal.id == 0 || !IsFinite(authoredGoal.position) ||
+				!IsFinite(authoredGoal.size) || authoredGoal.size.x <= 0.0f ||
+				authoredGoal.size.z <= 0.0f) {
+				return false;
+			}
+			goals_[index].center = authoredGoal.position;
+			goals_[index].center.y = 0.0f;
+			goals_[index].width = authoredGoal.size.x;
+			goals_[index].depth = authoredGoal.size.z;
+			goals_[index].size = GoalSize::Standard;
+		}
 	}
 	return RebuildRuntime();
 }
@@ -227,7 +248,6 @@ bool MagnetChainSystem::RebuildRuntime()
 	spinChargeController_.Reset();
 	impactAttachmentSystem_.Reset();
 	lastReleaseConvergenceDiagnostics_ = {};
-	ConfigureGoal(GoalSize::Standard, kStandardGoalCenter);
 	goalHitCount_ = 0;
 	stageBalls_.fill({});
 	stageBallStates_.fill(StageBallState::Inactive);
@@ -398,8 +418,18 @@ bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
 		const physics::BodyHandle handle = stageBalls_[index];
 		const physics::SphereBody* body = physicsWorld_.GetBody(handle);
 		if (!body || !body->active) { continue; }
-		if (!SegmentIntersectsExpandedGoal(
-			body->previousPosition, body->position, goal_, body->radius)) { continue; }
+		bool enteredGoal = false;
+		for (std::size_t goalIndex = 0; goalIndex < goalCount_; ++goalIndex) {
+			if (SegmentIntersectsExpandedGoal(
+				body->previousPosition,
+				body->position,
+				goals_[goalIndex],
+				body->radius)) {
+				enteredGoal = true;
+				break;
+			}
+		}
+		if (!enteredGoal) { continue; }
 		if (!physicsWorld_.SetLinearVelocity(handle, {}) ||
 			!physicsWorld_.SetActive(handle, false)) { return false; }
 		stageBallStates_[index] = StageBallState::Inactive;

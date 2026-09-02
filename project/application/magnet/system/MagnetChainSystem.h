@@ -94,7 +94,8 @@ public:
 	[[nodiscard]] float GetPlayerHeadingRadians() const noexcept { return playerHeadingRadians_; }
 	[[nodiscard]] static constexpr float GetAttachmentRadius() noexcept { return kAttachmentRadius; }
 	[[nodiscard]] bool HasAttachedBalls() const noexcept { return GetAttachedBallCount() > 0; }
-	[[nodiscard]] const Goal& GetGoal() const noexcept { return goal_; }
+	[[nodiscard]] const Goal& GetGoal() const noexcept { return goals_[0]; }
+	[[nodiscard]] std::size_t GetGoalCount() const noexcept { return goalCount_; }
 	[[nodiscard]] std::size_t GetGoalHitCount() const noexcept { return goalHitCount_; }
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
 	[[nodiscard]] float GetSpinChargeRatio() const noexcept { return spinChargeController_.GetChargeRatio(); }
@@ -146,12 +147,13 @@ private:
 	std::array<MagnetStageBallPlacement, kStageBallCapacity> stageLayoutBalls_{};
 	PlayerCommand command_{};
 	ReleaseConvergenceDiagnostics lastReleaseConvergenceDiagnostics_{};
-	Goal goal_{};
+	std::array<Goal, MagnetStageData::kMaximumGoalCount> goals_{};
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;
 	std::size_t stageBallCount_ = 0;
 	std::size_t leftChainCount_ = 0;
 	std::size_t rightChainCount_ = 0;
+	std::size_t goalCount_ = 0;
 	std::size_t goalHitCount_ = 0;
 	bool healthy_ = false;
 };
