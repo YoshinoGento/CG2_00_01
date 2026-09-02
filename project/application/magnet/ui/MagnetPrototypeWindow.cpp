@@ -175,6 +175,7 @@ void MagnetPrototypeWindow::DrawHierarchy(const MagnetPrototypeViewData& viewDat
 		ImGui::TextDisabled("STAGE OBJECTS");
 		ImGui::Separator();
 		ImGui::BulletText("Player (Kinematic)");
+		ImGui::BulletText("Goal (Standard, %.1f wide)", viewData.goalWidth);
 		const MagnetStageData* stageData = viewData.stageData;
 		bool selectedIdExists = selectedStageBallId_ == 0;
 		if (stageData && ImGui::TreeNodeEx(
@@ -567,7 +568,7 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 	if (ImGui::Begin(kMonitorWindowName, nullptr, ImGuiWindowFlags_NoCollapse)) {
 		if (ImGui::BeginTable(
 			"MagnetMetrics",
-			5,
+			6,
 			ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame)) {
 			ImGui::TableNextColumn();
 			ImGui::TextDisabled("BODIES");
@@ -584,6 +585,9 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 			ImGui::TableNextColumn();
 			ImGui::TextDisabled("RELEASED");
 			ImGui::Text("%zu", viewData.releasedBallCount);
+			ImGui::TableNextColumn();
+			ImGui::TextDisabled("GOAL HITS");
+			ImGui::Text("%zu", viewData.goalHitCount);
 			ImGui::EndTable();
 		}
 

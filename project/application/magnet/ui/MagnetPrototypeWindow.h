@@ -29,6 +29,8 @@ struct MagnetPrototypeViewData {
 	float spinChargeSpeedMultiplier = 1.0f;
 	float spinChargeTurnSpeedMultiplier = 1.0f;
 	std::size_t magneticAttachmentCount = 0;
+	std::size_t goalHitCount = 0;
+	float goalWidth = 0.0f;
 	const MagnetStageData* stageData = nullptr;
 	const MagnetStageSaveEntry* saveEntries = nullptr;
 	std::size_t saveEntryCount = 0;

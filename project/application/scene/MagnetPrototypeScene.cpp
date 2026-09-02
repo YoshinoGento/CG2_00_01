@@ -20,6 +20,7 @@ constexpr Vector4 kReleasedBallColor = { 1.0f, 0.42f, 0.08f, 1.0f };
 constexpr Vector4 kConstraintColor = { 0.82f, 0.86f, 0.92f, 1.0f };
 constexpr Vector4 kGridColor = { 0.18f, 0.22f, 0.28f, 1.0f };
 constexpr Vector4 kVelocityColor = { 1.0f, 0.55f, 0.08f, 1.0f };
+constexpr Vector4 kGoalColor = { 0.25f, 1.0f, 0.35f, 1.0f };
 constexpr int kGridHalfCount = 10;
 constexpr float kGridSpacing = 1.0f;
 constexpr float kVelocityDisplayScale = 0.22f;
@@ -138,6 +139,8 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	viewData.spinChargeSpeedMultiplier = magnetChainSystem_.GetSpinChargeSpeedMultiplier();
 	viewData.spinChargeTurnSpeedMultiplier = magnetChainSystem_.GetSpinChargeTurnSpeedMultiplier();
 	viewData.magneticAttachmentCount = magnetChainSystem_.GetMagneticAttachmentCount();
+	viewData.goalHitCount = magnetChainSystem_.GetGoalHitCount();
+	viewData.goalWidth = magnetChainSystem_.GetGoal().width;
 	viewData.stageData = &magnetStageSystem_.GetStageData();
 	viewData.saveEntries = magnetStageSystem_.GetSaveEntries().data();
 	viewData.saveEntryCount = magnetStageSystem_.GetSaveEntryCount();
@@ -191,6 +194,7 @@ void MagnetPrototypeScene::Draw()
 	}
 
 	const physics::PhysicsWorld& physicsWorld = magnetChainSystem_.GetPhysicsWorld();
+	DrawGoal();
 	for (const physics::DistanceConstraint& constraint : physicsWorld.GetConstraints()) {
 		if (!constraint.active || !constraint.debugDraw) {
 			continue;
@@ -229,6 +233,28 @@ void MagnetPrototypeScene::Draw()
 	}
 
 	lineDrawer->Draw(camera_->GetViewProjectionMatrix());
+}
+
+void MagnetPrototypeScene::DrawGoal() const
+{
+	const magnet::MagnetChainSystem::Goal& goal = magnetChainSystem_.GetGoal();
+	const float halfWidth = goal.width * 0.5f;
+	const float halfDepth = goal.depth * 0.5f;
+	const float y = 0.03f;
+	const Vector3 nearLeft = { goal.center.x - halfWidth, y, goal.center.z - halfDepth };
+	const Vector3 nearRight = { goal.center.x + halfWidth, y, goal.center.z - halfDepth };
+	const Vector3 farLeft = { goal.center.x - halfWidth, y, goal.center.z + halfDepth };
+	const Vector3 farRight = { goal.center.x + halfWidth, y, goal.center.z + halfDepth };
+	LineDrawer* drawer = LineDrawer::GetInstance();
+	drawer->DrawLine(nearLeft, nearRight, kGoalColor);
+	drawer->DrawLine(nearRight, farRight, kGoalColor);
+	drawer->DrawLine(farRight, farLeft, kGoalColor);
+	drawer->DrawLine(farLeft, nearLeft, kGoalColor);
+	constexpr float postHeight = 1.5f;
+	drawer->DrawLine(nearLeft, nearLeft + Vector3{ 0.0f, postHeight, 0.0f }, kGoalColor);
+	drawer->DrawLine(nearRight, nearRight + Vector3{ 0.0f, postHeight, 0.0f }, kGoalColor);
+	drawer->DrawLine(nearLeft + Vector3{ 0.0f, postHeight, 0.0f },
+		nearRight + Vector3{ 0.0f, postHeight, 0.0f }, kGoalColor);
 }
 
 void MagnetPrototypeScene::ProcessStageEditorRequest(

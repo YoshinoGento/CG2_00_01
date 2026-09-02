@@ -27,6 +27,7 @@ private:
 		const magnet::MagnetPrototypeUiRequest& request);
 	void DrawBody(physics::BodyHandle handle, const Vector4& color) const;
 	void DrawVelocity(physics::BodyHandle handle) const;
+	void DrawGoal() const;
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
