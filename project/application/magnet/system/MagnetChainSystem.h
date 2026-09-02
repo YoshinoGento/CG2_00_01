@@ -24,6 +24,7 @@ public:
 	static constexpr std::size_t kStageBallCapacity = MagnetStageData::kMaximumBallCount;
 	static constexpr float kAttachmentRadius = 2.15f;
 	static constexpr float kMagnetDiameter = 1.0f;
+	static constexpr std::size_t kScorePerGoal = 1;
 
 	enum class GoalSize : uint8_t { Small, Standard, Large };
 
@@ -101,6 +102,7 @@ public:
 	[[nodiscard]] const Goal& GetGoal() const noexcept { return goals_[0]; }
 	[[nodiscard]] std::size_t GetGoalCount() const noexcept { return goalCount_; }
 	[[nodiscard]] std::size_t GetGoalHitCount() const noexcept { return goalHitCount_; }
+	[[nodiscard]] std::size_t GetScore() const noexcept { return score_; }
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
 	[[nodiscard]] float GetSpinChargeRatio() const noexcept { return spinChargeController_.GetChargeRatio(); }
 	[[nodiscard]] float GetSpinChargeRotationRadians() const noexcept { return spinChargeController_.GetAccumulatedRotationRadians(); }
@@ -170,6 +172,7 @@ private:
 	std::size_t rightChainCount_ = 0;
 	std::size_t goalCount_ = 0;
 	std::size_t goalHitCount_ = 0;
+	std::size_t score_ = 0;
 	bool healthy_ = false;
 };
 

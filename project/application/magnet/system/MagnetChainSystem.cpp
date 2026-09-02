@@ -265,6 +265,7 @@ bool MagnetChainSystem::RebuildRuntime()
 	impactAttachmentSystem_.Reset();
 	lastReleaseConvergenceDiagnostics_ = {};
 	goalHitCount_ = 0;
+	score_ = 0;
 	stageBalls_.fill({});
 	stageBallStates_.fill(StageBallState::Inactive);
 	stageBallIds_.fill(0);
@@ -471,6 +472,7 @@ bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
 			!physicsWorld_.SetActive(handle, false)) { return false; }
 		stageBallStates_[index] = StageBallState::Inactive;
 		++goalHitCount_;
+		score_ += kScorePerGoal;
 	}
 	return true;
 }
