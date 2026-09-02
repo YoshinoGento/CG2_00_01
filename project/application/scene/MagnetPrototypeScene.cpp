@@ -306,7 +306,7 @@ void MagnetPrototypeScene::Draw()
 		}
 		const physics::SphereBody* bodyA = physicsWorld.GetBody(constraint.bodyA);
 		const physics::SphereBody* bodyB = physicsWorld.GetBody(constraint.bodyB);
-		if (bodyA && bodyB) {
+		if (bodyA && bodyB && bodyA->active && bodyB->active) {
 			lineDrawer->DrawLine(bodyA->position, bodyB->position, kConstraintColor);
 		}
 	}
