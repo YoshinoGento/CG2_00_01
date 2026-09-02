@@ -21,6 +21,16 @@ public:
 	static constexpr std::size_t kLinksPerSide = 4;
 	static constexpr std::size_t kStageBallCapacity = MagnetStageData::kMaximumBallCount;
 	static constexpr float kAttachmentRadius = 2.15f;
+	static constexpr float kMagnetDiameter = 1.0f;
+
+	enum class GoalSize : uint8_t { Small, Standard, Large };
+
+	struct Goal {
+		Vector3 center{};
+		float width = kMagnetDiameter * 2.5f;
+		float depth = 1.5f;
+		GoalSize size = GoalSize::Standard;
+	};
 
 	enum class StageBallState : uint8_t {
 		Inactive,
@@ -56,6 +66,7 @@ public:
 		const MagneticImpactAttachmentSystem::Settings& settings) noexcept {
 		impactAttachmentSystem_.SetSettings(settings);
 	}
+	void ConfigureGoal(GoalSize size, const Vector3& center) noexcept;
 	[[nodiscard]] bool FixedUpdate(float fixedDeltaTime) noexcept;
 
 	[[nodiscard]] const physics::PhysicsWorld& GetPhysicsWorld() const noexcept {
@@ -85,6 +96,9 @@ public:
 	[[nodiscard]] static constexpr float GetAttachmentRadius() noexcept { return kAttachmentRadius; }
 	[[nodiscard]] float GetArenaRadius() const noexcept { return arenaBoundary_.GetRadius(); }
 	[[nodiscard]] bool HasAttachedBalls() const noexcept { return GetAttachedBallCount() > 0; }
+	[[nodiscard]] const Goal& GetGoal() const noexcept { return goals_[0]; }
+	[[nodiscard]] std::size_t GetGoalCount() const noexcept { return goalCount_; }
+	[[nodiscard]] std::size_t GetGoalHitCount() const noexcept { return goalHitCount_; }
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
 	[[nodiscard]] float GetSpinChargeRatio() const noexcept { return spinChargeController_.GetChargeRatio(); }
 	[[nodiscard]] float GetSpinChargeRotationRadians() const noexcept { return spinChargeController_.GetAccumulatedRotationRadians(); }
@@ -119,6 +133,7 @@ private:
 	[[nodiscard]] bool UpdateMomentumTrackers(float fixedDeltaTime) noexcept;
 	[[nodiscard]] bool ApplyMomentumLaunch() noexcept;
 	[[nodiscard]] bool ReleaseChains() noexcept;
+	[[nodiscard]] bool CollectReleasedMagnetsInGoal() noexcept;
 	void DeactivateDistantReleasedBalls() noexcept;
 
 	physics::PhysicsWorld physicsWorld_;
@@ -140,11 +155,14 @@ private:
 	std::array<MagnetStageBallPlacement, kStageBallCapacity> stageLayoutBalls_{};
 	PlayerCommand command_{};
 	ReleaseConvergenceDiagnostics lastReleaseConvergenceDiagnostics_{};
+	std::array<Goal, MagnetStageData::kMaximumGoalCount> goals_{};
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;
 	std::size_t stageBallCount_ = 0;
 	std::size_t leftChainCount_ = 0;
 	std::size_t rightChainCount_ = 0;
+	std::size_t goalCount_ = 0;
+	std::size_t goalHitCount_ = 0;
 	bool healthy_ = false;
 };
 

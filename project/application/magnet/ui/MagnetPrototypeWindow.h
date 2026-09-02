@@ -11,6 +11,11 @@ class SrvManager;
 
 namespace magnet {
 
+enum class MagnetEditorMode : uint8_t {
+	Play,
+	StageEdit,
+};
+
 struct MagnetPrototypeViewData {
 	bool healthy = false;
 	std::size_t bodyCount = 0;
@@ -29,12 +34,15 @@ struct MagnetPrototypeViewData {
 	float spinChargeSpeedMultiplier = 1.0f;
 	float spinChargeTurnSpeedMultiplier = 1.0f;
 	std::size_t magneticAttachmentCount = 0;
+	std::size_t goalHitCount = 0;
+	float goalWidth = 0.0f;
 	const MagnetStageData* stageData = nullptr;
 	const MagnetStageSaveEntry* saveEntries = nullptr;
 	std::size_t saveEntryCount = 0;
 	const char* stageOperationMessage = "";
 	bool stageOperationSucceeded = false;
 	bool stageDirty = false;
+	MagnetEditorMode editorMode = MagnetEditorMode::Play;
 };
 
 enum class MagnetStageEditorAction : uint8_t {
@@ -43,6 +51,10 @@ enum class MagnetStageEditorAction : uint8_t {
 	AddBall,
 	RemoveBall,
 	MoveBall,
+	AddGoal,
+	AddObstacle,
+	RemoveBoxObject,
+	MoveBoxObject,
 	SaveNamed,
 	LoadNamed,
 	RefreshSaves,
@@ -53,10 +65,15 @@ struct MagnetPrototypeUiRequest {
 	MagnetStageGenerationSettings generationSettings{};
 	std::array<char, MagnetStageSystem::kMaximumSaveNameLength + 1> stageSaveName{};
 	uint32_t selectedBallId = 0;
+	MagnetStageObjectType selectedObjectType = MagnetStageObjectType::None;
+	uint32_t selectedObjectId = 0;
 	Vector3 editedBallPosition{};
+	Vector3 editedObjectSize{ 1.0f, 1.0f, 1.0f };
 	bool allowOverwrite = false;
 	SpinChargeController::Settings spinChargeSettings{};
 	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings{};
+	bool modeChangeRequested = false;
+	MagnetEditorMode requestedMode = MagnetEditorMode::Play;
 	bool reset = false;
 	bool emergencyStop = false;
 	bool releaseChains = false;
@@ -82,7 +99,9 @@ private:
 		const MagnetPrototypeViewData& viewData,
 		MagnetPrototypeUiRequest& request);
 	void BuildDefaultLayout(unsigned int dockspaceId);
-	void DrawHierarchy(const MagnetPrototypeViewData& viewData);
+	void DrawHierarchy(
+		const MagnetPrototypeViewData& viewData,
+		MagnetPrototypeUiRequest& request);
 	void DrawViewport(
 		SrvManager* srvManager,
 		uint32_t finalDisplaySrvIndex,
@@ -110,9 +129,10 @@ private:
 	std::array<char, MagnetStageSystem::kMaximumSaveNameLength + 1> saveName_{};
 	std::array<char, MagnetStageSystem::kMaximumSaveNameLength + 1> selectedSaveName_{};
 	std::array<char, MagnetStageSystem::kMaximumSaveNameLength + 1> pendingSaveName_{};
-	uint32_t selectedStageBallId_ = 0;
 	SpinChargeController::Settings spinChargeSettings_{};
 	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings_{};
+	MagnetStageObjectType selectedObjectType_ = MagnetStageObjectType::None;
+	uint32_t selectedObjectId_ = 0;
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;

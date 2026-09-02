@@ -155,8 +155,50 @@
                 7.0
             ],
             "type": "magnet_ball"
+        },
+        {
+            "id": 1,
+            "position": [
+                0.0,
+                1.0,
+                8.0
+            ],
+            "size": [
+                2.5,
+                2.0,
+                1.0
+            ],
+            "type": "goal"
+        },
+        {
+            "id": 1,
+            "position": [
+                -4.0,
+                1.0,
+                1.5
+            ],
+            "size": [
+                1.5,
+                2.0,
+                3.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 2,
+            "position": [
+                4.0,
+                1.0,
+                1.5
+            ],
+            "size": [
+                1.5,
+                2.0,
+                3.0
+            ],
+            "type": "obstacle"
         }
     ],
     "schema": "magnet_stage",
-    "schemaVersion": 1
+    "schemaVersion": 2
 }

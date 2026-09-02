@@ -61,6 +61,8 @@ constexpr std::array<float, MagnetChainSystem::kLinksPerSide - 1> kBendComplianc
 };
 constexpr uint32_t kPhysicsSubsteps = 3;
 constexpr uint32_t kConstraintIterations = 8;
+constexpr Vector3 kStandardGoalCenter = { 0.0f, 0.0f, 9.0f };
+constexpr float kStandardGoalDepth = 1.5f;
 
 bool IsFinite(const Vector3& value) noexcept
 {
@@ -123,6 +125,30 @@ float SignedAngleXZ(const Vector3& from, const Vector3& to) noexcept
 	return std::atan2(crossY, DotXZ(from, to));
 }
 
+bool SegmentIntersectsExpandedGoal(const Vector3& start, const Vector3& end,
+	const MagnetChainSystem::Goal& goal, float radius) noexcept
+{
+	const float halfWidth = goal.width * 0.5f + radius;
+	const float halfDepth = goal.depth * 0.5f + radius;
+	float entryTime = 0.0f;
+	float exitTime = 1.0f;
+	const auto clipAxis = [&](float origin, float delta, float minimum, float maximum) noexcept {
+		if (std::abs(delta) <= kDirectionEpsilonSquared) {
+			return origin >= minimum && origin <= maximum;
+		}
+		float nearTime = (minimum - origin) / delta;
+		float farTime = (maximum - origin) / delta;
+		if (nearTime > farTime) { std::swap(nearTime, farTime); }
+		entryTime = (std::max)(entryTime, nearTime);
+		exitTime = (std::min)(exitTime, farTime);
+		return entryTime <= exitTime;
+	};
+	return clipAxis(start.x, end.x - start.x,
+		goal.center.x - halfWidth, goal.center.x + halfWidth) &&
+		clipAxis(start.z, end.z - start.z,
+		goal.center.z - halfDepth, goal.center.z + halfDepth);
+}
+
 Vector3 RotateXZ(const Vector3& value, float radians) noexcept
 {
 	const float cosine = std::cos(radians);
@@ -146,9 +172,24 @@ bool MagnetChainSystem::Reset()
 	return RebuildRuntime();
 }
 
+void MagnetChainSystem::ConfigureGoal(GoalSize size, const Vector3& center) noexcept
+{
+	float widthInMagnets = 2.5f;
+	if (size == GoalSize::Small) { widthInMagnets = 2.0f; }
+	if (size == GoalSize::Large) { widthInMagnets = 4.5f; }
+	goals_.fill({});
+	goalCount_ = 1;
+	goals_[0].center = IsFinite(center) ? center : kStandardGoalCenter;
+	goals_[0].center.y = 0.0f;
+	goals_[0].width = kMagnetDiameter * widthInMagnets;
+	goals_[0].depth = kStandardGoalDepth;
+	goals_[0].size = size;
+}
+
 bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 {
-	if (stageData.ballCount > stageLayoutBalls_.size()) {
+	if (stageData.ballCount > stageLayoutBalls_.size() ||
+		stageData.goalCount > stageData.goals.size()) {
 		return false;
 	}
 	for (std::size_t index = 0; index < stageData.ballCount; ++index) {
@@ -168,6 +209,24 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 	for (std::size_t index = 0; index < stageBallCount_; ++index) {
 		stageLayoutBalls_[index] = stageData.balls[index];
 		stageLayoutBalls_[index].position.y = kMagnetRadius;
+	}
+	ConfigureGoal(GoalSize::Standard, kStandardGoalCenter);
+	if (stageData.goalCount > 0) {
+		goals_.fill({});
+		goalCount_ = stageData.goalCount;
+		for (std::size_t index = 0; index < goalCount_; ++index) {
+			const MagnetStageBoxPlacement& authoredGoal = stageData.goals[index];
+			if (authoredGoal.id == 0 || !IsFinite(authoredGoal.position) ||
+				!IsFinite(authoredGoal.size) || authoredGoal.size.x <= 0.0f ||
+				authoredGoal.size.z <= 0.0f) {
+				return false;
+			}
+			goals_[index].center = authoredGoal.position;
+			goals_[index].center.y = 0.0f;
+			goals_[index].width = authoredGoal.size.x;
+			goals_[index].depth = authoredGoal.size.z;
+			goals_[index].size = GoalSize::Standard;
+		}
 	}
 	return RebuildRuntime();
 }
@@ -189,6 +248,7 @@ bool MagnetChainSystem::RebuildRuntime()
 	spinChargeController_.Reset();
 	impactAttachmentSystem_.Reset();
 	lastReleaseConvergenceDiagnostics_ = {};
+	goalHitCount_ = 0;
 	stageBalls_.fill({});
 	stageBallStates_.fill(StageBallState::Inactive);
 	stageBallIds_.fill(0);
@@ -353,8 +413,39 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		healthy_ = false;
 		return false;
 	}
+	if (!CollectReleasedMagnetsInGoal()) {
+		healthy_ = false;
+		return false;
+	}
 
 	DeactivateDistantReleasedBalls();
+	return true;
+}
+
+bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
+{
+	for (std::size_t index = 0; index < stageBallCount_; ++index) {
+		if (stageBallStates_[index] != StageBallState::Released) { continue; }
+		const physics::BodyHandle handle = stageBalls_[index];
+		const physics::SphereBody* body = physicsWorld_.GetBody(handle);
+		if (!body || !body->active) { continue; }
+		bool enteredGoal = false;
+		for (std::size_t goalIndex = 0; goalIndex < goalCount_; ++goalIndex) {
+			if (SegmentIntersectsExpandedGoal(
+				body->previousPosition,
+				body->position,
+				goals_[goalIndex],
+				body->radius)) {
+				enteredGoal = true;
+				break;
+			}
+		}
+		if (!enteredGoal) { continue; }
+		if (!physicsWorld_.SetLinearVelocity(handle, {}) ||
+			!physicsWorld_.SetActive(handle, false)) { return false; }
+		stageBallStates_[index] = StageBallState::Inactive;
+		++goalHitCount_;
+	}
 	return true;
 }
 
