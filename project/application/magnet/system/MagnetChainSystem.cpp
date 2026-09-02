@@ -189,7 +189,8 @@ void MagnetChainSystem::ConfigureGoal(GoalSize size, const Vector3& center) noex
 bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 {
 	if (stageData.ballCount > stageLayoutBalls_.size() ||
-		stageData.goalCount > stageData.goals.size()) {
+		stageData.goalCount > stageData.goals.size() ||
+		!IsFinite(stageData.playerPosition)) {
 		return false;
 	}
 	for (std::size_t index = 0; index < stageData.ballCount; ++index) {
@@ -204,6 +205,8 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 		}
 	}
 
+	stagePlayerPosition_ = stageData.playerPosition;
+	stagePlayerPosition_.y = kPlayerPlaneHeight;
 	stageBallCount_ = stageData.ballCount;
 	stageLayoutBalls_.fill({});
 	for (std::size_t index = 0; index < stageBallCount_; ++index) {
@@ -257,7 +260,7 @@ bool MagnetChainSystem::RebuildRuntime()
 	healthy_ = false;
 
 	physics::SphereBodyDesc playerDesc{};
-	playerDesc.position = { 0.0f, kPlayerPlaneHeight, 0.0f };
+	playerDesc.position = stagePlayerPosition_;
 	playerDesc.radius = kPlayerRadius;
 	playerDesc.planeHeight = kPlayerPlaneHeight;
 	playerDesc.motionType = physics::MotionType::Kinematic;

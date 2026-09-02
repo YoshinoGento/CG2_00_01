@@ -475,14 +475,36 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			}
 		}
 	}
-	if (selectedBall) {
-		ImGui::Text("選択中: 球 %u", selectedBall->id);
+	if (stageData && selectedObjectType_ == MagnetStageObjectType::Player) {
+		ImGui::TextColored(
+			ImVec4(1.0f, 0.35f, 0.35f, 1.0f),
+			"プレイヤー開始位置");
+		ImGui::TextDisabled("地面上を移動するため高さは固定です。");
+		float positionXZ[2] = {
+			stageData->playerPosition.x,
+			stageData->playerPosition.z,
+		};
+		ImGui::SetNextItemWidth(-1.0f);
+		if (ImGui::DragFloat2("位置 XZ##PlayerPosition", positionXZ, 0.10f)) {
+			request.stageAction = MagnetStageEditorAction::MovePlayer;
+			request.editedObjectPosition = {
+				positionXZ[0],
+				stageData->playerPosition.y,
+				positionXZ[1],
+			};
+		}
+	} else if (selectedBall) {
+		ImGui::TextColored(
+			ImVec4(1.0f, 0.82f, 0.20f, 1.0f),
+			"小さい球 %u",
+			selectedBall->id);
+		ImGui::TextDisabled("吸着前の配置です。高さは地面に固定されます。");
 		float positionXZ[2] = { selectedBall->position.x, selectedBall->position.z };
 		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::DragFloat2("位置 XZ", positionXZ, 0.10f)) {
+		if (ImGui::DragFloat2("位置 XZ##BallPosition", positionXZ, 0.10f)) {
 			request.stageAction = MagnetStageEditorAction::MoveBall;
 			request.selectedBallId = selectedBall->id;
-			request.editedBallPosition = {
+			request.editedObjectPosition = {
 				positionXZ[0],
 				selectedBall->position.y,
 				positionXZ[1],
@@ -493,10 +515,17 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			request.selectedBallId = selectedBall->id;
 		}
 	} else if (selectedBox) {
-		ImGui::Text(
-			"選択中: %s %u",
-			selectedObjectType_ == MagnetStageObjectType::Goal ? "ゴール" : "障害物",
+		const bool isGoal = selectedObjectType_ == MagnetStageObjectType::Goal;
+		ImGui::TextColored(
+			isGoal
+				? ImVec4(0.25f, 1.0f, 0.45f, 1.0f)
+				: ImVec4(1.0f, 0.55f, 0.20f, 1.0f),
+			isGoal ? "ゴール %u" : "障害物 %u",
 			selectedBox->id);
+		ImGui::TextDisabled(
+			isGoal
+				? "位置と得点判定エリアの大きさを編集します。"
+				: "位置と配置用ボックスの大きさを編集します。");
 		float position[3] = {
 			selectedBox->position.x,
 			selectedBox->position.y,
@@ -507,38 +536,44 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			selectedBox->size.y,
 			selectedBox->size.z,
 		};
-		bool transformChanged = ImGui::DragFloat3("位置 XYZ", position, 0.10f);
-		transformChanged = ImGui::DragFloat3("サイズ XYZ", size, 0.10f, 0.10f, 50.0f) ||
+		const char* positionLabel = isGoal
+			? "位置 XYZ##GoalPosition"
+			: "位置 XYZ##ObstaclePosition";
+		const char* sizeLabel = isGoal
+			? "得点エリア XYZ##GoalSize"
+			: "サイズ XYZ##ObstacleSize";
+		bool transformChanged = ImGui::DragFloat3(positionLabel, position, 0.10f);
+		transformChanged = ImGui::DragFloat3(sizeLabel, size, 0.10f, 0.10f, 50.0f) ||
 			transformChanged;
 		if (transformChanged) {
 			request.stageAction = MagnetStageEditorAction::MoveBoxObject;
 			request.selectedObjectType = selectedObjectType_;
 			request.selectedObjectId = selectedBox->id;
-			request.editedBallPosition = { position[0], position[1], position[2] };
+			request.editedObjectPosition = { position[0], position[1], position[2] };
 			request.editedObjectSize = { size[0], size[1], size[2] };
 		}
-		if (ImGui::Button("選択したオブジェクトを削除", { -1.0f, 0.0f })) {
+		if (ImGui::Button(
+			isGoal ? "選択したゴールを削除" : "選択した障害物を削除",
+			{ -1.0f, 0.0f })) {
 			request.stageAction = MagnetStageEditorAction::RemoveBoxObject;
 			request.selectedObjectType = selectedObjectType_;
 			request.selectedObjectId = selectedBox->id;
 		}
-	} else if (selectedObjectType_ == MagnetStageObjectType::Player) {
-		ImGui::TextDisabled("プレイヤーの開始位置編集は次の段階で追加します。");
 	} else {
 		ImGui::TextDisabled("左の一覧からオブジェクトを選択してください。");
 	}
 	if (ImGui::Button("球を追加", { -1.0f, 0.0f })) {
 		request.stageAction = MagnetStageEditorAction::AddBall;
-		request.editedBallPosition = { 0.0f, 0.5f, 4.0f };
+		request.editedObjectPosition = { 0.0f, 0.5f, 4.0f };
 	}
 	if (ImGui::Button("ゴールを追加", { -1.0f, 0.0f })) {
 		request.stageAction = MagnetStageEditorAction::AddGoal;
-		request.editedBallPosition = { 0.0f, 1.0f, 8.0f };
+		request.editedObjectPosition = { 0.0f, 1.0f, 8.0f };
 		request.editedObjectSize = { 2.5f, 2.0f, 1.0f };
 	}
 	if (ImGui::Button("障害物を追加", { -1.0f, 0.0f })) {
 		request.stageAction = MagnetStageEditorAction::AddObstacle;
-		request.editedBallPosition = { 0.0f, 1.0f, 4.0f };
+		request.editedObjectPosition = { 0.0f, 1.0f, 4.0f };
 		request.editedObjectSize = { 2.0f, 2.0f, 2.0f };
 	}
 

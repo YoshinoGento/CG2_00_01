@@ -153,6 +153,7 @@ private:
 	std::array<StageBallState, kStageBallCapacity> stageBallStates_{};
 	std::array<uint32_t, kStageBallCapacity> stageBallIds_{};
 	std::array<MagnetStageBallPlacement, kStageBallCapacity> stageLayoutBalls_{};
+	Vector3 stagePlayerPosition_{ 0.0f, 0.75f, 0.0f };
 	PlayerCommand command_{};
 	ReleaseConvergenceDiagnostics lastReleaseConvergenceDiagnostics_{};
 	std::array<Goal, MagnetStageData::kMaximumGoalCount> goals_{};
