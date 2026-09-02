@@ -208,6 +208,26 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 		viewData.playerSpeed = std::sqrt(
 			player->linearVelocity.x * player->linearVelocity.x +
 			player->linearVelocity.z * player->linearVelocity.z);
+		const Matrix4x4& viewProjection = camera_->GetViewProjectionMatrix();
+		const auto& stageBalls = magnetChainSystem_.GetStageBalls();
+		for (std::size_t index = 0;
+			index < magnetChainSystem_.GetStageBallCount() &&
+			viewData.offscreenMagnetCount < viewData.offscreenMagnetOffsets.size();
+			++index) {
+			const physics::SphereBody* ball =
+				magnetChainSystem_.GetPhysicsWorld().GetBody(stageBalls[index]);
+			if (!ball || !ball->active) { continue; }
+			const Vector3 ndc = MatrixMath::Transform(ball->position, viewProjection);
+			const float clipW = ball->position.x * viewProjection.m[0][3] +
+				ball->position.y * viewProjection.m[1][3] +
+				ball->position.z * viewProjection.m[2][3] + viewProjection.m[3][3];
+			const bool visible = clipW > 0.0f && ndc.x >= -1.0f && ndc.x <= 1.0f &&
+				ndc.y >= -1.0f && ndc.y <= 1.0f && ndc.z >= 0.0f && ndc.z <= 1.0f;
+			if (visible) { continue; }
+			const Vector3 offset = ball->position - player->position;
+			viewData.offscreenMagnetOffsets[viewData.offscreenMagnetCount++] =
+				{ offset.x, offset.z };
+		}
 	}
 
 	const magnet::MagnetPrototypeUiRequest request = prototypeWindow_.Draw(
