@@ -2,8 +2,10 @@
 
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/BallMomentumTracker.h"
+#include "application/magnet/system/BallReacquisitionCooldown.h"
 #include "application/magnet/system/CircularArenaBoundary.h"
 #include "application/magnet/system/MagneticImpactAttachmentSystem.h"
+#include "application/magnet/system/ObstacleCollisionSystem.h"
 #include "application/magnet/system/SpinChargeController.h"
 #include "physics/PhysicsWorld.h"
 
@@ -148,13 +150,16 @@ private:
 	std::array<std::size_t, kBendConstraintsPerSide> rightBendConstraintIndices_{};
 	BallMomentumTracker leftMomentumTracker_{};
 	BallMomentumTracker rightMomentumTracker_{};
+	BallReacquisitionCooldown reacquisitionCooldown_{};
 	CircularArenaBoundary arenaBoundary_{};
+	ObstacleCollisionSystem obstacleCollisionSystem_{};
 	SpinChargeController spinChargeController_{};
 	MagneticImpactAttachmentSystem impactAttachmentSystem_{};
 	std::array<physics::BodyHandle, kStageBallCapacity> stageBalls_{};
 	std::array<StageBallState, kStageBallCapacity> stageBallStates_{};
 	std::array<uint32_t, kStageBallCapacity> stageBallIds_{};
 	std::array<MagnetStageBallPlacement, kStageBallCapacity> stageLayoutBalls_{};
+	std::array<MagnetStageBoxPlacement, MagnetStageData::kMaximumObstacleCount> obstacles_{};
 	Vector3 stagePlayerPosition_{ 0.0f, 0.75f, 0.0f };
 	PlayerCommand command_{};
 	ReleaseConvergenceDiagnostics lastReleaseConvergenceDiagnostics_{};
@@ -162,6 +167,7 @@ private:
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;
 	std::size_t stageBallCount_ = 0;
+	std::size_t obstacleCount_ = 0;
 	std::size_t leftChainCount_ = 0;
 	std::size_t rightChainCount_ = 0;
 	std::size_t goalCount_ = 0;
