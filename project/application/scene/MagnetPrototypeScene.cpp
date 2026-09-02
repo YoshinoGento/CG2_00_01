@@ -24,7 +24,6 @@ constexpr Vector4 kVelocityColor = { 1.0f, 0.55f, 0.08f, 1.0f };
 constexpr Vector4 kGoalColor = { 0.18f, 1.0f, 0.30f, 1.0f };
 constexpr Vector4 kObstacleColor = { 0.72f, 0.75f, 0.82f, 1.0f };
 constexpr Vector4 kSelectionColor = { 1.0f, 0.12f, 0.85f, 1.0f };
-constexpr int kGridHalfCount = 10;
 constexpr float kGridSpacing = 1.0f;
 constexpr float kVelocityDisplayScale = 0.22f;
 constexpr int kArenaWallSegments = 64;
@@ -266,7 +265,8 @@ void MagnetPrototypeScene::Draw()
 	LineDrawer* lineDrawer = LineDrawer::GetInstance();
 	const float arenaRadius = magnetChainSystem_.GetArenaRadius();
 	if (showGrid_) {
-		for (int index = -kGridHalfCount; index <= kGridHalfCount; ++index) {
+		const int gridHalfCount = static_cast<int>(std::ceil(arenaRadius / kGridSpacing));
+		for (int index = -gridHalfCount; index <= gridHalfCount; ++index) {
 			const float offset = static_cast<float>(index) * kGridSpacing;
 			if (std::abs(offset) > arenaRadius) {
 				continue;
@@ -348,6 +348,9 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 {
 	bool stageChanged = false;
 	switch (request.stageAction) {
+	case magnet::MagnetStageEditorAction::SetArenaRadius:
+		stageChanged = magnetStageSystem_.SetArenaRadius(request.arenaRadius);
+		break;
 	case magnet::MagnetStageEditorAction::GenerateBalanced:
 		stageChanged = magnetStageSystem_.GenerateBalanced(request.generationSettings);
 		break;
@@ -466,7 +469,10 @@ Vector3 MagnetPrototypeScene::CalculatePlayCameraPosition() noexcept
 		return camera_ ? camera_->GetTranslate() : Vector3{ 0.0f, 11.0f, -16.0f };
 	}
 	if (!releaseOverviewActive_) {
-		return { player->position.x, 11.0f, player->position.z - 16.0f };
+		const float cameraScale = std::clamp(
+			magnetChainSystem_.GetArenaRadius() / 10.0f, 0.65f, 2.5f);
+		return { player->position.x, 11.0f * cameraScale,
+			player->position.z - 16.0f * cameraScale };
 	}
 
 	float minimumX = player->position.x;

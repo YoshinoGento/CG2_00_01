@@ -29,6 +29,8 @@ constexpr float kMaximumPlayerClearRadius = 30.0f;
 constexpr float kMinimumBoxSize = 0.10f;
 constexpr float kMaximumBoxSize = 50.0f;
 constexpr float kMaximumBoxHeight = 50.0f;
+constexpr float kMinimumArenaRadius = 4.0f;
+constexpr float kMaximumArenaRadius = 40.0f;
 constexpr std::size_t kCandidateCountPerBall = 96;
 constexpr std::size_t kMaximumStageNameLength = 64;
 constexpr std::size_t kMaximumPathLength = 260;
@@ -126,6 +128,7 @@ bool MagnetStageSystem::GenerateBalanced(
 
 	MagnetStageData candidate{};
 	candidate.name = stageData_.name.empty() ? "stage_01" : stageData_.name;
+	candidate.arenaRadius = stageData_.arenaRadius;
 	candidate.generation = settings;
 	candidate.playerPosition = stageData_.playerPosition;
 	candidate.ballCount = settings.ballCount;
@@ -308,6 +311,19 @@ bool MagnetStageSystem::SetPlayerPosition(const Vector3& position)
 	return true;
 }
 
+bool MagnetStageSystem::SetArenaRadius(float radius)
+{
+	if (!std::isfinite(radius) || radius < kMinimumArenaRadius ||
+		radius > kMaximumArenaRadius) {
+		SetOperationResult(false, "ステージ半径は4～40の範囲で指定してください。");
+		return false;
+	}
+	stageData_.arenaRadius = radius;
+	dirty_ = true;
+	SetOperationResult(true, "ステージの大きさを更新しました。");
+	return true;
+}
+
 bool MagnetStageSystem::AddBoxObject(
 	MagnetStageObjectType type,
 	const Vector3& position,
@@ -473,6 +489,7 @@ bool MagnetStageSystem::Save(const std::string& path)
 			{ "schema", kSchemaName },
 			{ "schemaVersion", MagnetStageData::kSchemaVersion },
 			{ "name", stageData_.name },
+			{ "arena", { { "radius", stageData_.arenaRadius } } },
 			{ "bounds", {
 				{ "minimumX", settings.minimumX },
 				{ "maximumX", settings.maximumX },
@@ -546,6 +563,13 @@ bool MagnetStageSystem::Load(const std::string& path)
 
 		MagnetStageData candidate{};
 		candidate.name = root["name"].get<std::string>();
+		if (schemaVersion >= 4u) {
+			if (!root.contains("arena") || !root["arena"].is_object() ||
+				!ReadFiniteFloat(root["arena"], "radius", candidate.arenaRadius)) {
+				SetOperationResult(false, "ステージの大きさ設定が不正です。");
+				return false;
+			}
+		}
 		const nlohmann::json& bounds = root["bounds"];
 		const nlohmann::json& generator = root["generator"];
 		if (!ReadFiniteFloat(bounds, "minimumX", candidate.generation.minimumX) ||
@@ -831,6 +855,9 @@ bool MagnetStageSystem::ValidateGenerationSettings(
 bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noexcept
 {
 	if (stageData.name.empty() || stageData.name.size() > kMaximumStageNameLength ||
+		!std::isfinite(stageData.arenaRadius) ||
+		stageData.arenaRadius < kMinimumArenaRadius ||
+		stageData.arenaRadius > kMaximumArenaRadius ||
 		stageData.ballCount > stageData.balls.size() ||
 		stageData.goalCount > stageData.goals.size() ||
 		stageData.obstacleCount > stageData.obstacles.size()) {

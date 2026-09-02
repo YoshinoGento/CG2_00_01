@@ -52,6 +52,7 @@ struct MagnetPrototypeViewData {
 enum class MagnetStageEditorAction : uint8_t {
 	None,
 	GenerateBalanced,
+	SetArenaRadius,
 	MovePlayer,
 	AddBall,
 	RemoveBall,
@@ -68,6 +69,7 @@ enum class MagnetStageEditorAction : uint8_t {
 struct MagnetPrototypeUiRequest {
 	MagnetStageEditorAction stageAction = MagnetStageEditorAction::None;
 	MagnetStageGenerationSettings generationSettings{};
+	float arenaRadius = 10.0f;
 	std::array<char, MagnetStageSystem::kMaximumSaveNameLength + 1> stageSaveName{};
 	uint32_t selectedBallId = 0;
 	MagnetStageObjectType selectedObjectType = MagnetStageObjectType::None;

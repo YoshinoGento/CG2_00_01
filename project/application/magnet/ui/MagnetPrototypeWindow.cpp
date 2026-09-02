@@ -509,6 +509,16 @@ void MagnetPrototypeWindow::DrawStageEditor(
 #ifdef USE_IMGUI
 	ImGui::SeparatorText("ステージ配置");
 	const MagnetStageData* stageData = viewData.stageData;
+	if (stageData) {
+		float arenaRadius = stageData->arenaRadius;
+		ImGui::SetNextItemWidth(-1.0f);
+		if (ImGui::SliderFloat("ステージ半径", &arenaRadius, 4.0f, 40.0f, "%.1f")) {
+			request.stageAction = MagnetStageEditorAction::SetArenaRadius;
+			request.arenaRadius = arenaRadius;
+		}
+		ImGui::TextDisabled("円形の床と外周壁の大きさを変更します。");
+		ImGui::Separator();
+	}
 	const MagnetStageBallPlacement* selectedBall = nullptr;
 	const MagnetStageBoxPlacement* selectedBox = nullptr;
 	if (stageData) {
