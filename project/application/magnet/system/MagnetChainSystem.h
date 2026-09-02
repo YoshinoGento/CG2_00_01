@@ -2,6 +2,7 @@
 
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/BallMomentumTracker.h"
+#include "application/magnet/system/CircularArenaBoundary.h"
 #include "application/magnet/system/MagneticImpactAttachmentSystem.h"
 #include "application/magnet/system/SpinChargeController.h"
 #include "physics/PhysicsWorld.h"
@@ -93,6 +94,7 @@ public:
 	[[nodiscard]] float GetMaximumConstraintError() const noexcept;
 	[[nodiscard]] float GetPlayerHeadingRadians() const noexcept { return playerHeadingRadians_; }
 	[[nodiscard]] static constexpr float GetAttachmentRadius() noexcept { return kAttachmentRadius; }
+	[[nodiscard]] float GetArenaRadius() const noexcept { return arenaBoundary_.GetRadius(); }
 	[[nodiscard]] bool HasAttachedBalls() const noexcept { return GetAttachedBallCount() > 0; }
 	[[nodiscard]] const Goal& GetGoal() const noexcept { return goals_[0]; }
 	[[nodiscard]] std::size_t GetGoalCount() const noexcept { return goalCount_; }
@@ -103,6 +105,11 @@ public:
 	[[nodiscard]] float GetSpinChargeSpeedMultiplier() const noexcept { return spinChargeController_.GetSpeedMultiplier(); }
 	[[nodiscard]] float GetSpinChargeTurnSpeedMultiplier() const noexcept { return spinChargeController_.GetTurnSpeedMultiplier(); }
 	[[nodiscard]] std::size_t GetMagneticAttachmentCount() const noexcept { return impactAttachmentSystem_.GetAttachmentCount(); }
+	[[nodiscard]] const MagneticImpactAttachmentSystem::ImpactEvents&
+	GetMagneticImpactEvents() const noexcept { return impactAttachmentSystem_.GetImpactEvents(); }
+	[[nodiscard]] std::size_t GetMagneticImpactEventCount() const noexcept {
+		return impactAttachmentSystem_.GetImpactEventCount();
+	}
 	[[nodiscard]] const ReleaseConvergenceDiagnostics&
 		GetLastReleaseConvergenceDiagnostics() const noexcept {
 		return lastReleaseConvergenceDiagnostics_;
@@ -139,6 +146,7 @@ private:
 	std::array<std::size_t, kBendConstraintsPerSide> rightBendConstraintIndices_{};
 	BallMomentumTracker leftMomentumTracker_{};
 	BallMomentumTracker rightMomentumTracker_{};
+	CircularArenaBoundary arenaBoundary_{};
 	SpinChargeController spinChargeController_{};
 	MagneticImpactAttachmentSystem impactAttachmentSystem_{};
 	std::array<physics::BodyHandle, kStageBallCapacity> stageBalls_{};

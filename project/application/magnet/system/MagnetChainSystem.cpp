@@ -390,6 +390,16 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		healthy_ = false;
 		return false;
 	}
+	std::array<physics::BodyHandle, kStageBallCapacity + 1> arenaBodies{};
+	arenaBodies[0] = playerBody_;
+	for (std::size_t index = 0; index < stageBallCount_; ++index) {
+		arenaBodies[index + 1] = stageBalls_[index];
+	}
+	if (!arenaBoundary_.Resolve(
+		physicsWorld_, arenaBodies.data(), stageBallCount_ + 1)) {
+		healthy_ = false;
+		return false;
+	}
 	MagneticImpactAttachmentSystem::MagnetHandles releasedMagnets{};
 	std::size_t releasedIndex = 0;
 	for (std::size_t index = 0; index < stageBallCount_ && releasedIndex < releasedMagnets.size(); ++index) {
@@ -397,8 +407,9 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 			releasedMagnets[releasedIndex++] = stageBalls_[index];
 		}
 	}
-	if (releasedIndex > 1 &&
-		!impactAttachmentSystem_.Update(physicsWorld_, releasedMagnets, fixedDeltaTime)) {
+	// Update every frame so one-shot impact events are cleared even after released
+	// magnets become inactive or fewer than two remain.
+	if (!impactAttachmentSystem_.Update(physicsWorld_, releasedMagnets, fixedDeltaTime)) {
 		healthy_ = false;
 		return false;
 	}
@@ -457,7 +468,8 @@ bool MagnetChainSystem::TryAttachNearestBall() noexcept
 	float bestCost = INFINITY;
 	bool bestAttachRight = false;
 	for (std::size_t index = 0; index < stageBallCount_; ++index) {
-		if (stageBallStates_[index] != StageBallState::Available) {
+		if (stageBallStates_[index] != StageBallState::Available &&
+			stageBallStates_[index] != StageBallState::Released) {
 			continue;
 		}
 		const physics::SphereBody* body = physicsWorld_.GetBody(stageBalls_[index]);
@@ -492,7 +504,14 @@ bool MagnetChainSystem::AttachStageBall(
 	bool attachRight) noexcept
 {
 	if (stageBallIndex >= stageBallCount_ ||
-		stageBallStates_[stageBallIndex] != StageBallState::Available) {
+		(stageBallStates_[stageBallIndex] != StageBallState::Available &&
+		 stageBallStates_[stageBallIndex] != StageBallState::Released)) {
+		return false;
+	}
+	const StageBallState previousState = stageBallStates_[stageBallIndex];
+	if (previousState == StageBallState::Released &&
+		(!impactAttachmentSystem_.DetachBody(physicsWorld_, stageBalls_[stageBallIndex]) ||
+		 !physicsWorld_.SetLinearVelocity(stageBalls_[stageBallIndex], {}))) {
 		return false;
 	}
 	auto& chain = attachRight ? rightChain_ : leftChain_;
@@ -514,7 +533,7 @@ bool MagnetChainSystem::AttachStageBall(
 	if (!ConfigureChainLink(attachRight, linkIndex)) {
 		--chainCount;
 		chain[linkIndex] = {};
-		stageBallStates_[stageBallIndex] = StageBallState::Available;
+		stageBallStates_[stageBallIndex] = previousState;
 		return false;
 	}
 	return true;

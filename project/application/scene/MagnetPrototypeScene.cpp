@@ -27,6 +27,8 @@ constexpr Vector4 kSelectionColor = { 1.0f, 0.12f, 0.85f, 1.0f };
 constexpr int kGridHalfCount = 10;
 constexpr float kGridSpacing = 1.0f;
 constexpr float kVelocityDisplayScale = 0.22f;
+constexpr int kArenaWallSegments = 64;
+constexpr float kArenaWallHeight = 1.4f;
 constexpr float kCameraBlend = 0.14f;
 constexpr float kSelectionSpherePadding = 0.18f;
 constexpr float kSelectionBoxPadding = 0.18f;
@@ -56,6 +58,7 @@ void MagnetPrototypeScene::Initialize()
 
 	prototypeReady_ = magnetStageSystem_.Initialize() &&
 		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
+	magneticImpactFeedbackSystem_.Reset();
 	if (!prototypeReady_) {
 		Logger::Log("MagnetPrototypeScene: MagnetChainSystem initialization failed.");
 		assert(false && "MagnetChainSystem initialization failed.");
@@ -111,6 +114,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 	}
 	if (resetRequested_) {
 		prototypeReady_ = magnetChainSystem_.Reset();
+		magneticImpactFeedbackSystem_.Reset();
 		resetRequested_ = false;
 		if (!prototypeReady_) {
 			Logger::Log("MagnetPrototypeScene: MagnetChainSystem reset failed.");
@@ -123,6 +127,12 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		pendingCommand_.releaseChains && magnetChainSystem_.HasAttachedBalls();
 	magnetChainSystem_.SetPlayerCommand(pendingCommand_);
 	prototypeReady_ = magnetChainSystem_.FixedUpdate(fixedDeltaTime);
+	if (prototypeReady_) {
+		magneticImpactFeedbackSystem_.AddImpacts(
+			magnetChainSystem_.GetMagneticImpactEvents(),
+			magnetChainSystem_.GetMagneticImpactEventCount());
+		magneticImpactFeedbackSystem_.Update(fixedDeltaTime);
+	}
 	if (!prototypeReady_) {
 		Logger::Log("MagnetPrototypeScene: fixed update failed; simulation disabled.");
 		assert(false && "MagnetChainSystem fixed update failed.");
@@ -154,7 +164,10 @@ void MagnetPrototypeScene::Update()
 		if (shouldMoveCamera) {
 			const Vector3 currentPosition = camera_->GetTranslate();
 			camera_->SetTranslate(
-				currentPosition + (desiredPosition - currentPosition) * kCameraBlend);
+				currentPosition + (desiredPosition - currentPosition) * kCameraBlend +
+				(editorMode_ == magnet::MagnetEditorMode::Play
+					? magneticImpactFeedbackSystem_.GetCameraShakeOffset()
+					: Vector3{}));
 		}
 		camera_->Update();
 	}
@@ -230,17 +243,38 @@ void MagnetPrototypeScene::Draw()
 	}
 
 	LineDrawer* lineDrawer = LineDrawer::GetInstance();
+	const float arenaRadius = magnetChainSystem_.GetArenaRadius();
 	if (showGrid_) {
 		for (int index = -kGridHalfCount; index <= kGridHalfCount; ++index) {
 			const float offset = static_cast<float>(index) * kGridSpacing;
+			if (std::abs(offset) > arenaRadius) {
+				continue;
+			}
+			const float halfChord = std::sqrt(
+				(std::max)(0.0f, arenaRadius * arenaRadius - offset * offset));
 			lineDrawer->DrawLine(
-				{ -static_cast<float>(kGridHalfCount), 0.0f, offset },
-				{ static_cast<float>(kGridHalfCount), 0.0f, offset },
+				{ -halfChord, 0.0f, offset },
+				{ halfChord, 0.0f, offset },
 				kGridColor);
 			lineDrawer->DrawLine(
-				{ offset, 0.0f, -static_cast<float>(kGridHalfCount) },
-				{ offset, 0.0f, static_cast<float>(kGridHalfCount) },
+				{ offset, 0.0f, -halfChord },
+				{ offset, 0.0f, halfChord },
 				kGridColor);
+		}
+	}
+	for (int segment = 0; segment < kArenaWallSegments; ++segment) {
+		const float firstAngle = 6.28318530717958647692f *
+			static_cast<float>(segment) / static_cast<float>(kArenaWallSegments);
+		const float secondAngle = 6.28318530717958647692f *
+			static_cast<float>(segment + 1) / static_cast<float>(kArenaWallSegments);
+		const Vector3 bottomA = { std::cos(firstAngle) * arenaRadius, 0.0f, std::sin(firstAngle) * arenaRadius };
+		const Vector3 bottomB = { std::cos(secondAngle) * arenaRadius, 0.0f, std::sin(secondAngle) * arenaRadius };
+		const Vector3 topA = bottomA + Vector3{ 0.0f, kArenaWallHeight, 0.0f };
+		const Vector3 topB = bottomB + Vector3{ 0.0f, kArenaWallHeight, 0.0f };
+		lineDrawer->DrawLine(bottomA, bottomB, kConstraintColor);
+		lineDrawer->DrawLine(topA, topB, kConstraintColor);
+		if (segment % 4 == 0) {
+			lineDrawer->DrawLine(bottomA, topA, kConstraintColor);
 		}
 	}
 
@@ -281,6 +315,7 @@ void MagnetPrototypeScene::Draw()
 		DrawBody(stageBalls[index], color);
 		DrawVelocity(stageBalls[index]);
 	}
+	magneticImpactFeedbackSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
 

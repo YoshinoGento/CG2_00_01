@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace magnet {
 
@@ -19,6 +20,11 @@ void MagneticImpactAttachmentSystem::SetSettings(const Settings& settings) noexc
 void MagneticImpactAttachmentSystem::Reset() noexcept
 {
 	attachedPairs_.fill(false);
+	attachedBodyA_.fill({});
+	attachedBodyB_.fill({});
+	attachmentConstraintIndices_.fill((std::numeric_limits<std::size_t>::max)());
+	impactEvents_.fill({});
+	impactEventCount_ = 0;
 	timeSinceRelease_ = 0.0f;
 }
 
@@ -27,11 +33,40 @@ void MagneticImpactAttachmentSystem::BeginRelease() noexcept
 	timeSinceRelease_ = 0.0f;
 }
 
+bool MagneticImpactAttachmentSystem::DetachBody(
+	physics::PhysicsWorld& physicsWorld,
+	physics::BodyHandle body) noexcept
+{
+	for (std::size_t pairIndex = 0; pairIndex < attachedPairs_.size(); ++pairIndex) {
+		if (!attachedPairs_[pairIndex]) {
+			continue;
+		}
+		const bool matchesA = attachedBodyA_[pairIndex].index == body.index &&
+			attachedBodyA_[pairIndex].generation == body.generation;
+		const bool matchesB = attachedBodyB_[pairIndex].index == body.index &&
+			attachedBodyB_[pairIndex].generation == body.generation;
+		if (!matchesA && !matchesB) {
+			continue;
+		}
+		if (!physicsWorld.SetDistanceConstraintActive(
+			attachmentConstraintIndices_[pairIndex], false)) {
+			return false;
+		}
+		attachedPairs_[pairIndex] = false;
+		attachedBodyA_[pairIndex] = {};
+		attachedBodyB_[pairIndex] = {};
+		attachmentConstraintIndices_[pairIndex] =
+			(std::numeric_limits<std::size_t>::max)();
+	}
+	return true;
+}
+
 bool MagneticImpactAttachmentSystem::Update(
 	physics::PhysicsWorld& physicsWorld,
 	const MagnetHandles& magnets,
 	float deltaTime) noexcept
 {
+	impactEventCount_ = 0;
 	if (!std::isfinite(deltaTime) || deltaTime <= 0.0f) {
 		return false;
 	}
@@ -42,8 +77,31 @@ bool MagneticImpactAttachmentSystem::Update(
 
 	for (std::size_t first = 0; first < magnets.size(); ++first) {
 		for (std::size_t second = first + 1; second < magnets.size(); ++second) {
-			const std::size_t pairIndex = GetPairIndex(first, second);
-			if (attachedPairs_[pairIndex]) {
+			std::size_t pairIndex = attachedPairs_.size();
+			bool alreadyAttached = false;
+			for (std::size_t recordIndex = 0; recordIndex < attachedPairs_.size(); ++recordIndex) {
+				if (!attachedPairs_[recordIndex]) {
+					if (pairIndex == attachedPairs_.size()) {
+						pairIndex = recordIndex;
+					}
+					continue;
+				}
+				const bool sameOrder =
+					attachedBodyA_[recordIndex].index == magnets[first].index &&
+					attachedBodyA_[recordIndex].generation == magnets[first].generation &&
+					attachedBodyB_[recordIndex].index == magnets[second].index &&
+					attachedBodyB_[recordIndex].generation == magnets[second].generation;
+				const bool reverseOrder =
+					attachedBodyA_[recordIndex].index == magnets[second].index &&
+					attachedBodyA_[recordIndex].generation == magnets[second].generation &&
+					attachedBodyB_[recordIndex].index == magnets[first].index &&
+					attachedBodyB_[recordIndex].generation == magnets[first].generation;
+				if (sameOrder || reverseOrder) {
+					alreadyAttached = true;
+					break;
+				}
+			}
+			if (alreadyAttached || pairIndex == attachedPairs_.size()) {
 				continue;
 			}
 			const physics::SphereBody* bodyA = physicsWorld.GetBody(magnets[first]);
@@ -78,10 +136,19 @@ bool MagneticImpactAttachmentSystem::Update(
 			joint.compliance = 0.00001f;
 			joint.maximumCorrection = 0.45f;
 			joint.debugDraw = true;
+			const std::size_t constraintIndex = physicsWorld.GetConstraintCount();
 			if (!physicsWorld.CreateDistanceConstraint(joint)) {
 				return false;
 			}
 			attachedPairs_[pairIndex] = true;
+			attachedBodyA_[pairIndex] = magnets[first];
+			attachedBodyB_[pairIndex] = magnets[second];
+			attachmentConstraintIndices_[pairIndex] = constraintIndex;
+			if (impactEventCount_ < impactEvents_.size()) {
+				ImpactEvent& event = impactEvents_[impactEventCount_++];
+				event.position = (bodyA->position + bodyB->position) * 0.5f;
+				event.relativeSpeed = std::sqrt(relativeSpeedSquared);
+			}
 		}
 	}
 	return true;
@@ -91,13 +158,6 @@ std::size_t MagneticImpactAttachmentSystem::GetAttachmentCount() const noexcept
 {
 	return static_cast<std::size_t>(std::count(
 		attachedPairs_.begin(), attachedPairs_.end(), true));
-}
-
-std::size_t MagneticImpactAttachmentSystem::GetPairIndex(
-	std::size_t first,
-	std::size_t second) noexcept
-{
-	return first * (2 * kMagnetCount - first - 1) / 2 + (second - first - 1);
 }
 
 } // namespace magnet
