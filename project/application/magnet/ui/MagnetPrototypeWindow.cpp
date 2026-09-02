@@ -313,6 +313,21 @@ void MagnetPrototypeWindow::DrawViewport(
 				(mapMinimum.y + mapMaximum.y) * 0.5f,
 			};
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
+			char scoreText[64]{};
+			std::snprintf(scoreText, sizeof(scoreText), "SCORE  %zu", viewData.score);
+			const ImVec2 scoreMinimum = {
+				imagePosition.x + kMinimapMargin,
+				imagePosition.y + kMinimapMargin,
+			};
+			const ImVec2 scoreTextSize = ImGui::CalcTextSize(scoreText);
+			const ImVec2 scoreMaximum = {
+				scoreMinimum.x + scoreTextSize.x + 22.0f,
+				scoreMinimum.y + scoreTextSize.y + 14.0f,
+			};
+			drawList->AddRectFilled(scoreMinimum, scoreMaximum, IM_COL32(10, 16, 24, 205), 7.0f);
+			drawList->AddRect(scoreMinimum, scoreMaximum, IM_COL32(255, 215, 70, 235), 7.0f, 0, 2.0f);
+			drawList->AddText({ scoreMinimum.x + 11.0f, scoreMinimum.y + 7.0f },
+				IM_COL32(255, 230, 100, 255), scoreText);
 			drawList->AddRectFilled(mapMinimum, mapMaximum, IM_COL32(10, 16, 24, 205), 7.0f);
 			drawList->AddRect(mapMinimum, mapMaximum, IM_COL32(210, 225, 240, 230), 7.0f, 0, 2.0f);
 			drawList->AddLine({ mapCenter.x, mapMinimum.y + 6.0f },
@@ -844,7 +859,7 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 			ImGui::Text("%zu", viewData.releasedBallCount);
 			ImGui::TableNextColumn();
 			ImGui::TextDisabled("ゴール得点");
-			ImGui::Text("%zu", viewData.goalHitCount);
+			ImGui::Text("%zu", viewData.score);
 			ImGui::EndTable();
 		}
 
