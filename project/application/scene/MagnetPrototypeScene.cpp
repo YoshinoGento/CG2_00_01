@@ -295,8 +295,12 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 	case magnet::MagnetStageEditorAction::GenerateBalanced:
 		stageChanged = magnetStageSystem_.GenerateBalanced(request.generationSettings);
 		break;
+	case magnet::MagnetStageEditorAction::MovePlayer:
+		stageChanged = magnetStageSystem_.SetPlayerPosition(
+			request.editedObjectPosition);
+		break;
 	case magnet::MagnetStageEditorAction::AddBall:
-		stageChanged = magnetStageSystem_.AddBall(request.editedBallPosition);
+		stageChanged = magnetStageSystem_.AddBall(request.editedObjectPosition);
 		break;
 	case magnet::MagnetStageEditorAction::RemoveBall:
 		stageChanged = magnetStageSystem_.RemoveBall(request.selectedBallId);
@@ -304,18 +308,18 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 	case magnet::MagnetStageEditorAction::MoveBall:
 		stageChanged = magnetStageSystem_.SetBallPosition(
 			request.selectedBallId,
-			request.editedBallPosition);
+			request.editedObjectPosition);
 		break;
 	case magnet::MagnetStageEditorAction::AddGoal:
 		stageChanged = magnetStageSystem_.AddBoxObject(
 			magnet::MagnetStageObjectType::Goal,
-			request.editedBallPosition,
+			request.editedObjectPosition,
 			request.editedObjectSize);
 		break;
 	case magnet::MagnetStageEditorAction::AddObstacle:
 		stageChanged = magnetStageSystem_.AddBoxObject(
 			magnet::MagnetStageObjectType::Obstacle,
-			request.editedBallPosition,
+			request.editedObjectPosition,
 			request.editedObjectSize);
 		break;
 	case magnet::MagnetStageEditorAction::RemoveBoxObject:
@@ -327,7 +331,7 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 		stageChanged = magnetStageSystem_.SetBoxObjectTransform(
 			request.selectedObjectType,
 			request.selectedObjectId,
-			request.editedBallPosition,
+			request.editedObjectPosition,
 			request.editedObjectSize);
 		break;
 	case magnet::MagnetStageEditorAction::SaveNamed:
@@ -384,7 +388,10 @@ Vector3 MagnetPrototypeScene::ResolveEditorFocusPosition() const noexcept
 			magnetStageSystem_.FindBoxObject(selectedObjectType_, selectedObjectId_);
 		return object && IsFiniteVector3(object->position) ? object->position : Vector3{};
 	}
-	case magnet::MagnetStageObjectType::Player:
+	case magnet::MagnetStageObjectType::Player: {
+		const Vector3 playerPosition = magnetStageSystem_.GetStageData().playerPosition;
+		return IsFiniteVector3(playerPosition) ? playerPosition : Vector3{};
+	}
 	case magnet::MagnetStageObjectType::None:
 	default:
 		break;

@@ -3,6 +3,7 @@
 #include "application/magnet/system/MagnetChainSystem.h"
 #include "application/magnet/system/MagneticImpactAttachmentSystem.h"
 #include "application/magnet/system/SpinChargeController.h"
+#include "io/JsonFile.h"
 
 #include <algorithm>
 #include <array>
@@ -31,6 +32,13 @@ float DistanceXZ(const Vector3& a, const Vector3& b)
 	const float deltaX = b.x - a.x;
 	const float deltaZ = b.z - a.z;
 	return std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
+}
+
+bool ApproximatelyEqual(const Vector3& a, const Vector3& b, float epsilon = 1.0e-5f)
+{
+	return std::abs(a.x - b.x) <= epsilon &&
+		std::abs(a.y - b.y) <= epsilon &&
+		std::abs(a.z - b.z) <= epsilon;
 }
 
 magnet::MagnetStageData BuildPickupStage()
@@ -254,10 +262,20 @@ int main()
 	}
 	std::cout << "generated_minimum_pair_distance="
 		<< GetMinimumPairDistance(generated) << '\n';
+	const Vector3 authoredPlayerPosition{ 2.5f, 0.75f, -1.5f };
+	if (!stageSystem.SetPlayerPosition(authoredPlayerPosition) ||
+		stageSystem.SetPlayerPosition({ 20.0f, 0.75f, 0.0f })) {
+		std::cerr << "Player start-position validation failed.\n";
+		return 115;
+	}
 	const Vector3 goalPosition{ 0.0f, 1.0f, 8.0f };
 	const Vector3 goalSize{ 4.0f, 2.0f, 1.0f };
 	const Vector3 obstaclePosition{ -3.0f, 1.0f, 2.0f };
 	const Vector3 obstacleSize{ 1.5f, 2.0f, 3.0f };
+	const Vector3 editedGoalPosition{ 1.0f, 1.5f, 7.5f };
+	const Vector3 editedGoalSize{ 3.5f, 2.5f, 1.5f };
+	const Vector3 editedObstaclePosition{ -2.5f, 1.25f, 2.5f };
+	const Vector3 editedObstacleSize{ 2.0f, 2.5f, 2.0f };
 	if (!stageSystem.AddBoxObject(
 			magnet::MagnetStageObjectType::Goal,
 			goalPosition,
@@ -270,9 +288,28 @@ int main()
 			magnet::MagnetStageObjectType::Obstacle,
 			obstaclePosition,
 			{ 0.0f, 2.0f, 3.0f }) ||
+		!stageSystem.SetBoxObjectTransform(
+			magnet::MagnetStageObjectType::Goal,
+			1u,
+			editedGoalPosition,
+			editedGoalSize) ||
+		!stageSystem.SetBoxObjectTransform(
+			magnet::MagnetStageObjectType::Obstacle,
+			1u,
+			editedObstaclePosition,
+			editedObstacleSize) ||
 		!stageSystem.GenerateBalanced(generation) ||
 		stageSystem.GetStageData().goalCount != 1 ||
-		stageSystem.GetStageData().obstacleCount != 1) {
+		stageSystem.GetStageData().obstacleCount != 1 ||
+		!ApproximatelyEqual(
+			stageSystem.GetStageData().goals[0].position,
+			editedGoalPosition) ||
+		!ApproximatelyEqual(
+			stageSystem.GetStageData().obstacles[0].position,
+			editedObstaclePosition) ||
+		DistanceXZ(
+			stageSystem.GetStageData().playerPosition,
+			authoredPlayerPosition) > 1.0e-5f) {
 		std::cerr << "Goal/Obstacle validation or generator preservation failed.\n";
 		return 107;
 	}
@@ -280,7 +317,8 @@ int main()
 	if (!defaultStageSystem.Load("project/Resources/levels/magnet/stage_01.json") ||
 		defaultStageSystem.GetStageData().ballCount != 16 ||
 		defaultStageSystem.GetStageData().goalCount != 1 ||
-		defaultStageSystem.GetStageData().obstacleCount != 2) {
+		defaultStageSystem.GetStageData().obstacleCount != 2 ||
+		DistanceXZ(defaultStageSystem.GetStageData().playerPosition, {}) > 1.0e-5f) {
 		std::cerr << "Tracked default stage JSON is invalid.\n";
 		return 7;
 	}
@@ -305,17 +343,83 @@ int main()
 		loadedStageSystem.GetStageData().ballCount != generated.ballCount ||
 		loadedStageSystem.GetStageData().goalCount != 1 ||
 		loadedStageSystem.GetStageData().obstacleCount != 1 ||
-		DistanceXZ(loadedStageSystem.GetStageData().goals[0].position, goalPosition) >
-			1.0e-5f ||
-		DistanceXZ(loadedStageSystem.GetStageData().goals[0].size, goalSize) > 1.0e-5f) {
+		DistanceXZ(
+			loadedStageSystem.GetStageData().playerPosition,
+			authoredPlayerPosition) > 1.0e-5f ||
+		!ApproximatelyEqual(
+			loadedStageSystem.GetStageData().goals[0].position,
+			editedGoalPosition) ||
+		!ApproximatelyEqual(
+			loadedStageSystem.GetStageData().goals[0].size,
+			editedGoalSize) ||
+		!ApproximatelyEqual(
+			loadedStageSystem.GetStageData().obstacles[0].position,
+			editedObstaclePosition) ||
+		!ApproximatelyEqual(
+			loadedStageSystem.GetStageData().obstacles[0].size,
+			editedObstacleSize)) {
 		std::cerr << "Stage JSON load failed.\n";
 		return 9;
+	}
+	magnet::MagnetChainSystem placedPlayerSystem;
+	if (!placedPlayerSystem.Initialize(loadedStageSystem.GetStageData())) {
+		std::cerr << "Runtime rejected the authored Player position.\n";
+		return 116;
+	}
+	const physics::SphereBody* placedPlayer = placedPlayerSystem.GetPhysicsWorld().GetBody(
+		placedPlayerSystem.GetPlayerBody());
+	if (!placedPlayer ||
+		DistanceXZ(placedPlayer->position, authoredPlayerPosition) > 1.0e-5f) {
+		std::cerr << "Runtime Player did not use the authored start position.\n";
+		return 117;
+	}
+	magnet::MagnetChainSystem::PlayerCommand movePlacedPlayer{};
+	movePlacedPlayer.moveDirection = { 1.0f, 0.0f, 0.0f };
+	placedPlayerSystem.SetPlayerCommand(movePlacedPlayer);
+	if (!placedPlayerSystem.FixedUpdate(kFixedDeltaTime) ||
+		!placedPlayerSystem.Reset()) {
+		std::cerr << "Runtime Player reset failed.\n";
+		return 118;
+	}
+	placedPlayer = placedPlayerSystem.GetPhysicsWorld().GetBody(
+		placedPlayerSystem.GetPlayerBody());
+	if (!placedPlayer ||
+		DistanceXZ(placedPlayer->position, authoredPlayerPosition) > 1.0e-5f) {
+		std::cerr << "Reset did not restore the authored Player start position.\n";
+		return 119;
 	}
 	std::error_code removeError;
 	std::filesystem::remove(roundTripPath, removeError);
 	if (removeError) {
 		std::cerr << "Stage round-trip cleanup failed.\n";
 		return 10;
+	}
+
+	const std::string legacyStagePath = "generated/tests/magnet_stage_v2.json";
+	const nlohmann::json legacyStage = {
+		{ "schema", "magnet_stage" },
+		{ "schemaVersion", 2u },
+		{ "name", "legacy_v2" },
+		{ "bounds", {
+			{ "minimumX", -9.0f }, { "maximumX", 9.0f },
+			{ "minimumZ", -9.0f }, { "maximumZ", 9.0f } } },
+		{ "generator", {
+			{ "seed", 1u }, { "minimumSpacing", 2.0f },
+			{ "playerClearRadius", 3.0f } } },
+		{ "objects", nlohmann::json::array() },
+	};
+	magnet::MagnetStageSystem legacyStageSystem;
+	if (!JsonFile::Save(legacyStagePath, legacyStage) ||
+		!legacyStageSystem.Load(legacyStagePath) ||
+		DistanceXZ(legacyStageSystem.GetStageData().playerPosition, {}) > 1.0e-5f) {
+		std::cerr << "Schema-v2 Player fallback is incompatible.\n";
+		return 120;
+	}
+	removeError.clear();
+	std::filesystem::remove(legacyStagePath, removeError);
+	if (removeError) {
+		std::cerr << "Legacy-stage cleanup failed.\n";
+		return 121;
 	}
 
 	const std::filesystem::path saveBrowserDirectory =

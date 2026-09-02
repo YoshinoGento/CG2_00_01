@@ -15,10 +15,12 @@ namespace magnet {
 namespace {
 
 constexpr char kSchemaName[] = "magnet_stage";
+constexpr char kPlayerType[] = "player";
 constexpr char kMagnetBallType[] = "magnet_ball";
 constexpr char kGoalType[] = "goal";
 constexpr char kObstacleType[] = "obstacle";
 constexpr float kBallPlaneHeight = 0.5f;
+constexpr float kPlayerPlaneHeight = 0.75f;
 constexpr float kMinimumStageExtent = 2.0f;
 constexpr float kMaximumAbsoluteCoordinate = 100.0f;
 constexpr float kMinimumAllowedSpacing = 0.5f;
@@ -125,6 +127,7 @@ bool MagnetStageSystem::GenerateBalanced(
 	MagnetStageData candidate{};
 	candidate.name = stageData_.name.empty() ? "stage_01" : stageData_.name;
 	candidate.generation = settings;
+	candidate.playerPosition = stageData_.playerPosition;
 	candidate.ballCount = settings.ballCount;
 	candidate.goals = stageData_.goals;
 	candidate.goalCount = stageData_.goalCount;
@@ -143,7 +146,7 @@ bool MagnetStageSystem::GenerateBalanced(
 
 	const float centerX = (settings.minimumX + settings.maximumX) * 0.5f;
 	const float centerZ = (settings.minimumZ + settings.maximumZ) * 0.5f;
-	const Vector3 playerPosition{ 0.0f, kBallPlaneHeight, 0.0f };
+	const Vector3 playerPosition = candidate.playerPosition;
 	const float minimumSpacingSquared = settings.minimumSpacing * settings.minimumSpacing;
 	const float playerClearRadiusSquared =
 		settings.playerClearRadius * settings.playerClearRadius;
@@ -285,6 +288,26 @@ bool MagnetStageSystem::SetBallPosition(uint32_t id, const Vector3& position)
 	return false;
 }
 
+bool MagnetStageSystem::SetPlayerPosition(const Vector3& position)
+{
+	if (!IsFinitePosition(position) ||
+		position.x < stageData_.generation.minimumX ||
+		position.x > stageData_.generation.maximumX ||
+		position.z < stageData_.generation.minimumZ ||
+		position.z > stageData_.generation.maximumZ) {
+		SetOperationResult(false, "プレイヤーの開始位置がステージ範囲外です。");
+		return false;
+	}
+	stageData_.playerPosition = {
+		position.x,
+		kPlayerPlaneHeight,
+		position.z,
+	};
+	dirty_ = true;
+	SetOperationResult(true, "プレイヤーの開始位置を更新しました。");
+	return true;
+}
+
 bool MagnetStageSystem::AddBoxObject(
 	MagnetStageObjectType type,
 	const Vector3& position,
@@ -412,6 +435,14 @@ bool MagnetStageSystem::Save(const std::string& path)
 		}
 
 		nlohmann::json objects = nlohmann::json::array();
+		objects.push_back({
+			{ "id", 1u },
+			{ "type", kPlayerType },
+			{ "position", {
+				stageData_.playerPosition.x,
+				stageData_.playerPosition.y,
+				stageData_.playerPosition.z } },
+		});
 		for (std::size_t index = 0; index < stageData_.ballCount; ++index) {
 			const MagnetStageBallPlacement& ball = stageData_.balls[index];
 			objects.push_back({
@@ -500,7 +531,7 @@ bool MagnetStageSystem::Load(const std::string& path)
 			!root.contains("generator") || !root["generator"].is_object() ||
 			!root.contains("objects") || !root["objects"].is_array() ||
 			root["objects"].size() >
-				MagnetStageData::kMaximumBallCount +
+				1u + MagnetStageData::kMaximumBallCount +
 				MagnetStageData::kMaximumGoalCount +
 				MagnetStageData::kMaximumObstacleCount) {
 			SetOperationResult(false, "ステージJSONの形式が不正か未対応です。");
@@ -529,6 +560,7 @@ bool MagnetStageSystem::Load(const std::string& path)
 		}
 		candidate.generation.seed = generator["seed"].get<uint32_t>();
 
+		bool playerFound = false;
 		for (std::size_t index = 0; index < root["objects"].size(); ++index) {
 			const nlohmann::json& object = root["objects"][index];
 			if (!object.is_object() || !object.contains("id") ||
@@ -544,6 +576,16 @@ bool MagnetStageSystem::Load(const std::string& path)
 			}
 			const uint32_t id = object["id"].get<uint32_t>();
 			const std::string type = object["type"].get<std::string>();
+			if (type == kPlayerType) {
+				if (schemaVersion < 3u || playerFound || id != 1u) {
+					SetOperationResult(false, "プレイヤー配置が重複しているかIDが不正です。");
+					return false;
+				}
+				position.y = kPlayerPlaneHeight;
+				candidate.playerPosition = position;
+				playerFound = true;
+				continue;
+			}
 			if (type == kMagnetBallType) {
 				if (candidate.ballCount >= candidate.balls.size()) {
 					SetOperationResult(false, "ステージ内の磁石球が上限を超えています。");
@@ -568,6 +610,10 @@ bool MagnetStageSystem::Load(const std::string& path)
 				SetOperationResult(false, "未対応のオブジェクトがあるか、配置上限を超えています。");
 				return false;
 			}
+		}
+		if (schemaVersion >= 3u && !playerFound) {
+			SetOperationResult(false, "プレイヤーの開始位置がステージJSONにありません。");
+			return false;
 		}
 		candidate.generation.ballCount = candidate.ballCount;
 
@@ -793,6 +839,14 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 	MagnetStageGenerationSettings validationSettings = stageData.generation;
 	validationSettings.ballCount = (std::max)(stageData.ballCount, std::size_t{ 1 });
 	if (!ValidateGenerationSettings(validationSettings)) {
+		return false;
+	}
+	if (!IsFinitePosition(stageData.playerPosition) ||
+		std::abs(stageData.playerPosition.y - kPlayerPlaneHeight) > 1.0e-4f ||
+		stageData.playerPosition.x < stageData.generation.minimumX ||
+		stageData.playerPosition.x > stageData.generation.maximumX ||
+		stageData.playerPosition.z < stageData.generation.minimumZ ||
+		stageData.playerPosition.z > stageData.generation.maximumZ) {
 		return false;
 	}
 	for (std::size_t index = 0; index < stageData.ballCount; ++index) {

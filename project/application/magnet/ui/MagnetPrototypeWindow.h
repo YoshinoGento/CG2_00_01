@@ -48,6 +48,7 @@ struct MagnetPrototypeViewData {
 enum class MagnetStageEditorAction : uint8_t {
 	None,
 	GenerateBalanced,
+	MovePlayer,
 	AddBall,
 	RemoveBall,
 	MoveBall,
@@ -67,7 +68,7 @@ struct MagnetPrototypeUiRequest {
 	uint32_t selectedBallId = 0;
 	MagnetStageObjectType selectedObjectType = MagnetStageObjectType::None;
 	uint32_t selectedObjectId = 0;
-	Vector3 editedBallPosition{};
+	Vector3 editedObjectPosition{};
 	Vector3 editedObjectSize{ 1.0f, 1.0f, 1.0f };
 	bool allowOverwrite = false;
 	SpinChargeController::Settings spinChargeSettings{};
