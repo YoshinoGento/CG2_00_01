@@ -2,6 +2,7 @@
 
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/MagnetChainSystem.h"
+#include "application/magnet/system/MagneticImpactFeedbackSystem.h"
 #include "application/magnet/ui/MagnetPrototypeWindow.h"
 #include "application/scene/BaseScene.h"
 
@@ -32,6 +33,7 @@ private:
 	std::unique_ptr<Camera> camera_;
 	magnet::MagnetStageSystem magnetStageSystem_;
 	magnet::MagnetChainSystem magnetChainSystem_;
+	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
 	magnet::MagnetPrototypeWindow prototypeWindow_;
 	magnet::MagnetChainSystem::PlayerCommand pendingCommand_{};
 	bool resetRequested_ = false;
