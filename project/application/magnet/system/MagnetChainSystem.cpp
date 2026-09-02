@@ -207,6 +207,9 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 	}
 
 	stagePlayerPosition_ = stageData.playerPosition;
+	CircularArenaBoundary::Settings arenaSettings{};
+	arenaSettings.radius = stageData.arenaRadius;
+	arenaBoundary_.SetSettings(arenaSettings);
 	stagePlayerPosition_.y = kPlayerPlaneHeight;
 	stageBallCount_ = stageData.ballCount;
 	stageLayoutBalls_.fill({});

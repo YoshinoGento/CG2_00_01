@@ -40,13 +40,14 @@ struct MagnetStageGenerationSettings {
 };
 
 struct MagnetStageData {
-	static constexpr uint32_t kSchemaVersion = 3;
+	static constexpr uint32_t kSchemaVersion = 4;
 	static constexpr uint32_t kOldestSupportedSchemaVersion = 1;
 	static constexpr std::size_t kMaximumBallCount = 24;
 	static constexpr std::size_t kMaximumGoalCount = 4;
 	static constexpr std::size_t kMaximumObstacleCount = 24;
 
 	std::string name = "stage_01";
+	float arenaRadius = 10.0f;
 	MagnetStageGenerationSettings generation{};
 	Vector3 playerPosition{ 0.0f, 0.75f, 0.0f };
 	std::array<MagnetStageBallPlacement, kMaximumBallCount> balls{};
@@ -83,6 +84,7 @@ public:
 	[[nodiscard]] bool RemoveBall(uint32_t id);
 	[[nodiscard]] bool SetBallPosition(uint32_t id, const Vector3& position);
 	[[nodiscard]] bool SetPlayerPosition(const Vector3& position);
+	[[nodiscard]] bool SetArenaRadius(float radius);
 	[[nodiscard]] bool AddBoxObject(
 		MagnetStageObjectType type,
 		const Vector3& position,
