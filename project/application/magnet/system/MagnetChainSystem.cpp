@@ -244,6 +244,7 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 			goals_[index].width = authoredGoal.size.x;
 			goals_[index].depth = authoredGoal.size.z;
 			goals_[index].size = GoalSize::Standard;
+			goals_[index].score = authoredGoal.score;
 		}
 	}
 	return RebuildRuntime();
@@ -459,14 +460,14 @@ bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
 		const physics::BodyHandle handle = stageBalls_[index];
 		const physics::SphereBody* body = physicsWorld_.GetBody(handle);
 		if (!body || !body->active) { continue; }
-		bool enteredGoal = false;
+		const Goal* enteredGoal = nullptr;
 		for (std::size_t goalIndex = 0; goalIndex < goalCount_; ++goalIndex) {
 			if (SegmentIntersectsExpandedGoal(
 				body->previousPosition,
 				body->position,
 				goals_[goalIndex],
 				body->radius)) {
-				enteredGoal = true;
+				enteredGoal = &goals_[goalIndex];
 				break;
 			}
 		}
@@ -475,7 +476,7 @@ bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
 			!physicsWorld_.SetActive(handle, false)) { return false; }
 		stageBallStates_[index] = StageBallState::Inactive;
 		++goalHitCount_;
-		score_ += kScorePerGoal;
+		score_ += enteredGoal->score;
 	}
 	return true;
 }

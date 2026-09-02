@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <limits>
@@ -422,6 +423,7 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 	const auto updateArray = [&](auto& placements, std::size_t count) {
 		for (std::size_t index = 0; index < count; ++index) {
 			if (placements[index].id == id) {
+				candidate.score = placements[index].score;
 				placements[index] = candidate;
 				return true;
 			}
@@ -440,6 +442,24 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 	dirty_ = true;
 	SetOperationResult(true, "ステージオブジェクトの配置を更新しました。");
 	return true;
+}
+
+bool MagnetStageSystem::SetGoalScore(uint32_t id, uint32_t score)
+{
+	if (score == 0 || score > 999) {
+		SetOperationResult(false, "ゴール得点は1～999の範囲で指定してください。");
+		return false;
+	}
+	for (std::size_t index = 0; index < stageData_.goalCount; ++index) {
+		if (stageData_.goals[index].id == id) {
+			stageData_.goals[index].score = score;
+			dirty_ = true;
+			SetOperationResult(true, "選択したゴールの得点を更新しました。");
+			return true;
+		}
+	}
+	SetOperationResult(false, "選択したゴールが見つかりません。");
+	return false;
 }
 
 bool MagnetStageSystem::Save(const std::string& path)
@@ -470,7 +490,7 @@ bool MagnetStageSystem::Save(const std::string& path)
 		const auto appendBoxes = [&](const auto& placements, std::size_t count, const char* type) {
 			for (std::size_t index = 0; index < count; ++index) {
 				const MagnetStageBoxPlacement& placement = placements[index];
-				objects.push_back({
+				nlohmann::json object = {
 					{ "id", placement.id },
 					{ "type", type },
 					{ "position", {
@@ -478,7 +498,11 @@ bool MagnetStageSystem::Save(const std::string& path)
 						placement.position.y,
 						placement.position.z } },
 					{ "size", { placement.size.x, placement.size.y, placement.size.z } },
-				});
+				};
+				if (std::strcmp(type, kGoalType) == 0) {
+					object["score"] = placement.score;
+				}
+				objects.push_back(std::move(object));
 			}
 		};
 		appendBoxes(stageData_.goals, stageData_.goalCount, kGoalType);
@@ -626,7 +650,15 @@ bool MagnetStageSystem::Load(const std::string& path)
 				return false;
 			}
 			if (type == kGoalType && candidate.goalCount < candidate.goals.size()) {
-				candidate.goals[candidate.goalCount++] = { id, position, size };
+				uint32_t score = 1;
+				if (object.contains("score")) {
+					if (!object["score"].is_number_unsigned()) {
+						SetOperationResult(false, "ゴール得点が不正です。");
+						return false;
+					}
+					score = object["score"].get<uint32_t>();
+				}
+				candidate.goals[candidate.goalCount++] = { id, position, size, score };
 			} else if (type == kObstacleType &&
 				candidate.obstacleCount < candidate.obstacles.size()) {
 				candidate.obstacles[candidate.obstacleCount++] = { id, position, size };
@@ -912,6 +944,11 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 	if (!validateBoxes(stageData.goals, stageData.goalCount) ||
 		!validateBoxes(stageData.obstacles, stageData.obstacleCount)) {
 		return false;
+	}
+	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
+		if (stageData.goals[index].score == 0 || stageData.goals[index].score > 999) {
+			return false;
+		}
 	}
 	return true;
 }
