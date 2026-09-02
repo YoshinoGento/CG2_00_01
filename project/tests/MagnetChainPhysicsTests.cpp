@@ -180,9 +180,33 @@ int main()
 	}
 	std::cout << "generated_minimum_pair_distance="
 		<< GetMinimumPairDistance(generated) << '\n';
+	const Vector3 goalPosition{ 0.0f, 1.0f, 8.0f };
+	const Vector3 goalSize{ 4.0f, 2.0f, 1.0f };
+	const Vector3 obstaclePosition{ -3.0f, 1.0f, 2.0f };
+	const Vector3 obstacleSize{ 1.5f, 2.0f, 3.0f };
+	if (!stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Goal,
+			goalPosition,
+			goalSize) ||
+		!stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			obstaclePosition,
+			obstacleSize) ||
+		stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			obstaclePosition,
+			{ 0.0f, 2.0f, 3.0f }) ||
+		!stageSystem.GenerateBalanced(generation) ||
+		stageSystem.GetStageData().goalCount != 1 ||
+		stageSystem.GetStageData().obstacleCount != 1) {
+		std::cerr << "Goal/Obstacle validation or generator preservation failed.\n";
+		return 107;
+	}
 	magnet::MagnetStageSystem defaultStageSystem;
 	if (!defaultStageSystem.Load("project/Resources/levels/magnet/stage_01.json") ||
-		defaultStageSystem.GetStageData().ballCount != 16) {
+		defaultStageSystem.GetStageData().ballCount != 16 ||
+		defaultStageSystem.GetStageData().goalCount != 1 ||
+		defaultStageSystem.GetStageData().obstacleCount != 2) {
 		std::cerr << "Tracked default stage JSON is invalid.\n";
 		return 7;
 	}
@@ -194,7 +218,12 @@ int main()
 	}
 	magnet::MagnetStageSystem loadedStageSystem;
 	if (!loadedStageSystem.Load(roundTripPath) ||
-		loadedStageSystem.GetStageData().ballCount != generated.ballCount) {
+		loadedStageSystem.GetStageData().ballCount != generated.ballCount ||
+		loadedStageSystem.GetStageData().goalCount != 1 ||
+		loadedStageSystem.GetStageData().obstacleCount != 1 ||
+		DistanceXZ(loadedStageSystem.GetStageData().goals[0].position, goalPosition) >
+			1.0e-5f ||
+		DistanceXZ(loadedStageSystem.GetStageData().goals[0].size, goalSize) > 1.0e-5f) {
 		std::cerr << "Stage JSON load failed.\n";
 		return 9;
 	}
@@ -215,6 +244,14 @@ int main()
 	browserCleanupError.clear();
 	magnet::MagnetStageSystem saveBrowserSystem(saveBrowserDirectory.generic_string());
 	if (!saveBrowserSystem.GenerateBalanced(generation) ||
+		!saveBrowserSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Goal,
+			goalPosition,
+			goalSize) ||
+		!saveBrowserSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			obstaclePosition,
+			obstacleSize) ||
 		!saveBrowserSystem.IsDirty() ||
 		!saveBrowserSystem.RefreshSaveEntries() ||
 		saveBrowserSystem.GetSaveEntryCount() != 0) {
@@ -241,6 +278,8 @@ int main()
 		!saveBrowserSystem.IsDirty() ||
 		!saveBrowserSystem.LoadNamed("alpha") ||
 		saveBrowserSystem.IsDirty() ||
+		saveBrowserSystem.GetStageData().goalCount != 1 ||
+		saveBrowserSystem.GetStageData().obstacleCount != 1 ||
 		DistanceXZ(
 			saveBrowserSystem.GetStageData().balls[0].position,
 			savedFirstPosition) > 1.0e-5f) {

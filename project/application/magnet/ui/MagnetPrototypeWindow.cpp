@@ -15,10 +15,10 @@ namespace magnet {
 namespace {
 
 constexpr char kDockspaceName[] = "MagnetPrototypeDockSpace";
-constexpr char kHierarchyWindowName[] = "Stage Hierarchy###MagnetHierarchy";
-constexpr char kViewportWindowName[] = "Game View###MagnetViewport";
-constexpr char kInspectorWindowName[] = "Stage Inspector###MagnetInspector";
-constexpr char kMonitorWindowName[] = "Simulation Monitor###MagnetMonitor";
+constexpr char kHierarchyWindowName[] = "ステージ階層###MagnetHierarchy";
+constexpr char kViewportWindowName[] = "ゲーム画面###MagnetViewport";
+constexpr char kInspectorWindowName[] = "ステージ設定###MagnetInspector";
+constexpr char kMonitorWindowName[] = "シミュレーション監視###MagnetMonitor";
 constexpr float kLeftPanelRatio = 0.20f;
 constexpr float kRightPanelRatio = 0.28f;
 constexpr float kBottomPanelRatio = 0.22f;
@@ -55,7 +55,7 @@ MagnetPrototypeUiRequest MagnetPrototypeWindow::Draw(
 		ImGui::GetMainViewport(),
 		ImGuiDockNodeFlags_None);
 
-	DrawHierarchy(viewData);
+	DrawHierarchy(viewData, request);
 	DrawViewport(
 		srvManager,
 		finalDisplaySrvIndex,
@@ -74,6 +74,8 @@ MagnetPrototypeUiRequest MagnetPrototypeWindow::Draw(
 	request.showGrid = showGrid_;
 	request.showVelocity = showVelocity_;
 	request.cameraFollow = cameraFollow_;
+	request.selectedObjectType = selectedObjectType_;
+	request.selectedObjectId = selectedObjectId_;
 	return request;
 }
 
@@ -85,21 +87,25 @@ void MagnetPrototypeWindow::DrawMainMenuBar(
 	if (!ImGui::BeginMainMenuBar()) {
 		return;
 	}
-	ImGui::TextUnformatted("MAGNET STAGE EDITOR");
+	ImGui::TextUnformatted("磁石ステージエディター");
 	ImGui::Separator();
-	if (ImGui::BeginMenu("Stage")) {
-		if (ImGui::MenuItem("Refresh Save List")) {
+	if (ImGui::BeginMenu("ステージ")) {
+		if (ImGui::MenuItem("セーブ一覧を更新")) {
 			request.stageAction = MagnetStageEditorAction::RefreshSaves;
 		}
 		ImGui::Separator();
-		if (ImGui::MenuItem("Generate Balanced Random")) {
+		if (ImGui::MenuItem(
+			"偏りを抑えてランダム配置",
+			nullptr,
+			false,
+			viewData.editorMode == MagnetEditorMode::StageEdit)) {
 			request.stageAction = MagnetStageEditorAction::GenerateBalanced;
 			request.generationSettings = generationSettings_;
 		}
 		ImGui::EndMenu();
 	}
-	if (ImGui::BeginMenu("Layout")) {
-		if (ImGui::MenuItem("Reset to Default")) {
+	if (ImGui::BeginMenu("画面配置")) {
+		if (ImGui::MenuItem("初期配置へ戻す")) {
 			rebuildLayoutRequested_ = true;
 		}
 		ImGui::EndMenu();
@@ -110,7 +116,7 @@ void MagnetPrototypeWindow::DrawMainMenuBar(
 		: ImVec4{ 1.0f, 0.25f, 0.20f, 1.0f };
 	ImGui::TextColored(
 		statusColor,
-		viewData.healthy ? "SIMULATION READY" : "SIMULATION STOPPED");
+		viewData.healthy ? "シミュレーション正常" : "シミュレーション停止");
 	ImGui::EndMainMenuBar();
 #else
 	(void)viewData;
@@ -166,41 +172,91 @@ void MagnetPrototypeWindow::BuildDefaultLayout(unsigned int dockspaceId)
 #endif
 }
 
-void MagnetPrototypeWindow::DrawHierarchy(const MagnetPrototypeViewData& viewData)
+void MagnetPrototypeWindow::DrawHierarchy(
+	const MagnetPrototypeViewData& viewData,
+	MagnetPrototypeUiRequest& request)
 {
 #ifdef USE_IMGUI
 	if (ImGui::Begin(kHierarchyWindowName, nullptr, ImGuiWindowFlags_NoCollapse)) {
-		ImGui::TextDisabled("STAGE OBJECTS");
+		ImGui::TextDisabled("ステージオブジェクト");
 		ImGui::Separator();
-		ImGui::BulletText("Player (Kinematic)");
+		bool selectedObjectExists = selectedObjectType_ == MagnetStageObjectType::None;
+		const bool playerSelected = selectedObjectType_ == MagnetStageObjectType::Player;
+		selectedObjectExists = selectedObjectExists || playerSelected;
+		if (ImGui::Selectable("プレイヤー###StagePlayer", playerSelected)) {
+			selectedObjectType_ = MagnetStageObjectType::Player;
+			selectedObjectId_ = 0;
+			selectedObjectExists = true;
+		}
 		const MagnetStageData* stageData = viewData.stageData;
-		bool selectedIdExists = selectedStageBallId_ == 0;
 		if (stageData && ImGui::TreeNodeEx(
-			"Magnet Balls",
+			"小さい球",
 			ImGuiTreeNodeFlags_DefaultOpen)) {
 			for (std::size_t index = 0; index < stageData->ballCount; ++index) {
 				const MagnetStageBallPlacement& ball = stageData->balls[index];
-				const bool selected = selectedStageBallId_ == ball.id;
-				selectedIdExists = selectedIdExists || selected;
+				const bool selected = selectedObjectType_ == MagnetStageObjectType::MagnetBall &&
+					selectedObjectId_ == ball.id;
+				selectedObjectExists = selectedObjectExists || selected;
 				char label[64]{};
-				std::snprintf(label, sizeof(label), "Ball %u###StageBall%u", ball.id, ball.id);
+				std::snprintf(label, sizeof(label), "球 %u###StageBall%u", ball.id, ball.id);
 				if (ImGui::Selectable(label, selected)) {
-					selectedStageBallId_ = ball.id;
+					selectedObjectType_ = MagnetStageObjectType::MagnetBall;
+					selectedObjectId_ = ball.id;
+					selectedObjectExists = true;
 				}
 			}
 			ImGui::TreePop();
 		}
-		if (!selectedIdExists) {
-			selectedStageBallId_ = 0;
+		if (stageData && ImGui::TreeNodeEx("ゴール", ImGuiTreeNodeFlags_DefaultOpen)) {
+			for (std::size_t index = 0; index < stageData->goalCount; ++index) {
+				const MagnetStageBoxPlacement& goal = stageData->goals[index];
+				const bool selected = selectedObjectType_ == MagnetStageObjectType::Goal &&
+					selectedObjectId_ == goal.id;
+				selectedObjectExists = selectedObjectExists || selected;
+				char label[64]{};
+				std::snprintf(label, sizeof(label), "ゴール %u###StageGoal%u", goal.id, goal.id);
+				if (ImGui::Selectable(label, selected)) {
+					selectedObjectType_ = MagnetStageObjectType::Goal;
+					selectedObjectId_ = goal.id;
+					selectedObjectExists = true;
+				}
+			}
+			ImGui::TreePop();
+		}
+		if (stageData && ImGui::TreeNodeEx("障害物", ImGuiTreeNodeFlags_DefaultOpen)) {
+			for (std::size_t index = 0; index < stageData->obstacleCount; ++index) {
+				const MagnetStageBoxPlacement& obstacle = stageData->obstacles[index];
+				const bool selected = selectedObjectType_ == MagnetStageObjectType::Obstacle &&
+					selectedObjectId_ == obstacle.id;
+				selectedObjectExists = selectedObjectExists || selected;
+				char label[64]{};
+				std::snprintf(
+					label,
+					sizeof(label),
+					"障害物 %u###StageObstacle%u",
+					obstacle.id,
+					obstacle.id);
+				if (ImGui::Selectable(label, selected)) {
+					selectedObjectType_ = MagnetStageObjectType::Obstacle;
+					selectedObjectId_ = obstacle.id;
+					selectedObjectExists = true;
+				}
+			}
+			ImGui::TreePop();
+		}
+		if (!selectedObjectExists) {
+			selectedObjectType_ = MagnetStageObjectType::None;
+			selectedObjectId_ = 0;
 		}
 		ImGui::Spacing();
-		ImGui::Text("Loose: %zu", viewData.availableBallCount);
-		ImGui::Text("Attached: %zu", viewData.attachedBallCount);
-		ImGui::Text("Released: %zu", viewData.releasedBallCount);
+		ImGui::Text("未吸着: %zu", viewData.availableBallCount);
+		ImGui::Text("吸着中: %zu", viewData.attachedBallCount);
+		ImGui::Text("射出済み: %zu", viewData.releasedBallCount);
 	}
 	ImGui::End();
 #else
 	(void)viewData;
+	(void)request;
 #endif
 }
 
@@ -239,7 +295,7 @@ void MagnetPrototypeWindow::DrawViewport(
 				displaySize);
 		} else {
 			ImGui::SetCursorPos({ 16.0f, 16.0f });
-			ImGui::TextDisabled("Game View is unavailable.");
+			ImGui::TextDisabled("ゲーム画面を表示できません。");
 		}
 	}
 	ImGui::End();
@@ -263,9 +319,40 @@ void MagnetPrototypeWindow::DrawInspector(
 			: ImVec4{ 1.0f, 0.25f, 0.20f, 1.0f };
 		ImGui::TextColored(
 			statusColor,
-			viewData.healthy ? "SIMULATION READY" : "SIMULATION STOPPED");
+			viewData.healthy ? "シミュレーション正常" : "シミュレーション停止");
 
-		ImGui::SeparatorText("Simulation");
+		ImGui::SeparatorText("デバッグモード");
+		const float modeSpacing = ImGui::GetStyle().ItemSpacing.x;
+		const float modeWidth =
+			((std::max)(ImGui::GetContentRegionAvail().x, 2.0f) - modeSpacing) * 0.5f;
+		if (viewData.editorMode == MagnetEditorMode::Play) {
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.15f, 0.50f, 0.85f, 1.0f });
+		}
+		if (ImGui::Button("プレイ", { modeWidth, 34.0f }) &&
+			viewData.editorMode != MagnetEditorMode::Play) {
+			request.modeChangeRequested = true;
+			request.requestedMode = MagnetEditorMode::Play;
+		}
+		if (viewData.editorMode == MagnetEditorMode::Play) {
+			ImGui::PopStyleColor();
+		}
+		ImGui::SameLine();
+		if (viewData.editorMode == MagnetEditorMode::StageEdit) {
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.20f, 0.65f, 0.32f, 1.0f });
+		}
+		if (ImGui::Button("ステージ配置", { modeWidth, 34.0f }) &&
+			viewData.editorMode != MagnetEditorMode::StageEdit) {
+			request.modeChangeRequested = true;
+			request.requestedMode = MagnetEditorMode::StageEdit;
+		}
+		if (viewData.editorMode == MagnetEditorMode::StageEdit) {
+			ImGui::PopStyleColor();
+		}
+
+		ImGui::SeparatorText("シミュレーション");
+		if (viewData.editorMode == MagnetEditorMode::StageEdit) {
+			ImGui::BeginDisabled();
+		}
 		const float spacing = ImGui::GetStyle().ItemSpacing.x;
 		const float availableWidth = (std::max)(ImGui::GetContentRegionAvail().x, 1.0f);
 		const bool stackButtons = availableWidth < kMinimumButtonWidth * 2.0f + spacing;
@@ -273,35 +360,43 @@ void MagnetPrototypeWindow::DrawInspector(
 			? availableWidth
 			: (availableWidth - spacing) * 0.5f;
 		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.65f, 0.12f, 0.10f, 1.0f });
-		request.emergencyStop = ImGui::Button("STOP", { buttonWidth, 36.0f });
+		request.emergencyStop = ImGui::Button("急停止", { buttonWidth, 36.0f });
 		ImGui::PopStyleColor();
 		if (!stackButtons) {
 			ImGui::SameLine();
 		}
-		request.reset = ImGui::Button("RESET STAGE", { buttonWidth, 36.0f });
+		request.reset = ImGui::Button("ステージをリセット", { buttonWidth, 36.0f });
 
-		ImGui::SeparatorText("Magnetic Coupling");
-		ImGui::Text("Left %zu / %zu", viewData.leftChainCount, MagnetChainSystem::kLinksPerSide);
-		ImGui::Text("Right %zu / %zu", viewData.rightChainCount, MagnetChainSystem::kLinksPerSide);
-		ImGui::Text("Pickup radius: %.2f", viewData.attachmentRadius);
+		ImGui::SeparatorText("磁力接続");
+		ImGui::Text("左 %zu / %zu", viewData.leftChainCount, MagnetChainSystem::kLinksPerSide);
+		ImGui::Text("右 %zu / %zu", viewData.rightChainCount, MagnetChainSystem::kLinksPerSide);
+		ImGui::Text("吸着半径: %.2f", viewData.attachmentRadius);
 		if (viewData.attachedBallCount == 0) {
 			ImGui::BeginDisabled();
 		}
 		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.88f, 0.38f, 0.08f, 1.0f });
 		request.releaseChains = ImGui::Button(
-			"MAGNET OFF - RELEASE ATTACHED",
+			"磁力OFF - 吸着中の球を射出",
 			{ (std::max)(ImGui::GetContentRegionAvail().x, 1.0f), 36.0f });
 		ImGui::PopStyleColor();
 		if (viewData.attachedBallCount == 0) {
 			ImGui::EndDisabled();
 		}
+		if (viewData.editorMode == MagnetEditorMode::StageEdit) {
+			ImGui::EndDisabled();
+		}
 
-		DrawStageEditor(viewData, request);
+		if (viewData.editorMode == MagnetEditorMode::StageEdit) {
+			DrawStageEditor(viewData, request);
+		} else {
+			ImGui::SeparatorText("ステージ配置");
+			ImGui::TextWrapped("配置を編集するには「ステージ配置」モードへ切り替えてください。");
+		}
 
-		ImGui::SeparatorText("Viewport");
-		ImGui::Checkbox("Grid", &showGrid_);
-		ImGui::Checkbox("Velocity Vectors", &showVelocity_);
-		ImGui::Checkbox("Camera Follow", &cameraFollow_);
+		ImGui::SeparatorText("表示");
+		ImGui::Checkbox("グリッド", &showGrid_);
+		ImGui::Checkbox("速度ベクトル", &showVelocity_);
+		ImGui::Checkbox("カメラ追従", &cameraFollow_);
 	}
 	ImGui::End();
 #else
@@ -315,22 +410,39 @@ void MagnetPrototypeWindow::DrawStageEditor(
 	MagnetPrototypeUiRequest& request)
 {
 #ifdef USE_IMGUI
-	ImGui::SeparatorText("Stage Authoring");
+	ImGui::SeparatorText("ステージ配置");
 	const MagnetStageData* stageData = viewData.stageData;
 	const MagnetStageBallPlacement* selectedBall = nullptr;
+	const MagnetStageBoxPlacement* selectedBox = nullptr;
 	if (stageData) {
-		for (std::size_t index = 0; index < stageData->ballCount; ++index) {
-			if (stageData->balls[index].id == selectedStageBallId_) {
-				selectedBall = &stageData->balls[index];
-				break;
+		if (selectedObjectType_ == MagnetStageObjectType::MagnetBall) {
+			for (std::size_t index = 0; index < stageData->ballCount; ++index) {
+				if (stageData->balls[index].id == selectedObjectId_) {
+					selectedBall = &stageData->balls[index];
+					break;
+				}
+			}
+		} else if (selectedObjectType_ == MagnetStageObjectType::Goal) {
+			for (std::size_t index = 0; index < stageData->goalCount; ++index) {
+				if (stageData->goals[index].id == selectedObjectId_) {
+					selectedBox = &stageData->goals[index];
+					break;
+				}
+			}
+		} else if (selectedObjectType_ == MagnetStageObjectType::Obstacle) {
+			for (std::size_t index = 0; index < stageData->obstacleCount; ++index) {
+				if (stageData->obstacles[index].id == selectedObjectId_) {
+					selectedBox = &stageData->obstacles[index];
+					break;
+				}
 			}
 		}
 	}
 	if (selectedBall) {
-		ImGui::Text("Selected Ball ID: %u", selectedBall->id);
+		ImGui::Text("選択中: 球 %u", selectedBall->id);
 		float positionXZ[2] = { selectedBall->position.x, selectedBall->position.z };
 		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::DragFloat2("Position XZ", positionXZ, 0.10f)) {
+		if (ImGui::DragFloat2("位置 XZ", positionXZ, 0.10f)) {
 			request.stageAction = MagnetStageEditorAction::MoveBall;
 			request.selectedBallId = selectedBall->id;
 			request.editedBallPosition = {
@@ -339,28 +451,70 @@ void MagnetPrototypeWindow::DrawStageEditor(
 				positionXZ[1],
 			};
 		}
-		if (ImGui::Button("REMOVE SELECTED", { -1.0f, 0.0f })) {
+		if (ImGui::Button("選択した球を削除", { -1.0f, 0.0f })) {
 			request.stageAction = MagnetStageEditorAction::RemoveBall;
 			request.selectedBallId = selectedBall->id;
 		}
+	} else if (selectedBox) {
+		ImGui::Text(
+			"選択中: %s %u",
+			selectedObjectType_ == MagnetStageObjectType::Goal ? "ゴール" : "障害物",
+			selectedBox->id);
+		float position[3] = {
+			selectedBox->position.x,
+			selectedBox->position.y,
+			selectedBox->position.z,
+		};
+		float size[3] = {
+			selectedBox->size.x,
+			selectedBox->size.y,
+			selectedBox->size.z,
+		};
+		bool transformChanged = ImGui::DragFloat3("位置 XYZ", position, 0.10f);
+		transformChanged = ImGui::DragFloat3("サイズ XYZ", size, 0.10f, 0.10f, 50.0f) ||
+			transformChanged;
+		if (transformChanged) {
+			request.stageAction = MagnetStageEditorAction::MoveBoxObject;
+			request.selectedObjectType = selectedObjectType_;
+			request.selectedObjectId = selectedBox->id;
+			request.editedBallPosition = { position[0], position[1], position[2] };
+			request.editedObjectSize = { size[0], size[1], size[2] };
+		}
+		if (ImGui::Button("選択したオブジェクトを削除", { -1.0f, 0.0f })) {
+			request.stageAction = MagnetStageEditorAction::RemoveBoxObject;
+			request.selectedObjectType = selectedObjectType_;
+			request.selectedObjectId = selectedBox->id;
+		}
+	} else if (selectedObjectType_ == MagnetStageObjectType::Player) {
+		ImGui::TextDisabled("プレイヤーの開始位置編集は次の段階で追加します。");
 	} else {
-		ImGui::TextDisabled("Select a ball in Stage Hierarchy to edit it.");
+		ImGui::TextDisabled("左の一覧からオブジェクトを選択してください。");
 	}
-	if (ImGui::Button("ADD BALL AT (0, 4)", { -1.0f, 0.0f })) {
+	if (ImGui::Button("球を追加", { -1.0f, 0.0f })) {
 		request.stageAction = MagnetStageEditorAction::AddBall;
 		request.editedBallPosition = { 0.0f, 0.5f, 4.0f };
 	}
+	if (ImGui::Button("ゴールを追加", { -1.0f, 0.0f })) {
+		request.stageAction = MagnetStageEditorAction::AddGoal;
+		request.editedBallPosition = { 0.0f, 1.0f, 8.0f };
+		request.editedObjectSize = { 4.0f, 2.0f, 1.0f };
+	}
+	if (ImGui::Button("障害物を追加", { -1.0f, 0.0f })) {
+		request.stageAction = MagnetStageEditorAction::AddObstacle;
+		request.editedBallPosition = { 0.0f, 1.0f, 4.0f };
+		request.editedObjectSize = { 2.0f, 2.0f, 2.0f };
+	}
 
-	if (ImGui::TreeNodeEx("Balanced Random Generator", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (ImGui::TreeNodeEx("球のランダム配置", ImGuiTreeNodeFlags_DefaultOpen)) {
 		int ballCount = static_cast<int>(generationSettings_.ballCount);
 		if (ImGui::SliderInt(
-			"Ball Count",
+			"球の数",
 			&ballCount,
 			1,
 			static_cast<int>(MagnetStageData::kMaximumBallCount))) {
 			generationSettings_.ballCount = static_cast<std::size_t>(ballCount);
 		}
-		ImGui::InputScalar("Seed", ImGuiDataType_U32, &generationSettings_.seed);
+		ImGui::InputScalar("乱数シード", ImGuiDataType_U32, &generationSettings_.seed);
 		float xBounds[2] = {
 			generationSettings_.minimumX,
 			generationSettings_.maximumX,
@@ -369,27 +523,27 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			generationSettings_.minimumZ,
 			generationSettings_.maximumZ,
 		};
-		if (ImGui::DragFloat2("X Bounds", xBounds, 0.25f)) {
+		if (ImGui::DragFloat2("X範囲", xBounds, 0.25f)) {
 			generationSettings_.minimumX = xBounds[0];
 			generationSettings_.maximumX = xBounds[1];
 		}
-		if (ImGui::DragFloat2("Z Bounds", zBounds, 0.25f)) {
+		if (ImGui::DragFloat2("Z範囲", zBounds, 0.25f)) {
 			generationSettings_.minimumZ = zBounds[0];
 			generationSettings_.maximumZ = zBounds[1];
 		}
 		ImGui::DragFloat(
-			"Minimum Spacing",
+			"球同士の最小間隔",
 			&generationSettings_.minimumSpacing,
 			0.05f,
 			0.5f,
 			20.0f);
 		ImGui::DragFloat(
-			"Player Clear Radius",
+			"プレイヤー周辺の空白",
 			&generationSettings_.playerClearRadius,
 			0.05f,
 			0.0f,
 			30.0f);
-		if (ImGui::Button("GENERATE BALANCED RANDOM", { -1.0f, 32.0f })) {
+		if (ImGui::Button("偏りを抑えてランダム配置", { -1.0f, 32.0f })) {
 			request.stageAction = MagnetStageEditorAction::GenerateBalanced;
 			request.generationSettings = generationSettings_;
 		}
@@ -408,23 +562,23 @@ void MagnetPrototypeWindow::DrawStageSaveBrowser(
 	MagnetPrototypeUiRequest& request)
 {
 #ifdef USE_IMGUI
-	ImGui::SeparatorText("Stage Saves");
+	ImGui::SeparatorText("ステージのセーブ・ロード");
 	ImGui::TextColored(
 		viewData.stageDirty
 			? ImVec4{ 1.0f, 0.72f, 0.20f, 1.0f }
 			: ImVec4{ 0.35f, 0.90f, 0.50f, 1.0f },
-		viewData.stageDirty ? "UNSAVED CHANGES" : "SAVED");
+		viewData.stageDirty ? "未保存の変更あり" : "保存済み");
 	ImGui::SetNextItemWidth(-1.0f);
-	ImGui::InputText("Save Name", saveName_.data(), saveName_.size());
-	ImGui::TextDisabled("Use A-Z, a-z, 0-9, '_' or '-' (max 48).");
+	ImGui::InputText("セーブ名", saveName_.data(), saveName_.size());
+	ImGui::TextDisabled("英数字・_・- を使用（48文字以内）");
 
 	const float spacing = ImGui::GetStyle().ItemSpacing.x;
 	const float availableWidth = (std::max)(ImGui::GetContentRegionAvail().x, 2.0f);
 	const float topButtonWidth = (availableWidth - spacing) * 0.65f;
-	if (ImGui::Button("SAVE NEW", { topButtonWidth, 30.0f })) {
+	if (ImGui::Button("新規セーブ", { topButtonWidth, 30.0f })) {
 		pendingSaveName_ = saveName_;
 		if (SaveEntryExists(viewData, saveName_.data())) {
-			ImGui::OpenPopup("Confirm Overwrite###MagnetOverwriteConfirm");
+			ImGui::OpenPopup("上書きの確認###MagnetOverwriteConfirm");
 		} else {
 			selectedSaveName_ = saveName_;
 			request.stageAction = MagnetStageEditorAction::SaveNamed;
@@ -432,18 +586,18 @@ void MagnetPrototypeWindow::DrawStageSaveBrowser(
 		}
 	}
 	ImGui::SameLine();
-	if (ImGui::Button("REFRESH", { availableWidth - topButtonWidth - spacing, 30.0f })) {
+	if (ImGui::Button("更新", { availableWidth - topButtonWidth - spacing, 30.0f })) {
 		request.stageAction = MagnetStageEditorAction::RefreshSaves;
 	}
 
-	ImGui::TextDisabled("SAVED STAGES (%zu)", viewData.saveEntryCount);
+	ImGui::TextDisabled("セーブ済みステージ (%zu)", viewData.saveEntryCount);
 	bool selectedEntryExists = selectedSaveName_[0] == '\0';
 	if (ImGui::BeginChild(
 		"MagnetStageSaveList",
 		{ 0.0f, 130.0f },
 		true)) {
 		if (!viewData.saveEntries || viewData.saveEntryCount == 0) {
-			ImGui::TextDisabled("No stage saves found.");
+			ImGui::TextDisabled("セーブデータがありません。");
 		} else {
 			for (std::size_t index = 0; index < viewData.saveEntryCount; ++index) {
 				const MagnetStageSaveEntry& entry = viewData.saveEntries[index];
@@ -475,38 +629,38 @@ void MagnetPrototypeWindow::DrawStageSaveBrowser(
 		ImGui::BeginDisabled();
 	}
 	const float actionButtonWidth = (availableWidth - spacing) * 0.5f;
-	if (ImGui::Button("LOAD SELECTED", { actionButtonWidth, 30.0f })) {
+	if (ImGui::Button("選択データをロード", { actionButtonWidth, 30.0f })) {
 		pendingSaveName_ = selectedSaveName_;
 		if (viewData.stageDirty) {
-			ImGui::OpenPopup("Confirm Load###MagnetLoadConfirm");
+			ImGui::OpenPopup("ロードの確認###MagnetLoadConfirm");
 		} else {
 			request.stageAction = MagnetStageEditorAction::LoadNamed;
 			CopySaveNameToRequest(request, selectedSaveName_, false);
 		}
 	}
 	ImGui::SameLine();
-	if (ImGui::Button("OVERWRITE", { actionButtonWidth, 30.0f })) {
+	if (ImGui::Button("上書き", { actionButtonWidth, 30.0f })) {
 		pendingSaveName_ = selectedSaveName_;
-		ImGui::OpenPopup("Confirm Overwrite###MagnetOverwriteConfirm");
+		ImGui::OpenPopup("上書きの確認###MagnetOverwriteConfirm");
 	}
 	if (!hasSelection) {
 		ImGui::EndDisabled();
 	}
 
 	if (ImGui::BeginPopupModal(
-		"Confirm Load###MagnetLoadConfirm",
+		"ロードの確認###MagnetLoadConfirm",
 		nullptr,
 		ImGuiWindowFlags_AlwaysAutoResize)) {
-		ImGui::Text("Load '%s'?", pendingSaveName_.data());
-		ImGui::TextWrapped("Unsaved stage edits will be discarded.");
-		if (ImGui::Button("LOAD AND DISCARD", { 160.0f, 0.0f })) {
+		ImGui::Text("「%s」をロードしますか？", pendingSaveName_.data());
+		ImGui::TextWrapped("未保存のステージ編集は破棄されます。");
+		if (ImGui::Button("破棄してロード", { 160.0f, 0.0f })) {
 			request.stageAction = MagnetStageEditorAction::LoadNamed;
 			CopySaveNameToRequest(request, pendingSaveName_, false);
 			pendingSaveName_.fill('\0');
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("CANCEL", { 90.0f, 0.0f })) {
+		if (ImGui::Button("キャンセル", { 90.0f, 0.0f })) {
 			pendingSaveName_.fill('\0');
 			ImGui::CloseCurrentPopup();
 		}
@@ -514,12 +668,12 @@ void MagnetPrototypeWindow::DrawStageSaveBrowser(
 	}
 
 	if (ImGui::BeginPopupModal(
-		"Confirm Overwrite###MagnetOverwriteConfirm",
+		"上書きの確認###MagnetOverwriteConfirm",
 		nullptr,
 		ImGuiWindowFlags_AlwaysAutoResize)) {
-		ImGui::Text("Overwrite '%s'?", pendingSaveName_.data());
-		ImGui::TextWrapped("The existing JSON stage will be replaced.");
-		if (ImGui::Button("OVERWRITE", { 120.0f, 0.0f })) {
+		ImGui::Text("「%s」を上書きしますか？", pendingSaveName_.data());
+		ImGui::TextWrapped("既存のステージJSONが置き換わります。");
+		if (ImGui::Button("上書きする", { 120.0f, 0.0f })) {
 			selectedSaveName_ = pendingSaveName_;
 			request.stageAction = MagnetStageEditorAction::SaveNamed;
 			CopySaveNameToRequest(request, pendingSaveName_, true);
@@ -527,7 +681,7 @@ void MagnetPrototypeWindow::DrawStageSaveBrowser(
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("CANCEL", { 90.0f, 0.0f })) {
+		if (ImGui::Button("キャンセル", { 90.0f, 0.0f })) {
 			pendingSaveName_.fill('\0');
 			ImGui::CloseCurrentPopup();
 		}
@@ -557,19 +711,19 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 			5,
 			ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame)) {
 			ImGui::TableNextColumn();
-			ImGui::TextDisabled("BODIES");
+			ImGui::TextDisabled("物理ボディ");
 			ImGui::Text("%zu", viewData.bodyCount);
 			ImGui::TableNextColumn();
-			ImGui::TextDisabled("CONSTRAINTS");
+			ImGui::TextDisabled("接続制約");
 			ImGui::Text("%zu / %zu", viewData.activeConstraintCount, viewData.constraintCount);
 			ImGui::TableNextColumn();
-			ImGui::TextDisabled("PLAYER SPEED");
+			ImGui::TextDisabled("プレイヤー速度");
 			ImGui::Text("%.2f", viewData.playerSpeed);
 			ImGui::TableNextColumn();
-			ImGui::TextDisabled("LOOSE / ATTACHED");
+			ImGui::TextDisabled("未吸着 / 吸着中");
 			ImGui::Text("%zu / %zu", viewData.availableBallCount, viewData.attachedBallCount);
 			ImGui::TableNextColumn();
-			ImGui::TextDisabled("RELEASED");
+			ImGui::TextDisabled("射出済み");
 			ImGui::Text("%zu", viewData.releasedBallCount);
 			ImGui::EndTable();
 		}
@@ -578,17 +732,17 @@ void MagnetPrototypeWindow::DrawMonitor(const MagnetPrototypeViewData& viewData)
 			std::isfinite(viewData.maximumConstraintError) &&
 			viewData.maximumConstraintError >= 0.0f;
 		ImGui::Text(
-			"Maximum constraint error: %s",
-			finiteConstraintError ? "finite" : "NON-FINITE");
+			"最大制約誤差: %s",
+			finiteConstraintError ? "正常" : "不正値");
 		const float normalizedError = finiteConstraintError
 			? std::clamp(
 				viewData.maximumConstraintError / kConstraintWarningError,
 				0.0f,
 				1.0f)
 			: 1.0f;
-		ImGui::ProgressBar(normalizedError, { -1.0f, 0.0f }, "constraint stability");
+		ImGui::ProgressBar(normalizedError, { -1.0f, 0.0f }, "接続の安定度");
 		ImGui::TextDisabled(
-			"WASD Move  |  Space Stop  |  Q Release  |  R Reset Stage");
+			"WASD 移動  |  Space 急停止  |  Q 射出  |  R リセット");
 	}
 	ImGui::End();
 #else

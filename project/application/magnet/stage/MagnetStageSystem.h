@@ -14,6 +14,20 @@ struct MagnetStageBallPlacement {
 	Vector3 position{};
 };
 
+enum class MagnetStageObjectType : uint8_t {
+	None,
+	Player,
+	MagnetBall,
+	Goal,
+	Obstacle,
+};
+
+struct MagnetStageBoxPlacement {
+	uint32_t id = 0;
+	Vector3 position{};
+	Vector3 size{ 1.0f, 1.0f, 1.0f };
+};
+
 struct MagnetStageGenerationSettings {
 	uint32_t seed = 20260902u;
 	std::size_t ballCount = 16;
@@ -26,13 +40,20 @@ struct MagnetStageGenerationSettings {
 };
 
 struct MagnetStageData {
-	static constexpr uint32_t kSchemaVersion = 1;
+	static constexpr uint32_t kSchemaVersion = 2;
+	static constexpr uint32_t kOldestSupportedSchemaVersion = 1;
 	static constexpr std::size_t kMaximumBallCount = 24;
+	static constexpr std::size_t kMaximumGoalCount = 4;
+	static constexpr std::size_t kMaximumObstacleCount = 24;
 
 	std::string name = "stage_01";
 	MagnetStageGenerationSettings generation{};
 	std::array<MagnetStageBallPlacement, kMaximumBallCount> balls{};
 	std::size_t ballCount = 0;
+	std::array<MagnetStageBoxPlacement, kMaximumGoalCount> goals{};
+	std::size_t goalCount = 0;
+	std::array<MagnetStageBoxPlacement, kMaximumObstacleCount> obstacles{};
+	std::size_t obstacleCount = 0;
 };
 
 struct MagnetStageSaveEntry {
@@ -60,6 +81,16 @@ public:
 	[[nodiscard]] bool AddBall(const Vector3& position);
 	[[nodiscard]] bool RemoveBall(uint32_t id);
 	[[nodiscard]] bool SetBallPosition(uint32_t id, const Vector3& position);
+	[[nodiscard]] bool AddBoxObject(
+		MagnetStageObjectType type,
+		const Vector3& position,
+		const Vector3& size);
+	[[nodiscard]] bool RemoveBoxObject(MagnetStageObjectType type, uint32_t id);
+	[[nodiscard]] bool SetBoxObjectTransform(
+		MagnetStageObjectType type,
+		uint32_t id,
+		const Vector3& position,
+		const Vector3& size);
 	[[nodiscard]] bool Save(const std::string& path);
 	[[nodiscard]] bool Load(const std::string& path);
 	[[nodiscard]] bool RefreshSaveEntries();
@@ -72,6 +103,9 @@ public:
 	[[nodiscard]] std::size_t GetSaveEntryCount() const noexcept { return saveEntryCount_; }
 	[[nodiscard]] bool IsDirty() const noexcept { return dirty_; }
 	[[nodiscard]] const MagnetStageBallPlacement* FindBall(uint32_t id) const noexcept;
+	[[nodiscard]] const MagnetStageBoxPlacement* FindBoxObject(
+		MagnetStageObjectType type,
+		uint32_t id) const noexcept;
 	[[nodiscard]] const std::string& GetLastOperationMessage() const noexcept {
 		return lastOperationMessage_;
 	}
@@ -81,6 +115,8 @@ public:
 
 private:
 	[[nodiscard]] static bool IsFinitePosition(const Vector3& position) noexcept;
+	[[nodiscard]] static bool IsValidBoxPlacement(
+		const MagnetStageBoxPlacement& placement) noexcept;
 	[[nodiscard]] static bool IsSafeJsonPath(const std::string& path);
 	[[nodiscard]] static bool IsSafeSaveName(const std::string& saveName) noexcept;
 	[[nodiscard]] static bool ValidateGenerationSettings(
@@ -95,7 +131,7 @@ private:
 	std::string saveDirectory_;
 	MagnetStageData stageData_{};
 	std::array<MagnetStageSaveEntry, kMaximumSaveEntryCount> saveEntries_{};
-	std::string lastOperationMessage_ = "Stage data is not initialized.";
+	std::string lastOperationMessage_ = "ステージデータはまだ初期化されていません。";
 	std::size_t saveEntryCount_ = 0;
 	bool lastOperationSucceeded_ = false;
 	bool dirty_ = false;
