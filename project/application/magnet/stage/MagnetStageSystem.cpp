@@ -587,12 +587,15 @@ bool MagnetStageSystem::Load(const std::string& path)
 
 		MagnetStageData candidate{};
 		candidate.name = root["name"].get<std::string>();
-		if (schemaVersion >= 4u) {
-			if (!root.contains("arena") || !root["arena"].is_object() ||
+		if (root.contains("arena")) {
+			if (!root["arena"].is_object() ||
 				!ReadFiniteFloat(root["arena"], "radius", candidate.arenaRadius)) {
 				SetOperationResult(false, "ステージの大きさ設定が不正です。");
 				return false;
 			}
+		} else if (schemaVersion >= 5u) {
+			SetOperationResult(false, "ステージの大きさ設定がありません。");
+			return false;
 		}
 		const nlohmann::json& bounds = root["bounds"];
 		const nlohmann::json& generator = root["generator"];
