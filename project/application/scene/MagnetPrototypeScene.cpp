@@ -194,6 +194,7 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	viewData.spinChargeTurnSpeedMultiplier = magnetChainSystem_.GetSpinChargeTurnSpeedMultiplier();
 	viewData.magneticAttachmentCount = magnetChainSystem_.GetMagneticAttachmentCount();
 	viewData.goalHitCount = magnetChainSystem_.GetGoalHitCount();
+	viewData.score = magnetChainSystem_.GetScore();
 	viewData.goalWidth = magnetChainSystem_.GetGoal().width;
 	viewData.stageData = &magnetStageSystem_.GetStageData();
 	viewData.saveEntries = magnetStageSystem_.GetSaveEntries().data();

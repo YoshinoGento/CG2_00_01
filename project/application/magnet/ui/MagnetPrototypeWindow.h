@@ -36,6 +36,7 @@ struct MagnetPrototypeViewData {
 	float spinChargeTurnSpeedMultiplier = 1.0f;
 	std::size_t magneticAttachmentCount = 0;
 	std::size_t goalHitCount = 0;
+	std::size_t score = 0;
 	float goalWidth = 0.0f;
 	std::array<Vector2, kMaximumMinimapMarkers> offscreenMagnetOffsets{};
 	std::size_t offscreenMagnetCount = 0;
