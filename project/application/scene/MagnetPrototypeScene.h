@@ -1,5 +1,6 @@
 #pragma once
 
+#include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/MagnetChainSystem.h"
 #include "application/magnet/ui/MagnetPrototypeWindow.h"
 #include "application/scene/BaseScene.h"
@@ -22,11 +23,14 @@ public:
 	void DrawEditorUi(const SceneEditorContext& context) override;
 
 private:
+	void ProcessStageEditorRequest(
+		const magnet::MagnetPrototypeUiRequest& request);
 	void DrawBody(physics::BodyHandle handle, const Vector4& color) const;
 	void DrawVelocity(physics::BodyHandle handle) const;
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
+	magnet::MagnetStageSystem magnetStageSystem_;
 	magnet::MagnetChainSystem magnetChainSystem_;
 	magnet::MagnetPrototypeWindow prototypeWindow_;
 	magnet::MagnetChainSystem::PlayerCommand pendingCommand_{};

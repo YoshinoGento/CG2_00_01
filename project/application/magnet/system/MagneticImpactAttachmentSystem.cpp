@@ -49,7 +49,7 @@ bool MagneticImpactAttachmentSystem::Update(
 			const physics::SphereBody* bodyA = physicsWorld.GetBody(magnets[first]);
 			const physics::SphereBody* bodyB = physicsWorld.GetBody(magnets[second]);
 			if (!bodyA || !bodyB || !bodyA->active || !bodyB->active) {
-				return false;
+				continue;
 			}
 			const Vector3 offset = bodyB->position - bodyA->position;
 			const float distanceSquared =

@@ -29,6 +29,7 @@ public:
 	explicit BallMomentumTracker(const Settings& settings) noexcept;
 
 	void Reset() noexcept;
+	void Reset(std::size_t ballIndex) noexcept;
 	[[nodiscard]] bool Update(
 		std::size_t ballIndex,
 		const Vector3& currentVelocity,
