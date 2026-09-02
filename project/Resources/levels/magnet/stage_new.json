@@ -1,4 +1,7 @@
 {
+    "arena": {
+        "radius": 20.0
+    },
     "bounds": {
         "maximumX": 9.0,
         "maximumZ": 9.0,
@@ -240,5 +243,5 @@
         }
     ],
     "schema": "magnet_stage",
-    "schemaVersion": 4
+    "schemaVersion": 5
 }
