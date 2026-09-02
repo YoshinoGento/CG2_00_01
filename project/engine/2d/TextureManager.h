@@ -93,6 +93,7 @@ public:
     [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(Texture2DHandle handle) const;
     [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(TextureCubeHandle handle) const;
     [[nodiscard]] D3D12_RESOURCE_DESC GetResourceDesc(Texture2DHandle handle) const;
+    [[nodiscard]] Texture2DHandle GetTexture2DHandle(uint32_t descriptorIndex) const;
 
     [[nodiscard]] Texture2DHandle GetFallback2D() const noexcept { return fallback2D_; }
     [[nodiscard]] TextureCubeHandle GetFallbackCube() const noexcept { return fallbackCube_; }

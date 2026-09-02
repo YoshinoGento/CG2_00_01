@@ -32,6 +32,7 @@ void PostEffectManager::InitializePasses() {
         { DirectXCommon::FullscreenPostEffectType::Vignette, L"Resources/shader/Vignette.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::RandomNoise, L"Resources/shader/RandomNoise.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::HSVFilter, L"Resources/shader/HSVFilter.PS.hlsl" },
+        { DirectXCommon::FullscreenPostEffectType::GaussianFilter, L"Resources/shader/GaussianFilter.PS.hlsl" },
         { DirectXCommon::FullscreenPostEffectType::LinearToSRGB, L"Resources/shader/LinearToSRGB.PS.hlsl" },
     };
 
@@ -81,6 +82,7 @@ void PostEffectManager::InitializeChainPasses() {
         DirectXCommon::FullscreenPostEffectType::HSVFilter,
         DirectXCommon::FullscreenPostEffectType::Vignette,
         DirectXCommon::FullscreenPostEffectType::BoxFilter3x3,
+        DirectXCommon::FullscreenPostEffectType::GaussianFilter,
         DirectXCommon::FullscreenPostEffectType::RadialBlur,
         DirectXCommon::FullscreenPostEffectType::RandomNoise,
         DirectXCommon::FullscreenPostEffectType::Dissolve,
@@ -133,6 +135,14 @@ bool PostEffectManager::IsChainPassEnabled(size_t index) const {
     return chainPassEnabled_[index];
 }
 
+bool PostEffectManager::IsChainPassRuntimeEnabled(size_t index) const {
+    if (index >= chainPassTypes_.size()) {
+        return false;
+    }
+    const size_t typeIndex = static_cast<size_t>(chainPassTypes_[index]);
+    return typeIndex < runtimeChainPassEnabled_.size() ? runtimeChainPassEnabled_[typeIndex] : false;
+}
+
 void PostEffectManager::SetChainPassEnabled(size_t index, bool enabled) {
     if (index >= chainPassEnabled_.size()) {
         return;
@@ -140,10 +150,26 @@ void PostEffectManager::SetChainPassEnabled(size_t index, bool enabled) {
     chainPassEnabled_[index] = enabled;
 }
 
+void PostEffectManager::ClearRuntimeChainOverrides() {
+    runtimeChainModeEnabled_ = false;
+    runtimeChainPassEnabled_.fill(false);
+}
+
+void PostEffectManager::SetRuntimeChainPassEnabled(
+    DirectXCommon::FullscreenPostEffectType postEffectType,
+    bool enabled) {
+    postEffectType = NormalizePostEffectType(postEffectType);
+    const size_t typeIndex = static_cast<size_t>(postEffectType);
+    if (typeIndex >= runtimeChainPassEnabled_.size()) {
+        return;
+    }
+    runtimeChainPassEnabled_[typeIndex] = enabled;
+}
+
 size_t PostEffectManager::GetEnabledChainPassCount() const {
     size_t enabledCount = 0;
-    for (bool enabled : chainPassEnabled_) {
-        if (enabled) {
+    for (size_t i = 0; i < chainPassTypes_.size(); ++i) {
+        if (IsChainPassEnabled(i) || IsChainPassRuntimeEnabled(i)) {
             ++enabledCount;
         }
     }
@@ -184,6 +210,8 @@ const char* PostEffectManager::GetPassName(DirectXCommon::FullscreenPostEffectTy
         return "RandomNoise";
     case DirectXCommon::FullscreenPostEffectType::HSVFilter:
         return "HSVFilter";
+    case DirectXCommon::FullscreenPostEffectType::GaussianFilter:
+        return "GaussianFilter";
     case DirectXCommon::FullscreenPostEffectType::LinearToSRGB:
         return "LinearToSRGB";
     default:
@@ -260,7 +288,9 @@ void PostEffectManager::BuildActivePasses(D3D12_GPU_DESCRIPTOR_HANDLE auxiliaryS
 
     for (size_t i = 0; i < chainPassTypes_.size(); ++i) {
         PostEffectPassDesc passDesc = CreatePassDesc(chainPassTypes_[i], auxiliarySrvHandle);
-        passDesc.enabled = i < chainPassEnabled_.size() ? chainPassEnabled_[i] : false;
+        passDesc.enabled =
+            (i < chainPassEnabled_.size() ? chainPassEnabled_[i] : false) ||
+            IsChainPassRuntimeEnabled(i);
         activePasses_.push_back(passDesc);
     }
 }
@@ -448,10 +478,12 @@ void PostEffectManager::ExecuteChain(D3D12_GPU_DESCRIPTOR_HANDLE auxiliarySrvHan
 void PostEffectManager::Execute(
     DirectXCommon::FullscreenPostEffectType postEffectType,
     D3D12_GPU_DESCRIPTOR_HANDLE auxiliarySrvHandle) {
-    if (chainModeEnabled_) {
+    if (IsChainExecutionEnabled()) {
         ExecuteChain(auxiliarySrvHandle);
+        ClearRuntimeChainOverrides();
         return;
     }
 
     ExecuteSingle(postEffectType, auxiliarySrvHandle);
+    ClearRuntimeChainOverrides();
 }

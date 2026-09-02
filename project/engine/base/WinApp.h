@@ -20,6 +20,9 @@ public:
 
 	// 終了
 	void Finalize();
+	void ToggleBorderlessFullscreen();
+	void SetBorderlessFullscreen(bool enabled);
+	bool IsBorderlessFullscreen() const { return isBorderlessFullscreen_; }
 
 #ifdef _DEBUG
 	static const int32_t kClientWidth = 1600;
@@ -42,13 +45,13 @@ public:
 
 	// getter
 	HINSTANCE GetHInstance() const { return wc.hInstance; }
-	void ToggleBorderlessFullscreen();
 private:
 
 	HWND hwnd= nullptr;  // ← ウィンドウハンドルを保持するメンバ変数
+	bool isBorderlessFullscreen_ = false;
+	LONG_PTR windowedStyle_ = 0;
+	LONG_PTR windowedExStyle_ = 0;
+	RECT windowedRect_ = {};
 
 	WNDCLASS wc{};
-	bool isBorderlessFullscreen_ = false;
-	DWORD windowedStyle_ = WS_OVERLAPPEDWINDOW;
-	RECT windowedRect_ = {};
 };
