@@ -160,6 +160,8 @@ bool MagnetChainSystem::Reset()
 	rightBendConstraintIndices_.fill(kInvalidConstraintIndex);
 	leftMomentumTracker_.Reset();
 	rightMomentumTracker_.Reset();
+	spinChargeController_.Reset();
+	impactAttachmentSystem_.Reset();
 	lastReleaseConvergenceDiagnostics_ = {};
 	chainsAttached_ = true;
 	healthy_ = false;
@@ -215,7 +217,6 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		const float inverseLength = 1.0f / std::sqrt(directionLengthSquared);
 		targetVelocity = requestedDirection * (kPlayerMaximumSpeed * inverseLength);
 	}
-
 	if (command_.emergencyStop) {
 		playerVelocity_ = {};
 	} else {
@@ -228,7 +229,14 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 	if (directionLengthSquared > kDirectionEpsilonSquared) {
 		const float targetHeading = std::atan2(requestedDirection.x, requestedDirection.z);
 		playerHeadingRadians_ = MoveAngleTowards(
-			playerHeadingRadians_, targetHeading, kPlayerTurnRateRadians * fixedDeltaTime);
+			playerHeadingRadians_,
+			targetHeading,
+			kPlayerTurnRateRadians *
+				spinChargeController_.GetTurnSpeedMultiplier() * fixedDeltaTime);
+	}
+	if (!spinChargeController_.Update(playerHeadingRadians_, fixedDeltaTime)) {
+		healthy_ = false;
+		return false;
 	}
 
 	if (!physicsWorld_.SetLinearVelocity(playerBody_, playerVelocity_) ||
@@ -257,6 +265,17 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 	if (chainsAttached_ && !UpdateMomentumTrackers(fixedDeltaTime)) {
 		healthy_ = false;
 		return false;
+	}
+	if (!chainsAttached_) {
+		MagneticImpactAttachmentSystem::MagnetHandles magnets{};
+		for (std::size_t index = 0; index < kLinksPerSide; ++index) {
+			magnets[index] = leftChain_[index];
+			magnets[index + kLinksPerSide] = rightChain_[index];
+		}
+		if (!impactAttachmentSystem_.Update(physicsWorld_, magnets, fixedDeltaTime)) {
+			healthy_ = false;
+			return false;
+		}
 	}
 	DeactivateDistantTestBalls();
 	return true;
@@ -413,6 +432,8 @@ bool MagnetChainSystem::ApplyMomentumLaunch() noexcept
 			}
 			outputVelocities[linkIndex] = momentumTracker.CalculateLaunchVelocity(
 				linkIndex, body->linearVelocity);
+			outputVelocities[linkIndex] =
+				spinChargeController_.ApplyToLaunchVelocity(outputVelocities[linkIndex]);
 			if (!IsFinite(outputVelocities[linkIndex])) {
 				return false;
 			}
@@ -552,6 +573,7 @@ bool MagnetChainSystem::ApplyMomentumLaunch() noexcept
 		}
 	}
 	lastReleaseConvergenceDiagnostics_ = convergenceDiagnostics;
+	spinChargeController_.ResetCharge();
 	return true;
 }
 
@@ -603,6 +625,7 @@ bool MagnetChainSystem::ReleaseChains() noexcept
 		}
 	}
 	chainsAttached_ = false;
+	impactAttachmentSystem_.BeginRelease();
 	return true;
 }
 

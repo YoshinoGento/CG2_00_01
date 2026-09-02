@@ -160,6 +160,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   <ItemGroup>
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp" />
     <ClCompile Include="application\magnet\system\BallMomentumTracker.cpp" />
+    <ClCompile Include="application\magnet\system\MagneticImpactAttachmentSystem.cpp" />
+    <ClCompile Include="application\magnet\system\SpinChargeController.cpp" />
     <ClCompile Include="application\magnet\system\MagnetChainSystem.cpp" />
     <ClCompile Include="application\magnet\ui\MagnetPrototypeWindow.cpp" />
     <ClCompile Include="application\scene\MagnetPrototypeScene.cpp" />
@@ -424,6 +426,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   <ItemGroup>
     <ClInclude Include="application\scene\AbstractSceneFactory.h" />
     <ClInclude Include="application\magnet\system\BallMomentumTracker.h" />
+    <ClInclude Include="application\magnet\system\MagneticImpactAttachmentSystem.h" />
+    <ClInclude Include="application\magnet\system\SpinChargeController.h" />
     <ClInclude Include="application\magnet\system\MagnetChainSystem.h" />
     <ClInclude Include="application\magnet\ui\MagnetPrototypeWindow.h" />
     <ClInclude Include="application\scene\MagnetPrototypeScene.h" />

@@ -1,5 +1,6 @@
 #include "application/magnet/system/MagnetChainSystem.h"
 #include "application/magnet/system/BallMomentumTracker.h"
+#include "application/magnet/system/SpinChargeController.h"
 
 #include <algorithm>
 #include <array>
@@ -119,6 +120,79 @@ float GetMaximumConstraintError(const magnet::MagnetChainSystem& system)
 
 int main()
 {
+	physics::PhysicsWorld attachmentWorld;
+	magnet::MagneticImpactAttachmentSystem attachmentSystem;
+	magnet::MagneticImpactAttachmentSystem::Settings attachmentSettings{};
+	attachmentSettings.releaseGraceSeconds = 0.0f;
+	attachmentSettings.minimumImpactSpeed = 1.0f;
+	attachmentSystem.SetSettings(attachmentSettings);
+	magnet::MagneticImpactAttachmentSystem::MagnetHandles attachmentMagnets{};
+	for (std::size_t index = 0; index < attachmentMagnets.size(); ++index) {
+		physics::SphereBodyDesc desc{};
+		desc.position = { static_cast<float>(index) * 10.0f, 0.5f, 0.0f };
+		desc.linearVelocity = {};
+		if (index == 0) {
+			desc.position.x = 0.0f;
+			desc.linearVelocity.x = 2.0f;
+		} else if (index == 1) {
+			desc.position.x = 0.95f;
+			desc.linearVelocity.x = -2.0f;
+		}
+		attachmentMagnets[index] = attachmentWorld.CreateSphereBody(desc);
+		if (!attachmentMagnets[index].IsValid()) {
+			std::cerr << "Attachment test body creation failed.\n";
+			return 46;
+		}
+	}
+	attachmentSystem.BeginRelease();
+	if (!attachmentSystem.Update(attachmentWorld, attachmentMagnets, kFixedDeltaTime) ||
+		attachmentSystem.GetAttachmentCount() != 1 ||
+		attachmentWorld.GetActiveConstraintCount() != 1) {
+		std::cerr << "Magnetic impact did not create exactly one attachment.\n";
+		return 47;
+	}
+
+	magnet::SpinChargeController spinChargeController;
+	magnet::SpinChargeController::Settings spinSettings{};
+	spinSettings.enabled = true;
+	spinSettings.rotationsForFullCharge = 1.0f;
+	spinSettings.maximumTurnSpeedMultiplier = 4.0f;
+	spinSettings.maximumSpeedMultiplier = 8.0f;
+	spinSettings.maximumLaunchSpeed = 96.0f;
+	spinSettings.minimumBallSpeedForBoost = 1.5f;
+	spinSettings.ballSpeedForFullBoost = 10.0f;
+	spinChargeController.SetSettings(spinSettings);
+	if (!spinChargeController.Update(0.0f, kFixedDeltaTime)) {
+		std::cerr << "Spin charge initialization failed.\n";
+		return 41;
+	}
+	for (int step = 1; step <= 120; ++step) {
+		const float heading = static_cast<float>(step) * 0.0523598776f;
+		if (!spinChargeController.Update(heading, kFixedDeltaTime)) {
+			std::cerr << "Spin charge update failed.\n";
+			return 42;
+		}
+	}
+	const Vector3 chargedVelocity = spinChargeController.ApplyToLaunchVelocity(
+		Vector3{ 0.0f, 0.0f, 10.0f });
+	const Vector3 nearlyStationaryChargedVelocity =
+		spinChargeController.ApplyToLaunchVelocity(Vector3{ 0.0f, 0.0f, 0.5f });
+	if (spinChargeController.GetChargeRatio() < 0.99f ||
+		spinChargeController.GetTurnSpeedMultiplier() < 3.99f ||
+		spinChargeController.GetSpeedMultiplier() < 7.99f ||
+		DistanceXZ(Vector3{}, chargedVelocity) < 79.9f ||
+		DistanceXZ(Vector3{}, nearlyStationaryChargedVelocity) > 0.501f) {
+		std::cerr << "Full spin charge did not produce the expected launch boost.\n";
+		return 43;
+	}
+	spinChargeController.ResetCharge();
+	if (spinChargeController.GetChargeRatio() != 0.0f ||
+		spinChargeController.GetTurnSpeedMultiplier() != 1.0f ||
+		spinChargeController.GetSpeedMultiplier() != 1.0f) {
+		std::cerr << "Spin charge was not consumed after release.\n";
+		return 44;
+	}
+
 	magnet::BallMomentumTracker momentumTracker;
 	for (int step = 0; step < 30; ++step) {
 		if (!momentumTracker.Update(0, Vector3{ 0.0f, 0.0f, 4.0f }, kFixedDeltaTime)) {
@@ -137,10 +211,21 @@ int main()
 	}
 	const Vector3 highMomentumLaunch =
 		momentumTracker.CalculateLaunchVelocity(0, Vector3{ 0.0f, 0.0f, 14.0f });
+	const float storedSpeedBeforeDecay =
+		DistanceXZ(Vector3{}, momentumTracker.GetStoredVelocity(0));
+	for (int step = 0; step < 30; ++step) {
+		if (!momentumTracker.Update(0, Vector3{}, kFixedDeltaTime)) {
+			std::cerr << "Stationary momentum decay failed.\n";
+			return 45;
+		}
+	}
+	const float storedSpeedAfterDecay =
+		DistanceXZ(Vector3{}, momentumTracker.GetStoredVelocity(0));
 	const float lowMomentumSpeed = DistanceXZ(Vector3{}, lowMomentumLaunch);
 	const float highMomentumSpeed = DistanceXZ(Vector3{}, highMomentumLaunch);
 	if (!std::isfinite(lowMomentumSpeed) || !std::isfinite(highMomentumSpeed) ||
-		highMomentumSpeed <= lowMomentumSpeed * 3.5f || highMomentumSpeed > 22.001f) {
+		highMomentumSpeed <= lowMomentumSpeed * 3.5f || highMomentumSpeed > 22.001f ||
+		storedSpeedAfterDecay >= storedSpeedBeforeDecay || storedSpeedAfterDecay <= 0.0f) {
 		std::cerr << "Momentum did not produce a bounded launch-speed increase.\n";
 		return 40;
 	}

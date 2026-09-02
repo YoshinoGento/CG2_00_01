@@ -1,6 +1,8 @@
 #pragma once
 
 #include "application/magnet/system/BallMomentumTracker.h"
+#include "application/magnet/system/MagneticImpactAttachmentSystem.h"
+#include "application/magnet/system/SpinChargeController.h"
 #include "physics/PhysicsWorld.h"
 
 #include <array>
@@ -42,6 +44,13 @@ public:
 	[[nodiscard]] bool Reset();
 	void SetPlayerCommand(const PlayerCommand& command) noexcept { command_ = command; }
 	void SetEmitterSettings(const EmitterSettings& settings) noexcept;
+	void SetSpinChargeSettings(const SpinChargeController::Settings& settings) noexcept {
+		spinChargeController_.SetSettings(settings);
+	}
+	void SetImpactAttachmentSettings(
+		const MagneticImpactAttachmentSystem::Settings& settings) noexcept {
+		impactAttachmentSystem_.SetSettings(settings);
+	}
 	[[nodiscard]] bool FixedUpdate(float fixedDeltaTime) noexcept;
 
 	[[nodiscard]] const physics::PhysicsWorld& GetPhysicsWorld() const noexcept { return physicsWorld_; }
@@ -54,6 +63,21 @@ public:
 	[[nodiscard]] float GetPlayerHeadingRadians() const noexcept { return playerHeadingRadians_; }
 	[[nodiscard]] bool AreChainsAttached() const noexcept { return chainsAttached_; }
 	[[nodiscard]] bool IsHealthy() const noexcept { return healthy_; }
+	[[nodiscard]] float GetSpinChargeRatio() const noexcept {
+		return spinChargeController_.GetChargeRatio();
+	}
+	[[nodiscard]] float GetSpinChargeRotationRadians() const noexcept {
+		return spinChargeController_.GetAccumulatedRotationRadians();
+	}
+	[[nodiscard]] float GetSpinChargeSpeedMultiplier() const noexcept {
+		return spinChargeController_.GetSpeedMultiplier();
+	}
+	[[nodiscard]] float GetSpinChargeTurnSpeedMultiplier() const noexcept {
+		return spinChargeController_.GetTurnSpeedMultiplier();
+	}
+	[[nodiscard]] std::size_t GetMagneticAttachmentCount() const noexcept {
+		return impactAttachmentSystem_.GetAttachmentCount();
+	}
 	[[nodiscard]] const ReleaseConvergenceDiagnostics&
 		GetLastReleaseConvergenceDiagnostics() const noexcept {
 		return lastReleaseConvergenceDiagnostics_;
@@ -87,6 +111,8 @@ private:
 	std::array<std::size_t, kBendConstraintsPerSide> rightBendConstraintIndices_{};
 	BallMomentumTracker leftMomentumTracker_{};
 	BallMomentumTracker rightMomentumTracker_{};
+	SpinChargeController spinChargeController_{};
+	MagneticImpactAttachmentSystem impactAttachmentSystem_{};
 	std::array<physics::BodyHandle, kTestBallCapacity> testBalls_{};
 	PlayerCommand command_{};
 	EmitterSettings emitterSettings_{};

@@ -63,6 +63,8 @@ MagnetPrototypeUiRequest MagnetPrototypeWindow::Draw(
 #endif
 
 	request.emitterSettings = emitterSettings_;
+	request.spinChargeSettings = spinChargeSettings_;
+	request.impactAttachmentSettings = impactAttachmentSettings_;
 	request.showGrid = showGrid_;
 	request.showVelocity = showVelocity_;
 	request.cameraFollow = cameraFollow_;
@@ -272,6 +274,75 @@ void MagnetPrototypeWindow::DrawInspector(
 		if (!viewData.chainsAttached) {
 			ImGui::BeginDisabled();
 		}
+
+		ImGui::SeparatorText("Spin Charge Launch");
+		ImGui::Checkbox("Enable Spin Charge Mode", &spinChargeSettings_.enabled);
+		ImGui::TextWrapped(
+			"Repeated player rotation stores charge. MAGNET OFF consumes it and "
+			"launches the chain balls at extreme speed.");
+		if (!spinChargeSettings_.enabled) {
+			ImGui::BeginDisabled();
+		}
+		ImGui::TextUnformatted("Rotations for Full Charge");
+		ImGui::SetNextItemWidth(-1.0f);
+		ImGui::SliderFloat(
+			"###SpinFullChargeRotations",
+			&spinChargeSettings_.rotationsForFullCharge,
+			0.25f,
+			12.0f,
+			"%.2f turns");
+		ImGui::TextUnformatted("Maximum Speed Multiplier");
+		ImGui::SetNextItemWidth(-1.0f);
+		ImGui::SliderFloat(
+			"###SpinMaximumMultiplier",
+			&spinChargeSettings_.maximumSpeedMultiplier,
+			1.0f,
+			16.0f,
+			"x%.1f");
+		ImGui::TextUnformatted("Maximum Turn Speed Multiplier");
+		ImGui::SetNextItemWidth(-1.0f);
+		ImGui::SliderFloat(
+			"###SpinMaximumTurnMultiplier",
+			&spinChargeSettings_.maximumTurnSpeedMultiplier,
+			1.0f,
+			12.0f,
+			"x%.1f");
+		ImGui::TextUnformatted("Maximum Launch Speed");
+		ImGui::SetNextItemWidth(-1.0f);
+		ImGui::SliderFloat(
+			"###SpinMaximumLaunchSpeed",
+			&spinChargeSettings_.maximumLaunchSpeed,
+			22.0f,
+			160.0f,
+			"%.0f");
+		ImGui::TextUnformatted("Minimum Ball Speed for Boost");
+		ImGui::SetNextItemWidth(-1.0f);
+		ImGui::SliderFloat(
+			"###SpinMinimumBallSpeed",
+			&spinChargeSettings_.minimumBallSpeedForBoost,
+			0.0f,
+			10.0f,
+			"%.1f");
+		ImGui::TextUnformatted("Ball Speed for Full Boost");
+		ImGui::SetNextItemWidth(-1.0f);
+		ImGui::SliderFloat(
+			"###SpinFullBoostBallSpeed",
+			&spinChargeSettings_.ballSpeedForFullBoost,
+			2.0f,
+			40.0f,
+			"%.1f");
+		ImGui::ProgressBar(
+			std::clamp(viewData.spinChargeRatio, 0.0f, 1.0f),
+			{ -1.0f, 0.0f },
+			"spin charge");
+		ImGui::Text(
+			"Stored: %.2f turns  |  Turn: x%.2f  |  Launch: x%.2f",
+			viewData.spinChargeRotations,
+			viewData.spinChargeTurnSpeedMultiplier,
+			viewData.spinChargeSpeedMultiplier);
+		if (!spinChargeSettings_.enabled) {
+			ImGui::EndDisabled();
+		}
 		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.88f, 0.38f, 0.08f, 1.0f });
 		request.releaseChains = ImGui::Button(
 			"MAGNET OFF - RELEASE CHAINS",
@@ -281,6 +352,18 @@ void MagnetPrototypeWindow::DrawInspector(
 			ImGui::EndDisabled();
 			ImGui::TextDisabled("RESET reattaches the chains.");
 		}
+
+		ImGui::SeparatorText("Magnetic Impact Attachment");
+		ImGui::Checkbox("Stick Magnets on Impact", &impactAttachmentSettings_.enabled);
+		ImGui::SliderFloat(
+			"Minimum Impact Speed",
+			&impactAttachmentSettings_.minimumImpactSpeed,
+			0.0f, 20.0f, "%.1f");
+		ImGui::SliderFloat(
+			"Capture Margin",
+			&impactAttachmentSettings_.captureMargin,
+			0.0f, 0.5f, "%.2f");
+		ImGui::Text("Attached pairs: %zu", viewData.magneticAttachmentCount);
 
 		ImGui::SeparatorText("Test Ball Emitter");
 		ImGui::TextDisabled("Separate future attraction test; not chain release.");

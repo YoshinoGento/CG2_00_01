@@ -17,11 +17,18 @@ struct MagnetPrototypeViewData {
 	std::size_t activeTestBallCount = 0;
 	float playerSpeed = 0.0f;
 	float maximumConstraintError = 0.0f;
+	float spinChargeRatio = 0.0f;
+	float spinChargeRotations = 0.0f;
+	float spinChargeSpeedMultiplier = 1.0f;
+	float spinChargeTurnSpeedMultiplier = 1.0f;
+	std::size_t magneticAttachmentCount = 0;
 	bool chainsAttached = true;
 };
 
 struct MagnetPrototypeUiRequest {
 	MagnetChainSystem::EmitterSettings emitterSettings{};
+	SpinChargeController::Settings spinChargeSettings{};
+	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings{};
 	bool reset = false;
 	bool emergencyStop = false;
 	bool emitOne = false;
@@ -56,6 +63,8 @@ private:
 	void DrawMonitor(const MagnetPrototypeViewData& viewData);
 
 	MagnetChainSystem::EmitterSettings emitterSettings_{};
+	SpinChargeController::Settings spinChargeSettings_{};
+	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings_{};
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;
