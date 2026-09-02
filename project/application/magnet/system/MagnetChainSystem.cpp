@@ -468,7 +468,8 @@ bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
 			}
 		}
 		if (!enteredGoal) { continue; }
-		if (!physicsWorld_.SetLinearVelocity(handle, {}) ||
+		if (!impactAttachmentSystem_.DetachBody(physicsWorld_, handle) ||
+			!physicsWorld_.SetLinearVelocity(handle, {}) ||
 			!physicsWorld_.SetActive(handle, false)) { return false; }
 		stageBallStates_[index] = StageBallState::Inactive;
 		++goalHitCount_;

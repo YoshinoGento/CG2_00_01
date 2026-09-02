@@ -534,6 +534,61 @@ int main()
 		return 16;
 	}
 
+	magnet::MagnetChainSystem goalCleanupSystem;
+	if (!goalCleanupSystem.Initialize(BuildPickupStage()) ||
+		!CollectAllBalls(goalCleanupSystem)) {
+		std::cerr << "Goal connection cleanup setup failed.\n";
+		return 130;
+	}
+	magnet::MagneticImpactAttachmentSystem::Settings goalImpactSettings{};
+	goalImpactSettings.minimumImpactSpeed = 0.0f;
+	goalImpactSettings.captureMargin = 0.5f;
+	goalImpactSettings.releaseGraceSeconds = 0.0f;
+	goalCleanupSystem.SetImpactAttachmentSettings(goalImpactSettings);
+	magnet::MagnetChainSystem::PlayerCommand goalReleaseCommand{};
+	goalReleaseCommand.releaseChains = true;
+	goalCleanupSystem.SetPlayerCommand(goalReleaseCommand);
+	if (!goalCleanupSystem.FixedUpdate(kFixedDeltaTime) ||
+		goalCleanupSystem.GetMagneticAttachmentCount() == 0) {
+		std::cerr << "Goal connection cleanup could not create a released-ball joint.\n";
+		return 131;
+	}
+	physics::BodyHandle goalTarget{};
+	for (const physics::DistanceConstraint& constraint :
+		goalCleanupSystem.GetPhysicsWorld().GetConstraints()) {
+		if (constraint.active) {
+			goalTarget = constraint.bodyA;
+			break;
+		}
+	}
+	const physics::SphereBody* goalTargetBody =
+		goalCleanupSystem.GetPhysicsWorld().GetBody(goalTarget);
+	if (!goalTargetBody || !goalTargetBody->active) {
+		std::cerr << "Goal connection cleanup did not find an active joint endpoint.\n";
+		return 132;
+	}
+	goalCleanupSystem.ConfigureGoal(
+		magnet::MagnetChainSystem::GoalSize::Small,
+		goalTargetBody->position);
+	goalCleanupSystem.SetPlayerCommand({});
+	if (!goalCleanupSystem.FixedUpdate(kFixedDeltaTime) ||
+		goalCleanupSystem.GetGoalHitCount() == 0) {
+		std::cerr << "Goal connection cleanup did not collect the target magnet.\n";
+		return 133;
+	}
+	for (const physics::DistanceConstraint& constraint :
+		goalCleanupSystem.GetPhysicsWorld().GetConstraints()) {
+		if (!constraint.active) { continue; }
+		const physics::SphereBody* bodyA =
+			goalCleanupSystem.GetPhysicsWorld().GetBody(constraint.bodyA);
+		const physics::SphereBody* bodyB =
+			goalCleanupSystem.GetPhysicsWorld().GetBody(constraint.bodyB);
+		if (!bodyA || !bodyB || !bodyA->active || !bodyB->active) {
+			std::cerr << "A Goal-scored magnet retained an active connection.\n";
+			return 134;
+		}
+	}
+
 	const magnet::MagnetStageData pickupStage = BuildPickupStage();
 	magnet::MagnetChainSystem system;
 	if (!system.Initialize(pickupStage) || !ValidateFiniteBodies(system)) {
