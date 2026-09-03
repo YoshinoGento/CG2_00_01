@@ -283,7 +283,8 @@ int main()
 		!stageSystem.AddBoxObject(
 			magnet::MagnetStageObjectType::Obstacle,
 			obstaclePosition,
-			obstacleSize) ||
+			obstacleSize,
+			magnet::MagnetObstacleKind::Chainsaw) ||
 		stageSystem.AddBoxObject(
 			magnet::MagnetStageObjectType::Obstacle,
 			obstaclePosition,
@@ -298,15 +299,37 @@ int main()
 			1u,
 			editedObstaclePosition,
 			editedObstacleSize) ||
+		!stageSystem.SetObstacleKind(
+			1u,
+			magnet::MagnetObstacleKind::TransferGate) ||
+		!stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			{ 3.0f, 1.25f, 2.5f },
+			{ 0.55f, 2.5f, 3.0f },
+			magnet::MagnetObstacleKind::TransferGate) ||
+		!stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			{ 0.0f, 1.0f, 6.0f },
+			{ 6.0f, 2.0f, 6.0f },
+			magnet::MagnetObstacleKind::RepulsionField) ||
+		stageSystem.SetTransferPairId(2u, 0u) ||
 		!stageSystem.GenerateBalanced(generation) ||
 		stageSystem.GetStageData().goalCount != 1 ||
-		stageSystem.GetStageData().obstacleCount != 1 ||
+		stageSystem.GetStageData().obstacleCount != 3 ||
 		!ApproximatelyEqual(
 			stageSystem.GetStageData().goals[0].position,
 			editedGoalPosition) ||
 		!ApproximatelyEqual(
 			stageSystem.GetStageData().obstacles[0].position,
 			editedObstaclePosition) ||
+		stageSystem.GetStageData().obstacles[0].obstacleKind !=
+			magnet::MagnetObstacleKind::TransferGate ||
+		stageSystem.GetStageData().obstacles[0].transferPairId == 0 ||
+		stageSystem.GetStageData().obstacles[0].transferPairId !=
+			stageSystem.GetStageData().obstacles[1].transferPairId ||
+		stageSystem.GetStageData().obstacles[2].obstacleKind !=
+			magnet::MagnetObstacleKind::RepulsionField ||
+		stageSystem.GetStageData().obstacles[2].transferPairId != 0 ||
 		DistanceXZ(
 			stageSystem.GetStageData().playerPosition,
 			authoredPlayerPosition) > 1.0e-5f) {
@@ -318,6 +341,10 @@ int main()
 		defaultStageSystem.GetStageData().ballCount != 16 ||
 		defaultStageSystem.GetStageData().goalCount != 1 ||
 		defaultStageSystem.GetStageData().obstacleCount != 2 ||
+		defaultStageSystem.GetStageData().obstacles[0].obstacleKind !=
+			magnet::MagnetObstacleKind::Solid ||
+		defaultStageSystem.GetStageData().obstacles[1].obstacleKind !=
+			magnet::MagnetObstacleKind::Solid ||
 		DistanceXZ(defaultStageSystem.GetStageData().playerPosition, {}) > 1.0e-5f) {
 		std::cerr << "Tracked default stage JSON is invalid.\n";
 		return 7;
@@ -342,7 +369,7 @@ int main()
 	if (!loadedStageSystem.Load(roundTripPath) ||
 		loadedStageSystem.GetStageData().ballCount != generated.ballCount ||
 		loadedStageSystem.GetStageData().goalCount != 1 ||
-		loadedStageSystem.GetStageData().obstacleCount != 1 ||
+		loadedStageSystem.GetStageData().obstacleCount != 3 ||
 		DistanceXZ(
 			loadedStageSystem.GetStageData().playerPosition,
 			authoredPlayerPosition) > 1.0e-5f ||
@@ -357,7 +384,15 @@ int main()
 			editedObstaclePosition) ||
 		!ApproximatelyEqual(
 			loadedStageSystem.GetStageData().obstacles[0].size,
-			editedObstacleSize)) {
+			editedObstacleSize) ||
+		loadedStageSystem.GetStageData().obstacles[0].obstacleKind !=
+			magnet::MagnetObstacleKind::TransferGate ||
+		loadedStageSystem.GetStageData().obstacles[0].transferPairId == 0 ||
+		loadedStageSystem.GetStageData().obstacles[0].transferPairId !=
+			loadedStageSystem.GetStageData().obstacles[1].transferPairId ||
+		loadedStageSystem.GetStageData().obstacles[2].obstacleKind !=
+			magnet::MagnetObstacleKind::RepulsionField ||
+		loadedStageSystem.GetStageData().obstacles[2].transferPairId != 0) {
 		std::cerr << "Stage JSON load failed.\n";
 		return 9;
 	}
@@ -420,6 +455,314 @@ int main()
 	if (removeError) {
 		std::cerr << "Legacy-stage cleanup failed.\n";
 		return 121;
+	}
+
+	physics::PhysicsWorld obstacleWorld;
+	physics::SphereBodyDesc obstacleBallDesc{};
+	obstacleBallDesc.position = { 1.2f, 0.5f, 0.0f };
+	obstacleBallDesc.linearVelocity = { -5.0f, 0.0f, 0.0f };
+	const physics::BodyHandle obstacleBall =
+		obstacleWorld.CreateSphereBody(obstacleBallDesc);
+	std::array<physics::BodyHandle, 1> obstacleBalls{ obstacleBall };
+	magnet::MagnetStageBoxPlacement gimmick{};
+	gimmick.id = 1u;
+	gimmick.position = { 0.0f, 0.5f, 0.0f };
+	gimmick.size = { 2.0f, 1.0f, 2.0f };
+	gimmick.obstacleKind = magnet::MagnetObstacleKind::PinballBumper;
+	magnet::ObstacleCollisionSystem obstacleSystem;
+	if (!obstacleBall.IsValid() ||
+		!obstacleSystem.Resolve(
+			obstacleWorld,
+			{},
+			obstacleBalls.data(),
+			obstacleBalls.size(),
+			&gimmick,
+			1,
+			kFixedDeltaTime)) {
+		std::cerr << "Pinball-bumper resolution failed.\n";
+		return 140;
+	}
+	const physics::SphereBody* obstacleBody = obstacleWorld.GetBody(obstacleBall);
+	if (!obstacleBody || obstacleBody->linearVelocity.x < 8.49f) {
+		std::cerr << "Pinball bumper did not produce a boosted reflection.\n";
+		return 141;
+	}
+
+	obstacleSystem.Reset();
+	gimmick.obstacleKind = magnet::MagnetObstacleKind::Chainsaw;
+	if (!obstacleWorld.SetPosition(obstacleBall, gimmick.position) ||
+		!obstacleSystem.Resolve(
+			obstacleWorld, {}, obstacleBalls.data(), obstacleBalls.size(),
+			&gimmick, 1, kFixedDeltaTime) ||
+		obstacleSystem.GetEventCount() != 1 ||
+		obstacleSystem.GetEvents()[0].type !=
+			magnet::ObstacleCollisionSystem::EventType::CutChain) {
+		std::cerr << "Chainsaw did not emit one bounded cut event.\n";
+		return 142;
+	}
+	obstacleSystem.Reset();
+	gimmick.obstacleKind = magnet::MagnetObstacleKind::Furnace;
+	if (!obstacleWorld.SetPosition(obstacleBall, gimmick.position) ||
+		!obstacleSystem.Resolve(
+			obstacleWorld, {}, obstacleBalls.data(), obstacleBalls.size(),
+			&gimmick, 1, kFixedDeltaTime) ||
+		obstacleSystem.GetEventCount() != 1 ||
+		obstacleSystem.GetEvents()[0].type !=
+			magnet::ObstacleCollisionSystem::EventType::DissolveBall) {
+		std::cerr << "Furnace did not emit one bounded dissolve event.\n";
+		return 143;
+	}
+
+	obstacleSystem.Reset();
+	gimmick.obstacleKind = magnet::MagnetObstacleKind::TimedShutter;
+	if (!obstacleSystem.Resolve(
+			obstacleWorld, {}, nullptr, 0, &gimmick, 1, kFixedDeltaTime) ||
+		!obstacleSystem.IsShutterClosed(0) ||
+		obstacleSystem.GetShutterOpenRatio(0) != 0.0f ||
+		obstacleSystem.GetShutterVerticalOffset(0, gimmick) != 0.0f) {
+		std::cerr << "Timed shutter did not start closed.\n";
+		return 144;
+	}
+	for (int step = 0; step < 120; ++step) {
+		if (!obstacleSystem.Resolve(
+			obstacleWorld, {}, nullptr, 0, &gimmick, 1, kFixedDeltaTime)) {
+			std::cerr << "Timed shutter update failed.\n";
+			return 145;
+		}
+	}
+	if (obstacleSystem.IsShutterClosed(0) ||
+		obstacleSystem.GetShutterOpenRatio(0) < 0.99f ||
+		obstacleSystem.GetShutterVerticalOffset(0, gimmick) <= gimmick.size.y) {
+		std::cerr << "Timed shutter did not enter its open interval.\n";
+		return 146;
+	}
+	if (!obstacleWorld.SetPosition(obstacleBall, gimmick.position) ||
+		!obstacleWorld.SetLinearVelocity(obstacleBall, {}) ||
+		!obstacleSystem.Resolve(
+			obstacleWorld, {}, obstacleBalls.data(), obstacleBalls.size(),
+			&gimmick, 1, kFixedDeltaTime)) {
+		std::cerr << "Raised shutter pass-through setup failed.\n";
+		return 156;
+	}
+	obstacleBody = obstacleWorld.GetBody(obstacleBall);
+	if (!obstacleBody || std::abs(obstacleBody->position.x) > 1.0e-5f ||
+		std::abs(obstacleBody->position.z) > 1.0e-5f) {
+		std::cerr << "Raised shutter still blocked a ground ball.\n";
+		return 157;
+	}
+	for (int step = 0; step < 84; ++step) {
+		if (!obstacleSystem.Resolve(
+			obstacleWorld, {}, nullptr, 0, &gimmick, 1, kFixedDeltaTime)) {
+			std::cerr << "Timed shutter close transition failed.\n";
+			return 158;
+		}
+	}
+	if (!obstacleSystem.IsShutterClosed(0) ||
+		!obstacleWorld.SetPosition(obstacleBall, gimmick.position) ||
+		!obstacleSystem.Resolve(
+			obstacleWorld, {}, obstacleBalls.data(), obstacleBalls.size(),
+			&gimmick, 1, kFixedDeltaTime)) {
+		std::cerr << "Lowered shutter collision setup failed.\n";
+		return 159;
+	}
+	obstacleBody = obstacleWorld.GetBody(obstacleBall);
+	if (!obstacleBody || (std::abs(obstacleBody->position.x) < 1.0f &&
+		std::abs(obstacleBody->position.z) < 1.0f)) {
+		std::cerr << "Lowered shutter did not block a ground ball.\n";
+		return 160;
+	}
+
+	obstacleSystem.Reset();
+	gimmick.obstacleKind = magnet::MagnetObstacleKind::MagneticAnchor;
+	if (!obstacleWorld.SetPosition(obstacleBall, { 3.0f, 0.5f, 0.0f }) ||
+		!obstacleWorld.SetLinearVelocity(obstacleBall, {})) {
+		std::cerr << "Magnetic-anchor test setup failed.\n";
+		return 147;
+	}
+	for (int step = 0; step < 20; ++step) {
+		if (!obstacleWorld.Step(kFixedDeltaTime, 1, 1) ||
+			!obstacleSystem.Resolve(
+				obstacleWorld, {}, obstacleBalls.data(), obstacleBalls.size(),
+				&gimmick, 1, kFixedDeltaTime)) {
+			std::cerr << "Magnetic-anchor update failed.\n";
+			return 148;
+		}
+	}
+	obstacleBody = obstacleWorld.GetBody(obstacleBall);
+	if (!obstacleBody || obstacleBody->position.x >= 1.8f ||
+		!obstacleSystem.GetAnchoredBody(0).IsValid()) {
+		std::cerr << "Magnetic anchor did not attract the selected ball.\n";
+		return 149;
+	}
+
+	physics::PhysicsWorld repulsionWorld;
+	physics::SphereBodyDesc repulsionPlayerDesc{};
+	repulsionPlayerDesc.position = { 0.0f, 0.75f, 0.0f };
+	repulsionPlayerDesc.linearVelocity = { 3.0f, 0.0f, 0.0f };
+	repulsionPlayerDesc.radius = 0.75f;
+	repulsionPlayerDesc.planeHeight = 0.75f;
+	repulsionPlayerDesc.motionType = physics::MotionType::Kinematic;
+	const physics::BodyHandle repulsionPlayer =
+		repulsionWorld.CreateSphereBody(repulsionPlayerDesc);
+	physics::SphereBodyDesc repulsionBallDesc{};
+	repulsionBallDesc.position = { 1.0f, 0.5f, 0.0f };
+	const physics::BodyHandle attachedRepulsionBall =
+		repulsionWorld.CreateSphereBody(repulsionBallDesc);
+	repulsionBallDesc.position = { -4.75f, 0.5f, 0.0f };
+	const physics::BodyHandle edgeRepulsionBall =
+		repulsionWorld.CreateSphereBody(repulsionBallDesc);
+	repulsionBallDesc.position = { 2.0f, 0.5f, 0.0f };
+	repulsionBallDesc.linearVelocity = { 100.0f, 0.0f, 0.0f };
+	const physics::BodyHandle fastRepulsionBall =
+		repulsionWorld.CreateSphereBody(repulsionBallDesc);
+	physics::DistanceConstraintDesc attachedConstraint{};
+	attachedConstraint.bodyA = repulsionPlayer;
+	attachedConstraint.bodyB = attachedRepulsionBall;
+	attachedConstraint.restLength = 1.0f;
+	std::array<physics::BodyHandle, 3> repulsionBalls{
+		attachedRepulsionBall,
+		edgeRepulsionBall,
+		fastRepulsionBall,
+	};
+	magnet::MagnetStageBoxPlacement repulsionField{};
+	repulsionField.id = 20u;
+	repulsionField.position = { 0.0f, 1.0f, 0.0f };
+	repulsionField.size = { 10.0f, 2.0f, 10.0f };
+	repulsionField.obstacleKind = magnet::MagnetObstacleKind::RepulsionField;
+	magnet::ObstacleCollisionSystem repulsionSystem;
+	if (!repulsionPlayer.IsValid() || !attachedRepulsionBall.IsValid() ||
+		!edgeRepulsionBall.IsValid() || !fastRepulsionBall.IsValid() ||
+		!repulsionWorld.CreateDistanceConstraint(attachedConstraint) ||
+		!repulsionSystem.Resolve(
+			repulsionWorld,
+			repulsionPlayer,
+			repulsionBalls.data(),
+			repulsionBalls.size(),
+			&repulsionField,
+			1,
+			kFixedDeltaTime)) {
+		std::cerr << "Repulsion-field update failed.\n";
+		return 173;
+	}
+	const physics::SphereBody* repulsionPlayerBody =
+		repulsionWorld.GetBody(repulsionPlayer);
+	const physics::SphereBody* attachedRepulsionBody =
+		repulsionWorld.GetBody(attachedRepulsionBall);
+	const physics::SphereBody* edgeRepulsionBody =
+		repulsionWorld.GetBody(edgeRepulsionBall);
+	const physics::SphereBody* fastRepulsionBody =
+		repulsionWorld.GetBody(fastRepulsionBall);
+	if (!repulsionPlayerBody || !attachedRepulsionBody ||
+		!edgeRepulsionBody || !fastRepulsionBody ||
+		std::abs(repulsionPlayerBody->linearVelocity.x - 3.0f) > 1.0e-5f ||
+		attachedRepulsionBody->linearVelocity.x < 0.9f ||
+		edgeRepulsionBody->linearVelocity.x >= -0.001f ||
+		std::abs(edgeRepulsionBody->linearVelocity.x) >= 0.1f ||
+		std::abs(fastRepulsionBody->linearVelocity.x) > 24.01f ||
+		repulsionWorld.GetActiveConstraintCount() != 1 ||
+		repulsionSystem.GetEventCount() != 0) {
+		std::cerr << "Repulsion field affected the Player, severed a link, or used unsafe falloff.\n";
+		return 174;
+	}
+
+	physics::PhysicsWorld transferWorld;
+	physics::SphereBodyDesc transferPlayerDesc{};
+	transferPlayerDesc.position = { 0.0f, 0.75f, 0.0f };
+	transferPlayerDesc.linearVelocity = { 4.0f, 0.0f, 1.0f };
+	transferPlayerDesc.radius = 0.75f;
+	transferPlayerDesc.planeHeight = 0.75f;
+	transferPlayerDesc.motionType = physics::MotionType::Kinematic;
+	const physics::BodyHandle transferPlayer =
+		transferWorld.CreateSphereBody(transferPlayerDesc);
+	physics::SphereBodyDesc transferBallDesc{};
+	transferBallDesc.position = { 0.0f, 0.5f, 0.6f };
+	transferBallDesc.linearVelocity = { 3.0f, 0.0f, -2.0f };
+	const physics::BodyHandle transferBall =
+		transferWorld.CreateSphereBody(transferBallDesc);
+	std::array<physics::BodyHandle, 1> transferBalls{ transferBall };
+	std::array<magnet::MagnetStageBoxPlacement, 2> transferGates{};
+	transferGates[0].id = 10u;
+	transferGates[0].position = { 0.0f, 1.0f, 0.0f };
+	transferGates[0].size = { 0.5f, 2.0f, 4.0f };
+	transferGates[0].obstacleKind = magnet::MagnetObstacleKind::TransferGate;
+	transferGates[0].transferPairId = 7u;
+	transferGates[1].id = 11u;
+	transferGates[1].position = { 8.0f, 1.0f, 5.0f };
+	transferGates[1].size = { 4.0f, 2.0f, 0.5f };
+	transferGates[1].obstacleKind = magnet::MagnetObstacleKind::TransferGate;
+	transferGates[1].transferPairId = 7u;
+	magnet::ObstacleCollisionSystem transferSystem;
+	if (!transferPlayer.IsValid() || !transferBall.IsValid() ||
+		!transferSystem.Resolve(
+			transferWorld,
+			transferPlayer,
+			transferBalls.data(),
+			transferBalls.size(),
+			transferGates.data(),
+			transferGates.size(),
+			kFixedDeltaTime) ||
+		transferSystem.GetEventCount() != 2 ||
+		transferSystem.GetEvents()[0].type !=
+			magnet::ObstacleCollisionSystem::EventType::EnterTransferGate ||
+		transferSystem.GetEvents()[0].destinationObstacleId != 11u ||
+		transferSystem.GetEvents()[1].destinationObstacleId != 11u) {
+		std::cerr << "Transfer gate did not emit bounded paired-entry events.\n";
+		return 161;
+	}
+	const auto transferEvents = transferSystem.GetEvents();
+	if (!transferSystem.TeleportBody(
+			transferWorld,
+			transferEvents[0].body,
+			transferGates[0],
+			transferGates[1]) ||
+		!transferSystem.TeleportBody(
+			transferWorld,
+			transferEvents[1].body,
+			transferGates[0],
+			transferGates[1])) {
+		std::cerr << "Transfer gate body transport failed.\n";
+		return 162;
+	}
+	const physics::SphereBody* transferredPlayer =
+		transferWorld.GetBody(transferPlayer);
+	const physics::SphereBody* transferredBall =
+		transferWorld.GetBody(transferBall);
+	if (!transferredPlayer || !transferredBall ||
+		std::abs(transferredPlayer->linearVelocity.x + 1.0f) > 1.0e-5f ||
+		std::abs(transferredPlayer->linearVelocity.z - 4.0f) > 1.0e-5f ||
+		std::abs(transferredBall->linearVelocity.x - 2.0f) > 1.0e-5f ||
+		std::abs(transferredBall->linearVelocity.z - 3.0f) > 1.0e-5f ||
+		transferredPlayer->position.z <= transferGates[1].position.z ||
+		transferredBall->position.z <= transferGates[1].position.z) {
+		std::cerr << "Transfer gate changed speed or used the wrong exit direction.\n";
+		return 163;
+	}
+	if (!transferWorld.SetPosition(transferPlayer, transferGates[0].position) ||
+		!transferWorld.SetPosition(transferBall, transferGates[0].position) ||
+		!transferSystem.Resolve(
+			transferWorld,
+			transferPlayer,
+			transferBalls.data(),
+			transferBalls.size(),
+			transferGates.data(),
+			transferGates.size(),
+			kFixedDeltaTime) ||
+		transferSystem.GetEventCount() != 0) {
+		std::cerr << "Transfer gate immediate re-entry cooldown failed.\n";
+		return 164;
+	}
+	transferSystem.Reset();
+	if (!transferSystem.Resolve(
+			transferWorld,
+			transferPlayer,
+			transferBalls.data(),
+			transferBalls.size(),
+			transferGates.data(),
+			1,
+			kFixedDeltaTime) ||
+		transferSystem.GetEventCount() != 0) {
+		std::cerr << "Unpaired transfer gate should remain inactive.\n";
+		return 165;
 	}
 
 	const std::filesystem::path saveBrowserDirectory =
@@ -533,6 +876,184 @@ int main()
 		std::cerr << "Released constraint slots were not reusable.\n";
 		return 16;
 	}
+
+	magnet::MagnetStageData chainsawStage = BuildPickupStage();
+	chainsawStage.name = "chainsaw_runtime_test";
+	chainsawStage.arenaRadius = 12.0f;
+	chainsawStage.obstacleCount = 1;
+	chainsawStage.obstacles[0] = {
+		1u,
+		{ 6.5f, 0.5f, 0.0f },
+		{ 0.5f, 1.0f, 5.0f },
+		1u,
+		magnet::MagnetObstacleKind::Chainsaw,
+	};
+	magnet::MagnetChainSystem chainsawSystem;
+	if (!chainsawSystem.Initialize(chainsawStage) ||
+		!CollectAllBalls(chainsawSystem)) {
+		std::cerr << "Chainsaw runtime setup failed.\n";
+		return 150;
+	}
+	magnet::MagnetChainSystem::PlayerCommand obstacleDrive{};
+	obstacleDrive.moveDirection = { 1.0f, 0.0f, 0.0f };
+	for (int step = 0; step < 180 &&
+		chainsawSystem.GetAttachedBallCount() == 8; ++step) {
+		chainsawSystem.SetPlayerCommand(obstacleDrive);
+		if (!chainsawSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Chainsaw runtime update failed.\n";
+			return 151;
+		}
+	}
+	if (chainsawSystem.GetAttachedBallCount() >= 8 ||
+		chainsawSystem.GetReleasedBallCount() == 0 ||
+		chainsawSystem.GetPhysicsWorld().GetActiveConstraintCount() >= 14) {
+		std::cerr << "Chainsaw did not sever and release the contacted outer segment.\n";
+		return 152;
+	}
+
+	magnet::MagnetStageData furnaceStage = chainsawStage;
+	furnaceStage.name = "furnace_runtime_test";
+	furnaceStage.obstacles[0].obstacleKind = magnet::MagnetObstacleKind::Furnace;
+	magnet::MagnetChainSystem furnaceSystem;
+	if (!furnaceSystem.Initialize(furnaceStage) || !CollectAllBalls(furnaceSystem)) {
+		std::cerr << "Furnace runtime setup failed.\n";
+		return 153;
+	}
+	for (int step = 0; step < 180 &&
+		furnaceSystem.GetAttachedBallCount() == 8; ++step) {
+		furnaceSystem.SetPlayerCommand(obstacleDrive);
+		if (!furnaceSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Furnace runtime update failed.\n";
+			return 154;
+		}
+	}
+	const std::size_t furnaceInactiveCount = furnaceSystem.GetStageBallCount() -
+		furnaceSystem.GetAvailableBallCount() - furnaceSystem.GetAttachedBallCount() -
+		furnaceSystem.GetReleasedBallCount();
+	if (furnaceSystem.GetAttachedBallCount() >= 8 || furnaceInactiveCount == 0 ||
+		furnaceSystem.GetPhysicsWorld().GetActiveConstraintCount() >= 14) {
+		std::cerr << "Furnace did not dissolve the contacted chain ball.\n";
+		return 155;
+	}
+
+	magnet::MagnetStageData playerTransferStage = BuildPickupStage();
+	playerTransferStage.name = "player_transfer_gate_runtime_test";
+	playerTransferStage.arenaRadius = 12.0f;
+	playerTransferStage.obstacleCount = 2;
+	playerTransferStage.obstacles[0] = {
+		1u,
+		{ 4.0f, 1.0f, 0.0f },
+		{ 0.5f, 2.0f, 5.0f },
+		1u,
+		magnet::MagnetObstacleKind::TransferGate,
+		1u,
+	};
+	playerTransferStage.obstacles[1] = {
+		2u,
+		{ 0.0f, 1.0f, 8.0f },
+		{ 5.0f, 2.0f, 0.5f },
+		1u,
+		magnet::MagnetObstacleKind::TransferGate,
+		1u,
+	};
+	magnet::MagnetChainSystem playerTransferSystem;
+	if (!playerTransferSystem.Initialize(playerTransferStage) ||
+		!CollectAllBalls(playerTransferSystem)) {
+		std::cerr << "Player transfer-gate runtime setup failed.\n";
+		return 166;
+	}
+	bool playerTransferred = false;
+	for (int step = 0; step < 180 && !playerTransferred; ++step) {
+		playerTransferSystem.SetPlayerCommand(obstacleDrive);
+		if (!playerTransferSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Player transfer-gate runtime update failed.\n";
+			return 167;
+		}
+		const physics::SphereBody* player =
+			playerTransferSystem.GetPhysicsWorld().GetBody(
+				playerTransferSystem.GetPlayerBody());
+		playerTransferred = player && player->position.z > 7.0f;
+	}
+	const physics::SphereBody* transferredRuntimePlayer =
+		playerTransferSystem.GetPhysicsWorld().GetBody(
+			playerTransferSystem.GetPlayerBody());
+	if (!playerTransferred || !transferredRuntimePlayer ||
+		transferredRuntimePlayer->linearVelocity.z <= 0.0f ||
+		playerTransferSystem.GetAttachedBallCount() != 0 ||
+		playerTransferSystem.GetReleasedBallCount() !=
+			playerTransferStage.ballCount ||
+		playerTransferSystem.GetPhysicsWorld().GetActiveConstraintCount() != 0) {
+		std::cerr << "Player gate did not release the chains and rotate Player travel.\n";
+		return 168;
+	}
+	for (std::size_t index = 0;
+		index < playerTransferSystem.GetStageBallCount();
+		++index) {
+		const physics::SphereBody* body =
+			playerTransferSystem.GetPhysicsWorld().GetBody(
+				playerTransferSystem.GetStageBalls()[index]);
+		if (!body || body->position.z > 6.0f) {
+			std::cerr << "An attached ball followed the Player through the gate.\n";
+			return 169;
+		}
+	}
+
+	magnet::MagnetStageData releasedTransferStage{};
+	releasedTransferStage.name = "released_ball_transfer_gate_runtime_test";
+	releasedTransferStage.arenaRadius = 12.0f;
+	releasedTransferStage.generation.minimumX = -10.0f;
+	releasedTransferStage.generation.maximumX = 10.0f;
+	releasedTransferStage.generation.minimumZ = -10.0f;
+	releasedTransferStage.generation.maximumZ = 10.0f;
+	releasedTransferStage.ballCount = 1;
+	releasedTransferStage.generation.ballCount = 1;
+	releasedTransferStage.balls[0] = { 1u, { 1.05f, 0.5f, 0.0f } };
+	releasedTransferStage.obstacleCount = 2;
+	releasedTransferStage.obstacles[0] = {
+		1u,
+		{ 1.25f, 1.0f, 0.0f },
+		{ 0.4f, 2.0f, 1.5f },
+		1u,
+		magnet::MagnetObstacleKind::TransferGate,
+		2u,
+	};
+	releasedTransferStage.obstacles[1] = {
+		2u,
+		{ 0.0f, 1.0f, 6.0f },
+		{ 1.5f, 2.0f, 0.4f },
+		1u,
+		magnet::MagnetObstacleKind::TransferGate,
+		2u,
+	};
+	magnet::MagnetChainSystem releasedTransferSystem;
+	if (!releasedTransferSystem.Initialize(releasedTransferStage) ||
+		!releasedTransferSystem.FixedUpdate(kFixedDeltaTime) ||
+		releasedTransferSystem.GetAttachedBallCount() != 1) {
+		std::cerr << "Released-ball transfer-gate setup failed.\n";
+		return 170;
+	}
+	magnet::MagnetChainSystem::PlayerCommand releaseIntoGate{};
+	releaseIntoGate.releaseChains = true;
+	releasedTransferSystem.SetPlayerCommand(releaseIntoGate);
+	if (!releasedTransferSystem.FixedUpdate(kFixedDeltaTime)) {
+		std::cerr << "Released-ball transfer-gate update failed.\n";
+		return 171;
+	}
+	const physics::SphereBody* transferredReleasedBall =
+		releasedTransferSystem.GetPhysicsWorld().GetBody(
+			releasedTransferSystem.GetStageBalls()[0]);
+	const physics::SphereBody* nonTransferredPlayer =
+		releasedTransferSystem.GetPhysicsWorld().GetBody(
+			releasedTransferSystem.GetPlayerBody());
+	if (!transferredReleasedBall || !nonTransferredPlayer ||
+		releasedTransferSystem.GetStageBallStates()[0] !=
+			magnet::MagnetChainSystem::StageBallState::Released ||
+		transferredReleasedBall->position.z < 5.0f ||
+		DistanceXZ(nonTransferredPlayer->position, {}) > 0.1f) {
+		std::cerr << "A released ball did not transfer independently of the Player.\n";
+		return 172;
+	}
+	std::cout << "obstacle_gameplay_checks=passed\n";
 
 	magnet::MagnetChainSystem goalCleanupSystem;
 	if (!goalCleanupSystem.Initialize(BuildPickupStage()) ||

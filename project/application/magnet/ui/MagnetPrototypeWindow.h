@@ -62,6 +62,8 @@ enum class MagnetStageEditorAction : uint8_t {
 	RemoveBoxObject,
 	MoveBoxObject,
 	UpdateGoalScore,
+	UpdateObstacleKind,
+	UpdateTransferPairId,
 	SaveNamed,
 	LoadNamed,
 	RefreshSaves,
@@ -78,6 +80,8 @@ struct MagnetPrototypeUiRequest {
 	Vector3 editedObjectPosition{};
 	Vector3 editedObjectSize{ 1.0f, 1.0f, 1.0f };
 	uint32_t editedGoalScore = 1;
+	MagnetObstacleKind editedObstacleKind = MagnetObstacleKind::Solid;
+	uint32_t editedTransferPairId = 1;
 	bool allowOverwrite = false;
 	SpinChargeController::Settings spinChargeSettings{};
 	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings{};
@@ -143,6 +147,7 @@ private:
 	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings_{};
 	MagnetStageObjectType selectedObjectType_ = MagnetStageObjectType::None;
 	uint32_t selectedObjectId_ = 0;
+	MagnetObstacleKind obstaclePaletteKind_ = MagnetObstacleKind::Chainsaw;
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;
