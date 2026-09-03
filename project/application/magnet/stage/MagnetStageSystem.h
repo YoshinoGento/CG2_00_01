@@ -22,11 +22,25 @@ enum class MagnetStageObjectType : uint8_t {
 	Obstacle,
 };
 
+enum class MagnetObstacleKind : uint8_t {
+	Solid,
+	Chainsaw,
+	PinballBumper,
+	Furnace,
+	MagneticAnchor,
+	TimedShutter,
+	TransferGate,
+	RepulsionField,
+	Count,
+};
+
 struct MagnetStageBoxPlacement {
 	uint32_t id = 0;
 	Vector3 position{};
 	Vector3 size{ 1.0f, 1.0f, 1.0f };
 	uint32_t score = 1;
+	MagnetObstacleKind obstacleKind = MagnetObstacleKind::Solid;
+	uint32_t transferPairId = 0;
 };
 
 struct MagnetStageGenerationSettings {
@@ -41,7 +55,7 @@ struct MagnetStageGenerationSettings {
 };
 
 struct MagnetStageData {
-	static constexpr uint32_t kSchemaVersion = 5;
+	static constexpr uint32_t kSchemaVersion = 8;
 	static constexpr uint32_t kOldestSupportedSchemaVersion = 1;
 	static constexpr std::size_t kMaximumBallCount = 24;
 	static constexpr std::size_t kMaximumGoalCount = 4;
@@ -89,7 +103,8 @@ public:
 	[[nodiscard]] bool AddBoxObject(
 		MagnetStageObjectType type,
 		const Vector3& position,
-		const Vector3& size);
+		const Vector3& size,
+		MagnetObstacleKind obstacleKind = MagnetObstacleKind::Solid);
 	[[nodiscard]] bool RemoveBoxObject(MagnetStageObjectType type, uint32_t id);
 	[[nodiscard]] bool SetBoxObjectTransform(
 		MagnetStageObjectType type,
@@ -97,6 +112,8 @@ public:
 		const Vector3& position,
 		const Vector3& size);
 	[[nodiscard]] bool SetGoalScore(uint32_t id, uint32_t score);
+	[[nodiscard]] bool SetObstacleKind(uint32_t id, MagnetObstacleKind obstacleKind);
+	[[nodiscard]] bool SetTransferPairId(uint32_t id, uint32_t transferPairId);
 	[[nodiscard]] bool Save(const std::string& path);
 	[[nodiscard]] bool Load(const std::string& path);
 	[[nodiscard]] bool RefreshSaveEntries();
@@ -128,6 +145,7 @@ private:
 	[[nodiscard]] static bool ValidateGenerationSettings(
 		const MagnetStageGenerationSettings& settings) noexcept;
 	[[nodiscard]] static bool ValidateStageData(const MagnetStageData& stageData) noexcept;
+	[[nodiscard]] uint32_t FindAvailableTransferPairId() const noexcept;
 	[[nodiscard]] bool BuildSavePath(
 		const std::string& saveName,
 		std::string& outputPath) const;

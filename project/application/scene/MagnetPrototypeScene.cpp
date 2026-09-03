@@ -27,10 +27,23 @@ constexpr Vector4 kGridColor = { 0.18f, 0.22f, 0.28f, 1.0f };
 constexpr Vector4 kVelocityColor = { 1.0f, 0.55f, 0.08f, 1.0f };
 constexpr Vector4 kGoalColor = { 0.18f, 1.0f, 0.30f, 1.0f };
 constexpr Vector4 kObstacleColor = { 0.72f, 0.75f, 0.82f, 1.0f };
+constexpr Vector4 kChainsawColor = { 1.0f, 0.18f, 0.12f, 1.0f };
+constexpr Vector4 kBumperColor = { 0.10f, 0.85f, 1.0f, 1.0f };
+constexpr Vector4 kFurnaceColor = { 1.0f, 0.42f, 0.05f, 1.0f };
+constexpr Vector4 kAnchorColor = { 0.72f, 0.30f, 1.0f, 1.0f };
+constexpr Vector4 kAnchorFieldColor = { 0.62f, 0.22f, 1.0f, 0.25f };
+constexpr Vector4 kShutterClosedColor = { 1.0f, 0.82f, 0.12f, 1.0f };
+constexpr Vector4 kShutterOpenColor = { 0.30f, 0.95f, 0.50f, 0.85f };
+constexpr Vector4 kTransferGateColor = { 0.12f, 0.95f, 0.88f, 1.0f };
+constexpr Vector4 kRepulsionFieldColor = { 1.0f, 0.20f, 0.62f, 1.0f };
+constexpr Vector4 kRepulsionRangeColor = { 1.0f, 0.30f, 0.68f, 0.38f };
 constexpr Vector4 kSelectionColor = { 1.0f, 0.12f, 0.85f, 1.0f };
 constexpr float kGridSpacing = 1.0f;
 constexpr float kVelocityDisplayScale = 0.22f;
 constexpr int kArenaWallSegments = 64;
+constexpr int kAnchorFieldSegments = 32;
+constexpr int kRepulsionFieldSegments = 24;
+constexpr int kRepulsionArrowCount = 8;
 constexpr float kArenaWallHeight = 1.4f;
 constexpr float kCameraBlend = 0.14f;
 constexpr float kSelectionSpherePadding = 0.18f;
@@ -61,6 +74,25 @@ constexpr Vector4 kUiAccentColor = { 1.0f, 0.82f, 0.24f, 1.0f };
 [[nodiscard]] bool HasMovementInput(const Vector3& direction) noexcept
 {
 	return std::fabs(direction.x) > 0.0001f || std::fabs(direction.z) > 0.0001f;
+}
+
+[[nodiscard]] Vector4 GetObstacleColor(
+	magnet::MagnetObstacleKind kind,
+	bool shutterClosed) noexcept
+{
+	switch (kind) {
+	case magnet::MagnetObstacleKind::Chainsaw: return kChainsawColor;
+	case magnet::MagnetObstacleKind::PinballBumper: return kBumperColor;
+	case magnet::MagnetObstacleKind::Furnace: return kFurnaceColor;
+	case magnet::MagnetObstacleKind::MagneticAnchor: return kAnchorColor;
+	case magnet::MagnetObstacleKind::TimedShutter:
+		return shutterClosed ? kShutterClosedColor : kShutterOpenColor;
+	case magnet::MagnetObstacleKind::TransferGate: return kTransferGateColor;
+	case magnet::MagnetObstacleKind::RepulsionField: return kRepulsionFieldColor;
+	case magnet::MagnetObstacleKind::Solid:
+	default:
+		return kObstacleColor;
+	}
 }
 
 } // namespace
@@ -837,7 +869,8 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 		stageChanged = magnetStageSystem_.AddBoxObject(
 			magnet::MagnetStageObjectType::Obstacle,
 			request.editedObjectPosition,
-			request.editedObjectSize);
+			request.editedObjectSize,
+			request.editedObstacleKind);
 		break;
 	case magnet::MagnetStageEditorAction::RemoveBoxObject:
 		stageChanged = magnetStageSystem_.RemoveBoxObject(
@@ -855,6 +888,16 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 		stageChanged = magnetStageSystem_.SetGoalScore(
 			request.selectedObjectId,
 			request.editedGoalScore);
+		break;
+	case magnet::MagnetStageEditorAction::UpdateObstacleKind:
+		stageChanged = magnetStageSystem_.SetObstacleKind(
+			request.selectedObjectId,
+			request.editedObstacleKind);
+		break;
+	case magnet::MagnetStageEditorAction::UpdateTransferPairId:
+		stageChanged = magnetStageSystem_.SetTransferPairId(
+			request.selectedObjectId,
+			request.editedTransferPairId);
 		break;
 	case magnet::MagnetStageEditorAction::SaveNamed:
 		(void)magnetStageSystem_.SaveNamed(
@@ -982,10 +1025,105 @@ void MagnetPrototypeScene::DrawStageObjects() const
 		DrawWireBox(stageData.goals[index].position, stageData.goals[index].size, kGoalColor);
 	}
 	for (std::size_t index = 0; index < stageData.obstacleCount; ++index) {
-		DrawWireBox(
-			stageData.obstacles[index].position,
-			stageData.obstacles[index].size,
-			kObstacleColor);
+		const magnet::MagnetStageBoxPlacement& obstacle = stageData.obstacles[index];
+		Vector3 runtimePosition = obstacle.position;
+		float shutterOpenRatio = 0.0f;
+		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::TimedShutter) {
+			shutterOpenRatio = magnetChainSystem_.GetTimedShutterOpenRatio(index);
+			runtimePosition.y +=
+				magnetChainSystem_.GetTimedShutterVerticalOffset(index, obstacle);
+		}
+		const bool shutterClosed = shutterOpenRatio < 0.5f;
+		const Vector4 color = GetObstacleColor(
+			obstacle.obstacleKind, shutterClosed);
+		DrawWireBox(runtimePosition, obstacle.size, color);
+		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||
+			obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) {
+			LineDrawer::GetInstance()->DrawWireSphere(
+				runtimePosition,
+				(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f,
+				color,
+				24);
+		}
+		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) {
+			const float attractionRadius =
+				magnetChainSystem_.GetAnchorAttractionRadius(obstacle);
+			for (int segment = 0; segment < kAnchorFieldSegments; ++segment) {
+				const float firstAngle = 6.28318530717958647692f *
+					static_cast<float>(segment) /
+					static_cast<float>(kAnchorFieldSegments);
+				const float secondAngle = 6.28318530717958647692f *
+					static_cast<float>(segment + 1) /
+					static_cast<float>(kAnchorFieldSegments);
+				LineDrawer::GetInstance()->DrawLine(
+					{
+						obstacle.position.x + std::cos(firstAngle) * attractionRadius,
+						0.03f,
+						obstacle.position.z + std::sin(firstAngle) * attractionRadius,
+					},
+					{
+						obstacle.position.x + std::cos(secondAngle) * attractionRadius,
+						0.03f,
+						obstacle.position.z + std::sin(secondAngle) * attractionRadius,
+					},
+					kAnchorFieldColor);
+			}
+			const physics::BodyHandle anchoredBody =
+				magnetChainSystem_.GetAnchoredBody(index);
+			const physics::SphereBody* body =
+				magnetChainSystem_.GetPhysicsWorld().GetBody(anchoredBody);
+			if (body && body->active) {
+				LineDrawer::GetInstance()->DrawLine(
+					obstacle.position, body->position, kAnchorColor);
+			}
+		}
+		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::RepulsionField) {
+			const float radius =
+				magnetChainSystem_.GetRepulsionFieldRadius(obstacle);
+			const float fieldY = obstacle.position.y - obstacle.size.y * 0.5f + 0.03f;
+			for (int segment = 0; segment < kRepulsionFieldSegments; ++segment) {
+				const float firstAngle = 6.28318530717958647692f *
+					static_cast<float>(segment) /
+					static_cast<float>(kRepulsionFieldSegments);
+				const float secondAngle = 6.28318530717958647692f *
+					static_cast<float>(segment + 1) /
+					static_cast<float>(kRepulsionFieldSegments);
+				LineDrawer::GetInstance()->DrawLine(
+					{
+						obstacle.position.x + std::cos(firstAngle) * radius,
+						fieldY,
+						obstacle.position.z + std::sin(firstAngle) * radius,
+					},
+					{
+						obstacle.position.x + std::cos(secondAngle) * radius,
+						fieldY,
+						obstacle.position.z + std::sin(secondAngle) * radius,
+					},
+					kRepulsionRangeColor);
+			}
+			for (int arrow = 0; arrow < kRepulsionArrowCount; ++arrow) {
+				const float angle = 6.28318530717958647692f *
+					static_cast<float>(arrow) /
+					static_cast<float>(kRepulsionArrowCount);
+				const Vector3 direction{ std::cos(angle), 0.0f, std::sin(angle) };
+				const Vector3 tangent{ -direction.z, 0.0f, direction.x };
+				const Vector3 center{
+					obstacle.position.x,
+					fieldY,
+					obstacle.position.z,
+				};
+				const Vector3 start = center + direction * (radius * 0.30f);
+				const Vector3 end = center + direction * (radius * 0.88f);
+				const Vector3 arrowBase = end - direction * (radius * 0.12f);
+				const Vector3 arrowWidth = tangent * (radius * 0.055f);
+				LineDrawer::GetInstance()->DrawLine(
+					start, end, kRepulsionFieldColor);
+				LineDrawer::GetInstance()->DrawLine(
+					arrowBase + arrowWidth, end, kRepulsionFieldColor);
+				LineDrawer::GetInstance()->DrawLine(
+					arrowBase - arrowWidth, end, kRepulsionFieldColor);
+			}
+		}
 	}
 }
 

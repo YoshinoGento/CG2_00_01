@@ -20,6 +20,14 @@ constexpr char kPlayerType[] = "player";
 constexpr char kMagnetBallType[] = "magnet_ball";
 constexpr char kGoalType[] = "goal";
 constexpr char kObstacleType[] = "obstacle";
+constexpr char kObstacleKindSolid[] = "solid";
+constexpr char kObstacleKindChainsaw[] = "chainsaw";
+constexpr char kObstacleKindPinballBumper[] = "pinball_bumper";
+constexpr char kObstacleKindFurnace[] = "furnace";
+constexpr char kObstacleKindMagneticAnchor[] = "magnetic_anchor";
+constexpr char kObstacleKindTimedShutter[] = "timed_shutter";
+constexpr char kObstacleKindTransferGate[] = "transfer_gate";
+constexpr char kObstacleKindRepulsionField[] = "repulsion_field";
 constexpr float kBallPlaneHeight = 0.5f;
 constexpr float kPlayerPlaneHeight = 0.75f;
 constexpr float kMinimumStageExtent = 2.0f;
@@ -35,6 +43,38 @@ constexpr float kMaximumArenaRadius = 40.0f;
 constexpr std::size_t kCandidateCountPerBall = 96;
 constexpr std::size_t kMaximumStageNameLength = 64;
 constexpr std::size_t kMaximumPathLength = 260;
+
+const char* ToObstacleKindString(MagnetObstacleKind kind) noexcept
+{
+	switch (kind) {
+	case MagnetObstacleKind::Solid: return kObstacleKindSolid;
+	case MagnetObstacleKind::Chainsaw: return kObstacleKindChainsaw;
+	case MagnetObstacleKind::PinballBumper: return kObstacleKindPinballBumper;
+	case MagnetObstacleKind::Furnace: return kObstacleKindFurnace;
+	case MagnetObstacleKind::MagneticAnchor: return kObstacleKindMagneticAnchor;
+	case MagnetObstacleKind::TimedShutter: return kObstacleKindTimedShutter;
+	case MagnetObstacleKind::TransferGate: return kObstacleKindTransferGate;
+	case MagnetObstacleKind::RepulsionField: return kObstacleKindRepulsionField;
+	default: return nullptr;
+	}
+}
+
+bool TryReadObstacleKind(const nlohmann::json& object, MagnetObstacleKind& output)
+{
+	if (!object.contains("obstacleKind") || !object["obstacleKind"].is_string()) {
+		return false;
+	}
+	const std::string value = object["obstacleKind"].get<std::string>();
+	if (value == kObstacleKindSolid) { output = MagnetObstacleKind::Solid; return true; }
+	if (value == kObstacleKindChainsaw) { output = MagnetObstacleKind::Chainsaw; return true; }
+	if (value == kObstacleKindPinballBumper) { output = MagnetObstacleKind::PinballBumper; return true; }
+	if (value == kObstacleKindFurnace) { output = MagnetObstacleKind::Furnace; return true; }
+	if (value == kObstacleKindMagneticAnchor) { output = MagnetObstacleKind::MagneticAnchor; return true; }
+	if (value == kObstacleKindTimedShutter) { output = MagnetObstacleKind::TimedShutter; return true; }
+	if (value == kObstacleKindTransferGate) { output = MagnetObstacleKind::TransferGate; return true; }
+	if (value == kObstacleKindRepulsionField) { output = MagnetObstacleKind::RepulsionField; return true; }
+	return false;
+}
 
 float DistanceSquaredXZ(const Vector3& a, const Vector3& b) noexcept
 {
@@ -328,12 +368,22 @@ bool MagnetStageSystem::SetArenaRadius(float radius)
 bool MagnetStageSystem::AddBoxObject(
 	MagnetStageObjectType type,
 	const Vector3& position,
-	const Vector3& size)
+	const Vector3& size,
+	MagnetObstacleKind obstacleKind)
 {
 	MagnetStageBoxPlacement placement{};
 	placement.position = position;
 	placement.size = size;
+	placement.obstacleKind = obstacleKind;
+	if (type == MagnetStageObjectType::Obstacle &&
+		obstacleKind == MagnetObstacleKind::TransferGate) {
+		placement.transferPairId = FindAvailableTransferPairId();
+	}
 	if (!IsValidBoxPlacement(placement) ||
+		(type == MagnetStageObjectType::Obstacle &&
+			(ToObstacleKindString(obstacleKind) == nullptr ||
+			 (obstacleKind == MagnetObstacleKind::TransferGate &&
+			  placement.transferPairId == 0))) ||
 		position.x < stageData_.generation.minimumX ||
 		position.x > stageData_.generation.maximumX ||
 		position.z < stageData_.generation.minimumZ ||
@@ -424,6 +474,8 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 		for (std::size_t index = 0; index < count; ++index) {
 			if (placements[index].id == id) {
 				candidate.score = placements[index].score;
+				candidate.obstacleKind = placements[index].obstacleKind;
+				candidate.transferPairId = placements[index].transferPairId;
 				placements[index] = candidate;
 				return true;
 			}
@@ -460,6 +512,103 @@ bool MagnetStageSystem::SetGoalScore(uint32_t id, uint32_t score)
 	}
 	SetOperationResult(false, "選択したゴールが見つかりません。");
 	return false;
+}
+
+bool MagnetStageSystem::SetObstacleKind(uint32_t id, MagnetObstacleKind obstacleKind)
+{
+	if (ToObstacleKindString(obstacleKind) == nullptr) {
+		SetOperationResult(false, "障害物の種類が不正です。");
+		return false;
+	}
+	for (std::size_t index = 0; index < stageData_.obstacleCount; ++index) {
+		if (stageData_.obstacles[index].id == id) {
+			const MagnetObstacleKind previousKind =
+				stageData_.obstacles[index].obstacleKind;
+			if (obstacleKind == MagnetObstacleKind::TransferGate &&
+				previousKind != MagnetObstacleKind::TransferGate) {
+				const uint32_t pairId = FindAvailableTransferPairId();
+				if (pairId == 0) {
+					SetOperationResult(false, "転送ゲートのペア番号を割り当てられません。");
+					return false;
+				}
+				stageData_.obstacles[index].transferPairId = pairId;
+			} else if (obstacleKind != MagnetObstacleKind::TransferGate) {
+				stageData_.obstacles[index].transferPairId = 0;
+			}
+			stageData_.obstacles[index].obstacleKind = obstacleKind;
+			dirty_ = true;
+			SetOperationResult(true, "障害物の種類を更新しました。");
+			return true;
+		}
+	}
+	SetOperationResult(false, "選択した障害物が見つかりません。");
+	return false;
+}
+
+bool MagnetStageSystem::SetTransferPairId(uint32_t id, uint32_t transferPairId)
+{
+	if (transferPairId == 0) {
+		SetOperationResult(false, "転送ゲートのペア番号は1以上で指定してください。");
+		return false;
+	}
+	std::size_t matchingEndpointCount = 0;
+	for (std::size_t index = 0; index < stageData_.obstacleCount; ++index) {
+		const MagnetStageBoxPlacement& obstacle = stageData_.obstacles[index];
+		if (obstacle.id != id &&
+			obstacle.obstacleKind == MagnetObstacleKind::TransferGate &&
+			obstacle.transferPairId == transferPairId) {
+			++matchingEndpointCount;
+		}
+	}
+	if (matchingEndpointCount >= 2) {
+		SetOperationResult(false, "同じペア番号には転送ゲートを2個まで配置できます。");
+		return false;
+	}
+	for (std::size_t index = 0; index < stageData_.obstacleCount; ++index) {
+		MagnetStageBoxPlacement& obstacle = stageData_.obstacles[index];
+		if (obstacle.id != id) {
+			continue;
+		}
+		if (obstacle.obstacleKind != MagnetObstacleKind::TransferGate) {
+			SetOperationResult(false, "転送ゲート以外にはペア番号を設定できません。");
+			return false;
+		}
+		obstacle.transferPairId = transferPairId;
+		dirty_ = true;
+		SetOperationResult(true, "転送ゲートのペア番号を更新しました。");
+		return true;
+	}
+	SetOperationResult(false, "選択した転送ゲートが見つかりません。");
+	return false;
+}
+
+uint32_t MagnetStageSystem::FindAvailableTransferPairId() const noexcept
+{
+	uint32_t maximumPairId = 0;
+	for (std::size_t index = 0; index < stageData_.obstacleCount; ++index) {
+		const MagnetStageBoxPlacement& obstacle = stageData_.obstacles[index];
+		if (obstacle.obstacleKind != MagnetObstacleKind::TransferGate ||
+			obstacle.transferPairId == 0) {
+			continue;
+		}
+		maximumPairId = (std::max)(maximumPairId, obstacle.transferPairId);
+		std::size_t pairCount = 0;
+		for (std::size_t candidateIndex = 0;
+			candidateIndex < stageData_.obstacleCount;
+			++candidateIndex) {
+			const MagnetStageBoxPlacement& candidate =
+				stageData_.obstacles[candidateIndex];
+			if (candidate.obstacleKind == MagnetObstacleKind::TransferGate &&
+				candidate.transferPairId == obstacle.transferPairId) {
+				++pairCount;
+			}
+		}
+		if (pairCount == 1) {
+			return obstacle.transferPairId;
+		}
+	}
+	return maximumPairId == (std::numeric_limits<uint32_t>::max)()
+		? 0u : maximumPairId + 1u;
 }
 
 bool MagnetStageSystem::Save(const std::string& path)
@@ -501,12 +650,25 @@ bool MagnetStageSystem::Save(const std::string& path)
 				};
 				if (std::strcmp(type, kGoalType) == 0) {
 					object["score"] = placement.score;
+				} else {
+					const char* obstacleKind = ToObstacleKindString(placement.obstacleKind);
+					if (!obstacleKind) {
+						SetOperationResult(false, "障害物の種類が不正です。");
+						return false;
+					}
+					object["obstacleKind"] = obstacleKind;
+					if (placement.obstacleKind == MagnetObstacleKind::TransferGate) {
+						object["transferPairId"] = placement.transferPairId;
+					}
 				}
 				objects.push_back(std::move(object));
 			}
+			return true;
 		};
-		appendBoxes(stageData_.goals, stageData_.goalCount, kGoalType);
-		appendBoxes(stageData_.obstacles, stageData_.obstacleCount, kObstacleType);
+		if (!appendBoxes(stageData_.goals, stageData_.goalCount, kGoalType) ||
+			!appendBoxes(stageData_.obstacles, stageData_.obstacleCount, kObstacleType)) {
+			return false;
+		}
 
 		const MagnetStageGenerationSettings& settings = stageData_.generation;
 		nlohmann::json root = {
@@ -664,7 +826,22 @@ bool MagnetStageSystem::Load(const std::string& path)
 				candidate.goals[candidate.goalCount++] = { id, position, size, score };
 			} else if (type == kObstacleType &&
 				candidate.obstacleCount < candidate.obstacles.size()) {
-				candidate.obstacles[candidate.obstacleCount++] = { id, position, size };
+				MagnetObstacleKind obstacleKind = MagnetObstacleKind::Solid;
+				if (schemaVersion >= 6u && !TryReadObstacleKind(object, obstacleKind)) {
+					SetOperationResult(false, "障害物の種類が不正です。");
+					return false;
+				}
+				uint32_t transferPairId = 0;
+				if (obstacleKind == MagnetObstacleKind::TransferGate) {
+					if (schemaVersion < 7u || !object.contains("transferPairId") ||
+						!object["transferPairId"].is_number_unsigned()) {
+						SetOperationResult(false, "転送ゲートのペア番号が不正です。");
+						return false;
+					}
+					transferPairId = object["transferPairId"].get<uint32_t>();
+				}
+				candidate.obstacles[candidate.obstacleCount++] = {
+					id, position, size, 1u, obstacleKind, transferPairId };
 			} else {
 				SetOperationResult(false, "未対応のオブジェクトがあるか、配置上限を超えています。");
 				return false;
@@ -947,6 +1124,32 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 	if (!validateBoxes(stageData.goals, stageData.goalCount) ||
 		!validateBoxes(stageData.obstacles, stageData.obstacleCount)) {
 		return false;
+	}
+	for (std::size_t index = 0; index < stageData.obstacleCount; ++index) {
+		const MagnetStageBoxPlacement& obstacle = stageData.obstacles[index];
+		if (ToObstacleKindString(obstacle.obstacleKind) == nullptr ||
+			(obstacle.obstacleKind == MagnetObstacleKind::TransferGate &&
+			 obstacle.transferPairId == 0) ||
+			(obstacle.obstacleKind != MagnetObstacleKind::TransferGate &&
+			 obstacle.transferPairId != 0)) {
+			return false;
+		}
+		if (obstacle.obstacleKind == MagnetObstacleKind::TransferGate) {
+			std::size_t pairCount = 0;
+			for (std::size_t candidateIndex = 0;
+				candidateIndex < stageData.obstacleCount;
+				++candidateIndex) {
+				const MagnetStageBoxPlacement& candidate =
+					stageData.obstacles[candidateIndex];
+				if (candidate.obstacleKind == MagnetObstacleKind::TransferGate &&
+					candidate.transferPairId == obstacle.transferPairId) {
+					++pairCount;
+				}
+			}
+			if (pairCount > 2) {
+				return false;
+			}
+		}
 	}
 	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
 		if (stageData.goals[index].score == 0 || stageData.goals[index].score > 999) {
