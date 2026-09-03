@@ -95,4 +95,9 @@ private:
 	bool paused_ = false;
 	bool gameFlowUiReady_ = false;
 	bool rankingTransitionRequested_ = false;
+	bool rightTriggerWasPressed_ = false;
+	bool menuStickUpWasPressed_ = false;
+	bool menuStickDownWasPressed_ = false;
+	bool menuStickLeftWasPressed_ = false;
+	bool menuStickRightWasPressed_ = false;
 };

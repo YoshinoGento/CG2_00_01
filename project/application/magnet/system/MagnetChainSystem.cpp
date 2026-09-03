@@ -366,7 +366,7 @@ bool MagnetChainSystem::CreateConstraintSlots()
 bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 {
 	if (!healthy_ || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f ||
-		!IsFinite(command_.moveDirection)) {
+		!IsFinite(command_.moveDirection) || !std::isfinite(command_.turnDirection)) {
 		return false;
 	}
 	if (!reacquisitionCooldown_.Update(fixedDeltaTime)) {
@@ -394,7 +394,12 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 			targetVelocity,
 			acceleration * fixedDeltaTime);
 	}
-	if (directionLengthSquared > kDirectionEpsilonSquared) {
+	if (std::abs(command_.turnDirection) > kDirectionEpsilonSquared) {
+		playerHeadingRadians_ = std::remainder(
+			playerHeadingRadians_ + command_.turnDirection * kPlayerTurnRateRadians *
+			spinChargeController_.GetTurnSpeedMultiplier() * fixedDeltaTime,
+			kTwoPi);
+	} else if (directionLengthSquared > kDirectionEpsilonSquared) {
 		const float targetHeading = std::atan2(requestedDirection.x, requestedDirection.z);
 		playerHeadingRadians_ = MoveAngleTowards(
 			playerHeadingRadians_,

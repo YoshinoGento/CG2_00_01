@@ -106,6 +106,11 @@ void MagnetPrototypeScene::Initialize()
 	pauseSelection_ = 0;
 	paused_ = false;
 	rankingTransitionRequested_ = false;
+	rightTriggerWasPressed_ = false;
+	menuStickUpWasPressed_ = false;
+	menuStickDownWasPressed_ = false;
+	menuStickLeftWasPressed_ = false;
+	menuStickRightWasPressed_ = false;
 	RefreshGameFlowUi();
 }
 
@@ -133,14 +138,24 @@ void MagnetPrototypeScene::Finalize()
 void MagnetPrototypeScene::PrepareFixedUpdate()
 {
 	pendingCommand_.moveDirection = {};
+	pendingCommand_.turnDirection = 0.0f;
 	if (!prototypeReady_ || editorMode_ != magnet::MagnetEditorMode::Play) {
 		return;
 	}
 	Input* input = framework_ ? framework_->GetInput() : nullptr;
 	if (!input) { return; }
-	if (input->TriggerKey(InputKey::Escape)) {
+	const bool rightTriggerPressed = input->GetRightTrigger() >= 0.5f;
+	const bool rightTriggerStarted = rightTriggerPressed && !rightTriggerWasPressed_;
+	rightTriggerWasPressed_ = rightTriggerPressed;
+	if (input->TriggerKey(InputKey::Escape) ||
+		input->TriggerGamepadButton(InputGamepadButton::Start)) {
 		paused_ = !paused_;
 		pauseSelection_ = 0;
+		const Vector2 stick = input->GetLeftStick();
+		menuStickUpWasPressed_ = stick.y > 0.5f;
+		menuStickDownWasPressed_ = stick.y < -0.5f;
+		menuStickLeftWasPressed_ = stick.x < -0.5f;
+		menuStickRightWasPressed_ = stick.x > 0.5f;
 		RefreshGameFlowUi();
 		return;
 	}
@@ -154,13 +169,23 @@ void MagnetPrototypeScene::PrepareFixedUpdate()
 	if (input->PushKey(InputKey::S)) { pendingCommand_.moveDirection.z -= 1.0f; }
 	if (input->PushKey(InputKey::D)) { pendingCommand_.moveDirection.x += 1.0f; }
 	if (input->PushKey(InputKey::A)) { pendingCommand_.moveDirection.x -= 1.0f; }
+	const Vector2 leftStick = input->GetLeftStick();
+	pendingCommand_.moveDirection.x += leftStick.x;
+	pendingCommand_.moveDirection.z += leftStick.y;
+	if (input->PushGamepadButton(InputGamepadButton::RightShoulder)) {
+		pendingCommand_.turnDirection += 1.0f;
+	}
+	if (input->PushGamepadButton(InputGamepadButton::LeftShoulder)) {
+		pendingCommand_.turnDirection -= 1.0f;
+	}
 	if (HasMovementInput(pendingCommand_.moveDirection)) {
 		releaseOverviewActive_ = false;
 	}
 	pendingCommand_.emergencyStop =
 		pendingCommand_.emergencyStop || input->TriggerKey(InputKey::Space);
 	pendingCommand_.releaseChains =
-		pendingCommand_.releaseChains || input->TriggerKey(InputKey::Q);
+		pendingCommand_.releaseChains || input->TriggerKey(InputKey::Q) ||
+		rightTriggerStarted;
 	resetRequested_ = resetRequested_ || input->TriggerKey(InputKey::R);
 }
 
@@ -434,7 +459,7 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 			{ 445.0f, 255.0f + 65.0f * static_cast<float>(index) });
 		pauseMenuTexts_[index].SetScale(1.05f);
 	}
-	pauseHelpText_.SetText("UP DOWN SELECT   LEFT RIGHT VOLUME   ENTER OK");
+	pauseHelpText_.SetText("DPAD OR STICK SELECT   B OK   MENU RESUME");
 	pauseHelpText_.SetPosition({ 350.0f, 565.0f });
 	pauseHelpText_.SetScale(0.62f);
 	pauseHelpText_.SetColor({ 0.55f, 0.68f, 0.76f, 1.0f });
@@ -444,19 +469,42 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 
 void MagnetPrototypeScene::HandlePauseMenuInput(Input& input)
 {
-	if (input.TriggerKey(InputKey::ArrowUp)) {
+	const Vector2 stick = input.GetLeftStick();
+	const bool stickUp = stick.y > 0.5f;
+	const bool stickDown = stick.y < -0.5f;
+	const bool stickLeft = stick.x < -0.5f;
+	const bool stickRight = stick.x > 0.5f;
+	const bool moveUp = input.TriggerKey(InputKey::ArrowUp) ||
+		input.TriggerGamepadButton(InputGamepadButton::DPadUp) ||
+		(stickUp && !menuStickUpWasPressed_);
+	const bool moveDown = input.TriggerKey(InputKey::ArrowDown) ||
+		input.TriggerGamepadButton(InputGamepadButton::DPadDown) ||
+		(stickDown && !menuStickDownWasPressed_);
+	const bool moveLeft = input.TriggerKey(InputKey::ArrowLeft) ||
+		input.TriggerGamepadButton(InputGamepadButton::DPadLeft) ||
+		(stickLeft && !menuStickLeftWasPressed_);
+	const bool moveRight = input.TriggerKey(InputKey::ArrowRight) ||
+		input.TriggerGamepadButton(InputGamepadButton::DPadRight) ||
+		(stickRight && !menuStickRightWasPressed_);
+	menuStickUpWasPressed_ = stickUp;
+	menuStickDownWasPressed_ = stickDown;
+	menuStickLeftWasPressed_ = stickLeft;
+	menuStickRightWasPressed_ = stickRight;
+
+	if (moveUp) {
 		pauseSelection_ = (pauseSelection_ + kPauseMenuItemCount - 1) % kPauseMenuItemCount;
 	}
-	if (input.TriggerKey(InputKey::ArrowDown)) {
+	if (moveDown) {
 		pauseSelection_ = (pauseSelection_ + 1) % kPauseMenuItemCount;
 	}
 	if (pauseSelection_ == 3) {
 		float volume = GameFlowState::GetInstance().GetBgmVolume();
-		if (input.TriggerKey(InputKey::ArrowLeft)) { volume -= 0.1f; }
-		if (input.TriggerKey(InputKey::ArrowRight)) { volume += 0.1f; }
+		if (moveLeft) { volume -= 0.1f; }
+		if (moveRight) { volume += 0.1f; }
 		GameFlowState::GetInstance().SetBgmVolume(volume);
 	}
-	if (input.TriggerKey(InputKey::Enter)) {
+	if (input.TriggerKey(InputKey::Enter) ||
+		input.TriggerGamepadButton(InputGamepadButton::B)) {
 		if (pauseSelection_ == 0) {
 			paused_ = false;
 		} else if (pauseSelection_ == 1) {

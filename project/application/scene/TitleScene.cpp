@@ -42,14 +42,15 @@ void TitleScene::Initialize()
 
 	if (page_ == Page::Title) {
 		SetLine(0, "MAGNET 10 DAYS", { 405.0f, 210.0f }, 1.9f, kPrimaryColor);
-		SetLine(1, "PRESS ENTER", { 500.0f, 420.0f }, 1.05f, kAccentColor);
+		SetLine(1, "PRESS B OR ENTER", { 445.0f, 420.0f }, 1.05f, kAccentColor);
 	} else if (page_ == Page::Instructions) {
 		SetLine(0, "HOW TO PLAY", { 465.0f, 105.0f }, 1.55f, kPrimaryColor);
-		SetLine(1, "WASD  MOVE", { 455.0f, 235.0f }, 1.0f, kTextColor);
-		SetLine(2, "Q     SHOOT MAGNETS", { 390.0f, 295.0f }, 1.0f, kTextColor);
-		SetLine(3, "PUT MAGNETS IN GOALS", { 375.0f, 355.0f }, 1.0f, kTextColor);
-		SetLine(4, "ESC   PAUSE MENU", { 410.0f, 415.0f }, 1.0f, kTextColor);
-		SetLine(5, "PRESS ENTER TO START", { 400.0f, 550.0f }, 1.0f, kAccentColor);
+		SetLine(1, "LEFT STICK OR WASD  MOVE", { 350.0f, 215.0f }, 0.95f, kTextColor);
+		SetLine(2, "LB RB  ROTATE", { 440.0f, 275.0f }, 0.95f, kTextColor);
+		SetLine(3, "RT OR Q  SHOOT MAGNETS", { 360.0f, 335.0f }, 0.95f, kTextColor);
+		SetLine(4, "PUT MAGNETS IN GOALS", { 375.0f, 395.0f }, 0.95f, kTextColor);
+		SetLine(5, "MENU OR ESC  PAUSE", { 395.0f, 455.0f }, 0.95f, kTextColor);
+		SetLine(6, "PRESS B OR ENTER TO START", { 350.0f, 565.0f }, 0.95f, kAccentColor);
 	} else {
 		SetLine(0, "RANKING", { 520.0f, 75.0f }, 1.65f, kPrimaryColor);
 		const auto& state = GameFlowState::GetInstance();
@@ -65,7 +66,7 @@ void TitleScene::Initialize()
 				{ 490.0f, 190.0f + 60.0f * static_cast<float>(index) },
 				1.0f, index == 0 ? kAccentColor : kTextColor);
 		}
-		SetLine(6, "PRESS ENTER TO CONTINUE", { 365.0f, 565.0f }, 1.0f, kAccentColor);
+		SetLine(6, "PRESS B OR ENTER TO CONTINUE", { 315.0f, 565.0f }, 0.95f, kAccentColor);
 	}
 	uiReady_ = true;
 }
@@ -79,7 +80,8 @@ void TitleScene::Finalize()
 void TitleScene::Update()
 {
 	Input* input = Framework::GetInstance()->GetInput();
-	if (!input || !input->TriggerKey(InputKey::Enter)) { return; }
+	if (!input || (!input->TriggerKey(InputKey::Enter) &&
+		!input->TriggerGamepadButton(InputGamepadButton::B))) { return; }
 	if (page_ == Page::Title) {
 		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
 	} else if (page_ == Page::Instructions) {
