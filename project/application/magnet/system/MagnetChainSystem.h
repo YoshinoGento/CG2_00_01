@@ -45,6 +45,7 @@ public:
 
 	struct PlayerCommand {
 		Vector3 moveDirection{};
+		float turnDirection = 0.0f;
 		bool emergencyStop = false;
 		bool releaseChains = false;
 	};
