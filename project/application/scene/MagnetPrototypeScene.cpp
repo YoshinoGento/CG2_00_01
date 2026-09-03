@@ -1,4 +1,6 @@
 #include "application/scene/MagnetPrototypeScene.h"
+#include "application/scene/GameFlowState.h"
+#include "application/scene/SceneManager.h"
 
 #include "3d/Camera.h"
 #include "3d/LineDrawer.h"
@@ -11,6 +13,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstdio>
 
 namespace {
 
@@ -45,6 +48,10 @@ constexpr float kGoalGuideScreenMargin = 38.0f;
 constexpr float kGoalGuideArmLength = 18.0f;
 constexpr float kGoalGuideThickness = 4.0f;
 constexpr float kGoalGuideHalfAngle = 0.70f;
+constexpr float kGameDurationSeconds = 60.0f;
+constexpr int kPauseMenuItemCount = 4;
+constexpr Vector4 kUiTextColor = { 0.88f, 0.94f, 0.98f, 1.0f };
+constexpr Vector4 kUiAccentColor = { 1.0f, 0.82f, 0.24f, 1.0f };
 
 [[nodiscard]] bool IsFiniteVector3(const Vector3& value) noexcept
 {
@@ -76,6 +83,8 @@ void MagnetPrototypeScene::Initialize()
 	if (!goalGuidesReady_) {
 		Logger::Log("MagnetPrototypeScene: goal guide initialization failed.");
 	}
+	gameFlowUiReady_ = InitializeGameFlowUi();
+	GameFlowState::GetInstance().EnsureBgm(framework_->GetAudio());
 
 	prototypeReady_ = magnetStageSystem_.Initialize() &&
 		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
@@ -93,10 +102,17 @@ void MagnetPrototypeScene::Initialize()
 	selectedObjectType_ = magnet::MagnetStageObjectType::None;
 	selectedObjectId_ = 0;
 	releaseOverviewActive_ = false;
+	gameElapsedSeconds_ = 0.0f;
+	pauseSelection_ = 0;
+	paused_ = false;
+	rankingTransitionRequested_ = false;
+	RefreshGameFlowUi();
 }
 
 void MagnetPrototypeScene::Finalize()
 {
+	pauseOverlaySprite_.reset();
+	gameFlowUiReady_ = false;
 	for (auto& guide : goalGuideSprites_) {
 		for (auto& arm : guide) { arm.reset(); }
 	}
@@ -121,9 +137,18 @@ void MagnetPrototypeScene::PrepareFixedUpdate()
 		return;
 	}
 	Input* input = framework_ ? framework_->GetInput() : nullptr;
-	if (!input || ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
+	if (!input) { return; }
+	if (input->TriggerKey(InputKey::Escape)) {
+		paused_ = !paused_;
+		pauseSelection_ = 0;
+		RefreshGameFlowUi();
 		return;
 	}
+	if (paused_) {
+		HandlePauseMenuInput(*input);
+		return;
+	}
+	if (ImGuiManager::GetInstance()->WantsCaptureKeyboard()) { return; }
 
 	if (input->PushKey(InputKey::W)) { pendingCommand_.moveDirection.z += 1.0f; }
 	if (input->PushKey(InputKey::S)) { pendingCommand_.moveDirection.z -= 1.0f; }
@@ -141,7 +166,14 @@ void MagnetPrototypeScene::PrepareFixedUpdate()
 
 void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 {
-	if (!prototypeReady_ || editorMode_ != magnet::MagnetEditorMode::Play) {
+	if (!prototypeReady_ || editorMode_ != magnet::MagnetEditorMode::Play ||
+		paused_ || rankingTransitionRequested_) {
+		pendingCommand_ = {};
+		return;
+	}
+	gameElapsedSeconds_ += fixedDeltaTime;
+	if (gameElapsedSeconds_ >= kGameDurationSeconds) {
+		CompleteTimedGame();
 		pendingCommand_ = {};
 		return;
 	}
@@ -206,6 +238,7 @@ void MagnetPrototypeScene::Update()
 	}
 	UpdateGoalGuides();
 	UpdateMinimap();
+	RefreshGameFlowUi();
 }
 
 void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
@@ -359,6 +392,132 @@ void MagnetPrototypeScene::Draw()
 	lineDrawer->Draw(camera_->GetViewProjectionMatrix());
 	DrawGoalGuides();
 	DrawMinimap();
+	DrawGameFlowUi();
+}
+
+bool MagnetPrototypeScene::InitializeGameFlowUi()
+{
+	SpriteCommon* spriteCommon = framework_ ? framework_->GetSpriteCommon() : nullptr;
+	if (!spriteCommon || !gameFlowFont_.InitializeFromJson(
+		spriteCommon, "Resources/ui/font/ascii_bitmap_font.json")) {
+		return false;
+	}
+	pauseOverlaySprite_ = std::make_unique<Sprite>();
+	if (!pauseOverlaySprite_->Initialize(spriteCommon, "Resources/human/white.png")) {
+		pauseOverlaySprite_.reset();
+		return false;
+	}
+	pauseOverlaySprite_->SetPosition({ 310.0f, 95.0f });
+	pauseOverlaySprite_->SetSize({ 660.0f, 530.0f });
+	pauseOverlaySprite_->SetColor({ 0.015f, 0.03f, 0.055f, 0.94f });
+	pauseOverlaySprite_->Update();
+
+	const auto initializeText = [spriteCommon, this](SpriteText& text) {
+		text.Initialize(spriteCommon, &gameFlowFont_);
+		text.SetCharacterSpacing(-6.0f);
+	};
+	initializeText(timerText_);
+	initializeText(pauseTitleText_);
+	for (SpriteText& text : pauseMenuTexts_) { initializeText(text); }
+	initializeText(pauseHelpText_);
+
+	timerText_.SetPosition({ 565.0f, 18.0f });
+	timerText_.SetScale(1.0f);
+	timerText_.SetColor(kUiAccentColor);
+	pauseTitleText_.SetText("PAUSE");
+	pauseTitleText_.SetPosition({ 535.0f, 135.0f });
+	pauseTitleText_.SetScale(1.55f);
+	pauseTitleText_.SetColor({ 0.32f, 0.95f, 1.0f, 1.0f });
+	pauseTitleText_.Update();
+	for (std::size_t index = 0; index < pauseMenuTexts_.size(); ++index) {
+		pauseMenuTexts_[index].SetPosition(
+			{ 445.0f, 255.0f + 65.0f * static_cast<float>(index) });
+		pauseMenuTexts_[index].SetScale(1.05f);
+	}
+	pauseHelpText_.SetText("UP DOWN SELECT   LEFT RIGHT VOLUME   ENTER OK");
+	pauseHelpText_.SetPosition({ 350.0f, 565.0f });
+	pauseHelpText_.SetScale(0.62f);
+	pauseHelpText_.SetColor({ 0.55f, 0.68f, 0.76f, 1.0f });
+	pauseHelpText_.Update();
+	return true;
+}
+
+void MagnetPrototypeScene::HandlePauseMenuInput(Input& input)
+{
+	if (input.TriggerKey(InputKey::ArrowUp)) {
+		pauseSelection_ = (pauseSelection_ + kPauseMenuItemCount - 1) % kPauseMenuItemCount;
+	}
+	if (input.TriggerKey(InputKey::ArrowDown)) {
+		pauseSelection_ = (pauseSelection_ + 1) % kPauseMenuItemCount;
+	}
+	if (pauseSelection_ == 3) {
+		float volume = GameFlowState::GetInstance().GetBgmVolume();
+		if (input.TriggerKey(InputKey::ArrowLeft)) { volume -= 0.1f; }
+		if (input.TriggerKey(InputKey::ArrowRight)) { volume += 0.1f; }
+		GameFlowState::GetInstance().SetBgmVolume(volume);
+	}
+	if (input.TriggerKey(InputKey::Enter)) {
+		if (pauseSelection_ == 0) {
+			paused_ = false;
+		} else if (pauseSelection_ == 1) {
+			rankingTransitionRequested_ = true;
+			SceneManager::GetInstance()->ChangeScene("MAGNET_PROTOTYPE");
+		} else if (pauseSelection_ == 2) {
+			rankingTransitionRequested_ = true;
+			SceneManager::GetInstance()->ChangeScene("TITLE");
+		}
+	}
+	RefreshGameFlowUi();
+}
+
+void MagnetPrototypeScene::RefreshGameFlowUi()
+{
+	if (!gameFlowUiReady_) { return; }
+	char timerBuffer[32]{};
+	const int remainingSeconds = static_cast<int>(std::ceil(
+		(std::max)(0.0f, kGameDurationSeconds - gameElapsedSeconds_)));
+	std::snprintf(timerBuffer, sizeof(timerBuffer), "TIME %02d", remainingSeconds);
+	timerText_.SetText(timerBuffer);
+	timerText_.Update();
+	if (!paused_) { return; }
+
+	const int volumePercent = static_cast<int>(std::lround(
+		GameFlowState::GetInstance().GetBgmVolume() * 100.0f));
+	const char* fixedLabels[] = { "RESUME", "RESTART", "BACK TO TITLE" };
+	for (int index = 0; index < kPauseMenuItemCount; ++index) {
+		char label[64]{};
+		if (index == 3) {
+			std::snprintf(label, sizeof(label), "%s BGM VOLUME %d%%",
+				index == pauseSelection_ ? ">" : " ", volumePercent);
+		} else {
+			std::snprintf(label, sizeof(label), "%s %s",
+				index == pauseSelection_ ? ">" : " ", fixedLabels[index]);
+		}
+		pauseMenuTexts_[index].SetText(label);
+		pauseMenuTexts_[index].SetColor(
+			index == pauseSelection_ ? kUiAccentColor : kUiTextColor);
+		pauseMenuTexts_[index].Update();
+	}
+}
+
+void MagnetPrototypeScene::DrawGameFlowUi()
+{
+	if (!gameFlowUiReady_) { return; }
+	framework_->GetSpriteCommon()->PreDraw();
+	timerText_.Draw();
+	if (!paused_) { return; }
+	pauseOverlaySprite_->Draw();
+	pauseTitleText_.Draw();
+	for (SpriteText& text : pauseMenuTexts_) { text.Draw(); }
+	pauseHelpText_.Draw();
+}
+
+void MagnetPrototypeScene::CompleteTimedGame()
+{
+	if (rankingTransitionRequested_) { return; }
+	rankingTransitionRequested_ = true;
+	GameFlowState::GetInstance().SubmitScore(magnetChainSystem_.GetScore());
+	SceneManager::GetInstance()->ChangeScene("RANKING");
 }
 
 bool MagnetPrototypeScene::InitializeGoalGuides()

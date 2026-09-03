@@ -5,13 +5,16 @@
 #include "application/magnet/system/MagneticImpactFeedbackSystem.h"
 #include "application/magnet/ui/MagnetPrototypeWindow.h"
 #include "application/scene/BaseScene.h"
+#include "2d/BitmapFont.h"
 #include "2d/Sprite.h"
+#include "2d/SpriteText.h"
 
 #include <array>
 #include <memory>
 
 class Camera;
 class Framework;
+class Input;
 
 // Isolated visual test for fixed-step magnet-chain behavior.
 class MagnetPrototypeScene final : public BaseScene {
@@ -45,6 +48,11 @@ private:
 	[[nodiscard]] bool InitializeGoalGuides();
 	void UpdateGoalGuides();
 	void DrawGoalGuides();
+	[[nodiscard]] bool InitializeGameFlowUi();
+	void HandlePauseMenuInput(Input& input);
+	void RefreshGameFlowUi();
+	void DrawGameFlowUi();
+	void CompleteTimedGame();
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
@@ -76,4 +84,15 @@ private:
 		magnet::MagnetStageData::kMaximumGoalCount> goalGuideSprites_{};
 	std::size_t goalGuideCount_ = 0;
 	bool goalGuidesReady_ = false;
+	BitmapFont gameFlowFont_;
+	std::unique_ptr<Sprite> pauseOverlaySprite_;
+	SpriteText timerText_;
+	SpriteText pauseTitleText_;
+	std::array<SpriteText, 4> pauseMenuTexts_{};
+	SpriteText pauseHelpText_;
+	float gameElapsedSeconds_ = 0.0f;
+	int pauseSelection_ = 0;
+	bool paused_ = false;
+	bool gameFlowUiReady_ = false;
+	bool rankingTransitionRequested_ = false;
 };

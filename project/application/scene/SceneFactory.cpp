@@ -10,6 +10,10 @@ std::unique_ptr<BaseScene> SceneFactory::CreateScene(const std::string& sceneNam
 	if (sceneName == "TITLE") {
 		// make_unique を使うことで、生成と同時にスマートポインタの箱に入れます
 		return std::make_unique<TitleScene>();
+	} else if (sceneName == "INSTRUCTIONS") {
+		return std::make_unique<TitleScene>(TitleScene::Page::Instructions);
+	} else if (sceneName == "RANKING") {
+		return std::make_unique<TitleScene>(TitleScene::Page::Ranking);
 	} else if (sceneName == "GAMEPLAY") {
 		return std::make_unique<GamePlayScene>();
 	} else if (sceneName == "MAGNET_PROTOTYPE") {
