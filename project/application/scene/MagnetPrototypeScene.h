@@ -5,7 +5,9 @@
 #include "application/magnet/system/MagneticImpactFeedbackSystem.h"
 #include "application/magnet/ui/MagnetPrototypeWindow.h"
 #include "application/scene/BaseScene.h"
+#include "2d/Sprite.h"
 
+#include <array>
 #include <memory>
 
 class Camera;
@@ -37,6 +39,12 @@ private:
 		const Vector4& color) const;
 	void DrawBody(physics::BodyHandle handle, const Vector4& color) const;
 	void DrawVelocity(physics::BodyHandle handle) const;
+	[[nodiscard]] bool InitializeMinimap();
+	void UpdateMinimap();
+	void DrawMinimap();
+	[[nodiscard]] bool InitializeGoalGuides();
+	void UpdateGoalGuides();
+	void DrawGoalGuides();
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
@@ -55,4 +63,17 @@ private:
 		magnet::MagnetStageObjectType::None;
 	uint32_t selectedObjectId_ = 0;
 	bool releaseOverviewActive_ = false;
+	std::unique_ptr<Sprite> minimapBorderSprite_;
+	std::unique_ptr<Sprite> minimapBackgroundSprite_;
+	std::unique_ptr<Sprite> minimapHorizontalGuideSprite_;
+	std::unique_ptr<Sprite> minimapVerticalGuideSprite_;
+	std::unique_ptr<Sprite> minimapPlayerSprite_;
+	std::array<std::unique_ptr<Sprite>, magnet::MagnetChainSystem::kStageBallCapacity>
+		minimapMagnetSprites_{};
+	std::size_t minimapMagnetCount_ = 0;
+	bool minimapReady_ = false;
+	std::array<std::array<std::unique_ptr<Sprite>, 2>,
+		magnet::MagnetStageData::kMaximumGoalCount> goalGuideSprites_{};
+	std::size_t goalGuideCount_ = 0;
+	bool goalGuidesReady_ = false;
 };

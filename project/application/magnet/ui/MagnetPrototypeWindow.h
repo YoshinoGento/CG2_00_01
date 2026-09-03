@@ -17,7 +17,6 @@ enum class MagnetEditorMode : uint8_t {
 };
 
 struct MagnetPrototypeViewData {
-	static constexpr std::size_t kMaximumMinimapMarkers = MagnetChainSystem::kStageBallCapacity;
 	bool healthy = false;
 	std::size_t bodyCount = 0;
 	std::size_t constraintCount = 0;
@@ -38,8 +37,6 @@ struct MagnetPrototypeViewData {
 	std::size_t goalHitCount = 0;
 	std::size_t score = 0;
 	float goalWidth = 0.0f;
-	std::array<Vector2, kMaximumMinimapMarkers> offscreenMagnetOffsets{};
-	std::size_t offscreenMagnetCount = 0;
 	const MagnetStageData* stageData = nullptr;
 	const MagnetStageSaveEntry* saveEntries = nullptr;
 	std::size_t saveEntryCount = 0;

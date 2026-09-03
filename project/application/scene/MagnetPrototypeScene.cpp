@@ -2,6 +2,7 @@
 
 #include "3d/Camera.h"
 #include "3d/LineDrawer.h"
+#include "2d/SpriteCommon.h"
 #include "base/Framework.h"
 #include "base/ImGuiManager.h"
 #include "base/Logger.h"
@@ -31,6 +32,19 @@ constexpr float kArenaWallHeight = 1.4f;
 constexpr float kCameraBlend = 0.14f;
 constexpr float kSelectionSpherePadding = 0.18f;
 constexpr float kSelectionBoxPadding = 0.18f;
+constexpr float kMinimapSize = 144.0f;
+constexpr float kMinimapBorderSize = 148.0f;
+constexpr float kMinimapMargin = 16.0f;
+constexpr float kMinimapWorldRadius = 24.0f;
+constexpr float kMinimapMarkerSize = 8.0f;
+constexpr float kMinimapPlayerSize = 14.0f;
+constexpr float kMinimapGuideThickness = 1.0f;
+constexpr float kMinimapGuideInset = 10.0f;
+constexpr Vector2 kVirtualScreenSize = { 1280.0f, 720.0f };
+constexpr float kGoalGuideScreenMargin = 38.0f;
+constexpr float kGoalGuideArmLength = 18.0f;
+constexpr float kGoalGuideThickness = 4.0f;
+constexpr float kGoalGuideHalfAngle = 0.70f;
 
 [[nodiscard]] bool IsFiniteVector3(const Vector3& value) noexcept
 {
@@ -54,6 +68,14 @@ void MagnetPrototypeScene::Initialize()
 	camera_->SetRotate({ 0.60f, 0.0f, 0.0f });
 	camera_->Update();
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
+	minimapReady_ = InitializeMinimap();
+	if (!minimapReady_) {
+		Logger::Log("MagnetPrototypeScene: native minimap initialization failed.");
+	}
+	goalGuidesReady_ = InitializeGoalGuides();
+	if (!goalGuidesReady_) {
+		Logger::Log("MagnetPrototypeScene: goal guide initialization failed.");
+	}
 
 	prototypeReady_ = magnetStageSystem_.Initialize() &&
 		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
@@ -75,6 +97,18 @@ void MagnetPrototypeScene::Initialize()
 
 void MagnetPrototypeScene::Finalize()
 {
+	for (auto& guide : goalGuideSprites_) {
+		for (auto& arm : guide) { arm.reset(); }
+	}
+	goalGuideCount_ = 0;
+	goalGuidesReady_ = false;
+	for (auto& marker : minimapMagnetSprites_) { marker.reset(); }
+	minimapPlayerSprite_.reset();
+	minimapVerticalGuideSprite_.reset();
+	minimapHorizontalGuideSprite_.reset();
+	minimapBackgroundSprite_.reset();
+	minimapBorderSprite_.reset();
+	minimapReady_ = false;
 	camera_.reset();
 	framework_ = nullptr;
 	prototypeReady_ = false;
@@ -170,6 +204,8 @@ void MagnetPrototypeScene::Update()
 		}
 		camera_->Update();
 	}
+	UpdateGoalGuides();
+	UpdateMinimap();
 }
 
 void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
@@ -208,26 +244,6 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 		viewData.playerSpeed = std::sqrt(
 			player->linearVelocity.x * player->linearVelocity.x +
 			player->linearVelocity.z * player->linearVelocity.z);
-		const Matrix4x4& viewProjection = camera_->GetViewProjectionMatrix();
-		const auto& stageBalls = magnetChainSystem_.GetStageBalls();
-		for (std::size_t index = 0;
-			index < magnetChainSystem_.GetStageBallCount() &&
-			viewData.offscreenMagnetCount < viewData.offscreenMagnetOffsets.size();
-			++index) {
-			const physics::SphereBody* ball =
-				magnetChainSystem_.GetPhysicsWorld().GetBody(stageBalls[index]);
-			if (!ball || !ball->active) { continue; }
-			const Vector3 ndc = MatrixMath::Transform(ball->position, viewProjection);
-			const float clipW = ball->position.x * viewProjection.m[0][3] +
-				ball->position.y * viewProjection.m[1][3] +
-				ball->position.z * viewProjection.m[2][3] + viewProjection.m[3][3];
-			const bool visible = clipW > 0.0f && ndc.x >= -1.0f && ndc.x <= 1.0f &&
-				ndc.y >= -1.0f && ndc.y <= 1.0f && ndc.z >= 0.0f && ndc.z <= 1.0f;
-			if (visible) { continue; }
-			const Vector3 offset = ball->position - player->position;
-			viewData.offscreenMagnetOffsets[viewData.offscreenMagnetCount++] =
-				{ offset.x, offset.z };
-		}
 	}
 
 	const magnet::MagnetPrototypeUiRequest request = prototypeWindow_.Draw(
@@ -341,6 +357,241 @@ void MagnetPrototypeScene::Draw()
 	DrawSelectionHighlight();
 
 	lineDrawer->Draw(camera_->GetViewProjectionMatrix());
+	DrawGoalGuides();
+	DrawMinimap();
+}
+
+bool MagnetPrototypeScene::InitializeGoalGuides()
+{
+	SpriteCommon* spriteCommon = framework_ ? framework_->GetSpriteCommon() : nullptr;
+	if (!spriteCommon) { return false; }
+	for (auto& guide : goalGuideSprites_) {
+		for (auto& arm : guide) {
+			arm = std::make_unique<Sprite>();
+			if (!arm->Initialize(spriteCommon, "Resources/human/white.png")) {
+				return false;
+			}
+			arm->SetSize({ kGoalGuideArmLength, kGoalGuideThickness });
+			arm->SetColor({ 0.25f, 1.0f, 0.55f, 0.96f });
+		}
+	}
+	return true;
+}
+
+void MagnetPrototypeScene::UpdateGoalGuides()
+{
+	goalGuideCount_ = 0;
+	if (!goalGuidesReady_ || !prototypeReady_ || !camera_ ||
+		editorMode_ != magnet::MagnetEditorMode::Play) {
+		return;
+	}
+
+	const Matrix4x4& viewProjection = camera_->GetViewProjectionMatrix();
+	const magnet::MagnetStageData& stageData = magnetStageSystem_.GetStageData();
+	const Vector2 screenCenter = {
+		kVirtualScreenSize.x * 0.5f,
+		kVirtualScreenSize.y * 0.5f,
+	};
+	const Vector2 guideHalfExtents = {
+		screenCenter.x - kGoalGuideScreenMargin,
+		screenCenter.y - kGoalGuideScreenMargin,
+	};
+
+	for (std::size_t index = 0;
+		index < stageData.goalCount && goalGuideCount_ < goalGuideSprites_.size(); ++index) {
+		const Vector3& position = stageData.goals[index].position;
+		const float clipX = position.x * viewProjection.m[0][0] +
+			position.y * viewProjection.m[1][0] +
+			position.z * viewProjection.m[2][0] + viewProjection.m[3][0];
+		const float clipY = position.x * viewProjection.m[0][1] +
+			position.y * viewProjection.m[1][1] +
+			position.z * viewProjection.m[2][1] + viewProjection.m[3][1];
+		const float clipZ = position.x * viewProjection.m[0][2] +
+			position.y * viewProjection.m[1][2] +
+			position.z * viewProjection.m[2][2] + viewProjection.m[3][2];
+		const float clipW = position.x * viewProjection.m[0][3] +
+			position.y * viewProjection.m[1][3] +
+			position.z * viewProjection.m[2][3] + viewProjection.m[3][3];
+		const bool inFront = clipW > 0.0001f;
+		const float inverseW = inFront ? 1.0f / clipW : 0.0f;
+		const float ndcX = clipX * inverseW;
+		const float ndcY = clipY * inverseW;
+		const float ndcZ = clipZ * inverseW;
+		const bool visible = inFront && ndcX >= -1.0f && ndcX <= 1.0f &&
+			ndcY >= -1.0f && ndcY <= 1.0f && ndcZ >= 0.0f && ndcZ <= 1.0f;
+		if (visible) { continue; }
+
+		Vector2 direction = { clipX, -clipY };
+		if (!inFront) {
+			direction.x = -direction.x;
+			direction.y = -direction.y;
+		}
+		const float directionLength = std::sqrt(
+			direction.x * direction.x + direction.y * direction.y);
+		if (directionLength < 0.0001f) {
+			direction = { 0.0f, 1.0f };
+		} else {
+			direction.x /= directionLength;
+			direction.y /= directionLength;
+		}
+		const float scaleX = std::abs(direction.x) > 0.0001f
+			? guideHalfExtents.x / std::abs(direction.x) : 100000.0f;
+		const float scaleY = std::abs(direction.y) > 0.0001f
+			? guideHalfExtents.y / std::abs(direction.y) : 100000.0f;
+		const float edgeScale = (std::min)(scaleX, scaleY);
+		const Vector2 tip = {
+			screenCenter.x + direction.x * edgeScale,
+			screenCenter.y + direction.y * edgeScale,
+		};
+		const float directionAngle = std::atan2(direction.y, direction.x);
+		auto& guide = goalGuideSprites_[goalGuideCount_++];
+		guide[0]->SetPosition(tip);
+		guide[0]->SetRotation(directionAngle + 3.14159265f - kGoalGuideHalfAngle);
+		guide[1]->SetPosition(tip);
+		guide[1]->SetRotation(directionAngle + 3.14159265f + kGoalGuideHalfAngle);
+		guide[0]->Update();
+		guide[1]->Update();
+	}
+}
+
+void MagnetPrototypeScene::DrawGoalGuides()
+{
+	if (!goalGuidesReady_ || goalGuideCount_ == 0) { return; }
+	framework_->GetSpriteCommon()->PreDraw();
+	for (std::size_t index = 0; index < goalGuideCount_; ++index) {
+		goalGuideSprites_[index][0]->Draw();
+		goalGuideSprites_[index][1]->Draw();
+	}
+}
+
+bool MagnetPrototypeScene::InitializeMinimap()
+{
+	SpriteCommon* spriteCommon = framework_ ? framework_->GetSpriteCommon() : nullptr;
+	if (!spriteCommon) { return false; }
+	const auto createSprite = [spriteCommon](const char* texture, const Vector2& size,
+		const Vector4& color) -> std::unique_ptr<Sprite> {
+		auto sprite = std::make_unique<Sprite>();
+		if (!sprite->Initialize(spriteCommon, texture)) { return {}; }
+		sprite->SetAnchorPoint({ 0.5f, 0.5f });
+		sprite->SetSize(size);
+		sprite->SetColor(color);
+		return sprite;
+	};
+	minimapBorderSprite_ = createSprite("Resources/human/white.png",
+		{ kMinimapBorderSize, kMinimapBorderSize }, { 0.10f, 0.64f, 0.78f, 0.90f });
+	minimapBackgroundSprite_ = createSprite("Resources/human/white.png",
+		{ kMinimapSize, kMinimapSize }, { 0.015f, 0.025f, 0.045f, 0.94f });
+	minimapHorizontalGuideSprite_ = createSprite("Resources/human/white.png",
+		{ kMinimapSize - kMinimapGuideInset * 2.0f, kMinimapGuideThickness },
+		{ 0.22f, 0.62f, 0.70f, 0.30f });
+	minimapVerticalGuideSprite_ = createSprite("Resources/human/white.png",
+		{ kMinimapGuideThickness, kMinimapSize - kMinimapGuideInset * 2.0f },
+		{ 0.22f, 0.62f, 0.70f, 0.30f });
+	minimapPlayerSprite_ = createSprite("Resources/ui/minimap_player.png",
+		{ kMinimapPlayerSize, kMinimapPlayerSize }, { 1.0f, 1.0f, 1.0f, 1.0f });
+	if (!minimapBorderSprite_ || !minimapBackgroundSprite_ ||
+		!minimapHorizontalGuideSprite_ || !minimapVerticalGuideSprite_ ||
+		!minimapPlayerSprite_) {
+		return false;
+	}
+	// Keep magnet markers as crisp red blocks so they cannot be confused with the
+	// larger cyan-ring player icon.
+	for (auto& marker : minimapMagnetSprites_) {
+		marker = createSprite("Resources/human/white.png",
+			{ kMinimapMarkerSize, kMinimapMarkerSize }, { 1.0f, 0.22f, 0.10f, 1.0f });
+		if (!marker) { return false; }
+	}
+	return true;
+}
+
+void MagnetPrototypeScene::UpdateMinimap()
+{
+	minimapMagnetCount_ = 0;
+	if (!minimapReady_ || !camera_ || !prototypeReady_) { return; }
+	const Vector2 mapTopLeft = {
+		kVirtualScreenSize.x - kMinimapMargin - kMinimapSize,
+		kMinimapMargin,
+	};
+	const Vector2 center = {
+		mapTopLeft.x + kMinimapSize * 0.5f,
+		mapTopLeft.y + kMinimapSize * 0.5f,
+	};
+	// Sprite currently uses its position as the top-left corner. Place each element
+	// explicitly from that convention so the frame stays inside the render target.
+	const float borderInset = (kMinimapBorderSize - kMinimapSize) * 0.5f;
+	minimapBorderSprite_->SetPosition({
+		mapTopLeft.x - borderInset,
+		mapTopLeft.y - borderInset,
+	});
+	minimapBackgroundSprite_->SetPosition(mapTopLeft);
+	minimapHorizontalGuideSprite_->SetPosition({
+		mapTopLeft.x + kMinimapGuideInset,
+		center.y - kMinimapGuideThickness * 0.5f,
+	});
+	minimapVerticalGuideSprite_->SetPosition({
+		center.x - kMinimapGuideThickness * 0.5f,
+		mapTopLeft.y + kMinimapGuideInset,
+	});
+	minimapPlayerSprite_->SetPosition({
+		center.x - kMinimapPlayerSize * 0.5f,
+		center.y - kMinimapPlayerSize * 0.5f,
+	});
+	const physics::SphereBody* player = magnetChainSystem_.GetPhysicsWorld().GetBody(
+		magnetChainSystem_.GetPlayerBody());
+	if (!player || !player->active) { return; }
+
+	const Matrix4x4& viewProjection = camera_->GetViewProjectionMatrix();
+	const auto& stageBalls = magnetChainSystem_.GetStageBalls();
+	const float usableRadius = kMinimapSize * 0.5f - kMinimapMarkerSize;
+	for (std::size_t index = 0;
+		index < magnetChainSystem_.GetStageBallCount() &&
+		minimapMagnetCount_ < minimapMagnetSprites_.size(); ++index) {
+		const physics::SphereBody* ball =
+			magnetChainSystem_.GetPhysicsWorld().GetBody(stageBalls[index]);
+		if (!ball || !ball->active) { continue; }
+		const Vector3 ndc = MatrixMath::Transform(ball->position, viewProjection);
+		const float clipW = ball->position.x * viewProjection.m[0][3] +
+			ball->position.y * viewProjection.m[1][3] +
+			ball->position.z * viewProjection.m[2][3] + viewProjection.m[3][3];
+		const bool visible = clipW > 0.0f && ndc.x >= -1.0f && ndc.x <= 1.0f &&
+			ndc.y >= -1.0f && ndc.y <= 1.0f && ndc.z >= 0.0f && ndc.z <= 1.0f;
+		if (visible) { continue; }
+		const Vector3 worldOffset = ball->position - player->position;
+		float normalizedX = worldOffset.x / kMinimapWorldRadius;
+		float normalizedZ = worldOffset.z / kMinimapWorldRadius;
+		const float maximumComponent = (std::max)(std::abs(normalizedX), std::abs(normalizedZ));
+		if (maximumComponent > 1.0f) {
+			normalizedX /= maximumComponent;
+			normalizedZ /= maximumComponent;
+		}
+		Sprite* marker = minimapMagnetSprites_[minimapMagnetCount_++].get();
+		marker->SetPosition({
+			center.x + normalizedX * usableRadius - kMinimapMarkerSize * 0.5f,
+			center.y - normalizedZ * usableRadius - kMinimapMarkerSize * 0.5f,
+		});
+	}
+	minimapBorderSprite_->Update();
+	minimapBackgroundSprite_->Update();
+	minimapHorizontalGuideSprite_->Update();
+	minimapVerticalGuideSprite_->Update();
+	minimapPlayerSprite_->Update();
+	for (std::size_t index = 0; index < minimapMagnetCount_; ++index) {
+		minimapMagnetSprites_[index]->Update();
+	}
+}
+
+void MagnetPrototypeScene::DrawMinimap()
+{
+	if (!minimapReady_ || !prototypeReady_) { return; }
+	framework_->GetSpriteCommon()->PreDraw();
+	minimapBorderSprite_->Draw();
+	minimapBackgroundSprite_->Draw();
+	minimapHorizontalGuideSprite_->Draw();
+	minimapVerticalGuideSprite_->Draw();
+	minimapPlayerSprite_->Draw();
+	for (std::size_t index = 0; index < minimapMagnetCount_; ++index) {
+		minimapMagnetSprites_[index]->Draw();
+	}
 }
 
 void MagnetPrototypeScene::ProcessStageEditorRequest(

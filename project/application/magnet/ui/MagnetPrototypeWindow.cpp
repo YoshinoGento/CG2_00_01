@@ -24,9 +24,7 @@ constexpr float kRightPanelRatio = 0.28f;
 constexpr float kBottomPanelRatio = 0.22f;
 constexpr float kMinimumButtonWidth = 80.0f;
 constexpr float kConstraintWarningError = 0.08f;
-constexpr float kMinimapSize = 150.0f;
 constexpr float kMinimapMargin = 14.0f;
-constexpr float kMinimapWorldRadius = 24.0f;
 
 } // namespace
 
@@ -302,16 +300,6 @@ void MagnetPrototypeWindow::DrawViewport(
 					srvManager->GetGPUDescriptorHandle(finalDisplaySrvIndex).ptr),
 				displaySize);
 
-			const float minimapSize = (std::min)(kMinimapSize, displaySize.y * 0.28f);
-			const ImVec2 mapMinimum = {
-				imagePosition.x + displaySize.x - minimapSize - kMinimapMargin,
-				imagePosition.y + kMinimapMargin,
-			};
-			const ImVec2 mapMaximum = { mapMinimum.x + minimapSize, mapMinimum.y + minimapSize };
-			const ImVec2 mapCenter = {
-				(mapMinimum.x + mapMaximum.x) * 0.5f,
-				(mapMinimum.y + mapMaximum.y) * 0.5f,
-			};
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
 			char scoreText[64]{};
 			std::snprintf(scoreText, sizeof(scoreText), "SCORE  %zu", viewData.score);
@@ -328,32 +316,6 @@ void MagnetPrototypeWindow::DrawViewport(
 			drawList->AddRect(scoreMinimum, scoreMaximum, IM_COL32(255, 215, 70, 235), 7.0f, 0, 2.0f);
 			drawList->AddText({ scoreMinimum.x + 11.0f, scoreMinimum.y + 7.0f },
 				IM_COL32(255, 230, 100, 255), scoreText);
-			drawList->AddRectFilled(mapMinimum, mapMaximum, IM_COL32(10, 16, 24, 205), 7.0f);
-			drawList->AddRect(mapMinimum, mapMaximum, IM_COL32(210, 225, 240, 230), 7.0f, 0, 2.0f);
-			drawList->AddLine({ mapCenter.x, mapMinimum.y + 6.0f },
-				{ mapCenter.x, mapMaximum.y - 6.0f }, IM_COL32(90, 105, 120, 150));
-			drawList->AddLine({ mapMinimum.x + 6.0f, mapCenter.y },
-				{ mapMaximum.x - 6.0f, mapCenter.y }, IM_COL32(90, 105, 120, 150));
-			drawList->AddCircleFilled(mapCenter, 4.0f, IM_COL32(90, 210, 255, 255));
-			const float usableRadius = minimapSize * 0.5f - 9.0f;
-			for (std::size_t index = 0; index < viewData.offscreenMagnetCount; ++index) {
-				Vector2 offset = viewData.offscreenMagnetOffsets[index];
-				float normalizedX = offset.x / kMinimapWorldRadius;
-				float normalizedZ = offset.y / kMinimapWorldRadius;
-				const float maximumComponent = (std::max)(std::abs(normalizedX), std::abs(normalizedZ));
-				if (maximumComponent > 1.0f) {
-					normalizedX /= maximumComponent;
-					normalizedZ /= maximumComponent;
-				}
-				const ImVec2 marker = {
-					mapCenter.x + normalizedX * usableRadius,
-					mapCenter.y - normalizedZ * usableRadius,
-				};
-				drawList->AddCircleFilled(marker, 4.5f, IM_COL32(245, 55, 55, 255));
-				drawList->AddCircle(marker, 4.5f, IM_COL32(255, 205, 205, 255), 0, 1.5f);
-			}
-			drawList->AddText({ mapMinimum.x + 7.0f, mapMinimum.y + 5.0f },
-				IM_COL32(235, 240, 245, 230), "MINIMAP");
 		} else {
 			ImGui::SetCursorPos({ 16.0f, 16.0f });
 			ImGui::TextDisabled("ゲーム画面を表示できません。");
