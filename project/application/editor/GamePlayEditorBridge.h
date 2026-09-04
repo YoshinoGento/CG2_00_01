@@ -4,6 +4,7 @@
 #include "farm/system/FarmDocumentSystem.h"
 #include "farm/system/FarmFeedbackSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
+#include "farm/system/FarmIrrigationPreviewSystem.h"
 #include "farm/system/FarmIrrigationSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
@@ -44,6 +45,12 @@ struct FarmTileEditorViewData {
 	bool canToggleCanal = false;
 	bool canToggleWaterSource = false;
 	bool irrigationSupplied = false;
+	bool irrigationInRange = false;
+	float irrigationSupplyStrength = 0.0f;
+	float irrigationStrength = 0.0f;
+	int irrigationDownstreamCanalCount = 0;
+	int irrigationSupplierTileIndex = -1;
+	bool irrigationPreviewChanged = false;
 };
 
 struct VisibilityEditorViewData {
@@ -201,6 +208,19 @@ struct FarmDocumentEditorViewData {
 struct GamePlayEditorViewModel {
 	int farmWidth = 0;
 	int farmHeight = 0;
+	int irrigationWaterSourceCount = 0;
+	int irrigationSuppliedCanalCount = 0;
+	int irrigationRangeTileCount = 0;
+	bool irrigationPreviewActive = false;
+	bool irrigationPreviewCanConfirm = false;
+	int irrigationPreviewTileIndex = -1;
+	farm::FarmIrrigationPreviewOperation irrigationPreviewOperation =
+		farm::FarmIrrigationPreviewOperation::None;
+	farm::FarmTileFeature irrigationPreviewOriginalFeature = farm::FarmTileFeature::None;
+	farm::FarmTileFeature irrigationPreviewCandidateFeature = farm::FarmTileFeature::None;
+	int irrigationPreviewWaterSourceCount = 0;
+	int irrigationPreviewSuppliedCanalCount = 0;
+	int irrigationPreviewRangeTileCount = 0;
 	int selectedFarmTileIndex = -1;
 	uint64_t farmGeneration = 0;
 	bool farmDocumentDirty = false;
@@ -248,6 +268,10 @@ enum class GamePlayEditorCommandType {
 	LowerFarmTile,
 	ToggleFarmCanal,
 	ToggleFarmWaterSource,
+	BeginFarmCanalPreview,
+	BeginFarmWaterSourcePreview,
+	ConfirmFarmIrrigationPreview,
+	CancelFarmIrrigationPreview,
 	UndoFarmEdit,
 	RedoFarmEdit,
 	RestartFarmSession,

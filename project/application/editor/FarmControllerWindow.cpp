@@ -477,6 +477,42 @@ FarmControllerActions FarmControllerWindow::Draw(
 	if (ImGui::Button(text("Restart Farm"), ImVec2(-1.0f, 30.0f))) {
 		actions.restartFarm = true;
 	}
+	ImGui::SeparatorText(text("Irrigation Network"));
+	ImGui::Text(
+		text("Sources %d / Supplied canals %d / Irrigation range %d"),
+		viewModel.irrigationWaterSourceCount,
+		viewModel.irrigationSuppliedCanalCount,
+		viewModel.irrigationRangeTileCount);
+	if (viewModel.irrigationPreviewActive) {
+		ImGui::SeparatorText(text("Irrigation Preview"));
+		ImGui::TextColored(
+			ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
+			text("Tile #%d: %s -> %s"),
+			viewModel.irrigationPreviewTileIndex,
+			text(farm::ToString(viewModel.irrigationPreviewOriginalFeature)),
+			text(farm::ToString(viewModel.irrigationPreviewCandidateFeature)));
+		ImGui::Text(
+			text("Preview: Sources %d / Canals %d / Range %d"),
+			viewModel.irrigationPreviewWaterSourceCount,
+			viewModel.irrigationPreviewSuppliedCanalCount,
+			viewModel.irrigationPreviewRangeTileCount);
+		if (!viewModel.irrigationPreviewCanConfirm) {
+			ImGui::TextColored(
+				ImVec4(1.0f, 0.34f, 0.20f, 1.0f),
+				"%s",
+				text("Farm changed. Cancel and preview again."));
+		}
+		const float actionWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+		ImGui::BeginDisabled(!viewModel.irrigationPreviewCanConfirm);
+		if (ImGui::Button(text("Confirm Preview"), { actionWidth, 30.0f })) {
+			actions.confirmIrrigationPreview = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		if (ImGui::Button(text("Cancel Preview"), { actionWidth, 30.0f })) {
+			actions.cancelIrrigationPreview = true;
+		}
+	}
 
 	ImGui::SeparatorText(text("Selection"));
 	if (tile != nullptr) {
@@ -519,28 +555,64 @@ FarmControllerActions FarmControllerWindow::Draw(
 		ImGui::Text(
 			text("Feature: %s"),
 			text(farm::ToString(tile->feature)));
-		ImGui::BeginDisabled(!tile->canToggleCanal);
+		if (tile->feature != farm::FarmTileFeature::None) {
+			const float supplyStrength =
+				std::clamp(tile->irrigationSupplyStrength, 0.0f, 1.0f);
+			char supplyOverlay[64]{};
+			std::snprintf(
+				supplyOverlay,
+				sizeof(supplyOverlay),
+				text("Supply strength: %.0f%%"),
+				supplyStrength * 100.0f);
+			ImGui::PushStyleColor(
+				ImGuiCol_PlotHistogram,
+				ImVec4(0.16f, 0.76f, 0.95f, 1.0f));
+			ImGui::ProgressBar(supplyStrength, ImVec2(-1.0f, 0.0f), supplyOverlay);
+			ImGui::PopStyleColor();
+			ImGui::TextDisabled(
+				text("Downstream canals: %d"),
+				tile->irrigationDownstreamCanalCount);
+		}
+		ImGui::BeginDisabled(
+			!tile->canToggleCanal || viewModel.irrigationPreviewActive);
 		const char* canalButtonLabel = tile->feature == farm::FarmTileFeature::Canal
-			? "Remove Canal"
-			: "Place Canal";
+			? "Preview Canal Removal"
+			: "Preview Canal Placement";
 		if (ImGui::Button(text(canalButtonLabel), ImVec2(-1.0f, 0.0f))) {
-			actions.toggleCanal = true;
+			actions.beginCanalPreview = true;
 		}
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-			ImGui::SetTooltip("%s", text("Toggle canal on selected tile (N)"));
+			ImGui::SetTooltip("%s", text("Preview canal change on selected tile"));
 		}
 		ImGui::EndDisabled();
-		ImGui::BeginDisabled(!tile->canToggleWaterSource);
+		ImGui::BeginDisabled(
+			!tile->canToggleWaterSource || viewModel.irrigationPreviewActive);
 		const char* sourceButtonLabel = tile->feature == farm::FarmTileFeature::WaterSource
-			? "Remove Water Source"
-			: "Place Water Source";
+			? "Preview Water Source Removal"
+			: "Preview Water Source Placement";
 		if (ImGui::Button(text(sourceButtonLabel), ImVec2(-1.0f, 0.0f))) {
-			actions.toggleWaterSource = true;
+			actions.beginWaterSourcePreview = true;
 		}
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-			ImGui::SetTooltip("%s", text("Toggle water source on selected tile (M)"));
+			ImGui::SetTooltip("%s", text("Preview water source change on selected tile"));
 		}
 		ImGui::EndDisabled();
+		if (tile->feature == farm::FarmTileFeature::None) {
+			ImGui::TextColored(
+				tile->irrigationInRange
+					? ImVec4(0.20f, 0.88f, 1.0f, 1.0f)
+					: ImVec4(0.52f, 0.52f, 0.52f, 1.0f),
+				text("Irrigation range: %s"),
+				text(tile->irrigationInRange ? "In range" : "Out of range"));
+			if (tile->irrigationSupplierTileIndex >= 0) {
+				ImGui::TextDisabled(
+					text("Supplied by canal #%d"),
+					tile->irrigationSupplierTileIndex);
+				ImGui::Text(
+					text("Irrigation strength: %.0f%%"),
+					std::clamp(tile->irrigationStrength, 0.0f, 1.0f) * 100.0f);
+			}
+		}
 
 		ImGui::SeparatorText(text("Crop Status"));
 		const float moisture = std::clamp(tile->moisture, 0.0f, 1.0f);
@@ -572,6 +644,23 @@ FarmControllerActions FarmControllerWindow::Draw(
 				GetMoistureStatusColor(forecast.moistureStatus),
 				text("Moisture: %s"),
 				GetMoistureStatusLabel(forecast.moistureStatus, language));
+			if (forecast.irrigationActive) {
+				ImGui::TextColored(
+					ImVec4(0.20f, 0.88f, 1.0f, 1.0f),
+					"%s",
+					text("Irrigation active"));
+				ImGui::Text(
+					text("Irrigation recovery: %.1f%% / sec"),
+					forecast.irrigationRecoveryPerSecond * 100.0f);
+				ImGui::Text(
+					text("Net moisture: %+.1f%% / sec"),
+					forecast.netMoisturePerSecond * 100.0f);
+				if (forecast.secondsUntilFullMoisture >= 0.0f) {
+					ImGui::TextDisabled(
+						text("Full moisture ETA: %.1f sec"),
+						forecast.secondsUntilFullMoisture);
+				}
+			}
 			if (forecast.growing) {
 				ImGui::Text(
 					text("Growth rate: %.1f%% / sec"),

@@ -12,6 +12,10 @@ struct FarmControllerActions {
 	bool lowerTile = false;
 	bool toggleCanal = false;
 	bool toggleWaterSource = false;
+	bool beginCanalPreview = false;
+	bool beginWaterSourcePreview = false;
+	bool confirmIrrigationPreview = false;
+	bool cancelIrrigationPreview = false;
 	bool restartFarm = false;
 };
 

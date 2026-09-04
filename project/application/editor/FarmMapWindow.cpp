@@ -115,6 +115,13 @@ FarmMapActions FarmMapWindow::Draw(
 	}
 
 	ImGui::Text(text("Farm Grid  %d x %d"), viewModel.farmWidth, viewModel.farmHeight);
+	if (viewModel.irrigationPreviewActive) {
+		ImGui::SameLine();
+		ImGui::TextColored(
+			ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
+			"%s",
+			text("Irrigation Preview"));
+	}
 	ImGui::TextDisabled("%s", text("Click a tile to select it"));
 	ImGui::Spacing();
 
@@ -138,8 +145,14 @@ FarmMapActions FarmMapWindow::Draw(
 			ImGui::PushStyleColor(ImGuiCol_ButtonActive, Brighten(tileColor, 0.05f));
 			ImGui::PushStyleColor(
 				ImGuiCol_Border,
-				selected ? ImVec4(1.0f, 0.90f, 0.10f, 1.0f) : ImVec4(0.0f, 0.0f, 0.0f, 0.40f));
-			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, selected ? 3.0f : 1.0f);
+				tile.irrigationPreviewChanged
+					? ImVec4(1.0f, 0.56f, 0.12f, 1.0f)
+					: selected
+					? ImVec4(1.0f, 0.90f, 0.10f, 1.0f)
+					: ImVec4(0.0f, 0.0f, 0.0f, 0.40f));
+			ImGui::PushStyleVar(
+				ImGuiStyleVar_FrameBorderSize,
+				tile.irrigationPreviewChanged || selected ? 3.0f : 1.0f);
 
 			char label[48]{};
 			std::snprintf(
@@ -170,6 +183,16 @@ FarmMapActions FarmMapWindow::Draw(
 				visualState == FarmMapVisualState::Ready
 					? IM_COL32(255, 205, 45, 255)
 					: IM_COL32(75, 220, 105, 255));
+			const float irrigationBarStrength =
+				tile.feature == farm::FarmTileFeature::None
+				? std::clamp(tile.irrigationStrength, 0.0f, 1.0f)
+				: std::clamp(tile.irrigationSupplyStrength, 0.0f, 1.0f);
+			if (irrigationBarStrength > 0.0f) {
+				drawList->AddRectFilled(
+					{ barLeft, rectMin.y + 2.0f },
+					{ barLeft + barWidth * irrigationBarStrength, rectMin.y + 5.0f },
+					IM_COL32(45, 225, 255, 255));
+			}
 
 			if (ImGui::IsItemHovered()) {
 				ImGui::BeginTooltip();
@@ -178,6 +201,32 @@ FarmMapActions FarmMapWindow::Draw(
 				ImGui::Text(text("Height: H%d"), tile.heightLevel);
 				ImGui::Text(text("Moisture: %.0f%%"), moisture * 100.0f);
 				ImGui::Text(text("Growth: %.0f%%"), growth * 100.0f);
+				if (tile.irrigationPreviewChanged) {
+					ImGui::TextColored(
+						ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
+						"%s",
+						text("Preview changed tile"));
+				}
+				ImGui::Text(
+					text("Irrigation range: %s"),
+					text(tile.irrigationInRange ? "In range" : "Out of range"));
+				if (tile.feature != farm::FarmTileFeature::None) {
+					ImGui::Text(
+						text("Supply strength: %.0f%%"),
+						tile.irrigationSupplyStrength * 100.0f);
+					ImGui::Text(
+						text("Downstream canals: %d"),
+						tile.irrigationDownstreamCanalCount);
+				} else if (tile.irrigationInRange) {
+					ImGui::Text(
+						text("Irrigation strength: %.0f%%"),
+						tile.irrigationStrength * 100.0f);
+				}
+				if (tile.irrigationSupplierTileIndex >= 0) {
+					ImGui::Text(
+						text("Supplied by canal #%d"),
+						tile.irrigationSupplierTileIndex);
+				}
 				ImGui::EndTooltip();
 			}
 
@@ -200,6 +249,7 @@ FarmMapActions FarmMapWindow::Draw(
 	DrawLegendItem(text("Ready"), GetStateColor(FarmMapVisualState::Ready));
 	ImGui::TextDisabled("%s", text("Blue bar: moisture"));
 	ImGui::TextDisabled("%s", text("Green/gold bar: growth"));
+	ImGui::TextDisabled("%s", text("Cyan line: supply strength"));
 	ImGui::End();
 #else
 	(void)viewModel;

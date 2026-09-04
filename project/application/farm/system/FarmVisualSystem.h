@@ -33,7 +33,8 @@ public:
 		const FarmGrid& grid,
 		const FarmIrrigationSystem& irrigationSystem,
 		const FarmToolActionResult& selectedAction,
-		LineDrawer& lineDrawer) const;
+		LineDrawer& lineDrawer,
+		bool irrigationPreviewActive = false) const;
 
 	[[nodiscard]] const FarmVisualLayout& GetLayout() const noexcept { return layout_; }
 

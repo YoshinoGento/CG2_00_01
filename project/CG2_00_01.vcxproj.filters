@@ -102,6 +102,9 @@
 	<ClCompile Include="application\farm\system\FarmIrrigationSystem.cpp">
 	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
 	</ClCompile>
+	<ClCompile Include="application\farm\system\FarmIrrigationPreviewSystem.cpp">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClCompile>
 	<ClCompile Include="application\farm\system\FarmProgressionSystem.cpp">
 	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
 	</ClCompile>
@@ -356,6 +359,9 @@
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
 	<ClInclude Include="application\farm\system\FarmIrrigationSystem.h">
+	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+	</ClInclude>
+	<ClInclude Include="application\farm\system\FarmIrrigationPreviewSystem.h">
 	  <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
 	</ClInclude>
 	<ClInclude Include="application\farm\system\FarmProgressionSystem.h">

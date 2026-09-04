@@ -29,6 +29,9 @@ struct FarmRules {
 		0.35f,
 	};
 	float maxMoisture = 1.0f;
+	float irrigationMoistureRecoveryPerSecond = 1.0f / 8.0f;
+	float irrigationSourceStrength = 1.0f;
+	float irrigationCanalTransferEfficiency = 0.90f;
 	float postHarvestMoisture = 0.35f;
 	float maxUpdateDeltaTime = 0.25f;
 

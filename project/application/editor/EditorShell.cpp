@@ -608,6 +608,33 @@ void EditorShell::DrawFarmController(GamePlayScene& playScene) {
 		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
 		changed |= bridge.Execute(command);
 	}
+	if (actions.beginCanalPreview) {
+		editor::GamePlayEditorCommand command;
+		command.type = editor::GamePlayEditorCommandType::BeginFarmCanalPreview;
+		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
+		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
+		changed |= bridge.Execute(command);
+	}
+	if (actions.beginWaterSourcePreview) {
+		editor::GamePlayEditorCommand command;
+		command.type = editor::GamePlayEditorCommandType::BeginFarmWaterSourcePreview;
+		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
+		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
+		changed |= bridge.Execute(command);
+	}
+	if (actions.confirmIrrigationPreview) {
+		editor::GamePlayEditorCommand command;
+		command.type = editor::GamePlayEditorCommandType::ConfirmFarmIrrigationPreview;
+		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
+		command.farmTileIndex = gamePlayEditorViewModel_.irrigationPreviewTileIndex;
+		changed |= bridge.Execute(command);
+	}
+	if (actions.cancelIrrigationPreview) {
+		editor::GamePlayEditorCommand command;
+		command.type = editor::GamePlayEditorCommandType::CancelFarmIrrigationPreview;
+		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
+		changed |= bridge.Execute(command);
+	}
 	if (actions.restartFarm) {
 		editor::GamePlayEditorCommand command;
 		command.type = editor::GamePlayEditorCommandType::RestartFarmSession;

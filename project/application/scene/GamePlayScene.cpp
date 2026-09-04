@@ -194,6 +194,8 @@ struct SelectedTileHUDData {
 	int growthPercent = 0;
 	farm::FarmTileFeature feature = farm::FarmTileFeature::None;
 	bool irrigationSupplied = false;
+	bool irrigationActive = false;
+	int irrigationStrengthPercent = 0;
 	farm::FarmTileState state = farm::FarmTileState::Empty;
 	farm::CropType crop = farm::CropType::None;
 	farm::FarmCropGrowthStage growthStage = farm::FarmCropGrowthStage::None;
@@ -243,6 +245,12 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 	data.growthPercent = growthPercent;
 	data.feature = selectedTile->feature;
 	data.irrigationSupplied = irrigationSystem.IsSupplied(data.index);
+	const float irrigationStrength =
+		selectedTile->feature == farm::FarmTileFeature::None
+		? irrigationSystem.GetIrrigationStrength(data.index)
+		: irrigationSystem.GetSupplyStrength(data.index);
+	data.irrigationStrengthPercent = static_cast<int>(
+		std::clamp(irrigationStrength, 0.0f, 1.0f) * 100.0f + 0.5f);
 	data.state = selectedTile->state;
 	data.crop = selectedTile->crop;
 	data.growthStage = farm::GetCropGrowthStage(*selectedTile);
@@ -254,9 +262,13 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 		data.nextAction = FarmHUDNextAction::WaterSource;
 		return data;
 	}
-	data.moistureStatus = ToHUDMoistureStatus(
-		growthSystem.Evaluate(
-			*selectedTile, selectedSeedCrop, timeScale).moistureStatus);
+	const FarmGrowthForecast forecast = growthSystem.Evaluate(
+		*selectedTile,
+		selectedSeedCrop,
+		timeScale,
+		irrigationSystem.GetIrrigationStrength(data.index));
+	data.moistureStatus = ToHUDMoistureStatus(forecast.moistureStatus);
+	data.irrigationActive = forecast.irrigationActive;
 	if (selectedTile->state == farm::FarmTileState::Empty) {
 		data.nextAction = FarmHUDNextAction::Hoe;
 	} else if (selectedTile->state == farm::FarmTileState::Tilled) {
@@ -429,6 +441,7 @@ void GamePlayScene::Initialize() {
 	farmToolSystem_.Initialize();
 	farmEconomySystem_.Initialize();
 	farmGrowthSystem_.Initialize();
+	farmIrrigationPreviewSystem_.Initialize();
 	farmIrrigationSystem_.Initialize();
 	farmToolActionSystem_.Initialize();
 	farmCropSelectionSystem_.Initialize();
@@ -784,7 +797,11 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 
 	levelRouteTimer_ += fixedDeltaTime;
 	if (!farmProgressionSystem_.IsCleared()) {
-		farmGrowthSystem_.Update(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale());
+		farmGrowthSystem_.Update(
+			farmGrid_,
+			farmIrrigationSystem_,
+			fixedDeltaTime,
+			farmDateSystem_.GetTimeScale());
 		farmDateSystem_.Update(fixedDeltaTime);
 	}
 	levelGameplay_.UpdatePlayer(pendingPlayerCommand_, fixedDeltaTime);
@@ -1501,13 +1518,22 @@ void GamePlayScene::Draw() {
 		LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
 	}
 
+	const farm::FarmGrid* previewGrid = farmIrrigationPreviewSystem_.GetPreviewGrid();
+	const farm::FarmIrrigationSystem* previewIrrigation =
+		farmIrrigationPreviewSystem_.GetPreviewIrrigation();
+	const bool irrigationPreviewActive = previewGrid != nullptr && previewIrrigation != nullptr;
+	const farm::FarmGrid& displayedFarmGrid = irrigationPreviewActive
+		? *previewGrid : farmGrid_;
+	const farm::FarmIrrigationSystem& displayedIrrigation = irrigationPreviewActive
+		? *previewIrrigation : farmIrrigationSystem_;
 	farmVisualSystem_.Draw(
-		farmGrid_,
-		farmIrrigationSystem_,
+		displayedFarmGrid,
+		displayedIrrigation,
 		farmToolActionSystem_.EvaluateTool(
-			farmGrid_, farmToolSystem_.GetCurrentTool(),
+			displayedFarmGrid, farmToolSystem_.GetCurrentTool(),
 			farmCropSelectionSystem_.GetSelectedCrop(), &farmEconomySystem_),
-		*LineDrawer::GetInstance());
+		*LineDrawer::GetInstance(),
+		irrigationPreviewActive);
 
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction &&
 		interactionBrushOperation_ != InteractionBrushOperation::None) {
@@ -1610,6 +1636,14 @@ void GamePlayScene::Draw() {
 
 FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	FarmHUDViewData viewData;
+	const farm::FarmGrid* previewGrid = farmIrrigationPreviewSystem_.GetPreviewGrid();
+	const farm::FarmIrrigationSystem* previewIrrigation =
+		farmIrrigationPreviewSystem_.GetPreviewIrrigation();
+	viewData.irrigationPreviewActive = previewGrid != nullptr && previewIrrigation != nullptr;
+	const farm::FarmGrid& displayedFarmGrid = viewData.irrigationPreviewActive
+		? *previewGrid : farmGrid_;
+	const farm::FarmIrrigationSystem& displayedIrrigation = viewData.irrigationPreviewActive
+		? *previewIrrigation : farmIrrigationSystem_;
 	viewData.day = farmDateSystem_.GetDay();
 	viewData.money = farmEconomySystem_.GetMoney();
 	viewData.rank = 1;
@@ -1636,7 +1670,7 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.goalProgress = farmProgressionSystem_.GetProgress(farmEconomySystem_.GetMoney());
 	viewData.goalCleared = farmProgressionSystem_.IsCleared();
 	const SelectedTileHUDData selectedTileData = BuildSelectedTileHUDData(
-		farmGrid_, farmIrrigationSystem_, farmGrowthSystem_,
+		displayedFarmGrid, displayedIrrigation, farmGrowthSystem_,
 		farmDateSystem_.GetTimeScale(),
 		viewData.selectedSeedCrop, viewData.seedCount);
 	viewData.selectedTileValid = selectedTileData.valid;
@@ -1646,6 +1680,9 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.selectedTileGrowthPercent = selectedTileData.growthPercent;
 	viewData.selectedTileFeature = selectedTileData.feature;
 	viewData.selectedTileIrrigationSupplied = selectedTileData.irrigationSupplied;
+	viewData.selectedTileIrrigationActive = selectedTileData.irrigationActive;
+	viewData.selectedTileIrrigationStrengthPercent =
+		selectedTileData.irrigationStrengthPercent;
 	viewData.selectedTileState = selectedTileData.state;
 	viewData.selectedTileCrop = selectedTileData.crop;
 	viewData.selectedTileGrowthStage = selectedTileData.growthStage;
@@ -1853,6 +1890,7 @@ void GamePlayScene::ResetFarmSession()
 	farmDateSystem_.Initialize();
 	farmToolSystem_.Initialize();
 	farmEconomySystem_.Initialize();
+	farmIrrigationPreviewSystem_.Initialize();
 	farmIrrigationSystem_.Initialize();
 	farmToolActionSystem_.Initialize();
 	farmCropSelectionSystem_.Initialize();

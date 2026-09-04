@@ -21,6 +21,7 @@
 #include "farm/system/FarmFeedbackSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
 #include "farm/system/FarmInputSystem.h"
+#include "farm/system/FarmIrrigationPreviewSystem.h"
 #include "farm/system/FarmIrrigationSystem.h"
 #include "farm/system/FarmProgressionSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
@@ -261,6 +262,7 @@ private:
 	FarmFeedbackSystem farmFeedbackSystem_;
 	FarmGrowthSystem farmGrowthSystem_;
 	FarmInputSystem farmInputSystem_;
+	farm::FarmIrrigationPreviewSystem farmIrrigationPreviewSystem_;
 	farm::FarmIrrigationSystem farmIrrigationSystem_;
 	FarmProgressionSystem farmProgressionSystem_;
 	FarmToolSystem farmToolSystem_;

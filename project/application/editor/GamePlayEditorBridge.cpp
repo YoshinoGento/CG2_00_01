@@ -89,6 +89,18 @@ bool GamePlayEditorBridge::IsBound() const noexcept {
 void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const {
 	output.farmWidth = 0;
 	output.farmHeight = 0;
+	output.irrigationWaterSourceCount = 0;
+	output.irrigationSuppliedCanalCount = 0;
+	output.irrigationRangeTileCount = 0;
+	output.irrigationPreviewActive = false;
+	output.irrigationPreviewCanConfirm = false;
+	output.irrigationPreviewTileIndex = -1;
+	output.irrigationPreviewOperation = farm::FarmIrrigationPreviewOperation::None;
+	output.irrigationPreviewOriginalFeature = farm::FarmTileFeature::None;
+	output.irrigationPreviewCandidateFeature = farm::FarmTileFeature::None;
+	output.irrigationPreviewWaterSourceCount = 0;
+	output.irrigationPreviewSuppliedCanalCount = 0;
+	output.irrigationPreviewRangeTileCount = 0;
 	output.selectedFarmTileIndex = -1;
 	output.farmGeneration = 0;
 	output.farmDocumentDirty = false;
@@ -125,6 +137,32 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 
 	output.farmWidth = farmGrid_->GetWidth();
 	output.farmHeight = farmGrid_->GetHeight();
+	output.irrigationWaterSourceCount = farmIrrigationSystem_->GetWaterSourceCount();
+	output.irrigationSuppliedCanalCount = farmIrrigationSystem_->GetSuppliedCanalCount();
+	output.irrigationRangeTileCount = farmIrrigationSystem_->GetIrrigationRangeTileCount();
+	const farm::FarmGrid* displayedGrid = farmGrid_;
+	const farm::FarmIrrigationSystem* displayedIrrigation = farmIrrigationSystem_;
+	const farm::FarmGrid* previewGrid = scene_->farmIrrigationPreviewSystem_.GetPreviewGrid();
+	const farm::FarmIrrigationSystem* previewIrrigation =
+		scene_->farmIrrigationPreviewSystem_.GetPreviewIrrigation();
+	if (previewGrid != nullptr && previewIrrigation != nullptr) {
+		output.irrigationPreviewActive = true;
+		output.irrigationPreviewCanConfirm =
+			scene_->farmIrrigationPreviewSystem_.CanConfirm(*farmGrid_);
+		output.irrigationPreviewTileIndex =
+			scene_->farmIrrigationPreviewSystem_.GetTileIndex();
+		output.irrigationPreviewOperation =
+			scene_->farmIrrigationPreviewSystem_.GetOperation();
+		output.irrigationPreviewOriginalFeature =
+			scene_->farmIrrigationPreviewSystem_.GetOriginalFeature();
+		output.irrigationPreviewCandidateFeature =
+			scene_->farmIrrigationPreviewSystem_.GetCandidateFeature();
+		output.irrigationPreviewWaterSourceCount = previewIrrigation->GetWaterSourceCount();
+		output.irrigationPreviewSuppliedCanalCount = previewIrrigation->GetSuppliedCanalCount();
+		output.irrigationPreviewRangeTileCount = previewIrrigation->GetIrrigationRangeTileCount();
+		displayedGrid = previewGrid;
+		displayedIrrigation = previewIrrigation;
+	}
 	output.selectedFarmTileIndex = farmGrid_->GetSelectedIndex();
 	output.farmGeneration = farmGrid_->GetGeneration();
 	output.farmDocumentDirty = farmDocumentSystem_->IsDirty();
@@ -146,7 +184,8 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	}
 	output.farmTiles.resize(static_cast<std::size_t>(farmGrid_->GetTileCount()));
 	for (int index = 0; index < farmGrid_->GetTileCount(); ++index) {
-		const farm::FarmTile* tile = farmGrid_->GetTile(index);
+		const farm::FarmTile* tile = displayedGrid->GetTile(index);
+		const farm::FarmTile* authoritativeTile = farmGrid_->GetTile(index);
 		FarmTileEditorViewData& destination = output.farmTiles[static_cast<std::size_t>(index)];
 		destination = {};
 		destination.index = index;
@@ -162,8 +201,21 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 			destination.growthStage = farm::GetCropGrowthStage(*tile);
 			destination.moisture = tile->moisture;
 			destination.growth = tile->growth;
+			destination.irrigationInRange =
+				displayedIrrigation->IsInIrrigationRange(index);
+			destination.irrigationSupplyStrength =
+				displayedIrrigation->GetSupplyStrength(index);
+			destination.irrigationStrength =
+				displayedIrrigation->GetIrrigationStrength(index);
+			destination.irrigationDownstreamCanalCount =
+				displayedIrrigation->GetDownstreamCanalCount(index);
+			destination.irrigationSupplierTileIndex =
+				displayedIrrigation->GetSupplyingCanalIndex(index);
 			destination.growthForecast = scene_->farmGrowthSystem_.Evaluate(
-				*tile, selectedCrop, scene_->farmDateSystem_.GetTimeScale());
+				*tile,
+				selectedCrop,
+				scene_->farmDateSystem_.GetTimeScale(),
+				destination.irrigationStrength);
 			destination.quality = farmToolActionSystem_->EvaluateHarvestQuality(*tile);
 			destination.canHoe = farmToolActionSystem_->EvaluateTool(
 				*farmGrid_, index, FarmTool::Hoe, selectedCrop).Succeeded();
@@ -174,11 +226,13 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 				&scene_->farmEconomySystem_).Succeeded();
 			destination.canHarvest = farmToolActionSystem_->EvaluateTool(
 				*farmGrid_, index, FarmTool::Harvest, selectedCrop).Succeeded();
-			destination.canToggleCanal =
+			destination.canToggleCanal = authoritativeTile != nullptr &&
 				farmToolActionSystem_->CanToggleCanal(*farmGrid_, index);
-			destination.canToggleWaterSource =
+			destination.canToggleWaterSource = authoritativeTile != nullptr &&
 				farmToolActionSystem_->CanToggleWaterSource(*farmGrid_, index);
-			destination.irrigationSupplied = farmIrrigationSystem_->IsSupplied(index);
+			destination.irrigationSupplied = displayedIrrigation->IsSupplied(index);
+			destination.irrigationPreviewChanged =
+				output.irrigationPreviewActive && index == output.irrigationPreviewTileIndex;
 		}
 	}
 
@@ -357,8 +411,10 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 
 	switch (command.type) {
 	case GamePlayEditorCommandType::SelectFarmTile:
+		scene_->farmIrrigationPreviewSystem_.Cancel();
 		return SelectCommandTarget(command);
 	case GamePlayEditorCommandType::SelectFarmTileAtViewport:
+		scene_->farmIrrigationPreviewSystem_.Cancel();
 		return scene_->TrySelectFarmTileFromViewport();
 	case GamePlayEditorCommandType::SelectFarmTool:
 		if (command.farmTool == FarmTool::BugNet) {
@@ -374,6 +430,7 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 			*farmGrid_, scene_->farmToolSystem_.GetCurrentTool(),
 			scene_->farmCropSelectionSystem_.GetSelectedCrop(),
 			scene_->farmEconomySystem_).Succeeded()) {
+			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
@@ -387,12 +444,14 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 			*farmGrid_, command.farmTool,
 			scene_->farmCropSelectionSystem_.GetSelectedCrop(),
 			scene_->farmEconomySystem_).Succeeded()) {
+			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
 		return false;
 	case GamePlayEditorCommandType::RaiseFarmTile:
 		if (SelectCommandTarget(command) && farmToolActionSystem_->RaiseSelectedTile(*farmGrid_)) {
+			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
@@ -400,6 +459,7 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		return false;
 	case GamePlayEditorCommandType::LowerFarmTile:
 		if (SelectCommandTarget(command) && farmToolActionSystem_->LowerSelectedTile(*farmGrid_)) {
+			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
@@ -407,6 +467,7 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		return false;
 	case GamePlayEditorCommandType::UndoFarmEdit:
 		if (farmToolActionSystem_->Undo()) {
+			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
@@ -414,6 +475,7 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		return false;
 	case GamePlayEditorCommandType::RedoFarmEdit:
 		if (farmToolActionSystem_->Redo()) {
+			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
@@ -422,6 +484,7 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 	case GamePlayEditorCommandType::ToggleFarmCanal:
 		if (SelectCommandTarget(command) &&
 			farmToolActionSystem_->ToggleSelectedCanal(*farmGrid_)) {
+			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
@@ -430,11 +493,52 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 	case GamePlayEditorCommandType::ToggleFarmWaterSource:
 		if (SelectCommandTarget(command) &&
 			farmToolActionSystem_->ToggleSelectedWaterSource(*farmGrid_)) {
+			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
 		return false;
+	case GamePlayEditorCommandType::BeginFarmCanalPreview:
+		return SelectCommandTarget(command) &&
+			farmToolActionSystem_->CanToggleCanal(*farmGrid_, command.farmTileIndex) &&
+			scene_->farmIrrigationPreviewSystem_.Begin(
+				*farmGrid_, command.farmTileIndex,
+				farm::FarmIrrigationPreviewOperation::ToggleCanal);
+	case GamePlayEditorCommandType::BeginFarmWaterSourcePreview:
+		return SelectCommandTarget(command) &&
+			farmToolActionSystem_->CanToggleWaterSource(*farmGrid_, command.farmTileIndex) &&
+			scene_->farmIrrigationPreviewSystem_.Begin(
+				*farmGrid_, command.farmTileIndex,
+				farm::FarmIrrigationPreviewOperation::ToggleWaterSource);
+	case GamePlayEditorCommandType::ConfirmFarmIrrigationPreview: {
+		if (!scene_->farmIrrigationPreviewSystem_.CanConfirm(*farmGrid_) ||
+			command.farmTileIndex != scene_->farmIrrigationPreviewSystem_.GetTileIndex() ||
+			!SelectCommandTarget(command)) {
+			return false;
+		}
+		const farm::FarmIrrigationPreviewOperation operation =
+			scene_->farmIrrigationPreviewSystem_.GetOperation();
+		bool changed = false;
+		if (operation == farm::FarmIrrigationPreviewOperation::ToggleCanal) {
+			changed = farmToolActionSystem_->ToggleSelectedCanal(*farmGrid_);
+		} else if (operation == farm::FarmIrrigationPreviewOperation::ToggleWaterSource) {
+			changed = farmToolActionSystem_->ToggleSelectedWaterSource(*farmGrid_);
+		}
+		if (!changed) {
+			return false;
+		}
+		scene_->farmIrrigationPreviewSystem_.Cancel();
+		farmIrrigationSystem_->Rebuild(*farmGrid_);
+		farmDocumentSystem_->MarkDirty();
+		return true;
+	}
+	case GamePlayEditorCommandType::CancelFarmIrrigationPreview:
+		if (!scene_->farmIrrigationPreviewSystem_.IsActive()) {
+			return false;
+		}
+		scene_->farmIrrigationPreviewSystem_.Cancel();
+		return true;
 	case GamePlayEditorCommandType::RestartFarmSession:
 		scene_->ResetFarmSession();
 		return true;

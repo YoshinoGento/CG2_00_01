@@ -532,6 +532,17 @@
       "color": [0.46, 0.86, 1.0, 1.0], "padding": [8, 4], "overwrite": true
     },
     {
+      "id": "hud_irrigation_active", "text": "\u704c\u6f11\u4e2d", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_irrigation_active.png", "fontSize": 24,
+      "color": [0.20, 0.88, 1.0, 1.0], "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_irrigation_preview", "text": "\u704c\u6f11\u30d7\u30ec\u30d3\u30e5\u30fc\u4e2d", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_irrigation_preview.png", "fontSize": 28,
+      "color": [1.0, 0.76, 0.18, 1.0], "shadowColor": [0.0, 0.0, 0.0, 0.85],
+      "shadowOffset": [2, 2], "padding": [10, 6], "overwrite": true
+    },
+    {
       "id": "action_tilled",
       "text": "\u8015\u3057\u305f\uff01",
       "font": "Resources/fonts/KiwiMaru-Medium.ttf",

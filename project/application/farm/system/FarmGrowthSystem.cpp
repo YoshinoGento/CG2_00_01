@@ -1,6 +1,7 @@
 #include "farm/system/FarmGrowthSystem.h"
 
 #include "farm/core/FarmGrid.h"
+#include "farm/system/FarmIrrigationSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -31,6 +32,12 @@ float SanitizeTileValue(float value) noexcept
 	return std::isfinite(value)
 		? std::clamp(value, kNormalizedMinimum, kNormalizedMaximum)
 		: kNormalizedMinimum;
+}
+
+bool IsCultivated(const farm::FarmTile& tile) noexcept
+{
+	return tile.feature == farm::FarmTileFeature::None &&
+		tile.state != farm::FarmTileState::Empty;
 }
 
 farm::FarmCropGrowthProfile SanitizeProfile(
@@ -80,9 +87,16 @@ void FarmGrowthSystem::Initialize(const farm::FarmRules& rules) noexcept
 		rules.carrotGrowth, defaults.carrotGrowth);
 	rules_.maxUpdateDeltaTime = SanitizePositive(
 		rules.maxUpdateDeltaTime, defaults.maxUpdateDeltaTime);
+	rules_.irrigationMoistureRecoveryPerSecond = SanitizeNonNegative(
+		rules.irrigationMoistureRecoveryPerSecond,
+		defaults.irrigationMoistureRecoveryPerSecond);
 }
 
-void FarmGrowthSystem::Update(farm::FarmGrid& grid, float deltaTime, float timeScale) const
+void FarmGrowthSystem::Update(
+	farm::FarmGrid& grid,
+	const farm::FarmIrrigationSystem& irrigationSystem,
+	float deltaTime,
+	float timeScale) const
 {
 	if (!std::isfinite(deltaTime) || !std::isfinite(timeScale) ||
 		deltaTime <= 0.0f || timeScale <= 0.0f) {
@@ -102,6 +116,18 @@ void FarmGrowthSystem::Update(farm::FarmGrid& grid, float deltaTime, float timeS
 
 		tile->moisture = SanitizeTileValue(tile->moisture);
 		tile->growth = SanitizeTileValue(tile->growth);
+		const float irrigationStrength = std::clamp(
+			irrigationSystem.GetIrrigationStrength(tileIndex),
+			kNormalizedMinimum,
+			kNormalizedMaximum);
+		if (IsCultivated(*tile) && irrigationStrength > 0.0f) {
+			tile->moisture = std::clamp(
+				tile->moisture +
+					rules_.irrigationMoistureRecoveryPerSecond *
+						irrigationStrength * scaledDeltaTime,
+				kNormalizedMinimum,
+				kNormalizedMaximum);
+		}
 		if (tile->state != farm::FarmTileState::Planted ||
 			tile->crop == farm::CropType::None || farm::IsHarvestReady(*tile)) {
 			continue;
@@ -128,13 +154,17 @@ void FarmGrowthSystem::Update(farm::FarmGrid& grid, float deltaTime, float timeS
 FarmGrowthForecast FarmGrowthSystem::Evaluate(
 	const farm::FarmTile& tile,
 	farm::CropType previewCrop,
-	float timeScale) const noexcept
+	float timeScale,
+	float irrigationStrength) const noexcept
 {
 	FarmGrowthForecast result;
+	result.irrigationStrength = SanitizeNormalized(irrigationStrength, 0.0f);
+	result.irrigationAvailable = result.irrigationStrength > 0.0f;
 	if (tile.state == farm::FarmTileState::Empty ||
 		!std::isfinite(tile.moisture) || !std::isfinite(tile.growth)) {
 		return result;
 	}
+	result.irrigationActive = result.irrigationAvailable && IsCultivated(tile);
 	const farm::CropType profileCrop = farm::IsPlantableCrop(tile.crop)
 		? tile.crop : previewCrop;
 	const farm::FarmCropGrowthProfile* profile =
@@ -159,15 +189,27 @@ FarmGrowthForecast FarmGrowthSystem::Evaluate(
 	if (!std::isfinite(timeScale) || timeScale <= 0.0f) {
 		return result;
 	}
+	result.irrigationRecoveryPerSecond = result.irrigationActive
+		? rules_.irrigationMoistureRecoveryPerSecond *
+			result.irrigationStrength * timeScale
+		: 0.0f;
 	result.growing = tile.state == farm::FarmTileState::Planted &&
 		tile.crop != farm::CropType::None && growth < kNormalizedMaximum;
+	result.moistureDecayPerSecond = result.growing
+		? profile->moistureDecayPerSecond * timeScale
+		: 0.0f;
+	result.netMoisturePerSecond =
+		result.irrigationRecoveryPerSecond - result.moistureDecayPerSecond;
+	if (result.netMoisturePerSecond < 0.0f &&
+		std::isfinite(result.netMoisturePerSecond)) {
+		result.secondsUntilDry = moisture / -result.netMoisturePerSecond;
+	} else if (result.netMoisturePerSecond > 0.0f &&
+		std::isfinite(result.netMoisturePerSecond)) {
+		result.secondsUntilFullMoisture =
+			(kNormalizedMaximum - moisture) / result.netMoisturePerSecond;
+	}
 	if (!result.growing) {
 		return result;
-	}
-	result.moistureDecayPerSecond = profile->moistureDecayPerSecond * timeScale;
-	if (result.moistureDecayPerSecond > 0.0f &&
-		std::isfinite(result.moistureDecayPerSecond)) {
-		result.secondsUntilDry = moisture / result.moistureDecayPerSecond;
 	}
 
 	result.growthPerSecond =

@@ -64,6 +64,7 @@ struct FarmHUDViewData {
 	float goalProgress = 0.0f;
 	float timeScale = 1.0f;
 	bool goalCleared = false;
+	bool irrigationPreviewActive = false;
 	bool selectedTileValid = false;
 	int selectedTileIndex = -1;
 	int selectedTileHeight = 0;
@@ -71,6 +72,8 @@ struct FarmHUDViewData {
 	int selectedTileGrowthPercent = 0;
 	farm::FarmTileFeature selectedTileFeature = farm::FarmTileFeature::None;
 	bool selectedTileIrrigationSupplied = false;
+	bool selectedTileIrrigationActive = false;
+	int selectedTileIrrigationStrengthPercent = 0;
 	farm::FarmTileState selectedTileState = farm::FarmTileState::Empty;
 	farm::CropType selectedTileCrop = farm::CropType::None;
 	farm::FarmCropGrowthStage selectedTileGrowthStage = farm::FarmCropGrowthStage::None;
@@ -140,6 +143,8 @@ private:
 	Sprite localizedCropPieGuide_;
 	Sprite localizedNextAction_;
 	Sprite localizedMoistureStatus_;
+	Sprite localizedIrrigationStatus_;
+	Sprite localizedIrrigationPreview_;
 	Sprite localizedFeedback_;
 	Sprite localizedFeedbackCrop_;
 
@@ -148,6 +153,8 @@ private:
 	std::array<Texture2DHandle, 3> cropTextureHandles_;
 	std::array<Texture2DHandle, 10> nextActionTextureHandles_;
 	std::array<Texture2DHandle, 3> moistureStatusTextureHandles_;
+	std::array<Texture2DHandle, 1> irrigationStatusTextureHandles_;
+	std::array<Texture2DHandle, 1> irrigationPreviewTextureHandles_;
 	std::array<Texture2DHandle, 13> feedbackTextureHandles_;
 
 	SpriteText dayText_;

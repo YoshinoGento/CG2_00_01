@@ -13,6 +13,69 @@ constexpr float kRayEpsilon = 0.0001f;
 constexpr float kSelectionLift = 0.06f;
 constexpr float kSelectionMargin = 0.08f;
 
+float SanitizeStrength(float value) noexcept
+{
+	return std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 0.0f;
+}
+
+Vector4 GetSupplyColor(float strength, bool supplied) noexcept
+{
+	if (!supplied) {
+		return { 0.10f, 0.32f, 0.52f, 1.0f };
+	}
+	const float normalized = SanitizeStrength(strength);
+	return {
+		0.12f + 0.33f * normalized,
+		0.48f + 0.46f * normalized,
+		0.66f + 0.34f * normalized,
+		1.0f,
+	};
+}
+
+void DrawDirectionArrow(
+	LineDrawer& lineDrawer,
+	const Vector3& center,
+	float directionX,
+	float directionZ,
+	float length,
+	const Vector4& color)
+{
+	const float directionLength = std::sqrt(
+		directionX * directionX + directionZ * directionZ);
+	if (!std::isfinite(directionLength) || directionLength <= kRayEpsilon) {
+		return;
+	}
+	const float unitX = directionX / directionLength;
+	const float unitZ = directionZ / directionLength;
+	const float halfLength = length * 0.5f;
+	const Vector3 start = {
+		center.x - unitX * halfLength,
+		center.y,
+		center.z - unitZ * halfLength,
+	};
+	const Vector3 end = {
+		center.x + unitX * halfLength,
+		center.y,
+		center.z + unitZ * halfLength,
+	};
+	const float headLength = length * 0.28f;
+	const float headWidth = length * 0.16f;
+	const Vector3 headBase = {
+		end.x - unitX * headLength,
+		end.y,
+		end.z - unitZ * headLength,
+	};
+	lineDrawer.DrawLine(start, end, color);
+	lineDrawer.DrawLine(
+		end,
+		{ headBase.x - unitZ * headWidth, headBase.y, headBase.z + unitX * headWidth },
+		color);
+	lineDrawer.DrawLine(
+		end,
+		{ headBase.x + unitZ * headWidth, headBase.y, headBase.z - unitX * headWidth },
+		color);
+}
+
 void DrawHorizontalRectangle(
 	LineDrawer& lineDrawer,
 	const Vector3& center,
@@ -35,12 +98,12 @@ Vector4 GetTileColor(
 	const FarmIrrigationSystem& irrigationSystem)
 {
 	if (tile.feature == FarmTileFeature::Canal) {
-		return irrigationSystem.IsSupplied(tileIndex)
-			? Vector4{ 0.08f, 0.78f, 1.0f, 1.0f }
-			: Vector4{ 0.10f, 0.32f, 0.52f, 1.0f };
+		return GetSupplyColor(
+			irrigationSystem.GetSupplyStrength(tileIndex),
+			irrigationSystem.IsSupplied(tileIndex));
 	}
 	if (tile.feature == FarmTileFeature::WaterSource) {
-		return { 0.16f, 0.92f, 1.0f, 1.0f };
+		return GetSupplyColor(irrigationSystem.GetSupplyStrength(tileIndex), true);
 	}
 	if (tile.state == FarmTileState::Planted) {
 		return IsHarvestReady(tile)
@@ -201,7 +264,8 @@ void FarmVisualSystem::Draw(
 	const FarmGrid& grid,
 	const FarmIrrigationSystem& irrigationSystem,
 	const FarmToolActionResult& selectedAction,
-	LineDrawer& lineDrawer) const
+	LineDrawer& lineDrawer,
+	bool irrigationPreviewActive) const
 {
 	const float halfExtent = layout_.tileSize * 0.5f;
 	for (int index = 0; index < grid.GetTileCount(); ++index) {
@@ -216,16 +280,32 @@ void FarmVisualSystem::Draw(
 		if (tile->feature == FarmTileFeature::Canal) {
 			Vector3 canalCenter = center;
 			canalCenter.y += 0.025f;
-			const Vector4 flowColor = irrigationSystem.IsSupplied(index)
-				? Vector4{ 0.45f, 0.94f, 1.0f, 1.0f }
-				: Vector4{ 0.20f, 0.48f, 0.66f, 1.0f };
+			const bool supplied = irrigationSystem.IsSupplied(index);
+			const float supplyStrength = SanitizeStrength(
+				irrigationSystem.GetSupplyStrength(index));
+			const Vector4 flowColor = GetSupplyColor(supplyStrength, supplied);
+			const float flowExtentScale = supplied
+				? 0.36f + 0.26f * supplyStrength
+				: 0.36f;
 			DrawHorizontalRectangle(
-				lineDrawer, canalCenter, halfExtent * 0.62f,
+				lineDrawer, canalCenter, halfExtent * flowExtentScale,
 				flowColor);
 			lineDrawer.DrawLine(
 				{ canalCenter.x - halfExtent * 0.45f, canalCenter.y, canalCenter.z },
 				{ canalCenter.x + halfExtent * 0.45f, canalCenter.y, canalCenter.z },
 				flowColor);
+			const int upstreamIndex = irrigationSystem.GetUpstreamTileIndex(index);
+			if (upstreamIndex >= 0) {
+				const Vector3 upstreamCenter = GetTileCenter(grid, upstreamIndex);
+				canalCenter.y += 0.035f;
+				DrawDirectionArrow(
+					lineDrawer,
+					canalCenter,
+					center.x - upstreamCenter.x,
+					center.z - upstreamCenter.z,
+					halfExtent * 0.92f,
+					flowColor);
+			}
 		} else if (tile->feature == FarmTileFeature::WaterSource) {
 			Vector3 sourceCenter = center;
 			sourceCenter.y += 0.18f;
@@ -244,6 +324,22 @@ void FarmVisualSystem::Draw(
 			Vector3 moundCenter = center;
 			moundCenter.y += 0.02f;
 			DrawHorizontalRectangle(lineDrawer, moundCenter, halfExtent * 0.58f, tileColor);
+			const int canalIndex = irrigationSystem.GetSupplyingCanalIndex(index);
+			if (canalIndex >= 0) {
+				const float irrigationStrength = SanitizeStrength(
+					irrigationSystem.GetIrrigationStrength(index));
+				Vector3 canalCenter = GetTileCenter(grid, canalIndex);
+				canalCenter.y += 0.09f;
+				Vector3 irrigationCenter = center;
+				irrigationCenter.y += 0.09f;
+				const Vector4 irrigationColor = GetSupplyColor(irrigationStrength, true);
+				lineDrawer.DrawLine(canalCenter, irrigationCenter, irrigationColor);
+				lineDrawer.DrawWireSphere(
+					irrigationCenter,
+					halfExtent * (0.06f + 0.08f * irrigationStrength),
+					irrigationColor,
+					8);
+			}
 		}
 		if (tile->feature == FarmTileFeature::None && tile->moisture > 0.05f) {
 			const Vector4 moistureColor = { 0.18f, 0.68f, 1.0f, 1.0f };
@@ -261,7 +357,9 @@ void FarmVisualSystem::Draw(
 		}
 
 		if (index == grid.GetSelectedIndex()) {
-			const Vector4 selectionColor = selectedAction.Succeeded()
+			const Vector4 selectionColor = irrigationPreviewActive
+				? Vector4{ 1.0f, 0.72f, 0.12f, 1.0f }
+				: selectedAction.Succeeded()
 				? Vector4{ 0.15f, 1.0f, 0.35f, 1.0f }
 				: Vector4{ 1.0f, 0.22f, 0.12f, 1.0f };
 			Vector3 selectionCenter = center;
