@@ -7,7 +7,9 @@
 #include "base/SrvManager.h"
 #include "effect/ParticleManager.h"
 #include "effect/ComicTextEffect.h"
+#include "effect/ProceduralCombatEffect.h"
 #ifdef USE_IMGUI
+#include "debug/CombatEffectEditor.h"
 #include "debug/ComicTextEffectEditor.h"
 #include "debug/ParticleEffectEditor.h"
 #include "externals/imgui/imgui.h"
@@ -26,9 +28,12 @@ void EffectEditorScene::Initialize() {
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
+	lightningEffect_ = std::make_unique<LightningEffect>();
+	slashEffect_ = std::make_unique<SlashEffect>();
 #ifdef USE_IMGUI
 	particleEffectEditor_ = std::make_unique<ParticleEffectEditor>();
 	comicTextEffectEditor_ = std::make_unique<ComicTextEffectEditor>();
+	combatEffectEditor_ = std::make_unique<CombatEffectEditor>();
 #endif
 }
 
@@ -36,7 +41,10 @@ void EffectEditorScene::Finalize() {
 #ifdef USE_IMGUI
 	particleEffectEditor_.reset();
 	comicTextEffectEditor_.reset();
+	combatEffectEditor_.reset();
 #endif
+	lightningEffect_.reset();
+	slashEffect_.reset();
 	comicTextEffects_.reset();
 	if (framework_ && framework_->GetParticleManager()) {
 		framework_->GetParticleManager()->ClearAll();
@@ -63,6 +71,10 @@ void EffectEditorScene::Update() {
 			clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds,
 			camera_->GetViewProjectionMatrix());
 	}
+	const FrameClock* clock = framework_->GetFrameClock();
+	const float deltaTime = clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds;
+	if (lightningEffect_) lightningEffect_->Update(deltaTime);
+	if (slashEffect_) slashEffect_->Update(deltaTime);
 }
 
 void EffectEditorScene::DrawPreviewGrid() {
@@ -87,6 +99,8 @@ void EffectEditorScene::Draw() {
 		return;
 	}
 	DrawPreviewGrid();
+	if (lightningEffect_) lightningEffect_->Draw(*LineDrawer::GetInstance());
+	if (slashEffect_) slashEffect_->Draw(*LineDrawer::GetInstance());
 	if (ParticleManager* particles = framework_->GetParticleManager()) {
 		particles->Draw();
 	}
@@ -149,6 +163,18 @@ void EffectEditorScene::DrawEditorUi(const SceneEditorContext& context) {
 			if (ImGui::BeginTabItem("Comic Text")) {
 				if (comicTextEffectEditor_ && comicTextEffects_) {
 					comicTextEffectEditor_->Draw(*comicTextEffects_, previewPosition_);
+				}
+				ImGui::EndTabItem();
+			}
+			if (ImGui::BeginTabItem("Lightning")) {
+				if (combatEffectEditor_ && lightningEffect_) {
+					combatEffectEditor_->DrawLightning(*lightningEffect_, previewPosition_);
+				}
+				ImGui::EndTabItem();
+			}
+			if (ImGui::BeginTabItem("Slash")) {
+				if (combatEffectEditor_ && slashEffect_) {
+					combatEffectEditor_->DrawSlash(*slashEffect_, previewPosition_);
 				}
 				ImGui::EndTabItem();
 			}

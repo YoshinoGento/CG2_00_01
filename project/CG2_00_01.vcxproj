@@ -223,6 +223,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClCompile Include="engine\debug\ComicTextEffectEditor.cpp">
 	  <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
 	</ClCompile>
+	<ClCompile Include="engine\debug\CombatEffectEditor.cpp" />
     <ClCompile Include="engine\audio\Audio.cpp" />
     <ClCompile Include="application\scene\BaseScene.cpp" />
     <ClCompile Include="engine\3d\Camera.cpp" />
@@ -254,6 +255,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\effect\ParticleManager.cpp" />
 	<ClCompile Include="engine\effect\ParticleEffectLibrary.cpp" />
 	<ClCompile Include="engine\effect\ComicTextEffect.cpp" />
+	<ClCompile Include="engine\effect\ProceduralCombatEffect.cpp" />
     <ClCompile Include="engine\3d\PrimitiveGenerator.cpp" />
     <ClCompile Include="application\scene\SceneFactory.cpp" />
     <ClCompile Include="application\scene\SceneManager.cpp" />
@@ -499,6 +501,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\debug\InputDebugWindow.h" />
     <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
+	<ClInclude Include="engine\debug\CombatEffectEditor.h" />
     <ClInclude Include="engine\audio\Audio.h" />
     <ClInclude Include="application\scene\BaseScene.h" />
     <ClInclude Include="application\scene\GameFlowState.h" />
@@ -531,6 +534,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\3d\Object3dCommon.h" />
     <ClInclude Include="engine\3d\LightingSystem.h" />
     <ClInclude Include="engine\effect\ParticleManager.h" />
+	<ClInclude Include="engine\effect\ProceduralCombatEffect.h" />
     <ClInclude Include="engine\3d\PrimitiveGenerator.h" />
     <ClInclude Include="application\scene\SceneFactory.h" />
     <ClInclude Include="application\scene\SceneManager.h" />

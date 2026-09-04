@@ -3,8 +3,10 @@
 #include "application/scene/BaseScene.h"
 #include "math/Struct.h"
 #include "effect/ComicTextEffect.h"
+#include "effect/ProceduralCombatEffect.h"
 #ifdef USE_IMGUI
 #include "debug/ComicTextEffectEditor.h"
+#include "debug/CombatEffectEditor.h"
 #endif
 
 #include <memory>
@@ -31,9 +33,12 @@ private:
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
 	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;
+	std::unique_ptr<LightningEffect> lightningEffect_;
+	std::unique_ptr<SlashEffect> slashEffect_;
 	Vector3 previewPosition_ = { 0.0f, 1.0f, 6.0f };
 #ifdef USE_IMGUI
 	std::unique_ptr<ParticleEffectEditor> particleEffectEditor_;
 	std::unique_ptr<ComicTextEffectEditor> comicTextEffectEditor_;
+	std::unique_ptr<CombatEffectEditor> combatEffectEditor_;
 #endif
 };
