@@ -12,6 +12,14 @@ using Microsoft::WRL::ComPtr;
 #endif
 
 ResourceLeakChecker::~ResourceLeakChecker() {
+	ReportLiveObjects();
+}
+
+void ResourceLeakChecker::ReportLiveObjects() {
+	if (reported_) {
+		return;
+	}
+	reported_ = true;
 #ifdef _DEBUG
 	ComPtr<IDXGIDebug1> debugController;
 	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debugController)))) {

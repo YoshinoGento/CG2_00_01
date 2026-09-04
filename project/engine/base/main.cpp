@@ -100,6 +100,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// 2. ゲームを実行します。
 	// この1行の中で「初期化 → ループ（更新・描画） → 終了処理」が自動的に行われます。
 	game->Run();
+	// Release the complete engine before asking DXGI for live objects. Reporting
+	// from a process-termination callback is too late and produces a misleading
+	// untyped "simple reporting" dump.
+	game.reset();
+#ifdef _DEBUG
+	resourceLeakChecker.ReportLiveObjects();
+#endif
 
 	// 3. プログラムを正常終了します。
 	return 0;

@@ -108,6 +108,9 @@ void Framework::Initialize() {
 }
 
 void Framework::Finalize() {
+	if (dxCommon_) {
+		dxCommon_->WaitForGPUIdle();
+	}
 	ImGuiManager::GetInstance()->Finalize();
 	frameClock_.reset();
 	if (particleEffectLibrary_) {
@@ -120,8 +123,20 @@ void Framework::Finalize() {
 	lightingSystem_.reset();
 	spriteCommon_.reset();
 	TextureManager::GetInstance()->Finalize();
-	audio_->Finalize();
-	winApp_->Finalize();
+	input_.reset();
+	if (audio_) {
+		audio_->Finalize();
+		audio_.reset();
+	}
+	srvManager_.reset();
+	if (dxCommon_) {
+		dxCommon_->Finalize();
+		dxCommon_.reset();
+	}
+	if (winApp_) {
+		winApp_->Finalize();
+		winApp_.reset();
+	}
 }
 
 TextureManager* Framework::GetTextureManager() const {
@@ -133,7 +148,12 @@ void Framework::Update() {
 	audio_->Update(frameClock_->GetRealDeltaSeconds());
 	if (winApp_->ProcessMessage()) {
 		endRequest_ = true;
+		return;
 	}
-	dxCommon_->ResizeSwapChainIfNeeded();
+	if (!dxCommon_->ResizeSwapChainIfNeeded()) {
+		Logger::Log("Framework::Update stopped because the swap chain could not be resized safely.");
+		endRequest_ = true;
+		return;
+	}
 	input_->Update();
 }

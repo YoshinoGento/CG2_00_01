@@ -13,6 +13,74 @@
 
 using namespace Microsoft::WRL;
 
+DirectXCommon::~DirectXCommon() {
+    Finalize();
+}
+
+void DirectXCommon::WaitForGPUIdle() noexcept {
+    if (!commandQueue_ || !fence_) {
+        return;
+    }
+
+    ++fenceValue_;
+    if (FAILED(commandQueue_->Signal(fence_.Get(), fenceValue_))) {
+        return;
+    }
+    if (fence_->GetCompletedValue() < fenceValue_ && fenceEvent_) {
+        if (SUCCEEDED(fence_->SetEventOnCompletion(fenceValue_, fenceEvent_))) {
+            WaitForSingleObject(fenceEvent_, INFINITE);
+        }
+    }
+}
+
+void DirectXCommon::Finalize() noexcept {
+    WaitForGPUIdle();
+
+    auto unmapResource = [](ComPtr<ID3D12Resource>& resource, auto*& mappedAddress) {
+        if (resource && mappedAddress) {
+            resource->Unmap(0, nullptr);
+        }
+        mappedAddress = nullptr;
+        resource.Reset();
+    };
+    unmapResource(fullscreenPostEffectParameterResource_, mappedFullscreenPostEffectParameter_);
+    unmapResource(vignetteParameterResource_, mappedVignetteParameter_);
+    unmapResource(radialBlurParameterResource_, mappedRadialBlurParameter_);
+    unmapResource(dissolveParameterResource_, mappedDissolveParameter_);
+    unmapResource(randomNoiseParameterResource_, mappedRandomNoiseParameter_);
+    unmapResource(hsvFilterParameterResource_, mappedHSVFilterParameter_);
+
+    normalTexture_.Finalize(nullptr);
+    finalDisplayTexture_.Finalize(nullptr);
+    postEffectResultTexture_.Finalize(nullptr);
+    sceneRenderTexture_.Finalize(nullptr);
+    depthBuffer_.Reset();
+    for (ComPtr<ID3D12Resource>& backBuffer : backBuffers_) {
+        backBuffer.Reset();
+    }
+
+    swapChain_.Reset();
+    dsvHeap_.Reset();
+    rtvHeap_.Reset();
+    commandList_.Reset();
+    commandAllocator_.Reset();
+    commandQueue_.Reset();
+    fence_.Reset();
+    if (fenceEvent_) {
+        CloseHandle(fenceEvent_);
+        fenceEvent_ = nullptr;
+    }
+
+    includeHandler_.Reset();
+    dxcCompiler_.Reset();
+    dxcUtils_.Reset();
+    dxgiFactory_.Reset();
+    device_.Reset();
+    winApp_ = nullptr;
+    swapChainWidth_ = 0;
+    swapChainHeight_ = 0;
+}
+
 // --- 譁・ｭ怜・螟画鋤繝倥Ν繝代・ ---
 std::wstring ConvertString(const std::string& str) {
     if (str.empty()) return std::wstring();
@@ -207,54 +275,80 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     SetHSVFilterParameter(hsvFilterParameter);
 }
 
-void DirectXCommon::ResizeSwapChainIfNeeded() {
+bool DirectXCommon::ResizeSwapChainIfNeeded() {
     if (!winApp_ || !swapChain_) {
-        return;
+        return false;
     }
 
     const uint32_t clientWidth = winApp_->GetClientWidth();
     const uint32_t clientHeight = winApp_->GetClientHeight();
     if (clientWidth == 0 || clientHeight == 0) {
-        return;
+        return true;
     }
     if (clientWidth == swapChainWidth_ && clientHeight == swapChainHeight_) {
-        return;
+        return true;
     }
 
-    commandList_->Close();
+    HRESULT hr = commandList_->Close();
+    if (FAILED(hr)) {
+        Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to close the command list. HRESULT=" +
+            std::to_string(static_cast<long>(hr)));
+        return false;
+    }
     ID3D12CommandList* commandLists[] = { commandList_.Get() };
     commandQueue_->ExecuteCommandLists(1, commandLists);
-    fenceValue_++;
-    commandQueue_->Signal(fence_.Get(), fenceValue_);
-    if (fence_->GetCompletedValue() < fenceValue_) {
-        fence_->SetEventOnCompletion(fenceValue_, fenceEvent_);
-        WaitForSingleObject(fenceEvent_, INFINITE);
+    WaitForGPUIdle();
+
+    // A closed command list can retain references to the old back buffers.
+    // Reset it after the GPU has finished, before ResizeBuffers releases them.
+    hr = commandAllocator_->Reset();
+    if (FAILED(hr)) {
+        Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to reset the command allocator. HRESULT=" +
+            std::to_string(static_cast<long>(hr)));
+        return false;
+    }
+    hr = commandList_->Reset(commandAllocator_.Get(), nullptr);
+    if (FAILED(hr)) {
+        Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to reset the command list. HRESULT=" +
+            std::to_string(static_cast<long>(hr)));
+        return false;
     }
 
     for (ComPtr<ID3D12Resource>& backBuffer : backBuffers_) {
         backBuffer.Reset();
     }
 
-    HRESULT hr = swapChain_->ResizeBuffers(
+    hr = swapChain_->ResizeBuffers(
         static_cast<UINT>(backBuffers_.size()),
         clientWidth,
         clientHeight,
         DXGI_FORMAT_R8G8B8A8_UNORM,
         0);
-    assert(SUCCEEDED(hr));
+    if (FAILED(hr)) {
+        Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to resize the swap chain. HRESULT=" +
+            std::to_string(static_cast<long>(hr)));
+
+        // The old descriptors are no longer safe after a failed resize. Tell
+        // the framework to end this frame before any rendering uses them.
+        return false;
+    }
 
     swapChainWidth_ = clientWidth;
     swapChainHeight_ = clientHeight;
 
     for (uint32_t i = 0; i < backBuffers_.size(); ++i) {
-        swapChain_->GetBuffer(i, IID_PPV_ARGS(&backBuffers_[i]));
+        hr = swapChain_->GetBuffer(i, IID_PPV_ARGS(&backBuffers_[i]));
+        if (FAILED(hr)) {
+            Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to acquire a back buffer. HRESULT=" +
+                std::to_string(static_cast<long>(hr)));
+            return false;
+        }
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
         rtvHandle.ptr += static_cast<size_t>(i) * rtvDescriptorSize_;
         device_->CreateRenderTargetView(backBuffers_[i].Get(), nullptr, rtvHandle);
     }
 
-    commandAllocator_->Reset();
-    commandList_->Reset(commandAllocator_.Get(), nullptr);
+    return true;
 }
 
 void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter) {

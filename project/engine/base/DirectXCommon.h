@@ -18,6 +18,9 @@
  */
 class DirectXCommon {
 public:
+    DirectXCommon() = default;
+    ~DirectXCommon();
+
     enum class FullscreenPostEffectType {
         Copy = 0,
         Grayscale,
@@ -115,6 +118,8 @@ public:
     static_assert(sizeof(HSVFilterParamForGPU) == 16);
 
     void Initialize(WinApp* winApp);
+    void WaitForGPUIdle() noexcept;
+    void Finalize() noexcept;
 
     // --- 謠冗判繝輔Ο繝ｼ邂｡逅・---
     // 1. 繧ｲ繝ｼ繝逕ｻ髱｢・医ユ繧ｯ繧ｹ繝√Ε・峨∈縺ｮ謠冗判繧帝幕蟋九☆繧・
@@ -140,7 +145,7 @@ public:
     void SetDissolveParameter(const DissolveParamForGPU& parameter);
     void SetRandomNoiseParameter(const RandomNoiseParamForGPU& parameter);
     void SetHSVFilterParameter(const HSVFilterParamForGPU& parameter);
-    void ResizeSwapChainIfNeeded();
+    [[nodiscard]] bool ResizeSwapChainIfNeeded();
     // 3. 蜈ｨ縺ｦ縺ｮ謠冗判繧堤ｵゆｺ・＠縲∫判髱｢繧定｡ｨ遉ｺ縺吶ｋ
     void PostDraw();
 
