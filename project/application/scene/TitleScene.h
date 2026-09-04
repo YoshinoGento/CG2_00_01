@@ -6,6 +6,9 @@
 #include <array>
 #include <memory>
 
+class Camera;
+class Object3d;
+
 /**
  * TitleScene
  * ゲームの開始待機画面。
@@ -26,6 +29,8 @@ private:
 	Page page_ = Page::Title;
 	BitmapFont font_;
 	std::unique_ptr<Sprite> background_;
+	std::unique_ptr<Camera> titleCamera_;
+	std::unique_ptr<Object3d> titleObject_;
 	std::array<SpriteText, 9> lines_{};
 	std::size_t lineCount_ = 0;
 	bool uiReady_ = false;

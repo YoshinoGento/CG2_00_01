@@ -11,6 +11,7 @@ using namespace Microsoft::WRL;
  */
 void Skybox::Initialize(DirectXCommon* dxCommon, const std::string& ddsFilePath) {
 	dxCommon_ = dxCommon;
+	usesGradient_ = false;
 
 	// 1. 頂点データ（-1.0 ~ 1.0 の 2m四方）を作成
 	CreateMesh();
@@ -25,8 +26,26 @@ void Skybox::Initialize(DirectXCommon* dxCommon, const std::string& ddsFilePath)
 	materialResource_ = dxCommon_->CreateBufferResource(sizeof(Material));
 	materialResource_->Map(0, nullptr, (void**)&materialData_);
 	materialData_->color = { 1.0f, 1.0f, 1.0f, 1.0f };
+	materialData_->secondaryColor = materialData_->color;
 
 	// 4. スライド15ページの指定通り、深度書き込み無効のPSOを作成
+	CreatePSO();
+}
+
+void Skybox::InitializeGradient(
+	DirectXCommon* dxCommon,
+	const Vector4& upperColor,
+	const Vector4& lowerColor)
+{
+	dxCommon_ = dxCommon;
+	usesGradient_ = true;
+	CreateMesh();
+	constResource_ = dxCommon_->CreateBufferResource(sizeof(TransformationMatrix));
+	constResource_->Map(0, nullptr, (void**)&constData_);
+	materialResource_ = dxCommon_->CreateBufferResource(sizeof(Material));
+	materialResource_->Map(0, nullptr, (void**)&materialData_);
+	materialData_->color = upperColor;
+	materialData_->secondaryColor = lowerColor;
 	CreatePSO();
 }
 
@@ -69,8 +88,10 @@ void Skybox::Draw() {
 	commandList->SetGraphicsRootConstantBufferView(0, constResource_->GetGPUVirtualAddress());
 	commandList->SetGraphicsRootConstantBufferView(1, materialResource_->GetGPUVirtualAddress());
 
-	D3D12_GPU_DESCRIPTOR_HANDLE handle = TextureManager::GetInstance()->GetGpuHandle(textureHandle_);
-	commandList->SetGraphicsRootDescriptorTable(2, handle);
+	if (!usesGradient_) {
+		D3D12_GPU_DESCRIPTOR_HANDLE handle = TextureManager::GetInstance()->GetGpuHandle(textureHandle_);
+		commandList->SetGraphicsRootDescriptorTable(2, handle);
+	}
 
 	// 36頂点を描画
 	commandList->DrawIndexedInstanced(36, 1, 0, 0, 0);
@@ -111,7 +132,10 @@ void Skybox::CreateMesh() {
 void Skybox::CreatePSO() {
 	ID3D12Device* device = dxCommon_->GetDevice();
 	auto vs = dxCommon_->CompileShader(L"Resources/shader/Skybox.VS.hlsl", L"vs_6_0");
-	auto ps = dxCommon_->CompileShader(L"Resources/shader/Skybox.PS.hlsl", L"ps_6_0");
+	auto ps = dxCommon_->CompileShader(
+		usesGradient_ ? L"Resources/shader/GradientSkybox.PS.hlsl"
+			: L"Resources/shader/Skybox.PS.hlsl",
+		L"ps_6_0");
 	if (vs == nullptr) {
 		Logger::Log("Skybox::CreatePSO failed: vertex shader compile failed.\n");
 		assert(false);

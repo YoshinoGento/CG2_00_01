@@ -7,6 +7,7 @@
 #include "3d/ModelManager.h"
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
+#include "3d/Skybox.h"
 #include "2d/SpriteCommon.h"
 #include "2d/TextureManager.h"
 #include "base/Framework.h"
@@ -164,6 +165,12 @@ void MagnetPrototypeScene::Initialize()
 	camera_->SetTranslate({ 0.0f, 11.0f, -16.0f });
 	camera_->SetRotate({ 0.60f, 0.0f, 0.0f });
 	camera_->Update();
+	skybox_ = std::make_unique<Skybox>();
+	skybox_->InitializeGradient(
+		framework_->GetDxCommon(),
+		{ 0.22f, 0.38f, 0.62f, 1.0f },
+		{ 0.70f, 0.30f, 0.34f, 1.0f });
+	skybox_->Update(camera_.get());
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
 	minimapReady_ = InitializeMinimap();
 	if (!minimapReady_) {
@@ -245,6 +252,7 @@ void MagnetPrototypeScene::Finalize()
 	minimapBackgroundSprite_.reset();
 	minimapBorderSprite_.reset();
 	minimapReady_ = false;
+	skybox_.reset();
 	camera_.reset();
 	framework_ = nullptr;
 	prototypeReady_ = false;
@@ -388,6 +396,7 @@ void MagnetPrototypeScene::Update()
 					: Vector3{}));
 		}
 		camera_->Update();
+		if (skybox_) { skybox_->Update(camera_.get()); }
 	}
 	if (ballVisualsReady_ && !UpdateBallVisuals(frameDeltaSeconds)) {
 		Logger::Log(
@@ -488,6 +497,10 @@ void MagnetPrototypeScene::Draw()
 	if (!camera_ || !prototypeReady_) {
 		return;
 	}
+
+	// The sky is the background, so render it before particles and screen-space effects.
+	// Drawing it later would overwrite effects that do not write to the depth buffer.
+	if (skybox_) { skybox_->Draw(); }
 
 	LineDrawer* lineDrawer = LineDrawer::GetInstance();
 	const float arenaRadius = magnetChainSystem_.GetArenaRadius();

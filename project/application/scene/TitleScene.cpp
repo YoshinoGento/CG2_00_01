@@ -3,6 +3,11 @@
 #include "GameFlowState.h"
 #include "SceneManager.h"
 #include "2d/SpriteCommon.h"
+#include "3d/Camera.h"
+#include "3d/Model.h"
+#include "3d/ModelManager.h"
+#include "3d/Object3d.h"
+#include "3d/Object3dCommon.h"
 #include "base/Framework.h"
 #include "io/Input.h"
 
@@ -41,8 +46,29 @@ void TitleScene::Initialize()
 	}
 
 	if (page_ == Page::Title) {
-		SetLine(0, "MAGNET 10 DAYS", { 405.0f, 210.0f }, 1.9f, kPrimaryColor);
-		SetLine(1, "PRESS B OR ENTER", { 445.0f, 420.0f }, 1.05f, kAccentColor);
+		ModelManager* modelManager = framework->GetModelManager();
+		if (modelManager) {
+			constexpr const char* kTitleModelPath = "title/Title.obj";
+			modelManager->LoadModel(kTitleModelPath);
+			Model* titleModel = modelManager->GetModel(kTitleModelPath);
+			if (titleModel) {
+				titleModel->LoadTextures();
+				titleCamera_ = std::make_unique<Camera>();
+				titleCamera_->SetTranslate({ 0.0f, 0.0f, -10.0f });
+				titleCamera_->SetRotate({ 0.0f, 0.0f, 0.0f });
+				titleCamera_->Update();
+				titleObject_ = std::make_unique<Object3d>();
+				titleObject_->Initialize(framework->GetObject3dCommon());
+				titleObject_->SetModel(titleModel);
+				titleObject_->SetScale({ 0.72f, 0.72f, 0.72f });
+				titleObject_->SetPosition({ 0.425f, 1.13f, 0.0f });
+				titleObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+				titleObject_->SetEnableLighting(false);
+				titleObject_->SetCullMode(0);
+				titleObject_->Update(titleCamera_.get(), 0.0f);
+			}
+		}
+		SetLine(0, "PRESS B OR ENTER", { 445.0f, 420.0f }, 1.05f, kAccentColor);
 	} else if (page_ == Page::Instructions) {
 		SetLine(0, "HOW TO PLAY", { 465.0f, 105.0f }, 1.55f, kPrimaryColor);
 		SetLine(1, "LEFT STICK OR WASD  MOVE", { 350.0f, 215.0f }, 0.95f, kTextColor);
@@ -73,12 +99,17 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
+	titleObject_.reset();
+	titleCamera_.reset();
 	background_.reset();
 	uiReady_ = false;
 }
 
 void TitleScene::Update()
 {
+	if (titleObject_ && titleCamera_) {
+		titleObject_->Update(titleCamera_.get(), 0.0f);
+	}
 	Input* input = Framework::GetInstance()->GetInput();
 	if (!input || (!input->TriggerKey(InputKey::Enter) &&
 		!input->TriggerGamepadButton(InputGamepadButton::B))) { return; }
@@ -96,6 +127,13 @@ void TitleScene::Draw()
 	if (!uiReady_) { return; }
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
 	background_->Draw();
+	if (titleObject_) {
+		Object3dCommon* objectCommon = Framework::GetInstance()->GetObject3dCommon();
+		objectCommon->BeginObjectPass();
+		titleObject_->Draw();
+		objectCommon->EndObjectPass();
+	}
+	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
 	for (std::size_t index = 0; index < lineCount_; ++index) {
 		lines_[index].Draw();
 	}
