@@ -116,7 +116,7 @@ copy /Y "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;MAGNET_STARTUP_STAGE_OBSTACLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 /FS %(AdditionalOptions)</AdditionalOptions>
@@ -288,6 +288,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<None Include="Resources\audio\magnet\Chainsaw.wav" />
 	<None Include="Resources\audio\magnet\cuts.wav" />
     <None Include="Resources\levels\magnet\stage_01.json" />
+    <None Include="Resources\levels\magnet\stage_Obstacle.json" />
 	<None Include="Resources\magnet\player\player.obj" />
 	<None Include="Resources\magnet\player\player.mtl" />
 	<None Include="Resources\magnet\small_ball\SmallBall.obj" />

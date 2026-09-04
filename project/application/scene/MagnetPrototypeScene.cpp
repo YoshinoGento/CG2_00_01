@@ -32,6 +32,10 @@
 
 namespace {
 
+#ifdef MAGNET_STARTUP_STAGE_OBSTACLE
+constexpr char kReleaseStageSaveName[] = "stage_Obstacle";
+#endif
+
 constexpr Vector4 kPlayerColor = { 1.0f, 0.15f, 0.12f, 1.0f };
 constexpr Vector4 kLeftChainColor = { 0.15f, 0.65f, 1.0f, 1.0f };
 constexpr Vector4 kRightChainColor = { 0.25f, 0.9f, 0.75f, 1.0f };
@@ -235,7 +239,18 @@ void MagnetPrototypeScene::Initialize()
 			"gameplay will continue without it.");
 	}
 
-	prototypeReady_ = magnetStageSystem_.Initialize() &&
+	bool stageReady = false;
+#ifdef MAGNET_STARTUP_STAGE_OBSTACLE
+	stageReady = magnetStageSystem_.LoadNamed(kReleaseStageSaveName);
+#else
+	stageReady = magnetStageSystem_.Initialize();
+#endif
+	if (!stageReady) {
+		Logger::Log(
+			"MagnetPrototypeScene: startup stage initialization failed: " +
+			magnetStageSystem_.GetLastOperationMessage());
+	}
+	prototypeReady_ = stageReady &&
 		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
 	ballVisualsReady_ = prototypeReady_ && InitializeBallVisuals();
 	if (ballVisualsReady_) {
@@ -250,8 +265,8 @@ void MagnetPrototypeScene::Initialize()
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
 	ComicTextEffectSystem::LoadPreset("HeavyImpact", heavyImpactPreset_);
 	if (!prototypeReady_) {
-		Logger::Log("MagnetPrototypeScene: MagnetChainSystem initialization failed.");
-		assert(false && "MagnetChainSystem initialization failed.");
+		Logger::Log("MagnetPrototypeScene: magnet prototype initialization failed.");
+		assert(false && "Magnet prototype initialization failed.");
 	}
 	pendingCommand_ = {};
 	resetRequested_ = false;

@@ -609,6 +609,16 @@ int main()
 		std::cerr << "Tracked default stage JSON is invalid.\n";
 		return 7;
 	}
+	magnet::MagnetStageSystem releaseStageSystem("project/Resources/levels/magnet");
+	if (!releaseStageSystem.LoadNamed("stage_Obstacle") ||
+		releaseStageSystem.GetStageData().name != "stage_Obstacle" ||
+		releaseStageSystem.GetStageData().ballCount != 16 ||
+		releaseStageSystem.GetStageData().goalCount != 3 ||
+		releaseStageSystem.GetStageData().obstacleCount != 10) {
+		std::cerr << "Tracked Release startup stage JSON is invalid.\n";
+		return 216;
+	}
+	std::cout << "release_stage_checks=passed\n";
 	magnet::MagnetChainSystem authoredGoalSystem;
 	const magnet::MagnetStageBoxPlacement& authoredGoal =
 		defaultStageSystem.GetStageData().goals[0];

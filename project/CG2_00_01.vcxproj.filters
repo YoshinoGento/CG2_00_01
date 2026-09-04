@@ -555,6 +555,9 @@
     <None Include="Resources\levels\magnet\stage_01.json">
       <Filter>Resource Files</Filter>
     </None>
+	<None Include="Resources\levels\magnet\stage_Obstacle.json">
+	  <Filter>Resource Files</Filter>
+	</None>
 	<None Include="Resources\magnet\player\player.obj">
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
