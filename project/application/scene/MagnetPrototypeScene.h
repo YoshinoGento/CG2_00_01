@@ -105,6 +105,10 @@ private:
 	bool goalGuidesReady_ = false;
 	BitmapFont gameFlowFont_;
 	std::unique_ptr<Sprite> pauseOverlaySprite_;
+	std::unique_ptr<Camera> pauseLabelCamera_;
+	std::unique_ptr<Object3d> pauseTitleObject_;
+	std::unique_ptr<Object3d> resumeLabelObject_;
+	std::unique_ptr<Object3d> restartLabelObject_;
 	SpriteText timerText_;
 	SpriteText pauseTitleText_;
 	std::array<SpriteText, 4> pauseMenuTexts_{};
