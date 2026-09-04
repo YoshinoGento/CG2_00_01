@@ -37,6 +37,10 @@ private:
 	std::unique_ptr<SlashEffect> slashEffect_;
 	Vector3 previewPosition_ = { 0.0f, 1.0f, 6.0f };
 #ifdef USE_IMGUI
+	bool hitParticleEnabled_ = true;
+	bool hitComicTextEnabled_ = true;
+	bool hitLightningEnabled_ = true;
+	bool hitSlashEnabled_ = true;
 	std::unique_ptr<ParticleEffectEditor> particleEffectEditor_;
 	std::unique_ptr<ComicTextEffectEditor> comicTextEffectEditor_;
 	std::unique_ptr<CombatEffectEditor> combatEffectEditor_;

@@ -11,7 +11,8 @@
 class ComicTextEffectEditor final {
 public:
 	ComicTextEffectEditor();
-	void Draw(ComicTextEffectSystem& system, const Vector3& previewPosition);
+	void Draw(ComicTextEffectSystem& system, const Vector3& previewPosition,
+		bool previewRequested = false);
 
 private:
 	void RefreshPresetList();

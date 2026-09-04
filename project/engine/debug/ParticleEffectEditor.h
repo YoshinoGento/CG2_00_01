@@ -12,7 +12,8 @@ class ParticleEffectEditor final {
 public:
 	ParticleEffectEditor();
 
-	void Draw(ParticleManager& particleManager, const Vector3& defaultPosition, float deltaTime);
+	void Draw(ParticleManager& particleManager, const Vector3& defaultPosition, float deltaTime,
+		bool previewRequested = false);
 
 private:
 	void ApplyMagneticNovaPreset();

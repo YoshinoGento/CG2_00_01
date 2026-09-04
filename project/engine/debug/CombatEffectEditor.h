@@ -6,8 +6,10 @@
 
 class CombatEffectEditor final {
 public:
-	void DrawLightning(LightningEffect& effect, const Vector3& origin);
-	void DrawSlash(SlashEffect& effect, const Vector3& origin);
+	void DrawLightning(LightningEffect& effect, const Vector3& origin,
+		bool previewRequested = false);
+	void DrawSlash(SlashEffect& effect, const Vector3& origin,
+		bool previewRequested = false);
 
 private:
 	LightningEffectSettings lightning_{};

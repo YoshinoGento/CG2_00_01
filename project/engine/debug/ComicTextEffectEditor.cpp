@@ -221,7 +221,8 @@ void ComicTextEffectEditor::DeleteSelectedPreset() {
 	RefreshPresetList();
 }
 
-void ComicTextEffectEditor::Draw(ComicTextEffectSystem& system, const Vector3& previewPosition) {
+void ComicTextEffectEditor::Draw(ComicTextEffectSystem& system, const Vector3& previewPosition,
+	bool previewRequested) {
 	ImGui::TextUnformatted("英字・数字・カタカナを自由入力して3D位置へ重ねます。");
 	DrawPresetLibrary();
 	ImGui::Checkbox("Editable Bitmap Text##Comic", &preset_.useEditableText);
@@ -249,12 +250,11 @@ void ComicTextEffectEditor::Draw(ComicTextEffectSystem& system, const Vector3& p
 
 	preset_.texturePath = texturePath_.data();
 	preset_.text = text_.data();
-	const bool rightClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
-	if (ImGui::Button("Preview Comic Text") || rightClicked) {
+	if (ImGui::Button("Preview Comic Text") || previewRequested) {
 		status_ = system.Play(preset_, previewPosition) ? "Preview started." : "Preview failed.";
 	}
 	ImGui::SameLine();
-	ImGui::TextDisabled("Right click: preview text effect");
+	ImGui::TextDisabled("Included in the composed hit preview when enabled.");
 	ImGui::SeparatorText("Runtime usage");
 	ImGui::TextWrapped("comicTextEffects.Play(\"%s\", hitWorldPosition);", presetName_.data());
 }

@@ -374,7 +374,8 @@ bool ParticleEffectEditor::LoadPreset() {
 	return true;
 }
 
-void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3& defaultPosition, float deltaTime) {
+void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3& defaultPosition, float deltaTime,
+	bool previewRequested) {
 	if (useScenePosition_) {
 		settings_.translate = defaultPosition;
 	}
@@ -431,8 +432,7 @@ void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3&
 		}
 	}
 
-	const bool rightClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
-	if (ImGui::Button("Preview Effect", ImVec2(150.0f, 0.0f)) || rightClicked) {
+	if (ImGui::Button("Preview Effect", ImVec2(150.0f, 0.0f)) || previewRequested) {
 		Emit(particleManager);
 	}
 	ImGui::SameLine();
@@ -443,7 +443,7 @@ void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3&
 		}
 		Emit(particleManager);
 	}
-	ImGui::TextDisabled("Right click: preview particle effect");
+	ImGui::TextDisabled("Included in the composed hit preview when enabled.");
 
 	ImGui::Checkbox("Auto Preview", &autoEmit_);
 	ImGui::SameLine();

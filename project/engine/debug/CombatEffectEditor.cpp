@@ -4,7 +4,8 @@
 
 #include "externals/imgui/imgui.h"
 
-void CombatEffectEditor::DrawLightning(LightningEffect& effect, const Vector3& origin) {
+void CombatEffectEditor::DrawLightning(LightningEffect& effect, const Vector3& origin,
+	bool previewRequested) {
 	ImGui::TextUnformatted("Procedural lightning / dragon-energy editor");
 	ImGui::DragFloat3("Direction##Lightning", &lightning_.direction.x, 0.01f, -1.0f, 1.0f);
 	ImGui::DragFloat("Length##Lightning", &lightning_.length, 0.05f, 0.1f, 100.0f);
@@ -32,14 +33,14 @@ void CombatEffectEditor::DrawLightning(LightningEffect& effect, const Vector3& o
 		lightning_.jaggedness = 0.85f;
 		lightning_.branches = 8;
 	}
-	const bool rightClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
-	if (ImGui::Button("Preview Lightning", ImVec2(170.0f, 0.0f)) || rightClicked) effect.Play(lightning_, origin);
+	if (ImGui::Button("Preview Lightning", ImVec2(170.0f, 0.0f)) || previewRequested) effect.Play(lightning_, origin);
 	ImGui::SameLine();
 	if (ImGui::Button("Clear##Lightning")) effect.Clear();
-	ImGui::TextDisabled("Right click: preview lightning");
+	ImGui::TextDisabled("Included in the composed hit preview when enabled.");
 }
 
-void CombatEffectEditor::DrawSlash(SlashEffect& effect, const Vector3& origin) {
+void CombatEffectEditor::DrawSlash(SlashEffect& effect, const Vector3& origin,
+	bool previewRequested) {
 	ImGui::TextUnformatted("Procedural slash-arc editor");
 	ImGui::DragFloat("Overall Size##Slash", &slash_.size, 0.02f, 0.05f, 20.0f);
 	ImGui::DragFloat("Radius##Slash", &slash_.radius, 0.05f, 0.1f, 50.0f);
@@ -52,11 +53,10 @@ void CombatEffectEditor::DrawSlash(SlashEffect& effect, const Vector3& origin) {
 	ImGui::SliderFloat("Duration##Slash", &slash_.duration, 0.03f, 5.0f, "%.2f sec");
 	ImGui::ColorEdit4("Outer Color##Slash", &slash_.outerColor.x);
 	ImGui::ColorEdit4("Core Color##Slash", &slash_.coreColor.x);
-	const bool rightClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
-	if (ImGui::Button("Preview Slash", ImVec2(170.0f, 0.0f)) || rightClicked) effect.Play(slash_, origin);
+	if (ImGui::Button("Preview Slash", ImVec2(170.0f, 0.0f)) || previewRequested) effect.Play(slash_, origin);
 	ImGui::SameLine();
 	if (ImGui::Button("Clear##Slash")) effect.Clear();
-	ImGui::TextDisabled("Right click: preview slash");
+	ImGui::TextDisabled("Included in the composed hit preview when enabled.");
 }
 
 #endif
