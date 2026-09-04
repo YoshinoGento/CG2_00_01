@@ -13,6 +13,74 @@
 
 using namespace Microsoft::WRL;
 
+DirectXCommon::~DirectXCommon() {
+    Finalize();
+}
+
+void DirectXCommon::WaitForGPUIdle() noexcept {
+    if (!commandQueue_ || !fence_) {
+        return;
+    }
+
+    ++fenceValue_;
+    if (FAILED(commandQueue_->Signal(fence_.Get(), fenceValue_))) {
+        return;
+    }
+    if (fence_->GetCompletedValue() < fenceValue_ && fenceEvent_) {
+        if (SUCCEEDED(fence_->SetEventOnCompletion(fenceValue_, fenceEvent_))) {
+            WaitForSingleObject(fenceEvent_, INFINITE);
+        }
+    }
+}
+
+void DirectXCommon::Finalize() noexcept {
+    WaitForGPUIdle();
+
+    auto unmapResource = [](ComPtr<ID3D12Resource>& resource, auto*& mappedAddress) {
+        if (resource && mappedAddress) {
+            resource->Unmap(0, nullptr);
+        }
+        mappedAddress = nullptr;
+        resource.Reset();
+    };
+    unmapResource(fullscreenPostEffectParameterResource_, mappedFullscreenPostEffectParameter_);
+    unmapResource(vignetteParameterResource_, mappedVignetteParameter_);
+    unmapResource(radialBlurParameterResource_, mappedRadialBlurParameter_);
+    unmapResource(dissolveParameterResource_, mappedDissolveParameter_);
+    unmapResource(randomNoiseParameterResource_, mappedRandomNoiseParameter_);
+    unmapResource(hsvFilterParameterResource_, mappedHSVFilterParameter_);
+
+    normalTexture_.Finalize(nullptr);
+    finalDisplayTexture_.Finalize(nullptr);
+    postEffectResultTexture_.Finalize(nullptr);
+    sceneRenderTexture_.Finalize(nullptr);
+    depthBuffer_.Reset();
+    for (ComPtr<ID3D12Resource>& backBuffer : backBuffers_) {
+        backBuffer.Reset();
+    }
+
+    swapChain_.Reset();
+    dsvHeap_.Reset();
+    rtvHeap_.Reset();
+    commandList_.Reset();
+    commandAllocator_.Reset();
+    commandQueue_.Reset();
+    fence_.Reset();
+    if (fenceEvent_) {
+        CloseHandle(fenceEvent_);
+        fenceEvent_ = nullptr;
+    }
+
+    includeHandler_.Reset();
+    dxcCompiler_.Reset();
+    dxcUtils_.Reset();
+    dxgiFactory_.Reset();
+    device_.Reset();
+    winApp_ = nullptr;
+    swapChainWidth_ = 0;
+    swapChainHeight_ = 0;
+}
+
 // --- 譁・ｭ怜・螟画鋤繝倥Ν繝代・ ---
 std::wstring ConvertString(const std::string& str) {
     if (str.empty()) return std::wstring();
