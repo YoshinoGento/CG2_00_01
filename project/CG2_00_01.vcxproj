@@ -62,18 +62,27 @@
     <OutDir>$(SolutionDir)..\generated\outputs\$(Configuration)\</OutDir>
     <LibraryPath>$(ProjectDir)externals\imgui;$(LibraryPath)</LibraryPath>
     <IncludePath>$(SolutionDir)imgui;$(SolutionDir)DirectTex;$(IncludePath)</IncludePath>
+    <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>$(ProjectDir)</LocalDebuggerWorkingDirectory>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Development|x64'">
     <IntDir>$(SolutionDir)..\generated\obj\$(ProjectName)\$(Configuration)\</IntDir>
     <OutDir>$(SolutionDir)..\generated\outputs\$(Configuration)\</OutDir>
     <LibraryPath>$(ProjectDir)externals\imgui;$(LibraryPath)</LibraryPath>
     <IncludePath>$(SolutionDir)imgui;$(SolutionDir)DirectTex;$(IncludePath)</IncludePath>
+    <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>$(ProjectDir)</LocalDebuggerWorkingDirectory>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IntDir>$(SolutionDir)..\generated\obj\$(ProjectName)\$(Configuration)\</IntDir>
     <OutDir>$(SolutionDir)..\generated\outputs\$(Configuration)\</OutDir>
     <LibraryPath>$(ProjectDir)externals\imgui;$(LibraryPath)</LibraryPath>
     <IncludePath>$(SolutionDir)imgui;$(SolutionDir)DirectTex;$(IncludePath)</IncludePath>
+    <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>$(ProjectDir)</LocalDebuggerWorkingDirectory>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
