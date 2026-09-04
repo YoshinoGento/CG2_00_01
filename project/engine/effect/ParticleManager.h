@@ -70,9 +70,30 @@ struct GPUParticleEmitSettings {
     uint32_t count;
     uint32_t emit;
     uint32_t preset;
-    uint32_t padding;
+	uint32_t extendedSettings;
+
+	Vector3 direction;
+	float directionSpread;
+
+	Vector3 acceleration;
+	float drag;
+
+	Vector3 endScale;
+	float endAlpha;
+
+	Vector4 colorVariance;
+
+	float lifeTimeVariance;
+	float speedVariance;
+	float scaleVariance;
+	float innerRadius;
+
+	uint32_t shape;
+	uint32_t randomSeed;
+	uint32_t fadeMode;
+	uint32_t padding;
 };
-static_assert(sizeof(GPUParticleEmitSettings) == 80, "GPUParticleEmitSettings layout must match HLSL.");
+static_assert(sizeof(GPUParticleEmitSettings) == 176, "GPUParticleEmitSettings layout must match HLSL.");
 
 enum class InteractionBrushOperation : uint32_t {
     None = 0,
@@ -208,11 +229,19 @@ private:
         float currentTime;
         Vector4 color;
         uint32_t isAlive;
+		Vector3 acceleration;
+		Vector3 startScale;
+		Vector3 endScale;
+		float startAlpha;
+		float endAlpha;
+		float drag;
+		uint32_t fadeMode;
     };
     static_assert(sizeof(Vector3) == 12, "Vector3 must be 12 bytes.");
     static_assert(sizeof(Vector4) == 16, "Vector4 must be 16 bytes.");
-    static_assert(sizeof(ParticleCS) == 64, "ParticleCS layout must match HLSL.");
+    static_assert(sizeof(ParticleCS) == 116, "ParticleCS layout must match HLSL.");
     static_assert(offsetof(ParticleCS, isAlive) == 60, "ParticleCS::isAlive offset must match HLSL.");
+	static_assert(offsetof(ParticleCS, acceleration) == 64, "ParticleCS::acceleration offset must match HLSL.");
 
     struct GPUParticleViewData {
         Matrix4x4 viewProjection;

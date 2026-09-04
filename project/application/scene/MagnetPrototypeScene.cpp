@@ -3,8 +3,15 @@
 #include "3d/Camera.h"
 #include "3d/LineDrawer.h"
 #include "base/Framework.h"
+#include "base/FrameClock.h"
 #include "base/ImGuiManager.h"
 #include "base/Logger.h"
+#include "effect/ParticleManager.h"
+#include "effect/ComicTextEffect.h"
+#ifdef USE_IMGUI
+#include "debug/ParticleEffectEditor.h"
+#include "externals/imgui/imgui.h"
+#endif
 #include "io/Input.h"
 
 #include <algorithm>
@@ -31,6 +38,7 @@ constexpr float kArenaWallHeight = 1.4f;
 constexpr float kCameraBlend = 0.14f;
 constexpr float kSelectionSpherePadding = 0.18f;
 constexpr float kSelectionBoxPadding = 0.18f;
+constexpr float kComicTextMinimumImpactSpeed = 6.0f;
 
 [[nodiscard]] bool IsFiniteVector3(const Vector3& value) noexcept
 {
@@ -58,6 +66,9 @@ void MagnetPrototypeScene::Initialize()
 	prototypeReady_ = magnetStageSystem_.Initialize() &&
 		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
 	magneticImpactFeedbackSystem_.Reset();
+	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
+	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
+	ComicTextEffectSystem::LoadPreset("HeavyImpact", heavyImpactPreset_);
 	if (!prototypeReady_) {
 		Logger::Log("MagnetPrototypeScene: MagnetChainSystem initialization failed.");
 		assert(false && "MagnetChainSystem initialization failed.");
@@ -71,10 +82,21 @@ void MagnetPrototypeScene::Initialize()
 	selectedObjectType_ = magnet::MagnetStageObjectType::None;
 	selectedObjectId_ = 0;
 	releaseOverviewActive_ = false;
+#ifdef USE_IMGUI
+	particleEffectEditor_ = std::make_unique<ParticleEffectEditor>();
+#endif
 }
 
 void MagnetPrototypeScene::Finalize()
 {
+#ifdef USE_IMGUI
+	particleEffectEditor_.reset();
+#endif
+	if (framework_ && framework_->GetParticleManager()) {
+		framework_->GetParticleManager()->ClearAll();
+		framework_->GetParticleManager()->ResetGPUParticles();
+	}
+	comicTextEffects_.reset();
 	camera_.reset();
 	framework_ = nullptr;
 	prototypeReady_ = false;
@@ -114,6 +136,9 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 	if (resetRequested_) {
 		prototypeReady_ = magnetChainSystem_.Reset();
 		magneticImpactFeedbackSystem_.Reset();
+		if (comicTextEffects_) {
+			comicTextEffects_->Clear();
+		}
 		resetRequested_ = false;
 		if (!prototypeReady_) {
 			Logger::Log("MagnetPrototypeScene: MagnetChainSystem reset failed.");
@@ -127,9 +152,17 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 	magnetChainSystem_.SetPlayerCommand(pendingCommand_);
 	prototypeReady_ = magnetChainSystem_.FixedUpdate(fixedDeltaTime);
 	if (prototypeReady_) {
+		const auto& impactEvents = magnetChainSystem_.GetMagneticImpactEvents();
+		const std::size_t impactCount = magnetChainSystem_.GetMagneticImpactEventCount();
 		magneticImpactFeedbackSystem_.AddImpacts(
-			magnetChainSystem_.GetMagneticImpactEvents(),
-			magnetChainSystem_.GetMagneticImpactEventCount());
+			impactEvents, impactCount);
+		if (comicTextEffects_) {
+			for (std::size_t index = 0; index < impactCount; ++index) {
+				if (impactEvents[index].relativeSpeed >= kComicTextMinimumImpactSpeed) {
+					comicTextEffects_->Play(heavyImpactPreset_, impactEvents[index].position);
+				}
+			}
+		}
 		magneticImpactFeedbackSystem_.Update(fixedDeltaTime);
 	}
 	if (!prototypeReady_) {
@@ -169,6 +202,18 @@ void MagnetPrototypeScene::Update()
 					: Vector3{}));
 		}
 		camera_->Update();
+	}
+	if (framework_ && framework_->GetParticleManager() && camera_) {
+		const FrameClock* frameClock = framework_->GetFrameClock();
+		framework_->GetParticleManager()->Update(
+			camera_.get(),
+			frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+	}
+	if (comicTextEffects_ && camera_) {
+		const FrameClock* frameClock = framework_ ? framework_->GetFrameClock() : nullptr;
+		comicTextEffects_->Update(
+			frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds,
+			camera_->GetViewProjectionMatrix());
 	}
 }
 
@@ -236,6 +281,20 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 		context.finalDisplaySrvIndex,
 		context.virtualWidth,
 		context.virtualHeight);
+#ifdef USE_IMGUI
+	if (particleEffectEditor_ && framework_ && framework_->GetParticleManager()) {
+		Vector3 effectPosition = ResolveEditorFocusPosition();
+		effectPosition.y += 0.5f;
+		if (ImGui::Begin("エフェクトエディタ###ParticleEffectEditor")) {
+			const FrameClock* frameClock = framework_->GetFrameClock();
+			particleEffectEditor_->Draw(
+				*framework_->GetParticleManager(),
+				effectPosition,
+				frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+		}
+		ImGui::End();
+	}
+#endif
 	if (request.modeChangeRequested) {
 		SetEditorMode(request.requestedMode);
 	}
@@ -339,8 +398,14 @@ void MagnetPrototypeScene::Draw()
 	magneticImpactFeedbackSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
+	if (framework_ && framework_->GetParticleManager()) {
+		framework_->GetParticleManager()->Draw();
+	}
 
 	lineDrawer->Draw(camera_->GetViewProjectionMatrix());
+	if (comicTextEffects_) {
+		comicTextEffects_->Draw();
+	}
 }
 
 void MagnetPrototypeScene::ProcessStageEditorRequest(

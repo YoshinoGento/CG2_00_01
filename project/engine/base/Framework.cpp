@@ -13,6 +13,7 @@
 #include "3d/LightingSystem.h"
 #include "3d/ModelManager.h"
 #include "effect/ParticleManager.h"
+#include "effect/ParticleEffectLibrary.h"
 #include <cassert>
 #include <stdexcept>
 
@@ -97,6 +98,8 @@ void Framework::Initialize() {
 
 	particleManager_ = std::make_unique<ParticleManager>();
 	particleManager_->Initialize(dxCommon_.get(), srvManager_.get());
+	particleEffectLibrary_ = std::make_unique<ParticleEffectLibrary>();
+	particleEffectLibrary_->Initialize(particleManager_.get());
 
 	// ImGuiの準備
 	ImGuiManager::GetInstance()->Initialize(winApp_.get(), dxCommon_.get(), srvManager_.get());
@@ -107,6 +110,10 @@ void Framework::Initialize() {
 void Framework::Finalize() {
 	ImGuiManager::GetInstance()->Finalize();
 	frameClock_.reset();
+	if (particleEffectLibrary_) {
+		particleEffectLibrary_->Finalize();
+		particleEffectLibrary_.reset();
+	}
 	particleManager_.reset();
 	modelManager_.reset();
 	object3dCommon_.reset();

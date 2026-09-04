@@ -7,6 +7,13 @@ struct Particle
     float currentTime;
     float4 color;
     uint isAlive;
+	float3 acceleration;
+	float3 startScale;
+	float3 endScale;
+	float startAlpha;
+	float endAlpha;
+	float drag;
+	uint fadeMode;
 };
 
 RWStructuredBuffer<Particle> gParticles : register(u0);
@@ -44,7 +51,21 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     {
         float scaledDeltaTime = deltaTime * timeScale;
         particle.currentTime += scaledDeltaTime;
+		particle.velocity += particle.acceleration * scaledDeltaTime;
+		particle.velocity *= exp(-particle.drag * scaledDeltaTime);
         particle.translate += particle.velocity * scaledDeltaTime;
+		float normalizedTime = saturate(particle.currentTime / max(particle.lifeTime, 0.0001f));
+		float fadeTime = normalizedTime;
+		if (particle.fadeMode == 1u)
+		{
+			fadeTime = 1.0f - (1.0f - normalizedTime) * (1.0f - normalizedTime);
+		}
+		else if (particle.fadeMode == 2u)
+		{
+			fadeTime = smoothstep(0.0f, 1.0f, normalizedTime);
+		}
+		particle.scale = lerp(particle.startScale, particle.endScale, normalizedTime);
+		particle.color.a = lerp(particle.startAlpha, particle.endAlpha, fadeTime);
         shouldDie = particle.currentTime >= particle.lifeTime;
     }
 

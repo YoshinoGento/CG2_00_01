@@ -1,6 +1,18 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+	<ClCompile Include="engine\debug\ParticleEffectEditor.cpp">
+	  <Filter>Source Files\engine</Filter>
+	</ClCompile>
+	<ClCompile Include="engine\debug\ComicTextEffectEditor.cpp">
+	  <Filter>Source Files\engine</Filter>
+	</ClCompile>
+	<ClCompile Include="engine\effect\ParticleEffectLibrary.cpp">
+	  <Filter>Source Files\engine</Filter>
+	</ClCompile>
+	<ClCompile Include="engine\effect\ComicTextEffect.cpp">
+	  <Filter>Source Files\engine</Filter>
+	</ClCompile>
 	<ClCompile Include="application\magnet\stage\MagnetStageSystem.cpp" />
     <ClCompile Include="application\magnet\system\BallMomentumTracker.cpp" />
     <ClCompile Include="application\magnet\system\BallReacquisitionCooldown.cpp" />
@@ -11,7 +23,10 @@
     <ClCompile Include="application\magnet\system\SpinChargeController.cpp" />
     <ClCompile Include="application\magnet\system\MagnetChainSystem.cpp" />
     <ClCompile Include="application\magnet\ui\MagnetPrototypeWindow.cpp" />
-    <ClCompile Include="application\scene\MagnetPrototypeScene.cpp" />
+	<ClCompile Include="application\scene\MagnetPrototypeScene.cpp" />
+	<ClCompile Include="application\scene\EffectEditorScene.cpp">
+	  <Filter>Source Files\application</Filter>
+	</ClCompile>
 	<ClCompile Include="engine\physics\PhysicsWorld.cpp" />
     <Filter Include="Source Files">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
@@ -75,6 +90,36 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+	<ClInclude Include="engine\debug\ParticleEffectEditor.h">
+	  <Filter>Header Files</Filter>
+	</ClInclude>
+	<ClInclude Include="engine\debug\ComicTextEffectEditor.h">
+	  <Filter>Header Files</Filter>
+	</ClInclude>
+	<ClInclude Include="application\scene\EffectEditorScene.h">
+	  <Filter>Header Files</Filter>
+	</ClInclude>
+	<ClInclude Include="engine\effect\ParticleEffectLibrary.h">
+	  <Filter>Header Files</Filter>
+	</ClInclude>
+	<ClInclude Include="engine\effect\ComicTextEffect.h">
+	  <Filter>Header Files</Filter>
+	</ClInclude>
+	<None Include="Settings\effects\MagneticNova.json">
+	  <Filter>Resource Files</Filter>
+	</None>
+	<None Include="Settings\effects\comic\HeavyImpact.json">
+	  <Filter>Resource Files</Filter>
+	</None>
+	<None Include="Resources\effects\comic\booom_impact.png">
+	  <Filter>Resource Files</Filter>
+	</None>
+	<None Include="Resources\ui\font\comic_katakana_font.json">
+	  <Filter>Resource Files</Filter>
+	</None>
+	<None Include="Resources\ui\font\comic_katakana_font.png">
+	  <Filter>Resource Files</Filter>
+	</None>
 	<ClInclude Include="application\magnet\stage\MagnetStageSystem.h" />
     <ClInclude Include="application\magnet\system\BallMomentumTracker.h" />
     <ClInclude Include="application\magnet\system\BallReacquisitionCooldown.h" />
