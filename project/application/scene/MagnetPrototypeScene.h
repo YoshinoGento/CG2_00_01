@@ -15,6 +15,7 @@
 class Camera;
 class Framework;
 class Input;
+class Skybox;
 
 // Isolated visual test for fixed-step magnet-chain behavior.
 class MagnetPrototypeScene final : public BaseScene {
@@ -56,6 +57,7 @@ private:
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
+	std::unique_ptr<Skybox> skybox_;
 	magnet::MagnetStageSystem magnetStageSystem_;
 	magnet::MagnetChainSystem magnetChainSystem_;
 	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
