@@ -239,6 +239,8 @@ void MagnetPrototypeScene::Finalize()
 	playerVisual_.reset();
 	for (auto& visual : stageBallVisuals_) { visual.reset(); }
 	ballVisualsReady_ = false;
+	volumeLabelObject_.reset();
+	backTitleLabelObject_.reset();
 	restartLabelObject_.reset();
 	resumeLabelObject_.reset();
 	pauseTitleObject_.reset();
@@ -632,8 +634,8 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 			resumeLabelObject_ = std::make_unique<Object3d>();
 			resumeLabelObject_->Initialize(framework_->GetObject3dCommon());
 			resumeLabelObject_->SetModel(resumeModel);
-			resumeLabelObject_->SetScale({ 0.022f, 0.022f, 0.022f });
-			resumeLabelObject_->SetPosition({ 0.0f, 0.085f, -9.0f });
+			resumeLabelObject_->SetScale({ 0.017f, 0.017f, 0.017f });
+			resumeLabelObject_->SetPosition({ -0.0013f, 0.0685f, -9.0f });
 			resumeLabelObject_->SetRotation({ 0.0f, 0.0f, 0.0f });
 			resumeLabelObject_->SetEnableLighting(false);
 			resumeLabelObject_->SetCullMode(0);
@@ -649,11 +651,43 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 			restartLabelObject_->Initialize(framework_->GetObject3dCommon());
 			restartLabelObject_->SetModel(restartModel);
 			restartLabelObject_->SetScale({ 0.022f, 0.022f, 0.022f });
-			restartLabelObject_->SetPosition({ 0.0f, 0.035f, -9.0f });
+			restartLabelObject_->SetPosition({ 0.0053f, 0.0175f, -9.0f });
 			restartLabelObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
 			restartLabelObject_->SetEnableLighting(false);
 			restartLabelObject_->SetCullMode(0);
 			restartLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
+
+		constexpr const char* kBackTitleModelPath = "pause/BackTitle.obj";
+		modelManager->LoadModel(kBackTitleModelPath);
+		Model* backTitleModel = modelManager->GetModel(kBackTitleModelPath);
+		if (backTitleModel) {
+			backTitleModel->LoadTextures();
+			backTitleLabelObject_ = std::make_unique<Object3d>();
+			backTitleLabelObject_->Initialize(framework_->GetObject3dCommon());
+			backTitleLabelObject_->SetModel(backTitleModel);
+			backTitleLabelObject_->SetScale({ 0.062f, 0.062f, 0.062f });
+			backTitleLabelObject_->SetPosition({ 0.0028f, -0.0325f, -9.0f });
+			backTitleLabelObject_->SetRotation({ 0.0f, 0.0f, 0.0f });
+			backTitleLabelObject_->SetEnableLighting(false);
+			backTitleLabelObject_->SetCullMode(0);
+			backTitleLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
+
+		constexpr const char* kVolumeModelPath = "pause/Volume.obj";
+		modelManager->LoadModel(kVolumeModelPath);
+		Model* volumeModel = modelManager->GetModel(kVolumeModelPath);
+		if (volumeModel) {
+			volumeModel->LoadTextures();
+			volumeLabelObject_ = std::make_unique<Object3d>();
+			volumeLabelObject_->Initialize(framework_->GetObject3dCommon());
+			volumeLabelObject_->SetModel(volumeModel);
+			volumeLabelObject_->SetScale({ 0.053f, 0.053f, 0.053f });
+			volumeLabelObject_->SetPosition({ -0.025f, -0.083f, -9.0f });
+			volumeLabelObject_->SetRotation({ 0.0f, 0.0f, 0.0f });
+			volumeLabelObject_->SetEnableLighting(false);
+			volumeLabelObject_->SetCullMode(0);
+			volumeLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
 		}
 	}
 
@@ -678,6 +712,10 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 		pauseMenuTexts_[index].SetPosition(
 			{ 445.0f, 255.0f + 65.0f * static_cast<float>(index) });
 		pauseMenuTexts_[index].SetScale(1.05f);
+	}
+	if (volumeLabelObject_) {
+		pauseMenuTexts_[3].SetPosition({ 710.0f, 455.0f });
+		pauseMenuTexts_[3].SetScale(1.75f);
 	}
 	pauseHelpText_.SetText("DPAD OR STICK SELECT   B OK   MENU RESUME");
 	pauseHelpText_.SetPosition({ 350.0f, 565.0f });
@@ -754,13 +792,17 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 	const char* fixedLabels[] = {
 		resumeLabelObject_ ? "" : "BACK TO GAME",
 		restartLabelObject_ ? "" : "RESTART",
-		"BACK TO TITLE"
+		backTitleLabelObject_ ? "" : "BACK TO TITLE"
 	};
 	for (int index = 0; index < kPauseMenuItemCount; ++index) {
 		char label[64]{};
 		if (index == 3) {
-			std::snprintf(label, sizeof(label), "%s BGM VOLUME %d%%",
-				index == pauseSelection_ ? ">" : " ", volumePercent);
+			if (volumeLabelObject_) {
+				std::snprintf(label, sizeof(label), "%d%%", volumePercent);
+			} else {
+				std::snprintf(label, sizeof(label), "%s BGM VOLUME %d%%",
+					index == pauseSelection_ ? ">" : " ", volumePercent);
+			}
 		} else {
 			std::snprintf(label, sizeof(label), "%s %s",
 				index == pauseSelection_ ? ">" : " ", fixedLabels[index]);
@@ -780,6 +822,16 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 			pauseSelection_ == 1 ? kUiAccentColor : kUiTextColor);
 		restartLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
 	}
+	if (backTitleLabelObject_) {
+		backTitleLabelObject_->SetColor(
+			pauseSelection_ == 2 ? kUiAccentColor : kUiTextColor);
+		backTitleLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+	}
+	if (volumeLabelObject_) {
+		volumeLabelObject_->SetColor(
+			pauseSelection_ == 3 ? kUiAccentColor : kUiTextColor);
+		volumeLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+	}
 }
 
 void MagnetPrototypeScene::DrawGameFlowUi()
@@ -790,12 +842,15 @@ void MagnetPrototypeScene::DrawGameFlowUi()
 	if (!paused_) { return; }
 	pauseOverlaySprite_->Draw();
 	pauseTitleText_.Draw();
-	if (pauseTitleObject_ || resumeLabelObject_ || restartLabelObject_) {
+	if (pauseTitleObject_ || resumeLabelObject_ || restartLabelObject_ ||
+		backTitleLabelObject_ || volumeLabelObject_) {
 		Object3dCommon* objectCommon = framework_->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
 		if (pauseTitleObject_) { pauseTitleObject_->Draw(); }
 		if (resumeLabelObject_) { resumeLabelObject_->Draw(); }
 		if (restartLabelObject_) { restartLabelObject_->Draw(); }
+		if (backTitleLabelObject_) { backTitleLabelObject_->Draw(); }
+		if (volumeLabelObject_) { volumeLabelObject_->Draw(); }
 		objectCommon->EndObjectPass();
 		framework_->GetSpriteCommon()->PreDraw();
 	}

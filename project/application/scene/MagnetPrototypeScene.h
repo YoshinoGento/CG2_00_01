@@ -109,6 +109,8 @@ private:
 	std::unique_ptr<Object3d> pauseTitleObject_;
 	std::unique_ptr<Object3d> resumeLabelObject_;
 	std::unique_ptr<Object3d> restartLabelObject_;
+	std::unique_ptr<Object3d> backTitleLabelObject_;
+	std::unique_ptr<Object3d> volumeLabelObject_;
 	SpriteText timerText_;
 	SpriteText pauseTitleText_;
 	std::array<SpriteText, 4> pauseMenuTexts_{};
