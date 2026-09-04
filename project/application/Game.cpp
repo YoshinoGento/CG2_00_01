@@ -279,33 +279,6 @@ bool Game::ShouldDrawFarmDebugWindows() const {
 	return false;
 }
 
-void Game::DrawSceneSwitcher() {
-	const ImGuiViewport* viewport = ImGui::GetMainViewport();
-	ImGui::SetNextWindowPos(
-		{ viewport->WorkPos.x + viewport->WorkSize.x - 455.0f, viewport->WorkPos.y + 8.0f },
-		ImGuiCond_Always);
-	ImGui::SetNextWindowBgAlpha(0.88f);
-	const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
-		ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings;
-	if (ImGui::Begin("Scene Switcher", nullptr, flags)) {
-		if (ImGui::Button("TITLE")) {
-			SceneManager::GetInstance()->ChangeScene("TITLE");
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("GAMEPLAY")) {
-			SceneManager::GetInstance()->ChangeScene("GAMEPLAY");
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("MAGNET")) {
-			SceneManager::GetInstance()->ChangeScene("MAGNET_PROTOTYPE");
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("EFFECT EDITOR")) {
-			SceneManager::GetInstance()->ChangeScene("EFFECT_EDITOR");
-		}
-	}
-	ImGui::End();
-}
 #endif
 
 void Game::Update() {
@@ -652,7 +625,6 @@ void Game::Update() {
 		}
 	}
 	}
-	DrawSceneSwitcher();
 #endif
 
 	SceneManager::GetInstance()->Update();
