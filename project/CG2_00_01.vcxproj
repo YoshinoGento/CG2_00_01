@@ -174,6 +174,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\magnet\system\MagneticImpactAttachmentSystem.cpp" />
     <ClCompile Include="application\magnet\system\CircularArenaBoundary.cpp" />
     <ClCompile Include="application\magnet\system\MagneticImpactFeedbackSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagneticImpactSoundSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagneticOneShotSoundSystem.cpp" />
+	<ClCompile Include="application\magnet\system\ChainsawProximitySoundSystem.cpp" />
     <ClCompile Include="application\magnet\system\ObstacleCollisionSystem.cpp" />
     <ClCompile Include="application\magnet\system\SpinChargeController.cpp" />
     <ClCompile Include="application\magnet\system\MagnetChainSystem.cpp" />
@@ -279,6 +282,11 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<None Include="Resources\effects\comic\booom_impact.png" />
 	<None Include="Resources\ui\font\comic_katakana_font.json" />
 	<None Include="Resources\ui\font\comic_katakana_font.png" />
+	<None Include="Resources\audio\magnet\kaveHannsya.mp3" />
+	<None Include="Resources\audio\magnet\kuttuku.wav" />
+	<None Include="Resources\audio\magnet\goal.wav" />
+	<None Include="Resources\audio\magnet\Chainsaw.wav" />
+	<None Include="Resources\audio\magnet\cuts.wav" />
     <None Include="Resources\levels\magnet\stage_01.json" />
 	<None Include="Resources\magnet\player\player.obj" />
 	<None Include="Resources\magnet\player\player.mtl" />
@@ -469,6 +477,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\magnet\system\MagneticImpactAttachmentSystem.h" />
     <ClInclude Include="application\magnet\system\CircularArenaBoundary.h" />
     <ClInclude Include="application\magnet\system\MagneticImpactFeedbackSystem.h" />
+	<ClInclude Include="application\magnet\system\MagneticImpactSoundSystem.h" />
+	<ClInclude Include="application\magnet\system\MagneticOneShotSoundSystem.h" />
+	<ClInclude Include="application\magnet\system\ChainsawProximitySoundSystem.h" />
     <ClInclude Include="application\magnet\system\ObstacleCollisionSystem.h" />
     <ClInclude Include="application\magnet\system\SpinChargeController.h" />
     <ClInclude Include="application\magnet\system\MagnetChainSystem.h" />

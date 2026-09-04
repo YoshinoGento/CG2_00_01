@@ -190,6 +190,89 @@ int main()
 	}
 	std::cout << "rolling_ground_checks=passed\n";
 
+	magnet::MagnetChainSystem attachmentEventSystem;
+	if (!attachmentEventSystem.Initialize(BuildPickupStage())) {
+		std::cerr << "Attachment-event setup failed.\n";
+		return 183;
+	}
+	std::size_t previousAttachedCount = 0;
+	std::size_t attachmentEventCount = 0;
+	for (int step = 0; step < kCollectionSettleSteps; ++step) {
+		attachmentEventSystem.SetPlayerCommand({});
+		if (!attachmentEventSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Attachment-event simulation failed.\n";
+			return 184;
+		}
+		const std::size_t attachedCount =
+			attachmentEventSystem.GetAttachedBallCount();
+		const auto& attachmentEvent =
+			attachmentEventSystem.GetAttachmentEvent();
+		if (attachedCount > previousAttachedCount) {
+			const auto& chain = attachmentEvent.attachedRight
+				? attachmentEventSystem.GetRightChain()
+				: attachmentEventSystem.GetLeftChain();
+			if (attachedCount != previousAttachedCount + 1 ||
+				!attachmentEvent.occurred || !attachmentEvent.body.IsValid() ||
+				attachmentEvent.linkIndex >= chain.size() ||
+				chain[attachmentEvent.linkIndex].index != attachmentEvent.body.index ||
+				chain[attachmentEvent.linkIndex].generation !=
+					attachmentEvent.body.generation) {
+				std::cerr << "Committed chain attachment did not emit one exact event.\n";
+				return 185;
+			}
+			++attachmentEventCount;
+		} else if (attachmentEvent.occurred) {
+			std::cerr << "Attachment event occurred without a new chain link.\n";
+			return 186;
+		}
+		previousAttachedCount = attachedCount;
+	}
+	if (attachmentEventCount != magnet::MagnetChainSystem::kLinksPerSide * 2 ||
+		attachmentEventSystem.GetAttachmentEvent().occurred) {
+		std::cerr << "Attachment event count or one-step lifetime was invalid.\n";
+		return 187;
+	}
+	std::cout << "attachment_event_checks=passed\n";
+
+	magnet::MagnetStageData goalEventStage{};
+	goalEventStage.name = "goal_event_test";
+	goalEventStage.ballCount = 1;
+	goalEventStage.generation.ballCount = 1;
+	goalEventStage.balls[0] = { 1u, { 1.05f, 0.5f, 0.0f } };
+	goalEventStage.goalCount = 1;
+	goalEventStage.goals[0].id = 1u;
+	goalEventStage.goals[0].position = { 1.05f, 0.0f, 0.0f };
+	goalEventStage.goals[0].size = { 1.0f, 1.0f, 1.0f };
+	goalEventStage.goals[0].score = 7u;
+	magnet::MagnetChainSystem goalEventSystem;
+	if (!goalEventSystem.Initialize(goalEventStage) ||
+		!goalEventSystem.FixedUpdate(kFixedDeltaTime) ||
+		goalEventSystem.GetAttachedBallCount() != 1) {
+		std::cerr << "Goal-event setup failed.\n";
+		return 188;
+	}
+	magnet::MagnetChainSystem::PlayerCommand goalEventRelease{};
+	goalEventRelease.releaseChains = true;
+	goalEventSystem.SetPlayerCommand(goalEventRelease);
+	if (!goalEventSystem.FixedUpdate(kFixedDeltaTime)) {
+		std::cerr << "Goal-event release failed.\n";
+		return 189;
+	}
+	const auto& goalEvent = goalEventSystem.GetGoalEvent();
+	if (!goalEvent.occurred || goalEvent.scoredBallCount != 1 ||
+		goalEvent.scoreAwarded != 7 || goalEventSystem.GetGoalHitCount() != 1 ||
+		goalEventSystem.GetScore() != 7) {
+		std::cerr << "Goal score did not emit one exact event.\n";
+		return 190;
+	}
+	goalEventSystem.SetPlayerCommand({});
+	if (!goalEventSystem.FixedUpdate(kFixedDeltaTime) ||
+		goalEventSystem.GetGoalEvent().occurred) {
+		std::cerr << "Goal event did not clear after one fixed update.\n";
+		return 191;
+	}
+	std::cout << "goal_event_checks=passed\n";
+
 	magnet::MagnetChainSystem releaseTransitionSystem;
 	if (!releaseTransitionSystem.Initialize(BuildPickupStage()) ||
 		!CollectAllBalls(releaseTransitionSystem)) {
@@ -205,6 +288,29 @@ int main()
 			return 143;
 		}
 	}
+	for (std::size_t index = 0;
+		index < releaseTransitionSystem.GetLeftChainCount();
+		++index) {
+		if (releaseTransitionSystem.IsActiveUnattachedBallBody(
+			releaseTransitionSystem.GetLeftChain()[index])) {
+			std::cerr << "Left attached ball was eligible for collision SE.\n";
+			return 179;
+		}
+	}
+	for (std::size_t index = 0;
+		index < releaseTransitionSystem.GetRightChainCount();
+		++index) {
+		if (releaseTransitionSystem.IsActiveUnattachedBallBody(
+			releaseTransitionSystem.GetRightChain()[index])) {
+			std::cerr << "Right attached ball was eligible for collision SE.\n";
+			return 180;
+		}
+	}
+	if (releaseTransitionSystem.IsActiveUnattachedBallBody(
+		releaseTransitionSystem.GetPlayerBody())) {
+		std::cerr << "Player body was eligible for collision SE.\n";
+		return 181;
+	}
 	releaseDriveCommand = {};
 	releaseDriveCommand.releaseChains = true;
 	releaseTransitionSystem.SetPlayerCommand(releaseDriveCommand);
@@ -212,6 +318,15 @@ int main()
 		releaseTransitionSystem.GetReleasedBallCount() == 0) {
 		std::cerr << "Released-ground-motion transition failed.\n";
 		return 144;
+	}
+	for (std::size_t index = 0;
+		index < releaseTransitionSystem.GetStageBallCount();
+		++index) {
+		if (!releaseTransitionSystem.IsActiveUnattachedBallBody(
+			releaseTransitionSystem.GetStageBalls()[index])) {
+			std::cerr << "Released ball was not eligible for collision SE.\n";
+			return 182;
+		}
 	}
 	bool releaseHasLift = false;
 	for (std::size_t index = 0;
@@ -634,6 +749,55 @@ int main()
 	}
 
 	obstacleSystem.Reset();
+	gimmick.obstacleKind = magnet::MagnetObstacleKind::Solid;
+	if (!obstacleWorld.SetPosition(obstacleBall, { 1.2f, 0.5f, 0.0f }) ||
+		!obstacleWorld.SetLinearVelocity(obstacleBall, { -5.0f, 0.0f, 0.0f }) ||
+		!obstacleSystem.Resolve(
+			obstacleWorld, {}, obstacleBalls.data(), obstacleBalls.size(),
+			&gimmick, 1, kFixedDeltaTime) ||
+		obstacleSystem.GetImpactEventCount() != 1 ||
+		obstacleSystem.GetImpactEvents()[0].body.index != obstacleBall.index ||
+		obstacleSystem.GetImpactEvents()[0].body.generation != obstacleBall.generation ||
+		std::abs(
+			obstacleSystem.GetImpactEvents()[0].relativeSpeed - 5.0f) > 1.0e-5f) {
+		std::cerr << "Solid wall did not emit one finite impact event.\n";
+		return 173;
+	}
+	if (!obstacleSystem.Resolve(
+			obstacleWorld, {}, obstacleBalls.data(), obstacleBalls.size(),
+			&gimmick, 1, kFixedDeltaTime) ||
+		obstacleSystem.GetImpactEventCount() != 0) {
+		std::cerr << "Solid-wall impact event was not cleared after contact.\n";
+		return 174;
+	}
+
+	physics::PhysicsWorld arenaImpactWorld;
+	physics::SphereBodyDesc arenaImpactBodyDesc{};
+	arenaImpactBodyDesc.position = { 3.2f, 0.5f, 0.0f };
+	arenaImpactBodyDesc.linearVelocity = { 4.0f, 0.0f, 0.0f };
+	const physics::BodyHandle arenaImpactBody =
+		arenaImpactWorld.CreateSphereBody(arenaImpactBodyDesc);
+	magnet::CircularArenaBoundary arenaBoundary;
+	magnet::CircularArenaBoundary::Settings arenaBoundarySettings{};
+	arenaBoundarySettings.radius = 3.0f;
+	arenaBoundary.SetSettings(arenaBoundarySettings);
+	if (!arenaImpactBody.IsValid() ||
+		!arenaBoundary.Resolve(arenaImpactWorld, &arenaImpactBody, 1) ||
+		arenaBoundary.GetImpactEventCount() != 1 ||
+		arenaBoundary.GetImpactEvents()[0].body.index != arenaImpactBody.index ||
+		arenaBoundary.GetImpactEvents()[0].body.generation != arenaImpactBody.generation ||
+		std::abs(
+			arenaBoundary.GetImpactEvents()[0].relativeSpeed - 4.0f) > 1.0e-5f) {
+		std::cerr << "Circular wall did not emit one finite impact event.\n";
+		return 175;
+	}
+	if (!arenaBoundary.Resolve(arenaImpactWorld, &arenaImpactBody, 1) ||
+		arenaBoundary.GetImpactEventCount() != 0) {
+		std::cerr << "Circular-wall impact event was not cleared after contact.\n";
+		return 176;
+	}
+
+	obstacleSystem.Reset();
 	gimmick.obstacleKind = magnet::MagnetObstacleKind::Chainsaw;
 	if (!obstacleWorld.SetPosition(obstacleBall, gimmick.position) ||
 		!obstacleSystem.Resolve(
@@ -1033,6 +1197,24 @@ int main()
 		1u,
 		magnet::MagnetObstacleKind::Chainsaw,
 	};
+	magnet::MagnetStageData looseBallChainsawStage = chainsawStage;
+	looseBallChainsawStage.name = "chainsaw_loose_ball_event_test";
+	looseBallChainsawStage.ballCount = 1;
+	looseBallChainsawStage.generation.ballCount = 1;
+	looseBallChainsawStage.balls[0] = {
+		1u,
+		chainsawStage.obstacles[0].position,
+	};
+	magnet::MagnetChainSystem looseBallChainsawSystem;
+	if (!looseBallChainsawSystem.Initialize(looseBallChainsawStage) ||
+		!looseBallChainsawSystem.FixedUpdate(kFixedDeltaTime)) {
+		std::cerr << "Loose-ball Chainsaw event setup failed.\n";
+		return 214;
+	}
+	if (looseBallChainsawSystem.GetChainsawCutEvent().occurred) {
+		std::cerr << "Loose-ball Chainsaw contact was reported as a chain cut.\n";
+		return 215;
+	}
 	magnet::MagnetChainSystem chainsawSystem;
 	if (!chainsawSystem.Initialize(chainsawStage) ||
 		!CollectAllBalls(chainsawSystem)) {
@@ -1055,6 +1237,20 @@ int main()
 		std::cerr << "Chainsaw did not sever and release the contacted outer segment.\n";
 		return 152;
 	}
+	const magnet::MagnetChainSystem::ChainsawCutEvent& chainsawCutEvent =
+		chainsawSystem.GetChainsawCutEvent();
+	if (!chainsawCutEvent.occurred || !chainsawCutEvent.contactedBody.IsValid() ||
+		chainsawCutEvent.obstacleId != chainsawStage.obstacles[0].id ||
+		chainsawCutEvent.detachedBallCount == 0 ||
+		chainsawCutEvent.detachedBallCount > magnet::MagnetChainSystem::kLinksPerSide) {
+		std::cerr << "Chainsaw did not publish one valid successful-cut event.\n";
+		return 212;
+	}
+	if (!chainsawSystem.Reset() || chainsawSystem.GetChainsawCutEvent().occurred) {
+		std::cerr << "Chainsaw cut event survived a runtime rebuild.\n";
+		return 213;
+	}
+	std::cout << "chainsaw_cut_event_checks=passed\n";
 
 	magnet::MagnetStageData furnaceStage = chainsawStage;
 	furnaceStage.name = "furnace_runtime_test";
