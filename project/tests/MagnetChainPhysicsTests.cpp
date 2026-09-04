@@ -27,6 +27,18 @@ bool IsFinite(const Vector3& value)
 	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
+bool IsFinite(const Quaternion& value)
+{
+	return std::isfinite(value.x) && std::isfinite(value.y) &&
+		std::isfinite(value.z) && std::isfinite(value.w);
+}
+
+float QuaternionLengthSquared(const Quaternion& value)
+{
+	return value.x * value.x + value.y * value.y +
+		value.z * value.z + value.w * value.w;
+}
+
 float DistanceXZ(const Vector3& a, const Vector3& b)
 {
 	const float deltaX = b.x - a.x;
@@ -85,12 +97,14 @@ bool ValidateFiniteBodies(const magnet::MagnetChainSystem& system)
 {
 	const physics::PhysicsWorld& world = system.GetPhysicsWorld();
 	const physics::SphereBody* player = world.GetBody(system.GetPlayerBody());
-	if (!player || !IsFinite(player->position) || !IsFinite(player->linearVelocity)) {
+	if (!player || !IsFinite(player->position) || !IsFinite(player->linearVelocity) ||
+		!IsFinite(player->angularVelocity) || !IsFinite(player->orientation)) {
 		return false;
 	}
 	for (std::size_t index = 0; index < system.GetStageBallCount(); ++index) {
 		const physics::SphereBody* body = world.GetBody(system.GetStageBalls()[index]);
-		if (!body || !IsFinite(body->position) || !IsFinite(body->linearVelocity)) {
+		if (!body || !IsFinite(body->position) || !IsFinite(body->linearVelocity) ||
+			!IsFinite(body->angularVelocity) || !IsFinite(body->orientation)) {
 			return false;
 		}
 	}
@@ -128,6 +142,137 @@ float GetMinimumPairDistance(const magnet::MagnetStageData& stage)
 
 int main()
 {
+	physics::PhysicsWorld rollingWorld;
+	physics::SphereBodyDesc rollingDesc{};
+	rollingDesc.position = { 0.0f, 2.0f, 0.0f };
+	rollingDesc.linearVelocity = { 3.0f, -1.0f, 0.0f };
+	rollingDesc.radius = 0.5f;
+	rollingDesc.linearDamping = 0.05f;
+	rollingDesc.gravityScale = 1.0f;
+	rollingDesc.groundHeight = 0.0f;
+	rollingDesc.restitution = 0.5f;
+	rollingDesc.groundFriction = 0.2f;
+	rollingDesc.lockToHorizontalPlane = false;
+	rollingDesc.collideWithGround = true;
+	const physics::BodyHandle rollingBody = rollingWorld.CreateSphereBody(rollingDesc);
+	bool observedGroundBounce = false;
+	for (int step = 0; step < 180; ++step) {
+		if (!rollingBody.IsValid() || !rollingWorld.Step(kFixedDeltaTime, 3, 4)) {
+			std::cerr << "Rolling-body simulation failed.\n";
+			return 135;
+		}
+		const physics::SphereBody* body = rollingWorld.GetBody(rollingBody);
+		if (!body || body->position.y < body->radius - 1.0e-4f ||
+			!IsFinite(body->orientation) ||
+			std::abs(QuaternionLengthSquared(body->orientation) - 1.0f) > 1.0e-3f) {
+			std::cerr << "Rolling body penetrated the floor or lost a finite rotation.\n";
+			return 136;
+		}
+		observedGroundBounce = observedGroundBounce || body->linearVelocity.y > 0.5f;
+	}
+	const physics::SphereBody* rolledBody = rollingWorld.GetBody(rollingBody);
+	if (!observedGroundBounce || !rolledBody ||
+		std::abs(rolledBody->orientation.w - 1.0f) < 1.0e-3f ||
+		std::abs(rolledBody->angularVelocity.z) < 0.1f) {
+		std::cerr << "Sphere did not produce bounded bounce and rolling rotation.\n";
+		return 137;
+	}
+	if (!rollingWorld.SetHorizontalPlaneLock(rollingBody, true, 0.5f)) {
+		std::cerr << "Rolling body could not return to plane-locked motion.\n";
+		return 138;
+	}
+	rolledBody = rollingWorld.GetBody(rollingBody);
+	if (!rolledBody || !rolledBody->lockToHorizontalPlane ||
+		std::abs(rolledBody->position.y - 0.5f) > 1.0e-5f ||
+		std::abs(rolledBody->linearVelocity.y) > 1.0e-5f) {
+		std::cerr << "Plane-lock transition did not restore grounded motion.\n";
+		return 139;
+	}
+	std::cout << "rolling_ground_checks=passed\n";
+
+	magnet::MagnetChainSystem releaseTransitionSystem;
+	if (!releaseTransitionSystem.Initialize(BuildPickupStage()) ||
+		!CollectAllBalls(releaseTransitionSystem)) {
+		std::cerr << "Released-ground-motion setup failed.\n";
+		return 142;
+	}
+	magnet::MagnetChainSystem::PlayerCommand releaseDriveCommand{};
+	releaseDriveCommand.moveDirection = { 1.0f, 0.0f, 0.0f };
+	for (int step = 0; step < 45; ++step) {
+		releaseTransitionSystem.SetPlayerCommand(releaseDriveCommand);
+		if (!releaseTransitionSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Released-ground-motion drive failed.\n";
+			return 143;
+		}
+	}
+	releaseDriveCommand = {};
+	releaseDriveCommand.releaseChains = true;
+	releaseTransitionSystem.SetPlayerCommand(releaseDriveCommand);
+	if (!releaseTransitionSystem.FixedUpdate(kFixedDeltaTime) ||
+		releaseTransitionSystem.GetReleasedBallCount() == 0) {
+		std::cerr << "Released-ground-motion transition failed.\n";
+		return 144;
+	}
+	bool releaseHasLift = false;
+	for (std::size_t index = 0;
+		index < releaseTransitionSystem.GetStageBallCount();
+		++index) {
+		if (releaseTransitionSystem.GetStageBallStates()[index] !=
+			magnet::MagnetChainSystem::StageBallState::Released) {
+			continue;
+		}
+		const physics::SphereBody* body =
+			releaseTransitionSystem.GetPhysicsWorld().GetBody(
+				releaseTransitionSystem.GetStageBalls()[index]);
+		if (!body || body->lockToHorizontalPlane ||
+			body->position.y < body->radius - 1.0e-4f) {
+			std::cerr << "Released magnet remained plane locked or crossed the floor.\n";
+			return 145;
+		}
+		releaseHasLift = releaseHasLift || body->linearVelocity.y > 0.1f;
+	}
+	if (!releaseHasLift) {
+		std::cerr << "Moving released magnets did not receive bounded lift.\n";
+		return 146;
+	}
+	std::array<bool, magnet::MagnetChainSystem::kStageBallCapacity> observedFalling{};
+	std::array<bool, magnet::MagnetChainSystem::kStageBallCapacity> observedRebound{};
+	for (int step = 0; step < 120; ++step) {
+		releaseTransitionSystem.SetPlayerCommand(releaseDriveCommand);
+		if (!releaseTransitionSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Released-ball bounce simulation failed.\n";
+			return 147;
+		}
+		for (std::size_t index = 0;
+			index < releaseTransitionSystem.GetStageBallCount();
+			++index) {
+			if (releaseTransitionSystem.GetStageBallStates()[index] !=
+				magnet::MagnetChainSystem::StageBallState::Released) {
+				continue;
+			}
+			const physics::SphereBody* body =
+				releaseTransitionSystem.GetPhysicsWorld().GetBody(
+					releaseTransitionSystem.GetStageBalls()[index]);
+			if (!body || body->position.y < body->radius - 1.0e-4f ||
+				!IsFinite(body->orientation) ||
+				std::abs(QuaternionLengthSquared(body->orientation) - 1.0f) > 1.0e-3f) {
+				std::cerr << "Released ball penetrated the floor or lost its rotation.\n";
+				return 148;
+			}
+			if (body->linearVelocity.y < -0.2f) {
+				observedFalling[index] = true;
+			} else if (observedFalling[index] && body->linearVelocity.y > 0.2f) {
+				observedRebound[index] = true;
+			}
+		}
+	}
+	if (std::none_of(observedRebound.begin(), observedRebound.end(),
+		[](bool value) { return value; })) {
+		std::cerr << "Released balls did not rebound after falling.\n";
+		return 149;
+	}
+	std::cout << "released_ground_transition_checks=passed\n";
+
 	physics::PhysicsWorld attachmentWorld;
 	magnet::MagneticImpactAttachmentSystem attachmentSystem;
 	magnet::MagneticImpactAttachmentSystem::Settings attachmentSettings{};
@@ -1228,6 +1373,22 @@ int main()
 		system.GetPhysicsWorld().GetActiveConstraintCount() != 0) {
 		std::cerr << "Release did not detach only the collected balls.\n";
 		return 21;
+	}
+	bool observedReleaseLift = false;
+	for (std::size_t index = 0; index < pickupStage.ballCount; ++index) {
+		const physics::SphereBody* releasedBody = system.GetPhysicsWorld().GetBody(
+			system.GetStageBalls()[index]);
+		if (!releasedBody || releasedBody->lockToHorizontalPlane ||
+			releasedBody->position.y < releasedBody->radius - 1.0e-4f) {
+			std::cerr << "Released ball did not enter bounded 3D ground motion.\n";
+			return 140;
+		}
+		observedReleaseLift = observedReleaseLift ||
+			releasedBody->linearVelocity.y > 0.1f;
+	}
+	if (!observedReleaseLift) {
+		std::cerr << "Moving released balls did not receive launch lift.\n";
+		return 141;
 	}
 	const auto& diagnostics = system.GetLastReleaseConvergenceDiagnostics();
 	if (!diagnostics.valid || !IsFinite(diagnostics.focusPoint) ||

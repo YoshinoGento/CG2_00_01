@@ -19,6 +19,7 @@
 class Camera;
 class Framework;
 class Input;
+class Object3d;
 
 // Isolated visual test for fixed-step magnet-chain behavior.
 class MagnetPrototypeScene final : public BaseScene {
@@ -46,6 +47,9 @@ private:
 		const Vector4& color) const;
 	void DrawBody(physics::BodyHandle handle, const Vector4& color) const;
 	void DrawVelocity(physics::BodyHandle handle) const;
+	[[nodiscard]] bool InitializeBallVisuals();
+	[[nodiscard]] bool UpdateBallVisuals(float deltaTime) noexcept;
+	void DrawBallVisuals() const;
 	[[nodiscard]] bool InitializeMinimap();
 	void UpdateMinimap();
 	void DrawMinimap();
@@ -60,6 +64,9 @@ private:
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
+	std::unique_ptr<Object3d> playerVisual_;
+	std::array<std::unique_ptr<Object3d>, magnet::MagnetChainSystem::kStageBallCapacity>
+		stageBallVisuals_{};
 	magnet::MagnetStageSystem magnetStageSystem_;
 	magnet::MagnetChainSystem magnetChainSystem_;
 	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
@@ -72,6 +79,7 @@ private:
 	magnet::MagnetChainSystem::PlayerCommand pendingCommand_{};
 	bool resetRequested_ = false;
 	bool prototypeReady_ = false;
+	bool ballVisualsReady_ = false;
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;

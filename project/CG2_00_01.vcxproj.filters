@@ -88,6 +88,9 @@
     <Filter Include="Resource Files\Resources\shader">
       <UniqueIdentifier>{7fbf45cd-5280-4ea0-9a22-2fcb57e13c2a}</UniqueIdentifier>
     </Filter>
+	<Filter Include="Resource Files\Resources\magnet">
+	  <UniqueIdentifier>{da5d22f4-947c-40b1-a3e5-a763e761335c}</UniqueIdentifier>
+	</Filter>
   </ItemGroup>
   <ItemGroup>
 	<ClInclude Include="engine\debug\ParticleEffectEditor.h">
@@ -528,6 +531,18 @@
     <None Include="Resources\levels\magnet\stage_01.json">
       <Filter>Resource Files</Filter>
     </None>
+	<None Include="Resources\magnet\player\player.obj">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\player\player.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\small_ball\SmallBall.obj">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\small_ball\SmallBall.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
     <None Include="Resources\shader\Object3d.hlsli">
       <Filter>Resource Files\Resources\shader</Filter>
     </None>

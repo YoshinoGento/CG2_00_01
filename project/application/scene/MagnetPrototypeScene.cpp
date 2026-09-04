@@ -4,7 +4,11 @@
 
 #include "3d/Camera.h"
 #include "3d/LineDrawer.h"
+#include "3d/ModelManager.h"
+#include "3d/Object3d.h"
+#include "3d/Object3dCommon.h"
 #include "2d/SpriteCommon.h"
+#include "2d/TextureManager.h"
 #include "base/Framework.h"
 #include "base/FrameClock.h"
 #include "base/ImGuiManager.h"
@@ -21,6 +25,8 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
+#include <system_error>
 
 namespace {
 
@@ -45,6 +51,8 @@ constexpr Vector4 kTransferGateColor = { 0.12f, 0.95f, 0.88f, 1.0f };
 constexpr Vector4 kRepulsionFieldColor = { 1.0f, 0.20f, 0.62f, 1.0f };
 constexpr Vector4 kRepulsionRangeColor = { 1.0f, 0.30f, 0.68f, 0.38f };
 constexpr Vector4 kSelectionColor = { 1.0f, 0.12f, 0.85f, 1.0f };
+constexpr const char* kPlayerModelPath = "magnet/player/player.obj";
+constexpr const char* kSmallBallModelPath = "magnet/small_ball/SmallBall.obj";
 constexpr float kGridSpacing = 1.0f;
 constexpr float kVelocityDisplayScale = 0.22f;
 constexpr int kArenaWallSegments = 64;
@@ -79,9 +87,34 @@ constexpr float kComicTextMinimumImpactSpeed = 6.0f;
 	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
+[[nodiscard]] bool IsRegularFileNoThrow(
+	const std::filesystem::path& path) noexcept
+{
+	std::error_code error;
+	return std::filesystem::is_regular_file(path, error) && !error;
+}
+
 [[nodiscard]] bool HasMovementInput(const Vector3& direction) noexcept
 {
 	return std::fabs(direction.x) > 0.0001f || std::fabs(direction.z) > 0.0001f;
+}
+
+[[nodiscard]] Vector3 RotateByQuaternion(
+	const Vector3& vector,
+	const Quaternion& rotation) noexcept
+{
+	const Vector3 quaternionVector{ rotation.x, rotation.y, rotation.z };
+	const Vector3 twiceCross{
+		2.0f * (quaternionVector.y * vector.z - quaternionVector.z * vector.y),
+		2.0f * (quaternionVector.z * vector.x - quaternionVector.x * vector.z),
+		2.0f * (quaternionVector.x * vector.y - quaternionVector.y * vector.x),
+	};
+	const Vector3 secondCross{
+		quaternionVector.y * twiceCross.z - quaternionVector.z * twiceCross.y,
+		quaternionVector.z * twiceCross.x - quaternionVector.x * twiceCross.z,
+		quaternionVector.x * twiceCross.y - quaternionVector.y * twiceCross.x,
+	};
+	return vector + twiceCross * rotation.w + secondCross;
 }
 
 [[nodiscard]] Vector4 GetObstacleColor(
@@ -100,6 +133,23 @@ constexpr float kComicTextMinimumImpactSpeed = 6.0f;
 	case magnet::MagnetObstacleKind::Solid:
 	default:
 		return kObstacleColor;
+	}
+}
+
+[[nodiscard]] Vector4 GetStageBallColor(
+	magnet::MagnetChainSystem::StageBallState state) noexcept
+{
+	switch (state) {
+	case magnet::MagnetChainSystem::StageBallState::AttachedLeft:
+		return kLeftChainColor;
+	case magnet::MagnetChainSystem::StageBallState::AttachedRight:
+		return kRightChainColor;
+	case magnet::MagnetChainSystem::StageBallState::Released:
+		return kReleasedBallColor;
+	case magnet::MagnetChainSystem::StageBallState::Available:
+	case magnet::MagnetChainSystem::StageBallState::Inactive:
+	default:
+		return kAvailableBallColor;
 	}
 }
 
@@ -128,6 +178,14 @@ void MagnetPrototypeScene::Initialize()
 
 	prototypeReady_ = magnetStageSystem_.Initialize() &&
 		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
+	ballVisualsReady_ = prototypeReady_ && InitializeBallVisuals();
+	if (ballVisualsReady_) {
+		ballVisualsReady_ = UpdateBallVisuals(0.0f);
+	}
+	if (!ballVisualsReady_) {
+		Logger::Log(
+			"MagnetPrototypeScene: Player/SmallBall model initialization failed; using wire fallback.");
+	}
 	magneticImpactFeedbackSystem_.Reset();
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
@@ -170,6 +228,9 @@ void MagnetPrototypeScene::Finalize()
 		framework_->GetParticleManager()->ResetGPUParticles();
 	}
 	comicTextEffects_.reset();
+	playerVisual_.reset();
+	for (auto& visual : stageBallVisuals_) { visual.reset(); }
+	ballVisualsReady_ = false;
 	pauseOverlaySprite_.reset();
 	gameFlowUiReady_ = false;
 	for (auto& guide : goalGuideSprites_) {
@@ -300,6 +361,10 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 
 void MagnetPrototypeScene::Update()
 {
+	const FrameClock* frameClock = framework_ ? framework_->GetFrameClock() : nullptr;
+	const float frameDeltaSeconds = frameClock
+		? frameClock->GetFrameDeltaSeconds()
+		: FrameClock::kDefaultFixedDeltaSeconds;
 	if (camera_) {
 		Vector3 desiredPosition = camera_->GetTranslate();
 		bool shouldMoveCamera = false;
@@ -324,15 +389,17 @@ void MagnetPrototypeScene::Update()
 		}
 		camera_->Update();
 	}
+	if (ballVisualsReady_ && !UpdateBallVisuals(frameDeltaSeconds)) {
+		Logger::Log(
+			"MagnetPrototypeScene: ball visual update failed; using wire fallback.");
+		ballVisualsReady_ = false;
+	}
 	if (framework_ && framework_->GetParticleManager() && camera_) {
-		const FrameClock* frameClock = framework_->GetFrameClock();
-		framework_->GetParticleManager()->Update(camera_.get(),
-			frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+		framework_->GetParticleManager()->Update(camera_.get(), frameDeltaSeconds);
 	}
 	if (comicTextEffects_ && camera_) {
-		const FrameClock* frameClock = framework_ ? framework_->GetFrameClock() : nullptr;
 		comicTextEffects_->Update(
-			frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds,
+			frameDeltaSeconds,
 			camera_->GetViewProjectionMatrix());
 	}
 	UpdateGoalGuides();
@@ -476,29 +543,17 @@ void MagnetPrototypeScene::Draw()
 	const auto& stageBalls = magnetChainSystem_.GetStageBalls();
 	const auto& stageBallStates = magnetChainSystem_.GetStageBallStates();
 	for (std::size_t index = 0; index < magnetChainSystem_.GetStageBallCount(); ++index) {
-		Vector4 color = kAvailableBallColor;
-		switch (stageBallStates[index]) {
-		case magnet::MagnetChainSystem::StageBallState::AttachedLeft:
-			color = kLeftChainColor;
-			break;
-		case magnet::MagnetChainSystem::StageBallState::AttachedRight:
-			color = kRightChainColor;
-			break;
-		case magnet::MagnetChainSystem::StageBallState::Released:
-			color = kReleasedBallColor;
-			break;
-		case magnet::MagnetChainSystem::StageBallState::Inactive:
+		if (stageBallStates[index] ==
+			magnet::MagnetChainSystem::StageBallState::Inactive) {
 			continue;
-		case magnet::MagnetChainSystem::StageBallState::Available:
-		default:
-			break;
 		}
-		DrawBody(stageBalls[index], color);
+		DrawBody(stageBalls[index], GetStageBallColor(stageBallStates[index]));
 		DrawVelocity(stageBalls[index]);
 	}
 	magneticImpactFeedbackSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
+	DrawBallVisuals();
 	if (framework_ && framework_->GetParticleManager()) {
 		framework_->GetParticleManager()->Draw();
 	}
@@ -1266,11 +1321,143 @@ void MagnetPrototypeScene::DrawWireBox(
 	}
 }
 
+bool MagnetPrototypeScene::InitializeBallVisuals()
+{
+	playerVisual_.reset();
+	for (auto& visual : stageBallVisuals_) { visual.reset(); }
+	if (!framework_ || !camera_ || !framework_->GetModelManager() ||
+		!framework_->GetObject3dCommon()) {
+		return false;
+	}
+	if (!IsRegularFileNoThrow(
+			std::filesystem::path("Resources") / kPlayerModelPath) ||
+		!IsRegularFileNoThrow(
+			std::filesystem::path("Resources") / kSmallBallModelPath)) {
+		return false;
+	}
+
+	ModelManager* modelManager = framework_->GetModelManager();
+	modelManager->LoadModel(kPlayerModelPath);
+	modelManager->LoadModel(kSmallBallModelPath);
+	Model* playerModel = modelManager->GetModel(kPlayerModelPath);
+	Model* smallBallModel = modelManager->GetModel(kSmallBallModelPath);
+	if (!playerModel || !smallBallModel) {
+		return false;
+	}
+
+	const Texture2DHandle whiteTexture =
+		TextureManager::GetInstance()->LoadTexture2D("Resources/human/white.png");
+	const auto createVisual = [&](Model* model, const Vector4& color) {
+		auto visual = std::make_unique<Object3d>();
+		visual->Initialize(framework_->GetObject3dCommon());
+		visual->SetModel(model);
+		visual->SetTexture(whiteTexture);
+		visual->SetColor(color);
+		visual->SetEnableLighting(true);
+		visual->SetShininess(56.0f);
+		return visual;
+	};
+
+	playerVisual_ = createVisual(playerModel, kPlayerColor);
+	for (auto& visual : stageBallVisuals_) {
+		visual = createVisual(smallBallModel, kAvailableBallColor);
+	}
+	return true;
+}
+
+bool MagnetPrototypeScene::UpdateBallVisuals(float deltaTime) noexcept
+{
+	if (!framework_ || !camera_ || !playerVisual_ ||
+		magnetChainSystem_.GetStageBallCount() > stageBallVisuals_.size()) {
+		return false;
+	}
+	const physics::PhysicsWorld& physicsWorld = magnetChainSystem_.GetPhysicsWorld();
+	const auto updateVisual = [&](
+		Object3d& visual,
+		physics::BodyHandle handle,
+		const Vector4& color) noexcept {
+		const physics::SphereBody* body = physicsWorld.GetBody(handle);
+		if (!body || !IsFiniteVector3(body->position) ||
+			!IsFiniteVector3(body->angularVelocity)) {
+			return false;
+		}
+		visual.SetPosition(body->position);
+		if (!std::isfinite(body->radius) || body->radius <= 0.0f ||
+			!visual.SetScale({ body->radius, body->radius, body->radius }) ||
+			!visual.SetRotationQuaternion(body->orientation)) {
+			return false;
+		}
+		visual.SetColor(color);
+		visual.Update(camera_.get(), deltaTime);
+		return true;
+	};
+
+	if (!updateVisual(
+		*playerVisual_, magnetChainSystem_.GetPlayerBody(), kPlayerColor)) {
+		return false;
+	}
+	const auto& stageBalls = magnetChainSystem_.GetStageBalls();
+	const auto& states = magnetChainSystem_.GetStageBallStates();
+	for (std::size_t index = 0;
+		index < magnetChainSystem_.GetStageBallCount();
+		++index) {
+		if (!stageBallVisuals_[index] ||
+			!updateVisual(
+				*stageBallVisuals_[index],
+				stageBalls[index],
+				GetStageBallColor(states[index]))) {
+			return false;
+		}
+	}
+	return true;
+}
+
+void MagnetPrototypeScene::DrawBallVisuals() const
+{
+	if (!ballVisualsReady_ || !framework_ || !playerVisual_) {
+		return;
+	}
+	Object3dCommon* object3dCommon = framework_->GetObject3dCommon();
+	if (!object3dCommon) {
+		return;
+	}
+
+	object3dCommon->BeginObjectPass();
+	const physics::PhysicsWorld& physicsWorld = magnetChainSystem_.GetPhysicsWorld();
+	const physics::SphereBody* player =
+		physicsWorld.GetBody(magnetChainSystem_.GetPlayerBody());
+	if (player && player->active) {
+		playerVisual_->Draw();
+	}
+	const auto& stageBalls = magnetChainSystem_.GetStageBalls();
+	const auto& states = magnetChainSystem_.GetStageBallStates();
+	const std::size_t count = (std::min)(
+		magnetChainSystem_.GetStageBallCount(), stageBallVisuals_.size());
+	for (std::size_t index = 0; index < count; ++index) {
+		const physics::SphereBody* body = physicsWorld.GetBody(stageBalls[index]);
+		if (states[index] != magnet::MagnetChainSystem::StageBallState::Inactive &&
+			body && body->active && stageBallVisuals_[index]) {
+			stageBallVisuals_[index]->Draw();
+		}
+	}
+	object3dCommon->EndObjectPass();
+}
+
 void MagnetPrototypeScene::DrawBody(physics::BodyHandle handle, const Vector4& color) const
 {
 	const physics::SphereBody* body = magnetChainSystem_.GetPhysicsWorld().GetBody(handle);
 	if (body && body->active) {
-		LineDrawer::GetInstance()->DrawWireSphere(body->position, body->radius, color, 18);
+		LineDrawer* lineDrawer = LineDrawer::GetInstance();
+		if (!ballVisualsReady_) {
+			lineDrawer->DrawWireSphere(body->position, body->radius, color, 18);
+		}
+		const Vector3 markerDirection = RotateByQuaternion(
+			{ 0.0f, body->radius * 0.88f, 0.0f },
+			body->orientation);
+		lineDrawer->DrawLine(
+			body->position - markerDirection,
+			body->position + markerDirection,
+			color);
 	}
 }
 

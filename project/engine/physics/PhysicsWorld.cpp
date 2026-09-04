@@ -10,6 +10,10 @@ namespace {
 constexpr float kMinimumRadius = 0.01f;
 constexpr float kMinimumMass = 0.001f;
 constexpr float kMinimumDistanceSquared = 1.0e-10f;
+constexpr float kGravityAcceleration = -9.80665f;
+constexpr float kGroundContactTolerance = 1.0e-4f;
+constexpr float kMinimumBounceSpeed = 0.85f;
+constexpr float kMaximumGravityScale = 8.0f;
 constexpr float kMaximumSubstepSeconds = 1.0f / 30.0f;
 constexpr uint32_t kMaximumSubsteps = 8;
 constexpr uint32_t kMaximumSolverIterations = 32;
@@ -24,9 +28,46 @@ bool IsFinite(const Vector3& value) noexcept
 	return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
 }
 
+bool IsFinite(const Quaternion& value) noexcept
+{
+	return IsFinite(value.x) && IsFinite(value.y) &&
+		IsFinite(value.z) && IsFinite(value.w);
+}
+
 float LengthSquared(const Vector3& value) noexcept
 {
 	return value.x * value.x + value.y * value.y + value.z * value.z;
+}
+
+float LengthSquared(const Quaternion& value) noexcept
+{
+	return value.x * value.x + value.y * value.y +
+		value.z * value.z + value.w * value.w;
+}
+
+Quaternion Normalize(const Quaternion& value) noexcept
+{
+	const float lengthSquared = LengthSquared(value);
+	if (!IsFinite(lengthSquared) || lengthSquared <= kMinimumDistanceSquared) {
+		return { 0.0f, 0.0f, 0.0f, 1.0f };
+	}
+	const float inverseLength = 1.0f / std::sqrt(lengthSquared);
+	return {
+		value.x * inverseLength,
+		value.y * inverseLength,
+		value.z * inverseLength,
+		value.w * inverseLength,
+	};
+}
+
+Quaternion Multiply(const Quaternion& left, const Quaternion& right) noexcept
+{
+	return {
+		left.w * right.x + left.x * right.w + left.y * right.z - left.z * right.y,
+		left.w * right.y - left.x * right.z + left.y * right.w + left.z * right.x,
+		left.w * right.z + left.x * right.y - left.y * right.x + left.z * right.w,
+		left.w * right.w - left.x * right.x - left.y * right.y - left.z * right.z,
+	};
 }
 
 float GetSolverInverseMass(const SphereBody& body) noexcept
@@ -58,7 +99,13 @@ BodyHandle PhysicsWorld::CreateSphereBody(const SphereBodyDesc& desc)
 		!IsFinite(desc.position) || !IsFinite(desc.linearVelocity) ||
 		!IsFinite(desc.radius) || desc.radius < kMinimumRadius ||
 		!IsFinite(desc.linearDamping) || desc.linearDamping < 0.0f ||
-		!IsFinite(desc.planeHeight)) {
+		!IsFinite(desc.planeHeight) ||
+		!IsFinite(desc.gravityScale) || desc.gravityScale < 0.0f ||
+		desc.gravityScale > kMaximumGravityScale ||
+		!IsFinite(desc.groundHeight) ||
+		!IsFinite(desc.restitution) || desc.restitution < 0.0f ||
+		desc.restitution > 1.0f ||
+		!IsFinite(desc.groundFriction) || desc.groundFriction < 0.0f) {
 		return {};
 	}
 
@@ -78,8 +125,13 @@ BodyHandle PhysicsWorld::CreateSphereBody(const SphereBodyDesc& desc)
 	body.inverseMass = inverseMass;
 	body.linearDamping = desc.linearDamping;
 	body.planeHeight = desc.lockToHorizontalPlane ? desc.planeHeight : desc.position.y;
+	body.gravityScale = desc.gravityScale;
+	body.groundHeight = desc.groundHeight;
+	body.restitution = desc.restitution;
+	body.groundFriction = desc.groundFriction;
 	body.motionType = desc.motionType;
 	body.lockToHorizontalPlane = desc.lockToHorizontalPlane;
+	body.collideWithGround = desc.collideWithGround;
 	body.active = desc.active;
 	body.generation = generation_;
 	if (body.lockToHorizontalPlane) {
@@ -181,6 +233,26 @@ bool PhysicsWorld::SetPosition(BodyHandle handle, const Vector3& position) noexc
 	return true;
 }
 
+bool PhysicsWorld::SetHorizontalPlaneLock(
+	BodyHandle handle,
+	bool locked,
+	float planeHeight) noexcept
+{
+	SphereBody* body = GetBodyMutable(handle);
+	if (!body || !IsFinite(planeHeight)) {
+		return false;
+	}
+	body->lockToHorizontalPlane = locked;
+	body->planeHeight = planeHeight;
+	body->previousPosition = body->position;
+	if (locked) {
+		body->position.y = planeHeight;
+		body->previousPosition.y = planeHeight;
+		body->linearVelocity.y = 0.0f;
+	}
+	return true;
+}
+
 bool PhysicsWorld::SetActive(BodyHandle handle, bool active) noexcept
 {
 	SphereBody* body = GetBodyMutable(handle);
@@ -208,7 +280,9 @@ bool PhysicsWorld::Step(float fixedDeltaTime, uint32_t substepCount, uint32_t so
 	for (uint32_t substep = 0; substep < substepCount; ++substep) {
 		if (!IntegrateBodies(substepDeltaTime) ||
 			!SolveDistanceConstraints(substepDeltaTime, solverIterations) ||
-			!ReconstructVelocities(substepDeltaTime)) {
+			!ReconstructVelocities(substepDeltaTime) ||
+			!ResolveGroundContacts(substepDeltaTime) ||
+			!UpdateSphereOrientations(substepDeltaTime)) {
 			return false;
 		}
 	}
@@ -248,7 +322,13 @@ bool PhysicsWorld::IntegrateBodies(float deltaTime) noexcept
 		body.previousPosition = body.position;
 		if (!body.active) {
 			body.linearVelocity = {};
+			body.angularVelocity = {};
 			continue;
+		}
+		if (body.motionType == MotionType::Dynamic &&
+			!body.lockToHorizontalPlane && body.gravityScale > 0.0f) {
+			body.linearVelocity.y +=
+				kGravityAcceleration * body.gravityScale * deltaTime;
 		}
 		if (body.motionType != MotionType::Static) {
 			body.position += body.linearVelocity * deltaTime;
@@ -353,6 +433,79 @@ bool PhysicsWorld::ReconstructVelocities(float deltaTime) noexcept
 			body.linearVelocity.y = 0.0f;
 		}
 		if (!IsFinite(body.linearVelocity)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool PhysicsWorld::ResolveGroundContacts(float deltaTime) noexcept
+{
+	for (SphereBody& body : bodies_) {
+		if (!body.active || body.motionType != MotionType::Dynamic ||
+			body.lockToHorizontalPlane || !body.collideWithGround) {
+			continue;
+		}
+		if (!IsFinite(body.position) || !IsFinite(body.linearVelocity) ||
+			!IsFinite(body.groundHeight) || !IsFinite(body.restitution) ||
+			!IsFinite(body.groundFriction)) {
+			return false;
+		}
+
+		const float minimumCenterHeight = body.groundHeight + body.radius;
+		if (body.position.y > minimumCenterHeight + kGroundContactTolerance) {
+			continue;
+		}
+		body.position.y = minimumCenterHeight;
+		if (body.linearVelocity.y < -kMinimumBounceSpeed) {
+			body.linearVelocity.y = -body.linearVelocity.y * body.restitution;
+		} else if (body.linearVelocity.y < 0.0f) {
+			body.linearVelocity.y = 0.0f;
+		}
+		const float frictionFactor = std::exp(-body.groundFriction * deltaTime);
+		body.linearVelocity.x *= frictionFactor;
+		body.linearVelocity.z *= frictionFactor;
+		if (!IsFinite(body.position) || !IsFinite(body.linearVelocity)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool PhysicsWorld::UpdateSphereOrientations(float deltaTime) noexcept
+{
+	for (SphereBody& body : bodies_) {
+		if (!body.active || body.motionType == MotionType::Static) {
+			body.angularVelocity = {};
+			continue;
+		}
+		const Vector3 horizontalVelocity{
+			body.linearVelocity.x,
+			0.0f,
+			body.linearVelocity.z,
+		};
+		body.angularVelocity = {
+			horizontalVelocity.z / body.radius,
+			0.0f,
+			-horizontalVelocity.x / body.radius,
+		};
+		const float angularSpeedSquared = LengthSquared(body.angularVelocity);
+		if (!IsFinite(angularSpeedSquared)) {
+			return false;
+		}
+		if (angularSpeedSquared > kMinimumDistanceSquared) {
+			const float angularSpeed = std::sqrt(angularSpeedSquared);
+			const float halfAngle = angularSpeed * deltaTime * 0.5f;
+			const float sineScale = std::sin(halfAngle) / angularSpeed;
+			const Quaternion deltaRotation{
+				body.angularVelocity.x * sineScale,
+				body.angularVelocity.y * sineScale,
+				body.angularVelocity.z * sineScale,
+				std::cos(halfAngle),
+			};
+			body.orientation = Normalize(Multiply(deltaRotation, body.orientation));
+		}
+		if (!IsFinite(body.angularVelocity) || !IsFinite(body.orientation)) {
 			return false;
 		}
 	}

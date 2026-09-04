@@ -30,8 +30,13 @@ struct SphereBodyDesc {
 	float mass = 1.0f;
 	float linearDamping = 0.25f;
 	float planeHeight = 0.5f;
+	float gravityScale = 0.0f;
+	float groundHeight = 0.0f;
+	float restitution = 0.4f;
+	float groundFriction = 0.35f;
 	MotionType motionType = MotionType::Dynamic;
 	bool lockToHorizontalPlane = true;
+	bool collideWithGround = false;
 	bool active = true;
 };
 
@@ -39,12 +44,19 @@ struct SphereBody {
 	Vector3 position{};
 	Vector3 previousPosition{};
 	Vector3 linearVelocity{};
+	Vector3 angularVelocity{};
+	Quaternion orientation{ 0.0f, 0.0f, 0.0f, 1.0f };
 	float radius = 0.5f;
 	float inverseMass = 1.0f;
 	float linearDamping = 0.25f;
 	float planeHeight = 0.5f;
+	float gravityScale = 0.0f;
+	float groundHeight = 0.0f;
+	float restitution = 0.4f;
+	float groundFriction = 0.35f;
 	MotionType motionType = MotionType::Dynamic;
 	bool lockToHorizontalPlane = true;
+	bool collideWithGround = false;
 	bool active = true;
 	uint32_t generation = 0;
 };
@@ -88,6 +100,10 @@ public:
 	[[nodiscard]] bool SetDistanceConstraintActive(std::size_t index, bool active) noexcept;
 	[[nodiscard]] bool SetLinearVelocity(BodyHandle handle, const Vector3& velocity) noexcept;
 	[[nodiscard]] bool SetPosition(BodyHandle handle, const Vector3& position) noexcept;
+	[[nodiscard]] bool SetHorizontalPlaneLock(
+		BodyHandle handle,
+		bool locked,
+		float planeHeight) noexcept;
 	[[nodiscard]] bool SetActive(BodyHandle handle, bool active) noexcept;
 	[[nodiscard]] bool Step(float fixedDeltaTime, uint32_t substepCount, uint32_t solverIterations) noexcept;
 
@@ -103,6 +119,8 @@ private:
 	[[nodiscard]] bool IntegrateBodies(float deltaTime) noexcept;
 	[[nodiscard]] bool SolveDistanceConstraints(float deltaTime, uint32_t solverIterations) noexcept;
 	[[nodiscard]] bool ReconstructVelocities(float deltaTime) noexcept;
+	[[nodiscard]] bool ResolveGroundContacts(float deltaTime) noexcept;
+	[[nodiscard]] bool UpdateSphereOrientations(float deltaTime) noexcept;
 
 	std::vector<SphereBody> bodies_;
 	std::vector<DistanceConstraint> constraints_;

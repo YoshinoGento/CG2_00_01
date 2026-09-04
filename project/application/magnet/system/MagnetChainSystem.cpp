@@ -21,6 +21,12 @@ constexpr float kReleasedBallArenaSeparationPadding = 2.0f;
 constexpr float kDirectionEpsilonSquared = 1.0e-8f;
 constexpr float kDynamicBodyMass = 1.0f;
 constexpr float kDynamicBodyDamping = 0.12f;
+constexpr float kReleasedBallGravityScale = 1.0f;
+constexpr float kReleasedBallRestitution = 0.46f;
+constexpr float kReleasedBallGroundFriction = 0.28f;
+constexpr float kReleaseLiftRatio = 0.16f;
+constexpr float kMinimumReleaseLiftSpeed = 1.05f;
+constexpr float kMaximumReleaseLiftSpeed = 2.20f;
 constexpr float kConstraintCompliance = 0.00008f;
 constexpr float kMaximumConstraintCorrection = 0.35f;
 constexpr float kFirstBendHorizontalLength = kFirstHorizontalOffset + kLinkLength;
@@ -333,7 +339,12 @@ bool MagnetChainSystem::CreateStageBallPool()
 		bodyDesc.mass = kDynamicBodyMass;
 		bodyDesc.linearDamping = kDynamicBodyDamping;
 		bodyDesc.planeHeight = kMagnetRadius;
+		bodyDesc.gravityScale = kReleasedBallGravityScale;
+		bodyDesc.groundHeight = 0.0f;
+		bodyDesc.restitution = kReleasedBallRestitution;
+		bodyDesc.groundFriction = kReleasedBallGroundFriction;
 		bodyDesc.motionType = physics::MotionType::Dynamic;
+		bodyDesc.collideWithGround = true;
 		bodyDesc.active = index < stageBallCount_;
 		stageBalls_[index] = physicsWorld_.CreateSphereBody(bodyDesc);
 		if (!stageBalls_[index].IsValid()) {
@@ -588,6 +599,10 @@ bool MagnetChainSystem::AttachStageBall(
 		 !physicsWorld_.SetLinearVelocity(stageBalls_[stageBallIndex], {}))) {
 		return false;
 	}
+	if (!physicsWorld_.SetHorizontalPlaneLock(
+		stageBalls_[stageBallIndex], true, kMagnetRadius)) {
+		return false;
+	}
 	auto& chain = attachRight ? rightChain_ : leftChain_;
 	std::size_t& chainCount = attachRight ? rightChainCount_ : leftChainCount_;
 	BallMomentumTracker& momentumTracker = attachRight
@@ -608,6 +623,10 @@ bool MagnetChainSystem::AttachStageBall(
 		--chainCount;
 		chain[linkIndex] = {};
 		stageBallStates_[stageBallIndex] = previousState;
+		if (previousState == StageBallState::Released) {
+			(void)physicsWorld_.SetHorizontalPlaneLock(
+				stageBalls_[stageBallIndex], false, kMagnetRadius);
+		}
 		return false;
 	}
 	return true;
@@ -929,6 +948,17 @@ bool MagnetChainSystem::ReleaseChains() noexcept
 	if (!HasAttachedBalls() || !ApplyMomentumLaunch()) {
 		return false;
 	}
+	const auto setPlaneLockForAttached = [&](bool locked) noexcept {
+		for (std::size_t index = 0; index < stageBallCount_; ++index) {
+			if ((stageBallStates_[index] == StageBallState::AttachedLeft ||
+				 stageBallStates_[index] == StageBallState::AttachedRight) &&
+				!physicsWorld_.SetHorizontalPlaneLock(
+					stageBalls_[index], locked, kMagnetRadius)) {
+				return false;
+			}
+		}
+		return true;
+	};
 	const auto deactivate = [&](const auto& indices) noexcept {
 		for (std::size_t index : indices) {
 			if (index == kInvalidConstraintIndex ||
@@ -944,10 +974,29 @@ bool MagnetChainSystem::ReleaseChains() noexcept
 		!deactivate(rightBendConstraintIndices_)) {
 		return false;
 	}
+	if (!setPlaneLockForAttached(false)) {
+		return false;
+	}
 
 	for (std::size_t index = 0; index < stageBallCount_; ++index) {
 		if (stageBallStates_[index] == StageBallState::AttachedLeft ||
 			stageBallStates_[index] == StageBallState::AttachedRight) {
+			const physics::SphereBody* body = physicsWorld_.GetBody(stageBalls_[index]);
+			if (!body || !IsFinite(body->linearVelocity)) {
+				return false;
+			}
+			Vector3 launchVelocity = body->linearVelocity;
+			const float horizontalSpeedSquared = LengthSquaredXZ(launchVelocity);
+			if (horizontalSpeedSquared >
+				kReleaseConvergenceMinimumSpeed * kReleaseConvergenceMinimumSpeed) {
+				launchVelocity.y = std::clamp(
+					std::sqrt(horizontalSpeedSquared) * kReleaseLiftRatio,
+					kMinimumReleaseLiftSpeed,
+					kMaximumReleaseLiftSpeed);
+			}
+			if (!physicsWorld_.SetLinearVelocity(stageBalls_[index], launchVelocity)) {
+				return false;
+			}
 			stageBallStates_[index] = StageBallState::Released;
 			reacquisitionCooldown_.Begin(index);
 		}
@@ -1156,6 +1205,10 @@ bool MagnetChainSystem::DetachChainSegment(
 			}
 			stageBallStates_[index] = StageBallState::Inactive;
 		} else {
+			if (!physicsWorld_.SetHorizontalPlaneLock(
+				handle, false, kMagnetRadius)) {
+				return false;
+			}
 			stageBallStates_[index] = StageBallState::Released;
 			reacquisitionCooldown_.Begin(index);
 			releasedAny = true;

@@ -34,7 +34,11 @@ public:
 	Vector3 GetScale() const { return transform_.scale; }
 
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
-	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
+	void SetRotation(const Vector3& rotation) {
+		transform_.rotate = rotation;
+		useQuaternionRotation_ = false;
+	}
+	[[nodiscard]] bool SetRotationQuaternion(const Quaternion& rotation) noexcept;
 	bool SetScale(const Vector3& scale);
 	void SetTexture(Texture2DHandle textureHandle) { textureHandle_ = textureHandle; }
 	void SetColor(const Vector4& color) { materialData_->color = color; }
@@ -85,6 +89,8 @@ private:
 	Matrix4x4 objectWorldMatrix_ = MatrixMath::MakeIdentity4x4();
 	bool computeSkinningPrepared_ = false;
 	bool isMirrored_ = false;
+	Quaternion rotationQuaternion_{ 0.0f, 0.0f, 0.0f, 1.0f };
+	bool useQuaternionRotation_ = false;
 
 	struct Material {
 		Vector4 color;

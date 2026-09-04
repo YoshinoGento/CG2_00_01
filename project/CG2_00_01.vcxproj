@@ -280,6 +280,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<None Include="Resources\ui\font\comic_katakana_font.json" />
 	<None Include="Resources\ui\font\comic_katakana_font.png" />
     <None Include="Resources\levels\magnet\stage_01.json" />
+	<None Include="Resources\magnet\player\player.obj" />
+	<None Include="Resources\magnet\player\player.mtl" />
+	<None Include="Resources\magnet\small_ball\SmallBall.obj" />
+	<None Include="Resources\magnet\small_ball\SmallBall.mtl" />
     <None Include="Resources\shader\LinePS.hlsl">
       <FileType>Document</FileType>
     </None>
