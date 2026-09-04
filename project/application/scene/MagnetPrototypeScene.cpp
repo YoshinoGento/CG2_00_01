@@ -4,6 +4,7 @@
 
 #include "3d/Camera.h"
 #include "3d/LineDrawer.h"
+#include "3d/Model.h"
 #include "3d/ModelManager.h"
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
@@ -238,6 +239,10 @@ void MagnetPrototypeScene::Finalize()
 	playerVisual_.reset();
 	for (auto& visual : stageBallVisuals_) { visual.reset(); }
 	ballVisualsReady_ = false;
+	restartLabelObject_.reset();
+	resumeLabelObject_.reset();
+	pauseTitleObject_.reset();
+	pauseLabelCamera_.reset();
 	pauseOverlaySprite_.reset();
 	gameFlowUiReady_ = false;
 	for (auto& guide : goalGuideSprites_) {
@@ -595,6 +600,63 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 	pauseOverlaySprite_->SetColor({ 0.015f, 0.03f, 0.055f, 0.94f });
 	pauseOverlaySprite_->Update();
 
+	ModelManager* modelManager = framework_->GetModelManager();
+	if (modelManager) {
+		pauseLabelCamera_ = std::make_unique<Camera>();
+		pauseLabelCamera_->SetTranslate({ 0.0f, 0.0f, -10.0f });
+		pauseLabelCamera_->SetRotate({ 0.0f, 0.0f, 0.0f });
+		pauseLabelCamera_->Update();
+
+		constexpr const char* kPauseTitleModelPath = "pause/pause.obj";
+		modelManager->LoadModel(kPauseTitleModelPath);
+		Model* pauseTitleModel = modelManager->GetModel(kPauseTitleModelPath);
+		if (pauseTitleModel) {
+			pauseTitleModel->LoadTextures();
+			pauseTitleObject_ = std::make_unique<Object3d>();
+			pauseTitleObject_->Initialize(framework_->GetObject3dCommon());
+			pauseTitleObject_->SetModel(pauseTitleModel);
+			pauseTitleObject_->SetScale({ 0.035f, 0.035f, 0.035f });
+			pauseTitleObject_->SetPosition({ 0.0f, 0.115f, -9.0f });
+			pauseTitleObject_->SetRotation({ 0.0f, 0.0f, 0.0f });
+			pauseTitleObject_->SetColor({ 0.32f, 0.95f, 1.0f, 1.0f });
+			pauseTitleObject_->SetEnableLighting(false);
+			pauseTitleObject_->SetCullMode(0);
+			pauseTitleObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
+
+		constexpr const char* kResumeModelPath = "pause/resume.obj";
+		modelManager->LoadModel(kResumeModelPath);
+		Model* resumeModel = modelManager->GetModel(kResumeModelPath);
+		if (resumeModel) {
+			resumeModel->LoadTextures();
+			resumeLabelObject_ = std::make_unique<Object3d>();
+			resumeLabelObject_->Initialize(framework_->GetObject3dCommon());
+			resumeLabelObject_->SetModel(resumeModel);
+			resumeLabelObject_->SetScale({ 0.022f, 0.022f, 0.022f });
+			resumeLabelObject_->SetPosition({ 0.0f, 0.085f, -9.0f });
+			resumeLabelObject_->SetRotation({ 0.0f, 0.0f, 0.0f });
+			resumeLabelObject_->SetEnableLighting(false);
+			resumeLabelObject_->SetCullMode(0);
+			resumeLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
+
+		constexpr const char* kRestartModelPath = "pause/restart.obj";
+		modelManager->LoadModel(kRestartModelPath);
+		Model* restartModel = modelManager->GetModel(kRestartModelPath);
+		if (restartModel) {
+			restartModel->LoadTextures();
+			restartLabelObject_ = std::make_unique<Object3d>();
+			restartLabelObject_->Initialize(framework_->GetObject3dCommon());
+			restartLabelObject_->SetModel(restartModel);
+			restartLabelObject_->SetScale({ 0.022f, 0.022f, 0.022f });
+			restartLabelObject_->SetPosition({ 0.0f, 0.035f, -9.0f });
+			restartLabelObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+			restartLabelObject_->SetEnableLighting(false);
+			restartLabelObject_->SetCullMode(0);
+			restartLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
+	}
+
 	const auto initializeText = [spriteCommon, this](SpriteText& text) {
 		text.Initialize(spriteCommon, &gameFlowFont_);
 		text.SetCharacterSpacing(-6.0f);
@@ -607,7 +669,7 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 	timerText_.SetPosition({ 565.0f, 18.0f });
 	timerText_.SetScale(1.0f);
 	timerText_.SetColor(kUiAccentColor);
-	pauseTitleText_.SetText("PAUSE");
+	pauseTitleText_.SetText(pauseTitleObject_ ? "" : "PAUSE");
 	pauseTitleText_.SetPosition({ 535.0f, 135.0f });
 	pauseTitleText_.SetScale(1.55f);
 	pauseTitleText_.SetColor({ 0.32f, 0.95f, 1.0f, 1.0f });
@@ -689,7 +751,11 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 
 	const int volumePercent = static_cast<int>(std::lround(
 		GameFlowState::GetInstance().GetBgmVolume() * 100.0f));
-	const char* fixedLabels[] = { "RESUME", "RESTART", "BACK TO TITLE" };
+	const char* fixedLabels[] = {
+		resumeLabelObject_ ? "" : "BACK TO GAME",
+		restartLabelObject_ ? "" : "RESTART",
+		"BACK TO TITLE"
+	};
 	for (int index = 0; index < kPauseMenuItemCount; ++index) {
 		char label[64]{};
 		if (index == 3) {
@@ -704,6 +770,16 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 			index == pauseSelection_ ? kUiAccentColor : kUiTextColor);
 		pauseMenuTexts_[index].Update();
 	}
+	if (resumeLabelObject_) {
+		resumeLabelObject_->SetColor(
+			pauseSelection_ == 0 ? kUiAccentColor : kUiTextColor);
+		resumeLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+	}
+	if (restartLabelObject_) {
+		restartLabelObject_->SetColor(
+			pauseSelection_ == 1 ? kUiAccentColor : kUiTextColor);
+		restartLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+	}
 }
 
 void MagnetPrototypeScene::DrawGameFlowUi()
@@ -714,6 +790,15 @@ void MagnetPrototypeScene::DrawGameFlowUi()
 	if (!paused_) { return; }
 	pauseOverlaySprite_->Draw();
 	pauseTitleText_.Draw();
+	if (pauseTitleObject_ || resumeLabelObject_ || restartLabelObject_) {
+		Object3dCommon* objectCommon = framework_->GetObject3dCommon();
+		objectCommon->BeginObjectPass();
+		if (pauseTitleObject_) { pauseTitleObject_->Draw(); }
+		if (resumeLabelObject_) { resumeLabelObject_->Draw(); }
+		if (restartLabelObject_) { restartLabelObject_->Draw(); }
+		objectCommon->EndObjectPass();
+		framework_->GetSpriteCommon()->PreDraw();
+	}
 	for (SpriteText& text : pauseMenuTexts_) { text.Draw(); }
 	pauseHelpText_.Draw();
 }
