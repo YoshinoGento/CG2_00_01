@@ -431,9 +431,8 @@ void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3&
 		}
 	}
 
-	const bool spacePressed = !ImGui::GetIO().WantTextInput &&
-		ImGui::IsKeyPressed(ImGuiKey_Space, false);
-	if (ImGui::Button("Preview Effect", ImVec2(150.0f, 0.0f)) || spacePressed) {
+	const bool rightClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
+	if (ImGui::Button("Preview Effect", ImVec2(150.0f, 0.0f)) || rightClicked) {
 		Emit(particleManager);
 	}
 	ImGui::SameLine();
@@ -444,7 +443,7 @@ void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3&
 		}
 		Emit(particleManager);
 	}
-	ImGui::TextDisabled("Space: preview particle effect");
+	ImGui::TextDisabled("Right click: preview particle effect");
 
 	ImGui::Checkbox("Auto Preview", &autoEmit_);
 	ImGui::SameLine();

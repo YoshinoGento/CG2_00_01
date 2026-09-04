@@ -249,13 +249,12 @@ void ComicTextEffectEditor::Draw(ComicTextEffectSystem& system, const Vector3& p
 
 	preset_.texturePath = texturePath_.data();
 	preset_.text = text_.data();
-	const bool spacePressed = !ImGui::GetIO().WantTextInput &&
-		ImGui::IsKeyPressed(ImGuiKey_Space, false);
-	if (ImGui::Button("Preview Comic Text") || spacePressed) {
+	const bool rightClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
+	if (ImGui::Button("Preview Comic Text") || rightClicked) {
 		status_ = system.Play(preset_, previewPosition) ? "Preview started." : "Preview failed.";
 	}
 	ImGui::SameLine();
-	ImGui::TextDisabled("Space: preview text effect");
+	ImGui::TextDisabled("Right click: preview text effect");
 	ImGui::SeparatorText("Runtime usage");
 	ImGui::TextWrapped("comicTextEffects.Play(\"%s\", hitWorldPosition);", presetName_.data());
 }
