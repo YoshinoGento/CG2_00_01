@@ -12,6 +12,7 @@
 
 namespace {
 	constexpr float kMinimumScaleMagnitude = 1.0e-4f;
+	constexpr float kMinimumQuaternionLengthSquared = 1.0e-10f;
 
 	float Determinant3x3(const Matrix4x4& matrix) {
 		return
@@ -41,7 +42,6 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	materialData_->enableLighting = 1;
 	materialData_->shininess = 40.0f;
 	materialData_->environmentCoefficient = 0.0f;
-	materialData_->specularType = static_cast<int32_t>(Object3d::SpecularType::BlinnPhong);
 	materialData_->uvTransform = MatrixMath::MakeIdentity4x4();
 
 	transformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
@@ -87,9 +87,11 @@ void Object3d::Update(Camera* camera, float deltaTime) {
 
 	// --- 1. オブジェクト自身の変形行列を作る ---
 	Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(transform_.scale);
-	Matrix4x4 rotateMatrix = MatrixMath::Multiply(MatrixMath::MakeRotateXMatrix(transform_.rotate.x),
-		MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
-			MatrixMath::MakeRotateZMatrix(transform_.rotate.z)));
+	Matrix4x4 rotateMatrix = useQuaternionRotation_
+		? MatrixMath::MakeRotateMatrix(rotationQuaternion_)
+		: MatrixMath::Multiply(MatrixMath::MakeRotateXMatrix(transform_.rotate.x),
+			MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
+				MatrixMath::MakeRotateZMatrix(transform_.rotate.z)));
 	Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(transform_.translate);
 	// ★修正：ルートノードのローカル行列を含まない、オブジェクト自身の変換行列を保持する
 	objectWorldMatrix_ = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
@@ -223,6 +225,25 @@ void Object3d::SetModel(Model* model) {
 	if (model_) {
 		InitializeSkeleton();
 	}
+}
+
+bool Object3d::SetRotationQuaternion(const Quaternion& rotation) noexcept {
+	const float lengthSquared =
+		rotation.x * rotation.x + rotation.y * rotation.y +
+		rotation.z * rotation.z + rotation.w * rotation.w;
+	if (!std::isfinite(lengthSquared) ||
+		lengthSquared <= kMinimumQuaternionLengthSquared) {
+		return false;
+	}
+	const float inverseLength = 1.0f / std::sqrt(lengthSquared);
+	rotationQuaternion_ = {
+		rotation.x * inverseLength,
+		rotation.y * inverseLength,
+		rotation.z * inverseLength,
+		rotation.w * inverseLength,
+	};
+	useQuaternionRotation_ = true;
+	return true;
 }
 
 bool Object3d::SetScale(const Vector3& scale) {

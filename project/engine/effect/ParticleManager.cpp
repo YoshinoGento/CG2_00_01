@@ -102,10 +102,10 @@ static GPUParticleInteractionSettings SanitizeInteractionSettings(
     if (settings.operation == static_cast<uint32_t>(InteractionBrushOperation::None)) {
         settings.isPressed = 0;
     }
-    if (!std::isfinite(settings.deltaTime) || settings.deltaTime < 0.0f) {
-		settings.deltaTime = 0.0f;
-	}
-    settings.deltaTime = std::clamp(settings.deltaTime, 0.0f, 1.0f / 15.0f);
+    if (!std::isfinite(settings.deltaTime) || settings.deltaTime <= 0.0f) {
+        settings.deltaTime = 1.0f / 60.0f;
+    }
+    settings.deltaTime = std::clamp(settings.deltaTime, 1.0f / 240.0f, 1.0f / 15.0f);
     if (!std::isfinite(settings.damping)) {
         settings.damping = 0.95f;
     }
@@ -122,6 +122,13 @@ void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager
     CreateRootSignature();
     CreateGraphicsPipelineState();
     CreateModel();
+
+	// GPUパーティクルはCPU側のグループが無い専用シーンでも描画する。
+	// シーン切替で解放されない共通テクスチャを専用グループへ保持する。
+	const Texture2DHandle gpuParticleTexture = TextureManager::GetInstance()->LoadTexture2D(
+		"Resources/circle2.png",
+		TextureManager::Lifetime::Global);
+	CreateParticleGroup("__GPUParticleDefault", gpuParticleTexture);
 
     instancingResource_ = dxCommon_->CreateBufferResource(sizeof(InstancingData) * kMaxInstanceCount);
     instancingResource_->Map(0, nullptr, (void**)&instancingData_);
@@ -262,7 +269,30 @@ void ParticleManager::RequestGPUParticleEmit(const GPUParticleEmitSettings& sett
         return;
     }
 
-    *gpuParticleEmitter_ = settings;
+	GPUParticleEmitSettings normalized = settings;
+	if (normalized.extendedSettings == 0) {
+		normalized.direction = { 0.0f, 1.0f, 0.0f };
+		normalized.directionSpread = 3.14159265f;
+		normalized.acceleration = {};
+		normalized.drag = 0.0f;
+		normalized.endScale = normalized.scale;
+		normalized.endAlpha = normalized.color.w;
+		normalized.colorVariance = {};
+		normalized.lifeTimeVariance = 0.0f;
+		normalized.speedVariance = 0.0f;
+		normalized.scaleVariance = 0.0f;
+		normalized.innerRadius = 0.0f;
+		normalized.shape = 0;
+		normalized.randomSeed = 1;
+		normalized.fadeMode = 0;
+	}
+	normalized.extendedSettings = 1;
+	normalized.radius = std::clamp(normalized.radius, 0.0f, 100.0f);
+	normalized.innerRadius = std::clamp(normalized.innerRadius, 0.0f, normalized.radius);
+	normalized.drag = std::clamp(normalized.drag, 0.0f, 20.0f);
+	normalized.shape = (std::min)(normalized.shape, 3u);
+	normalized.fadeMode = (std::min)(normalized.fadeMode, 2u);
+    *gpuParticleEmitter_ = normalized;
     gpuParticleEmitter_->count = (std::min)(settings.count, kMaxGPUParticleCount);
     gpuParticleEmitter_->emit = 0;
     gpuParticleEmitRequested_ = settings.emit != 0 && gpuParticleEmitter_->count > 0;
@@ -872,10 +902,7 @@ void ParticleManager::InitializeGPUParticles() {
 }
 
 void ParticleManager::EmitGPUParticles() {
-    if (frameDeltaTime_ <= 0.0f ||
-        !gpuParticleEmitter_ ||
-        gpuParticleEmitter_->emit == 0 ||
-        gpuParticleEmitter_->count == 0) {
+    if (!gpuParticleEmitter_ || gpuParticleEmitter_->emit == 0 || gpuParticleEmitter_->count == 0) {
         return;
     }
 
@@ -900,17 +927,6 @@ void ParticleManager::EmitGPUParticles() {
 
 void ParticleManager::UpdateGPUParticles() {
     assert(gpuParticleUpdateInfo_);
-	if (frameDeltaTime_ <= 0.0f) {
-		ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
-		// Draw still reads the buffer as an SRV while simulation is paused.
-		TransitionResource(
-			commandList,
-			gpuParticleResource_.Get(),
-			gpuParticleResourceState_,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-		return;
-	}
 	gpuParticleUpdateInfo_->deltaTime = frameDeltaTime_;
     gpuParticleUpdateInfo_->particleCount = kMaxGPUParticleCount;
     gpuParticleUpdateInfo_->timeScale = 1.0f;
@@ -986,16 +1002,6 @@ void ParticleManager::UpdateGPUParticleInteraction(const GPUParticleInteractionS
     *gpuParticleInteraction_ = sanitizedSettings;
 
     ID3D12GraphicsCommandList* commandList = dxCommon_->GetCommandList();
-	if (sanitizedSettings.deltaTime <= 0.0f) {
-		// Preserve the draw-ready state without dispatching a zero-delta update.
-		TransitionResource(
-			commandList,
-			gpuParticleResource_.Get(),
-			gpuParticleResourceState_,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		gpuParticleResourceState_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-		return;
-	}
     TransitionResource(
         commandList,
         gpuParticleResource_.Get(),
@@ -1067,6 +1073,12 @@ void ParticleManager::DrawGPUParticles() {
 }
 
 bool ParticleManager::TryGetGPUParticleTextureHandle(Texture2DHandle& textureHandle) const {
+	const auto defaultTexture = particleGroups_.find("__GPUParticleDefault");
+	if (defaultTexture != particleGroups_.end() && defaultTexture->second.textureHandle.IsValid()) {
+		textureHandle = defaultTexture->second.textureHandle;
+		return true;
+	}
+
     for (const auto& groupPair : particleGroups_) {
         if (!groupPair.second.model) {
             textureHandle = groupPair.second.textureHandle;

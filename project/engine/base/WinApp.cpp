@@ -52,18 +52,25 @@ void WinApp::Initialize() {
 void WinApp::Update() {}
 
 void WinApp::Finalize() {
-	CloseWindow(hwnd);
+	if (hwnd && IsWindow(hwnd)) {
+		DestroyWindow(hwnd);
+	}
+	hwnd = nullptr;
+	if (wc.lpszClassName && wc.hInstance) {
+		UnregisterClass(wc.lpszClassName, wc.hInstance);
+	}
+	timeEndPeriod(1);
 	CoUninitialize();
 }
 
 bool WinApp::ProcessMessage() {
 	MSG msg{};
-	if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+		if (msg.message == WM_QUIT) {
+			return true;
+		}
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
-	}
-	if (msg.message == WM_QUIT) {
-		return true;
 	}
 	return false;
 }

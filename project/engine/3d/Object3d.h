@@ -5,7 +5,6 @@
 #include "3d/Camera.h"
 #include "3d/Skeleton.h"
 #include "2d/TextureManager.h"
-#include <cstdint>
 #include <optional>
 #include <wrl.h>
 #include <d3d12.h>
@@ -17,11 +16,6 @@
  */
 class Object3d {
 public:
-	enum class SpecularType : int32_t {
-		Phong = 0,
-		BlinnPhong = 1,
-	};
-
 	// シェーダーと一致させる構造体 (16バイト境界に注意)
 	void Initialize(Object3dCommon* object3dCommon);
 	void Update(Camera* camera, float deltaTime);
@@ -40,7 +34,11 @@ public:
 	Vector3 GetScale() const { return transform_.scale; }
 
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
-	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
+	void SetRotation(const Vector3& rotation) {
+		transform_.rotate = rotation;
+		useQuaternionRotation_ = false;
+	}
+	[[nodiscard]] bool SetRotationQuaternion(const Quaternion& rotation) noexcept;
 	bool SetScale(const Vector3& scale);
 	void SetTexture(Texture2DHandle textureHandle) { textureHandle_ = textureHandle; }
 	void SetColor(const Vector4& color) { materialData_->color = color; }
@@ -51,7 +49,6 @@ public:
 	void SetEnvironmentCoefficient(float coef) { materialData_->environmentCoefficient = coef; }
 	void SetCullMode(int cullMode);
 	void SetShininess(float shininess) { materialData_->shininess = shininess; }
-	void SetSpecularType(SpecularType type) { materialData_->specularType = static_cast<int32_t>(type); }
 
 
 	// 平行光源の設定
@@ -92,16 +89,17 @@ private:
 	Matrix4x4 objectWorldMatrix_ = MatrixMath::MakeIdentity4x4();
 	bool computeSkinningPrepared_ = false;
 	bool isMirrored_ = false;
+	Quaternion rotationQuaternion_{ 0.0f, 0.0f, 0.0f, 1.0f };
+	bool useQuaternionRotation_ = false;
 
 	struct Material {
 		Vector4 color;
 		int32_t enableLighting;
 		float shininess;
 		float environmentCoefficient;
-		int32_t specularType;
+		float padding[2];
 		Matrix4x4 uvTransform;
 	};
-	static_assert(sizeof(Material) == 96);
 
 	// GPUに送るための頂点スキンデータ
 	struct VertexShaderSkinning

@@ -25,20 +25,20 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Development|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -62,18 +62,27 @@
     <OutDir>$(SolutionDir)..\generated\outputs\$(Configuration)\</OutDir>
     <LibraryPath>$(ProjectDir)externals\imgui;$(LibraryPath)</LibraryPath>
     <IncludePath>$(SolutionDir)imgui;$(SolutionDir)DirectTex;$(IncludePath)</IncludePath>
+    <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>$(ProjectDir)</LocalDebuggerWorkingDirectory>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Development|x64'">
     <IntDir>$(SolutionDir)..\generated\obj\$(ProjectName)\$(Configuration)\</IntDir>
     <OutDir>$(SolutionDir)..\generated\outputs\$(Configuration)\</OutDir>
     <LibraryPath>$(ProjectDir)externals\imgui;$(LibraryPath)</LibraryPath>
     <IncludePath>$(SolutionDir)imgui;$(SolutionDir)DirectTex;$(IncludePath)</IncludePath>
+    <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>$(ProjectDir)</LocalDebuggerWorkingDirectory>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IntDir>$(SolutionDir)..\generated\obj\$(ProjectName)\$(Configuration)\</IntDir>
     <OutDir>$(SolutionDir)..\generated\outputs\$(Configuration)\</OutDir>
     <LibraryPath>$(ProjectDir)externals\imgui;$(LibraryPath)</LibraryPath>
     <IncludePath>$(SolutionDir)imgui;$(SolutionDir)DirectTex;$(IncludePath)</IncludePath>
+    <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>$(ProjectDir)</LocalDebuggerWorkingDirectory>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -91,14 +100,14 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalOptions>/ignore:4049 /ignore:4098 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/ignore:4049 /ignore:4098 /ignore:4099 %(AdditionalOptions)</AdditionalOptions>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
       <AdditionalDependencies>user32.lib;imgui.lib;assimp-vc143-mtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)..\generated\outputs\$(Configuration);$(ProjectDir)externals\assimp\lib\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxcompiler.dll" "$(TargetDir)dxcompiler.dll"
-copy /Y "C:\Program Files (x86)\Windows Kits\10\Redist\D3D\x64\dxil.dll" "$(TargetDir)dxil.dll"</Command>
+      <Command>copy /Y "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxcompiler.dll" "$(TargetDir)dxcompiler.dll"
+copy /Y "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dxil.dll"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -159,6 +168,22 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp" />
+	<ClCompile Include="application\magnet\stage\MagnetStageSystem.cpp" />
+    <ClCompile Include="application\magnet\system\BallMomentumTracker.cpp" />
+    <ClCompile Include="application\magnet\system\BallReacquisitionCooldown.cpp" />
+    <ClCompile Include="application\magnet\system\MagneticImpactAttachmentSystem.cpp" />
+    <ClCompile Include="application\magnet\system\CircularArenaBoundary.cpp" />
+    <ClCompile Include="application\magnet\system\MagneticImpactFeedbackSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagneticImpactSoundSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagneticOneShotSoundSystem.cpp" />
+	<ClCompile Include="application\magnet\system\ChainsawProximitySoundSystem.cpp" />
+    <ClCompile Include="application\magnet\system\ObstacleCollisionSystem.cpp" />
+    <ClCompile Include="application\magnet\system\SpinChargeController.cpp" />
+    <ClCompile Include="application\magnet\system\MagnetChainSystem.cpp" />
+    <ClCompile Include="application\magnet\ui\MagnetPrototypeWindow.cpp" />
+    <ClCompile Include="application\scene\MagnetPrototypeScene.cpp" />
+	<ClCompile Include="application\scene\EffectEditorScene.cpp" />
+	<ClCompile Include="engine\physics\PhysicsWorld.cpp" />
     <ClCompile Include="application\farm\core\FarmGrid.cpp" />
     <ClCompile Include="application\farm\debug\FarmDebugEditorWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -167,11 +192,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="application\farm\system\FarmDateSystem.cpp" />
-	<ClCompile Include="application\farm\system\FarmDocumentSystem.cpp" />
-    <ClCompile Include="application\farm\system\FarmGrowthSystem.cpp" />
-    <ClCompile Include="application\farm\system\FarmInputSystem.cpp" />
     <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp" />
-	<ClCompile Include="application\farm\system\FarmVisualSystem.cpp" />
 	<ClCompile Include="engine\command\CommandHistory.cpp" />
     <ClCompile Include="engine\core\Component.cpp" />
     <ClCompile Include="engine\core\GameObject.cpp" />
@@ -180,7 +201,6 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\farm\ui\FarmHUD.cpp" />
     <ClCompile Include="application\level\LevelLoader.cpp" />
     <ClCompile Include="application\level\LevelGameplaySystem.cpp" />
-    <ClCompile Include="application\level\ui\StageClearHUD.cpp" />
     <ClCompile Include="engine\3d\LineDrawer.cpp" />
     <ClCompile Include="engine\3d\Skeleton.cpp" />
     <ClCompile Include="engine\3d\SkeletonDebugger.cpp" />
@@ -200,6 +220,12 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+	<ClCompile Include="engine\debug\ParticleEffectEditor.cpp">
+	  <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+	</ClCompile>
+	<ClCompile Include="engine\debug\ComicTextEffectEditor.cpp">
+	  <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+	</ClCompile>
     <ClCompile Include="engine\audio\Audio.cpp" />
     <ClCompile Include="application\scene\BaseScene.cpp" />
     <ClCompile Include="engine\3d\Camera.cpp" />
@@ -208,26 +234,6 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\math\Matrix.cpp" />
     <ClCompile Include="engine\base\Framework.cpp" />
 	<ClCompile Include="engine\base\FrameClock.cpp" />
-	<ClCompile Include="application\editor\CG5DemoWindow.cpp" />
-	<ClCompile Include="application\demo\PostEffectSubmissionDemo.cpp" />
-	<ClCompile Include="application\demo\PostEffectSubmissionHUD.cpp" />
-	<ClCompile Include="application\editor\CameraControlWindow.cpp" />
-	<ClCompile Include="application\editor\EditorLocalization.cpp" />
-	<ClCompile Include="application\editor\EditorSettings.cpp" />
-	<ClCompile Include="application\editor\EditorSettingsWindow.cpp" />
-	<ClCompile Include="application\editor\EditorSelectionSystem.cpp" />
-	<ClCompile Include="application\editor\EditorShell.cpp" />
-	<ClCompile Include="application\editor\ConsoleWindow.cpp" />
-	<ClCompile Include="application\editor\FarmControllerWindow.cpp" />
-	<ClCompile Include="application\editor\FarmHierarchyWindow.cpp" />
-	<ClCompile Include="application\editor\FarmHistoryWindow.cpp" />
-	<ClCompile Include="application\editor\FarmMapWindow.cpp" />
-	<ClCompile Include="application\editor\FarmToolbarWindow.cpp" />
-	<ClCompile Include="application\editor\GamePlayEditorBridge.cpp" />
-	<ClCompile Include="application\editor\GameViewportWindow.cpp" />
-	<ClCompile Include="application\editor\ObjectInspectorWindow.cpp" />
-	<ClCompile Include="application\editor\ParticleEffectWindow.cpp" />
-	<ClCompile Include="application\editor\VisibilityWindow.cpp" />
       <ClCompile Include="application\Game.cpp" />
       <ClCompile Include="application\scene\GamePlayScene.cpp" />
       <ClCompile Include="engine\effect\PostEffectManager.cpp" />
@@ -249,6 +255,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\Object3dCommon.cpp" />
     <ClCompile Include="engine\3d\LightingSystem.cpp" />
     <ClCompile Include="engine\effect\ParticleManager.cpp" />
+	<ClCompile Include="engine\effect\ParticleEffectLibrary.cpp" />
+	<ClCompile Include="engine\effect\ComicTextEffect.cpp" />
     <ClCompile Include="engine\3d\PrimitiveGenerator.cpp" />
     <ClCompile Include="application\scene\SceneFactory.cpp" />
     <ClCompile Include="application\scene\SceneManager.cpp" />
@@ -264,8 +272,26 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\base\WinApp.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\fonts\NotoSansJP-VF.ttf" />
-    <None Include="Resources\fonts\OFL.txt" />
+	<ClInclude Include="engine\debug\ParticleEffectEditor.h" />
+	<ClInclude Include="engine\debug\ComicTextEffectEditor.h" />
+	<ClInclude Include="application\scene\EffectEditorScene.h" />
+	<ClInclude Include="engine\effect\ParticleEffectLibrary.h" />
+	<ClInclude Include="engine\effect\ComicTextEffect.h" />
+	<None Include="Settings\effects\MagneticNova.json" />
+	<None Include="Settings\effects\comic\HeavyImpact.json" />
+	<None Include="Resources\effects\comic\booom_impact.png" />
+	<None Include="Resources\ui\font\comic_katakana_font.json" />
+	<None Include="Resources\ui\font\comic_katakana_font.png" />
+	<None Include="Resources\audio\magnet\kaveHannsya.mp3" />
+	<None Include="Resources\audio\magnet\kuttuku.wav" />
+	<None Include="Resources\audio\magnet\goal.wav" />
+	<None Include="Resources\audio\magnet\Chainsaw.wav" />
+	<None Include="Resources\audio\magnet\cuts.wav" />
+    <None Include="Resources\levels\magnet\stage_01.json" />
+	<None Include="Resources\magnet\player\player.obj" />
+	<None Include="Resources\magnet\player\player.mtl" />
+	<None Include="Resources\magnet\small_ball\SmallBall.obj" />
+	<None Include="Resources\magnet\small_ball\SmallBall.mtl" />
     <None Include="Resources\shader\LinePS.hlsl">
       <FileType>Document</FileType>
     </None>
@@ -428,6 +454,11 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Development|x64'">Pixel</ShaderType>
     </FxCompile>
+    <FxCompile Include="Resources\shader\GradientSkybox.PS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Development|x64'">Pixel</ShaderType>
+    </FxCompile>
     <FxCompile Include="Resources\shader\Skybox.VS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
@@ -445,16 +476,27 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application\scene\AbstractSceneFactory.h" />
+	<ClInclude Include="application\magnet\stage\MagnetStageSystem.h" />
+    <ClInclude Include="application\magnet\system\BallMomentumTracker.h" />
+    <ClInclude Include="application\magnet\system\BallReacquisitionCooldown.h" />
+    <ClInclude Include="application\magnet\system\MagneticImpactAttachmentSystem.h" />
+    <ClInclude Include="application\magnet\system\CircularArenaBoundary.h" />
+    <ClInclude Include="application\magnet\system\MagneticImpactFeedbackSystem.h" />
+	<ClInclude Include="application\magnet\system\MagneticImpactSoundSystem.h" />
+	<ClInclude Include="application\magnet\system\MagneticOneShotSoundSystem.h" />
+	<ClInclude Include="application\magnet\system\ChainsawProximitySoundSystem.h" />
+    <ClInclude Include="application\magnet\system\ObstacleCollisionSystem.h" />
+    <ClInclude Include="application\magnet\system\SpinChargeController.h" />
+    <ClInclude Include="application\magnet\system\MagnetChainSystem.h" />
+    <ClInclude Include="application\magnet\ui\MagnetPrototypeWindow.h" />
+    <ClInclude Include="application\scene\MagnetPrototypeScene.h" />
+	<ClInclude Include="engine\physics\PhysicsWorld.h" />
     <ClInclude Include="application\farm\core\FarmGrid.h" />
     <ClInclude Include="application\farm\core\FarmTypes.h" />
     <ClInclude Include="application\farm\debug\FarmDebugEditorWindow.h" />
     <ClInclude Include="application\farm\debug\FarmDebugWindow.h" />
     <ClInclude Include="application\farm\system\FarmDateSystem.h" />
-	<ClInclude Include="application\farm\system\FarmDocumentSystem.h" />
-    <ClInclude Include="application\farm\system\FarmGrowthSystem.h" />
-    <ClInclude Include="application\farm\system\FarmInputSystem.h" />
     <ClInclude Include="application\farm\system\FarmToolActionSystem.h" />
-	<ClInclude Include="application\farm\system\FarmVisualSystem.h" />
 	<ClInclude Include="engine\command\CommandHistory.h" />
     <ClInclude Include="engine\core\Component.h" />
     <ClInclude Include="engine\core\GameObject.h" />
@@ -463,7 +505,6 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\farm\ui\FarmHUD.h" />
     <ClInclude Include="application\level\LevelLoader.h" />
     <ClInclude Include="application\level\LevelGameplaySystem.h" />
-    <ClInclude Include="application\level\ui\StageClearHUD.h" />
     <ClInclude Include="engine\3d\Animation.h" />
     <ClInclude Include="engine\3d\LineDrawer.h" />
     <ClInclude Include="engine\3d\Skeleton.h" />
@@ -476,34 +517,15 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
     <ClInclude Include="engine\audio\Audio.h" />
     <ClInclude Include="application\scene\BaseScene.h" />
+    <ClInclude Include="application\scene\GameFlowState.h" />
     <ClInclude Include="engine\3d\Camera.h" />
     <ClInclude Include="engine\base\DirectXCommon.h" />
     <ClInclude Include="engine\math\Matrix.h" />
     <ClInclude Include="engine\math\Struct.h" />
     <ClInclude Include="engine\math\Transform.h" />
     <ClInclude Include="engine\base\Framework.h" />
-	<ClInclude Include="engine\base\FrameClock.h" />
-	<ClInclude Include="application\editor\CG5DemoWindow.h" />
-	<ClInclude Include="application\demo\PostEffectSubmissionDemo.h" />
-	<ClInclude Include="application\demo\PostEffectSubmissionHUD.h" />
+    <ClInclude Include="engine\base\FrameClock.h" />
 	<ClInclude Include="engine\time\SnapshotTimeline.h" />
-	<ClInclude Include="application\editor\CameraControlWindow.h" />
-	<ClInclude Include="application\editor\EditorLocalization.h" />
-	<ClInclude Include="application\editor\EditorSettings.h" />
-	<ClInclude Include="application\editor\EditorSettingsWindow.h" />
-	<ClInclude Include="application\editor\EditorSelectionSystem.h" />
-	<ClInclude Include="application\editor\EditorShell.h" />
-	<ClInclude Include="application\editor\FarmControllerWindow.h" />
-	<ClInclude Include="application\editor\FarmHierarchyWindow.h" />
-	<ClInclude Include="application\editor\ConsoleWindow.h" />
-	<ClInclude Include="application\editor\FarmHistoryWindow.h" />
-	<ClInclude Include="application\editor\FarmMapWindow.h" />
-	<ClInclude Include="application\editor\FarmToolbarWindow.h" />
-	<ClInclude Include="application\editor\GamePlayEditorBridge.h" />
-	<ClInclude Include="application\editor\GameViewportWindow.h" />
-	<ClInclude Include="application\editor\ObjectInspectorWindow.h" />
-	<ClInclude Include="application\editor\ParticleEffectWindow.h" />
-	<ClInclude Include="application\editor\VisibilityWindow.h" />
       <ClInclude Include="application\Game.h" />
       <ClInclude Include="application\scene\GamePlayScene.h" />
       <ClInclude Include="engine\effect\PostEffectManager.h" />

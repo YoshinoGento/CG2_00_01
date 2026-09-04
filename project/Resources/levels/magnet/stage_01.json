@@ -1,0 +1,213 @@
+{
+    "bounds": {
+        "maximumX": 9.0,
+        "maximumZ": 9.0,
+        "minimumX": -9.0,
+        "minimumZ": -9.0
+    },
+    "generator": {
+        "minimumSpacing": 2.0,
+        "playerClearRadius": 3.0,
+        "seed": 20260902
+    },
+    "name": "stage_01",
+    "objects": [
+        {
+            "id": 1,
+            "position": [
+                0.0,
+                0.75,
+                0.0
+            ],
+            "type": "player"
+        },
+        {
+            "id": 1,
+            "position": [
+                -7.400000095367432,
+                0.5,
+                -6.800000190734863
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 2,
+            "position": [
+                -3.799999952316284,
+                0.5,
+                -7.900000095367432
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 3,
+            "position": [
+                3.5999999046325684,
+                0.5,
+                -7.5
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 4,
+            "position": [
+                7.5,
+                0.5,
+                -6.099999904632568
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 5,
+            "position": [
+                -8.0,
+                0.5,
+                -2.799999952316284
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 6,
+            "position": [
+                -4.699999809265137,
+                0.5,
+                -3.9000000953674316
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 7,
+            "position": [
+                4.199999809265137,
+                0.5,
+                -3.4000000953674316
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 8,
+            "position": [
+                8.100000381469727,
+                0.5,
+                -2.200000047683716
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 9,
+            "position": [
+                -7.599999904632568,
+                0.5,
+                3.0999999046325684
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 10,
+            "position": [
+                -3.5,
+                0.5,
+                4.400000095367432
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 11,
+            "position": [
+                3.299999952316284,
+                0.5,
+                3.700000047683716
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 12,
+            "position": [
+                7.699999809265137,
+                0.5,
+                2.9000000953674316
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 13,
+            "position": [
+                -6.800000190734863,
+                0.5,
+                7.400000095367432
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 14,
+            "position": [
+                -2.700000047683716,
+                0.5,
+                8.199999809265137
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 15,
+            "position": [
+                2.9000000953674316,
+                0.5,
+                7.800000190734863
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 16,
+            "position": [
+                7.099999904632568,
+                0.5,
+                7.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 1,
+            "position": [
+                0.0,
+                1.0,
+                8.0
+            ],
+            "size": [
+                2.5,
+                2.0,
+                1.0
+            ],
+            "type": "goal"
+        },
+        {
+            "id": 1,
+            "position": [
+                -4.0,
+                1.0,
+                1.5
+            ],
+            "size": [
+                1.5,
+                2.0,
+                3.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 2,
+            "position": [
+                4.0,
+                1.0,
+                1.5
+            ],
+            "size": [
+                1.5,
+                2.0,
+                3.0
+            ],
+            "type": "obstacle"
+        }
+    ],
+    "schema": "magnet_stage",
+    "schemaVersion": 3
+}
