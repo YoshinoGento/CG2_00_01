@@ -431,7 +431,9 @@ void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3&
 		}
 	}
 
-	if (ImGui::Button("Preview Effect", ImVec2(150.0f, 0.0f))) {
+	const bool spacePressed = !ImGui::GetIO().WantTextInput &&
+		ImGui::IsKeyPressed(ImGuiKey_Space, false);
+	if (ImGui::Button("Preview Effect", ImVec2(150.0f, 0.0f)) || spacePressed) {
 		Emit(particleManager);
 	}
 	ImGui::SameLine();
@@ -442,6 +444,7 @@ void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3&
 		}
 		Emit(particleManager);
 	}
+	ImGui::TextDisabled("Space: preview particle effect");
 
 	ImGui::Checkbox("Auto Preview", &autoEmit_);
 	ImGui::SameLine();
