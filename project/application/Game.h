@@ -38,7 +38,6 @@ private:
 
 	void DrawDebugMasterTopBar(class GamePlayScene* playScene);
 	void DrawDebugEditor(class GamePlayScene* playScene);
-	void DrawSceneSwitcher();
 	const char* DebugLabel(const char* japanese, const char* english) const;
 	void LoadDebugUiSettings();
 	void SaveDebugUiSettings() const;
