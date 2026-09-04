@@ -170,6 +170,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\magnet\system\MagnetChainSystem.cpp" />
     <ClCompile Include="application\magnet\ui\MagnetPrototypeWindow.cpp" />
     <ClCompile Include="application\scene\MagnetPrototypeScene.cpp" />
+	<ClCompile Include="application\scene\EffectEditorScene.cpp" />
 	<ClCompile Include="engine\physics\PhysicsWorld.cpp" />
     <ClCompile Include="application\farm\core\FarmGrid.cpp" />
     <ClCompile Include="application\farm\debug\FarmDebugEditorWindow.cpp">
@@ -207,6 +208,12 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\debug\SkinningDebugWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+	<ClCompile Include="engine\debug\ParticleEffectEditor.cpp">
+	  <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+	</ClCompile>
+	<ClCompile Include="engine\debug\ComicTextEffectEditor.cpp">
+	  <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+	</ClCompile>
     <ClCompile Include="engine\audio\Audio.cpp" />
     <ClCompile Include="application\scene\BaseScene.cpp" />
     <ClCompile Include="engine\3d\Camera.cpp" />
@@ -236,6 +243,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\Object3dCommon.cpp" />
     <ClCompile Include="engine\3d\LightingSystem.cpp" />
     <ClCompile Include="engine\effect\ParticleManager.cpp" />
+	<ClCompile Include="engine\effect\ParticleEffectLibrary.cpp" />
+	<ClCompile Include="engine\effect\ComicTextEffect.cpp" />
     <ClCompile Include="engine\3d\PrimitiveGenerator.cpp" />
     <ClCompile Include="application\scene\SceneFactory.cpp" />
     <ClCompile Include="application\scene\SceneManager.cpp" />
@@ -251,6 +260,16 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\base\WinApp.cpp" />
   </ItemGroup>
   <ItemGroup>
+	<ClInclude Include="engine\debug\ParticleEffectEditor.h" />
+	<ClInclude Include="engine\debug\ComicTextEffectEditor.h" />
+	<ClInclude Include="application\scene\EffectEditorScene.h" />
+	<ClInclude Include="engine\effect\ParticleEffectLibrary.h" />
+	<ClInclude Include="engine\effect\ComicTextEffect.h" />
+	<None Include="Settings\effects\MagneticNova.json" />
+	<None Include="Settings\effects\comic\HeavyImpact.json" />
+	<None Include="Resources\effects\comic\booom_impact.png" />
+	<None Include="Resources\ui\font\comic_katakana_font.json" />
+	<None Include="Resources\ui\font\comic_katakana_font.png" />
     <None Include="Resources\levels\magnet\stage_01.json" />
     <None Include="Resources\shader\LinePS.hlsl">
       <FileType>Document</FileType>

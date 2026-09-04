@@ -1,0 +1,51 @@
+{
+    "characterSpacing": -14.0,
+    "color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+    ],
+    "drift": [
+        0.0,
+        -30.0
+    ],
+    "duration": 0.7200000286102295,
+    "endScale": 0.8799999952316284,
+    "extrusionColor": [
+        0.949999988079071,
+        0.07999999821186066,
+        0.019999999552965164,
+        1.0
+    ],
+    "extrusionOffset": [
+        8.0,
+        10.0
+    ],
+    "fadeFraction": 0.3499999940395355,
+    "peakScale": 1.159999966621399,
+    "popFraction": 0.2199999988079071,
+    "rotation": -0.07999999821186066,
+    "screenOffset": [
+        0.0,
+        -90.0
+    ],
+    "shakeAmplitude": 7.0,
+    "shakeFrequency": 34.0,
+    "size": [
+        520.0,
+        278.0
+    ],
+    "startScale": 0.11999999731779099,
+    "text": "アーンパーンチ！！！！！",
+    "textColor": [
+        1.0,
+        0.7200000286102295,
+        0.07999999821186066,
+        1.0
+    ],
+    "textScale": 1.25,
+    "texturePath": "Resources/effects/comic/booom_impact.png",
+    "type": "comicText",
+    "useEditableText": true
+}

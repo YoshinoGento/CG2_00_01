@@ -12,6 +12,7 @@
 #include "debug/EngineDebugWindowManager.h"
 #include "debug/DebugEditorWindow.h"
 #include "debug/PostEffectDebugWindow.h"
+#include "debug/ParticleEffectEditor.h"
 #include "debug/SkinningDebugWindow.h"
 #endif
 #include "effect/ParticleManager.h"
@@ -52,6 +53,7 @@ void Game::Initialize() {
 	skinningDebugWindow_ = std::make_unique<SkinningDebugWindow>();
 	engineDebugWindowManager_ = std::make_unique<EngineDebugWindowManager>();
 	postEffectDebugWindow_ = std::make_unique<PostEffectDebugWindow>();
+	particleEffectEditor_ = std::make_unique<ParticleEffectEditor>();
 	LoadDebugUiSettings();
 #endif
 
@@ -65,6 +67,7 @@ void Game::Finalize() {
 	SaveDebugUiSettings();
 	debugEditorWindow_.reset();
 	postEffectDebugWindow_.reset();
+	particleEffectEditor_.reset();
 	skinningDebugWindow_.reset();
 	engineDebugWindowManager_.reset();
 #endif
@@ -274,6 +277,34 @@ bool Game::ShouldDrawSceneDebugWindows() const {
 
 bool Game::ShouldDrawFarmDebugWindows() const {
 	return false;
+}
+
+void Game::DrawSceneSwitcher() {
+	const ImGuiViewport* viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(
+		{ viewport->WorkPos.x + viewport->WorkSize.x - 455.0f, viewport->WorkPos.y + 8.0f },
+		ImGuiCond_Always);
+	ImGui::SetNextWindowBgAlpha(0.88f);
+	const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings;
+	if (ImGui::Begin("Scene Switcher", nullptr, flags)) {
+		if (ImGui::Button("TITLE")) {
+			SceneManager::GetInstance()->ChangeScene("TITLE");
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("GAMEPLAY")) {
+			SceneManager::GetInstance()->ChangeScene("GAMEPLAY");
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("MAGNET")) {
+			SceneManager::GetInstance()->ChangeScene("MAGNET_PROTOTYPE");
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("EFFECT EDITOR")) {
+			SceneManager::GetInstance()->ChangeScene("EFFECT_EDITOR");
+		}
+	}
+	ImGui::End();
 }
 #endif
 
@@ -516,6 +547,13 @@ void Game::Update() {
 
 		ImGui::Begin("Effect Control");
 
+		if (particleEffectEditor_ && particleManager_) {
+			particleEffectEditor_->Draw(
+				*particleManager_,
+				playScene->spherePos_,
+				frameClock_->GetFrameDeltaSeconds());
+		}
+
 		ImGui::Text("Space Key: Emit");
 		const char* pTypes[] = { "Spark (Manual)", "Ring (Model)", "Cylinder (Primitive)", "Combined", "Explosion (Emit)" };
 		ImGui::Combo("Particle Mode", &playScene->activeParticleType_, pTypes, 5);
@@ -614,6 +652,7 @@ void Game::Update() {
 		}
 	}
 	}
+	DrawSceneSwitcher();
 #endif
 
 	SceneManager::GetInstance()->Update();

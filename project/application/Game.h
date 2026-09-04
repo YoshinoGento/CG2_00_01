@@ -9,6 +9,7 @@ class DebugEditorWindow;
 class EngineDebugWindowManager;
 class PostEffectSystem;
 class PostEffectDebugWindow;
+class ParticleEffectEditor;
 
 /**
  * Gameクラス
@@ -37,6 +38,7 @@ private:
 
 	void DrawDebugMasterTopBar(class GamePlayScene* playScene);
 	void DrawDebugEditor(class GamePlayScene* playScene);
+	void DrawSceneSwitcher();
 	const char* DebugLabel(const char* japanese, const char* english) const;
 	void LoadDebugUiSettings();
 	void SaveDebugUiSettings() const;
@@ -56,6 +58,7 @@ private:
 	std::unique_ptr<SkinningDebugWindow> skinningDebugWindow_;
 	std::unique_ptr<EngineDebugWindowManager> engineDebugWindowManager_;
 	std::unique_ptr<PostEffectDebugWindow> postEffectDebugWindow_;
+	std::unique_ptr<ParticleEffectEditor> particleEffectEditor_;
 	DebugUiLanguage debugUiLanguage_ = DebugUiLanguage::Japanese;
 #endif
 };

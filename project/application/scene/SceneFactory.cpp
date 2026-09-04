@@ -2,6 +2,7 @@
 #include "TitleScene.h"
 #include "GamePlayScene.h"
 #include "MagnetPrototypeScene.h"
+#include "EffectEditorScene.h"
 
 /**
  * シーン生成の実装
@@ -18,6 +19,8 @@ std::unique_ptr<BaseScene> SceneFactory::CreateScene(const std::string& sceneNam
 		return std::make_unique<GamePlayScene>();
 	} else if (sceneName == "MAGNET_PROTOTYPE") {
 		return std::make_unique<MagnetPrototypeScene>();
+	} else if (sceneName == "EFFECT_EDITOR") {
+		return std::make_unique<EffectEditorScene>();
 	}
 
 	return nullptr;

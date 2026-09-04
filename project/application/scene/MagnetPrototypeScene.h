@@ -8,6 +8,10 @@
 #include "2d/BitmapFont.h"
 #include "2d/Sprite.h"
 #include "2d/SpriteText.h"
+#include "effect/ComicTextEffect.h"
+#ifdef USE_IMGUI
+#include "debug/ParticleEffectEditor.h"
+#endif
 
 #include <array>
 #include <memory>
@@ -59,7 +63,12 @@ private:
 	magnet::MagnetStageSystem magnetStageSystem_;
 	magnet::MagnetChainSystem magnetChainSystem_;
 	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
+	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;
+	ComicTextEffectPreset heavyImpactPreset_{};
 	magnet::MagnetPrototypeWindow prototypeWindow_;
+#ifdef USE_IMGUI
+	std::unique_ptr<ParticleEffectEditor> particleEffectEditor_;
+#endif
 	magnet::MagnetChainSystem::PlayerCommand pendingCommand_{};
 	bool resetRequested_ = false;
 	bool prototypeReady_ = false;
