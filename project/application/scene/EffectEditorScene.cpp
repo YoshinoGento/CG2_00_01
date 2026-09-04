@@ -149,42 +149,48 @@ void EffectEditorScene::DrawEditorUi(const SceneEditorContext& context) {
 		{ controlsWidth, viewport->WorkSize.y },
 		ImGuiCond_FirstUseEver);
 	if (ImGui::Begin("エフェクト設定###EffectEditorControls")) {
-		ImGui::SeparatorText("Hit Effect Composition");
-		ImGui::TextWrapped("Particle, comic text, lightning and slash accents are layered as one hit effect.");
 		ImGui::DragFloat3("Preview Origin", &previewPosition_.x, 0.05f, -50.0f, 50.0f);
-		ImGui::Checkbox("Particles##HitLayer", &hitParticleEnabled_);
-		ImGui::SameLine();
-		ImGui::Checkbox("Comic Text##HitLayer", &hitComicTextEnabled_);
-		ImGui::SameLine();
-		ImGui::Checkbox("Lightning##HitLayer", &hitLightningEnabled_);
-		ImGui::SameLine();
-		ImGui::Checkbox("Slash Accent##HitLayer", &hitSlashEnabled_);
-		const bool composedPreview = ImGui::Button("Preview Combined Hit", ImVec2(190.0f, 0.0f)) ||
-			ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
-		ImGui::SameLine();
-		ImGui::TextDisabled("Right click also previews");
+		if (ImGui::BeginTabBar("HitEffectEditorPages")) {
+			if (ImGui::BeginTabItem("Effects")) {
+				ImGui::SeparatorText("Hit Effect Composition");
+				ImGui::TextWrapped("Particle, lightning and slash accents are layered as one hit effect.");
+				ImGui::Checkbox("Particles##HitLayer", &hitParticleEnabled_);
+				ImGui::SameLine();
+				ImGui::Checkbox("Lightning##HitLayer", &hitLightningEnabled_);
+				ImGui::SameLine();
+				ImGui::Checkbox("Slash Accent##HitLayer", &hitSlashEnabled_);
+				const bool composedPreview = ImGui::Button("Preview Combined Hit", ImVec2(190.0f, 0.0f)) ||
+					ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
+				ImGui::SameLine();
+				ImGui::TextDisabled("Right click also previews");
 
-		ImGui::SeparatorText("Particle Layer");
-		if (particleEffectEditor_ && framework_ && framework_->GetParticleManager()) {
-			const FrameClock* clock = framework_->GetFrameClock();
-			particleEffectEditor_->Draw(*framework_->GetParticleManager(), previewPosition_,
-				clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds,
-				composedPreview && hitParticleEnabled_);
-		}
-		ImGui::SeparatorText("Comic Text Layer");
-		if (comicTextEffectEditor_ && comicTextEffects_) {
-			comicTextEffectEditor_->Draw(*comicTextEffects_, previewPosition_,
-				composedPreview && hitComicTextEnabled_);
-		}
-		ImGui::SeparatorText("Lightning Layer");
-		if (combatEffectEditor_ && lightningEffect_) {
-			combatEffectEditor_->DrawLightning(*lightningEffect_, previewPosition_,
-				composedPreview && hitLightningEnabled_);
-		}
-		ImGui::SeparatorText("Slash Accent Layer");
-		if (combatEffectEditor_ && slashEffect_) {
-			combatEffectEditor_->DrawSlash(*slashEffect_, previewPosition_,
-				composedPreview && hitSlashEnabled_);
+				ImGui::SeparatorText("Particle Layer");
+				if (particleEffectEditor_ && framework_ && framework_->GetParticleManager()) {
+					const FrameClock* clock = framework_->GetFrameClock();
+					particleEffectEditor_->Draw(*framework_->GetParticleManager(), previewPosition_,
+						clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds,
+						composedPreview && hitParticleEnabled_);
+				}
+				ImGui::SeparatorText("Lightning Layer");
+				if (combatEffectEditor_ && lightningEffect_) {
+					combatEffectEditor_->DrawLightning(*lightningEffect_, previewPosition_,
+						composedPreview && hitLightningEnabled_);
+				}
+				ImGui::SeparatorText("Slash Accent Layer");
+				if (combatEffectEditor_ && slashEffect_) {
+					combatEffectEditor_->DrawSlash(*slashEffect_, previewPosition_,
+						composedPreview && hitSlashEnabled_);
+				}
+				ImGui::EndTabItem();
+			}
+			if (ImGui::BeginTabItem("Comic Text")) {
+				const bool textPreview = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
+				if (comicTextEffectEditor_ && comicTextEffects_) {
+					comicTextEffectEditor_->Draw(*comicTextEffects_, previewPosition_, textPreview);
+				}
+				ImGui::EndTabItem();
+			}
+			ImGui::EndTabBar();
 		}
 	}
 	ImGui::End();
