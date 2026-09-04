@@ -5,12 +5,26 @@
 #include "externals/imgui/imgui.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cfloat>
 #include <cstring>
 #include <filesystem>
 
 namespace {
 constexpr const char* kComicPresetDirectory = "Settings/effects/comic/";
+
+bool IsSafePresetName(const char* name) {
+	if (!name || name[0] == '\0') return false;
+	for (const unsigned char ch : std::string(name)) {
+		if (!(std::isalnum(ch) || ch == '_' || ch == '-')) return false;
+	}
+	return true;
+}
+
+std::string PathComponentUtf8(const std::filesystem::path& path) {
+	const std::u8string value = path.u8string();
+	return { reinterpret_cast<const char*>(value.data()), value.size() };
+}
 }
 
 ComicTextEffectEditor::ComicTextEffectEditor() {
@@ -28,7 +42,10 @@ void ComicTextEffectEditor::RefreshPresetList() {
 			std::filesystem::directory_iterator(kComicPresetDirectory, error)) {
 			if (error) break;
 			if (entry.is_regular_file(error) && entry.path().extension() == ".json") {
-				presetNames_.push_back(entry.path().stem().string());
+				const std::string name = PathComponentUtf8(entry.path().stem());
+				if (IsSafePresetName(name.c_str())) {
+					presetNames_.push_back(name);
+				}
 			}
 		}
 	}
@@ -63,9 +80,19 @@ void ComicTextEffectEditor::SelectPreset(int index) {
 }
 
 bool ComicTextEffectEditor::SaveCurrentPreset(bool overwrite) {
+	if (!IsSafePresetName(presetName_.data())) {
+		status_ = "Save failed. Use letters, numbers, _ or -.";
+		return false;
+	}
 	const std::filesystem::path path = std::filesystem::path(kComicPresetDirectory) /
 		(std::string(presetName_.data()) + ".json");
-	if (!overwrite && std::filesystem::exists(path)) {
+	std::error_code existsError;
+	const bool presetExists = std::filesystem::exists(path, existsError);
+	if (existsError) {
+		status_ = "Save failed: could not inspect preset path.";
+		return false;
+	}
+	if (!overwrite && presetExists) {
 		status_ = "Save failed: preset already exists. Use Overwrite.";
 		return false;
 	}
@@ -89,10 +116,10 @@ void ComicTextEffectEditor::DeleteSelectedPreset() {
 		(presetNames_[selectedPresetIndex_] + ".json");
 	std::error_code error;
 	if (!std::filesystem::remove(path, error) || error) {
-		status_ = "Delete failed: " + path.string();
+		status_ = "Delete failed: " + PathComponentUtf8(path);
 		return;
 	}
-	status_ = "Deleted: " + path.string();
+	status_ = "Deleted: " + PathComponentUtf8(path);
 	RefreshPresetList();
 }
 

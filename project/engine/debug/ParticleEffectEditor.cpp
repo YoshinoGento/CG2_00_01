@@ -32,6 +32,11 @@ bool IsSafePresetName(const char* name) {
 float FiniteOr(float value, float fallback) {
 	return std::isfinite(value) ? value : fallback;
 }
+
+std::string PathComponentUtf8(const std::filesystem::path& path) {
+	const std::u8string value = path.u8string();
+	return { reinterpret_cast<const char*>(value.data()), value.size() };
+}
 }
 
 ParticleEffectEditor::ParticleEffectEditor() {
@@ -95,7 +100,13 @@ bool ParticleEffectEditor::SavePreset(bool overwrite) {
 		status_ = "Save failed: use only A-Z, 0-9, _ or -";
 		return false;
 	}
-	if (!overwrite && std::filesystem::exists(path)) {
+	std::error_code existsError;
+	const bool presetExists = std::filesystem::exists(std::filesystem::path(path), existsError);
+	if (existsError) {
+		status_ = "Save failed: could not inspect preset path.";
+		return false;
+	}
+	if (!overwrite && presetExists) {
 		status_ = "Save failed: preset already exists. Use Overwrite.";
 		return false;
 	}
@@ -163,7 +174,10 @@ void ParticleEffectEditor::RefreshPresetList() {
 			break;
 		}
 		if (entry.is_regular_file(error) && entry.path().extension() == ".json") {
-			presetNames_.push_back(entry.path().stem().string());
+			const std::string name = PathComponentUtf8(entry.path().stem());
+			if (IsSafePresetName(name.c_str())) {
+				presetNames_.push_back(name);
+			}
 		}
 	}
 	std::sort(presetNames_.begin(), presetNames_.end());
@@ -194,7 +208,7 @@ void ParticleEffectEditor::DeleteSelectedPreset() {
 	const std::filesystem::path path = std::filesystem::path(kPresetDirectory) / (name + ".json");
 	std::error_code error;
 	if (!std::filesystem::remove(path, error) || error) {
-		status_ = "Delete failed: " + path.string();
+		status_ = "Delete failed: " + PathComponentUtf8(path);
 		return;
 	}
 	if (Framework* framework = Framework::GetInstance()) {
@@ -202,7 +216,7 @@ void ParticleEffectEditor::DeleteSelectedPreset() {
 			library->ClearCache();
 		}
 	}
-	status_ = "Deleted: " + path.string();
+	status_ = "Deleted: " + PathComponentUtf8(path);
 	RefreshPresetList();
 }
 
