@@ -17,7 +17,6 @@ enum class MagnetEditorMode : uint8_t {
 };
 
 struct MagnetPrototypeViewData {
-	static constexpr std::size_t kMaximumMinimapMarkers = MagnetChainSystem::kStageBallCapacity;
 	bool healthy = false;
 	std::size_t bodyCount = 0;
 	std::size_t constraintCount = 0;
@@ -38,8 +37,6 @@ struct MagnetPrototypeViewData {
 	std::size_t goalHitCount = 0;
 	std::size_t score = 0;
 	float goalWidth = 0.0f;
-	std::array<Vector2, kMaximumMinimapMarkers> offscreenMagnetOffsets{};
-	std::size_t offscreenMagnetCount = 0;
 	const MagnetStageData* stageData = nullptr;
 	const MagnetStageSaveEntry* saveEntries = nullptr;
 	std::size_t saveEntryCount = 0;
@@ -62,6 +59,8 @@ enum class MagnetStageEditorAction : uint8_t {
 	RemoveBoxObject,
 	MoveBoxObject,
 	UpdateGoalScore,
+	UpdateObstacleKind,
+	UpdateTransferPairId,
 	SaveNamed,
 	LoadNamed,
 	RefreshSaves,
@@ -78,6 +77,8 @@ struct MagnetPrototypeUiRequest {
 	Vector3 editedObjectPosition{};
 	Vector3 editedObjectSize{ 1.0f, 1.0f, 1.0f };
 	uint32_t editedGoalScore = 1;
+	MagnetObstacleKind editedObstacleKind = MagnetObstacleKind::Solid;
+	uint32_t editedTransferPairId = 1;
 	bool allowOverwrite = false;
 	SpinChargeController::Settings spinChargeSettings{};
 	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings{};
@@ -143,6 +144,7 @@ private:
 	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings_{};
 	MagnetStageObjectType selectedObjectType_ = MagnetStageObjectType::None;
 	uint32_t selectedObjectId_ = 0;
+	MagnetObstacleKind obstaclePaletteKind_ = MagnetObstacleKind::Chainsaw;
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;

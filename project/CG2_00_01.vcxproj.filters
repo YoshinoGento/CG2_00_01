@@ -464,6 +464,9 @@
     <ClInclude Include="application\scene\BaseScene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="application\scene\GameFlowState.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="application\scene\SceneManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>

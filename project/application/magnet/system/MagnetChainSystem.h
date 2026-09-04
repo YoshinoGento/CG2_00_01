@@ -45,6 +45,7 @@ public:
 
 	struct PlayerCommand {
 		Vector3 moveDirection{};
+		float turnDirection = 0.0f;
 		bool emergencyStop = false;
 		bool releaseChains = false;
 	};
@@ -109,6 +110,31 @@ public:
 	[[nodiscard]] float GetSpinChargeSpeedMultiplier() const noexcept { return spinChargeController_.GetSpeedMultiplier(); }
 	[[nodiscard]] float GetSpinChargeTurnSpeedMultiplier() const noexcept { return spinChargeController_.GetTurnSpeedMultiplier(); }
 	[[nodiscard]] std::size_t GetMagneticAttachmentCount() const noexcept { return impactAttachmentSystem_.GetAttachmentCount(); }
+	[[nodiscard]] bool IsTimedShutterClosed(std::size_t obstacleIndex) const noexcept {
+		return obstacleCollisionSystem_.IsShutterClosed(obstacleIndex);
+	}
+	[[nodiscard]] float GetTimedShutterOpenRatio(
+		std::size_t obstacleIndex) const noexcept {
+		return obstacleCollisionSystem_.GetShutterOpenRatio(obstacleIndex);
+	}
+	[[nodiscard]] float GetTimedShutterVerticalOffset(
+		std::size_t obstacleIndex,
+		const MagnetStageBoxPlacement& obstacle) const noexcept {
+		return obstacleCollisionSystem_.GetShutterVerticalOffset(
+			obstacleIndex, obstacle);
+	}
+	[[nodiscard]] physics::BodyHandle GetAnchoredBody(
+		std::size_t obstacleIndex) const noexcept {
+		return obstacleCollisionSystem_.GetAnchoredBody(obstacleIndex);
+	}
+	[[nodiscard]] float GetAnchorAttractionRadius(
+		const MagnetStageBoxPlacement& obstacle) const noexcept {
+		return obstacleCollisionSystem_.GetAnchorAttractionRadius(obstacle);
+	}
+	[[nodiscard]] float GetRepulsionFieldRadius(
+		const MagnetStageBoxPlacement& obstacle) const noexcept {
+		return obstacleCollisionSystem_.GetRepulsionFieldRadius(obstacle);
+	}
 	[[nodiscard]] const MagneticImpactAttachmentSystem::ImpactEvents&
 	GetMagneticImpactEvents() const noexcept { return impactAttachmentSystem_.GetImpactEvents(); }
 	[[nodiscard]] std::size_t GetMagneticImpactEventCount() const noexcept {
@@ -137,6 +163,18 @@ private:
 	[[nodiscard]] bool UpdateMomentumTrackers(float fixedDeltaTime) noexcept;
 	[[nodiscard]] bool ApplyMomentumLaunch() noexcept;
 	[[nodiscard]] bool ReleaseChains() noexcept;
+	[[nodiscard]] bool ProcessObstacleEvents() noexcept;
+	[[nodiscard]] bool ApplyObstacleEvent(
+		const ObstacleCollisionSystem::Event& event) noexcept;
+	[[nodiscard]] bool ApplyTransferGateEvent(
+		const ObstacleCollisionSystem::Event& event) noexcept;
+	[[nodiscard]] bool DetachChainSegment(
+		physics::BodyHandle contactedBody,
+		bool dissolveContact) noexcept;
+	[[nodiscard]] std::size_t FindStageBallIndex(
+		physics::BodyHandle body) const noexcept;
+	[[nodiscard]] const MagnetStageBoxPlacement* FindObstacleById(
+		uint32_t obstacleId) const noexcept;
 	[[nodiscard]] bool CollectReleasedMagnetsInGoal() noexcept;
 	void DeactivateDistantReleasedBalls() noexcept;
 
