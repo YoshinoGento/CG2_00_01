@@ -23,7 +23,7 @@ private:
 	void DeleteSelectedPreset();
 
 	ComicTextEffectPreset preset_{};
-	std::array<char, 64> presetName_{};
+	std::array<char, 128> presetName_{};
 	std::array<char, 256> texturePath_{};
 	std::array<char, 256> text_{};
 	std::string status_;

@@ -15,8 +15,11 @@ constexpr const char* kComicPresetDirectory = "Settings/effects/comic/";
 
 bool IsSafePresetName(const char* name) {
 	if (!name || name[0] == '\0') return false;
-	for (const unsigned char ch : std::string(name)) {
-		if (!(std::isalnum(ch) || ch == '_' || ch == '-')) return false;
+	const std::string value(name);
+	if (value == "." || value == ".." || value.back() == '.' || value.back() == ' ') return false;
+	for (const unsigned char ch : value) {
+		if (ch < 0x20 || ch == '<' || ch == '>' || ch == ':' || ch == '"' ||
+			ch == '/' || ch == '\\' || ch == '|' || ch == '?' || ch == '*') return false;
 	}
 	return true;
 }
@@ -24,6 +27,11 @@ bool IsSafePresetName(const char* name) {
 std::string PathComponentUtf8(const std::filesystem::path& path) {
 	const std::u8string value = path.u8string();
 	return { reinterpret_cast<const char*>(value.data()), value.size() };
+}
+
+std::filesystem::path Utf8Path(const std::string& value) {
+	return std::filesystem::path(std::u8string(
+		reinterpret_cast<const char8_t*>(value.data()), value.size()));
 }
 }
 
@@ -81,11 +89,11 @@ void ComicTextEffectEditor::SelectPreset(int index) {
 
 bool ComicTextEffectEditor::SaveCurrentPreset(bool overwrite) {
 	if (!IsSafePresetName(presetName_.data())) {
-		status_ = "Save failed. Use letters, numbers, _ or -.";
+		status_ = "Save failed. The name is empty or contains a Windows-invalid character.";
 		return false;
 	}
-	const std::filesystem::path path = std::filesystem::path(kComicPresetDirectory) /
-		(std::string(presetName_.data()) + ".json");
+	const std::filesystem::path path = Utf8Path(kComicPresetDirectory) /
+		Utf8Path(std::string(presetName_.data()) + ".json");
 	std::error_code existsError;
 	const bool presetExists = std::filesystem::exists(path, existsError);
 	if (existsError) {
@@ -103,7 +111,7 @@ bool ComicTextEffectEditor::SaveCurrentPreset(bool overwrite) {
 	preset_.texturePath = texturePath_.data();
 	preset_.text = text_.data();
 	if (!ComicTextEffectSystem::SavePreset(presetName_.data(), preset_)) {
-		status_ = "Save failed. Use letters, numbers, _ or -.";
+		status_ = "Save failed. The name is empty or contains a Windows-invalid character.";
 		return false;
 	}
 	status_ = overwrite ? "Overwritten." : "Saved.";
@@ -117,7 +125,7 @@ void ComicTextEffectEditor::RenameSelectedPreset() {
 		return;
 	}
 	if (!IsSafePresetName(presetName_.data())) {
-		status_ = "Rename failed. Use letters, numbers, _ or -.";
+		status_ = "Rename failed. The name is empty or contains a Windows-invalid character.";
 		return;
 	}
 	const std::string oldName = presetNames_[selectedPresetIndex_];
@@ -126,14 +134,14 @@ void ComicTextEffectEditor::RenameSelectedPreset() {
 		status_ = "Rename skipped: the name has not changed.";
 		return;
 	}
-	const std::filesystem::path newPath = std::filesystem::path(kComicPresetDirectory) / (newName + ".json");
+	const std::filesystem::path newPath = Utf8Path(kComicPresetDirectory) / Utf8Path(newName + ".json");
 	std::error_code error;
 	if (std::filesystem::exists(newPath, error) || error) {
 		status_ = "Rename failed: destination already exists or cannot be checked.";
 		return;
 	}
 	if (!SaveCurrentPreset(false)) return;
-	const std::filesystem::path oldPath = std::filesystem::path(kComicPresetDirectory) / (oldName + ".json");
+	const std::filesystem::path oldPath = Utf8Path(kComicPresetDirectory) / Utf8Path(oldName + ".json");
 	if (!std::filesystem::remove(oldPath, error) || error) {
 		status_ = "Saved new name, but failed to remove old preset: " + oldName;
 		return;
@@ -160,10 +168,16 @@ void ComicTextEffectEditor::DrawPresetLibrary() {
 	}
 	ImGui::SetNextItemWidth(-FLT_MIN);
 	ImGui::InputText("Preset Name##Comic", presetName_.data(), presetName_.size());
-	ImGui::TextDisabled("Name: letters, numbers, _ and - only");
+	ImGui::TextDisabled("Japanese is OK. Windows-invalid filename characters cannot be used.");
 	if (ImGui::Button("Save New##Comic", ImVec2(120.0f, 0.0f))) SaveCurrentPreset(false);
 	ImGui::SameLine();
-	if (ImGui::Button("Overwrite##Comic", ImVec2(120.0f, 0.0f))) SaveCurrentPreset(true);
+	if (ImGui::Button("Overwrite##Comic", ImVec2(120.0f, 0.0f))) {
+		const bool renamed = selectedPresetIndex_ >= 0 &&
+			selectedPresetIndex_ < static_cast<int>(presetNames_.size()) &&
+			presetNames_[selectedPresetIndex_] != presetName_.data();
+		if (renamed) RenameSelectedPreset();
+		else SaveCurrentPreset(true);
+	}
 	ImGui::SameLine();
 	if (ImGui::Button("Load##Comic", ImVec2(90.0f, 0.0f))) LoadCurrentPreset();
 	if (ImGui::Button("Rename Selected##Comic", ImVec2(170.0f, 0.0f))) RenameSelectedPreset();
@@ -196,8 +210,8 @@ void ComicTextEffectEditor::DeleteSelectedPreset() {
 		status_ = "Delete failed: select a preset first.";
 		return;
 	}
-	const std::filesystem::path path = std::filesystem::path(kComicPresetDirectory) /
-		(presetNames_[selectedPresetIndex_] + ".json");
+	const std::filesystem::path path = Utf8Path(kComicPresetDirectory) /
+		Utf8Path(presetNames_[selectedPresetIndex_] + ".json");
 	std::error_code error;
 	if (!std::filesystem::remove(path, error) || error) {
 		status_ = "Delete failed: " + PathComponentUtf8(path);
