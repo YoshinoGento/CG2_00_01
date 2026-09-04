@@ -580,16 +580,16 @@ void EditorShell::DrawFarmController(GamePlayScene& playScene) {
 		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
 		changed |= bridge.Execute(command);
 	}
-	if (actions.raiseTile) {
+	if (actions.beginRaiseTerrainPreview) {
 		editor::GamePlayEditorCommand command;
-		command.type = editor::GamePlayEditorCommandType::RaiseFarmTile;
+		command.type = editor::GamePlayEditorCommandType::BeginFarmRaiseTerrainPreview;
 		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
 		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
 		changed |= bridge.Execute(command);
 	}
-	if (actions.lowerTile) {
+	if (actions.beginLowerTerrainPreview) {
 		editor::GamePlayEditorCommand command;
-		command.type = editor::GamePlayEditorCommandType::LowerFarmTile;
+		command.type = editor::GamePlayEditorCommandType::BeginFarmLowerTerrainPreview;
 		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
 		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
 		changed |= bridge.Execute(command);

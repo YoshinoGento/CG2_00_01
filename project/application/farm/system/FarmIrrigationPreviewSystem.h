@@ -12,6 +12,8 @@ enum class FarmIrrigationPreviewOperation : std::uint8_t {
 	None,
 	ToggleCanal,
 	ToggleWaterSource,
+	RaiseTerrain,
+	LowerTerrain,
 };
 
 // Owns one temporary irrigation edit. Authoritative FarmGrid mutation stays elsewhere.
@@ -36,6 +38,12 @@ public:
 	[[nodiscard]] FarmTileFeature GetCandidateFeature() const noexcept {
 		return candidateFeature_;
 	}
+	[[nodiscard]] int GetOriginalHeightLevel() const noexcept {
+		return originalTile_.heightLevel;
+	}
+	[[nodiscard]] int GetCandidateHeightLevel() const noexcept {
+		return candidateHeightLevel_;
+	}
 	[[nodiscard]] const FarmGrid* GetPreviewGrid() const noexcept {
 		return active_ ? &previewGrid_ : nullptr;
 	}
@@ -52,6 +60,7 @@ private:
 	int tileIndex_ = -1;
 	FarmIrrigationPreviewOperation operation_ = FarmIrrigationPreviewOperation::None;
 	FarmTileFeature candidateFeature_ = FarmTileFeature::None;
+	int candidateHeightLevel_ = 0;
 	bool active_ = false;
 };
 

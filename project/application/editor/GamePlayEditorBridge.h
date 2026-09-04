@@ -218,6 +218,8 @@ struct GamePlayEditorViewModel {
 		farm::FarmIrrigationPreviewOperation::None;
 	farm::FarmTileFeature irrigationPreviewOriginalFeature = farm::FarmTileFeature::None;
 	farm::FarmTileFeature irrigationPreviewCandidateFeature = farm::FarmTileFeature::None;
+	int irrigationPreviewOriginalHeightLevel = 0;
+	int irrigationPreviewCandidateHeightLevel = 0;
 	int irrigationPreviewWaterSourceCount = 0;
 	int irrigationPreviewSuppliedCanalCount = 0;
 	int irrigationPreviewRangeTileCount = 0;
@@ -270,6 +272,8 @@ enum class GamePlayEditorCommandType {
 	ToggleFarmWaterSource,
 	BeginFarmCanalPreview,
 	BeginFarmWaterSourcePreview,
+	BeginFarmRaiseTerrainPreview,
+	BeginFarmLowerTerrainPreview,
 	ConfirmFarmIrrigationPreview,
 	CancelFarmIrrigationPreview,
 	UndoFarmEdit,

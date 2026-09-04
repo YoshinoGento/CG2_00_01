@@ -1,5 +1,7 @@
 #include "farm/system/FarmIrrigationPreviewSystem.h"
 
+#include "farm/system/FarmToolActionSystem.h"
+
 #include <cstddef>
 #include <cmath>
 
@@ -23,32 +25,45 @@ bool IsUnusedTile(const FarmTile& tile) noexcept
 		std::isfinite(tile.growth) && tile.growth == 0.0f;
 }
 
-bool TryGetCandidateFeature(
+bool TryBuildCandidateTile(
 	const FarmTile& source,
 	FarmIrrigationPreviewOperation operation,
-	FarmTileFeature& output) noexcept
+	FarmTile& output) noexcept
 {
+	output = source;
 	switch (operation) {
 	case FarmIrrigationPreviewOperation::ToggleCanal:
 		if (source.feature == FarmTileFeature::Canal) {
-			output = FarmTileFeature::None;
+			output.feature = FarmTileFeature::None;
 			return true;
 		}
 		if (source.feature == FarmTileFeature::None && IsUnusedTile(source)) {
-			output = FarmTileFeature::Canal;
+			output.feature = FarmTileFeature::Canal;
 			return true;
 		}
 		return false;
 	case FarmIrrigationPreviewOperation::ToggleWaterSource:
 		if (source.feature == FarmTileFeature::WaterSource) {
-			output = FarmTileFeature::None;
+			output.feature = FarmTileFeature::None;
 			return true;
 		}
 		if (source.feature == FarmTileFeature::None && IsUnusedTile(source)) {
-			output = FarmTileFeature::WaterSource;
+			output.feature = FarmTileFeature::WaterSource;
 			return true;
 		}
 		return false;
+	case FarmIrrigationPreviewOperation::RaiseTerrain:
+		if (source.heightLevel >= FarmToolActionSystem::kMaximumHeightLevel) {
+			return false;
+		}
+		++output.heightLevel;
+		return true;
+	case FarmIrrigationPreviewOperation::LowerTerrain:
+		if (source.heightLevel <= FarmToolActionSystem::kMinimumHeightLevel) {
+			return false;
+		}
+		--output.heightLevel;
+		return true;
 	case FarmIrrigationPreviewOperation::None:
 	default:
 		return false;
@@ -73,14 +88,12 @@ bool FarmIrrigationPreviewSystem::Begin(
 		return false;
 	}
 
-	FarmTileFeature candidateFeature = FarmTileFeature::None;
-	if (!TryGetCandidateFeature(*sourceTile, operation, candidateFeature)) {
+	FarmTile candidateTile{};
+	if (!TryBuildCandidateTile(*sourceTile, operation, candidateTile)) {
 		return false;
 	}
 
 	previewGrid_ = sourceGrid;
-	FarmTile candidateTile = *sourceTile;
-	candidateTile.feature = candidateFeature;
 	if (!previewGrid_.SetTile(tileIndex, candidateTile) ||
 		!previewGrid_.SetSelectedIndex(tileIndex)) {
 		Cancel();
@@ -93,7 +106,8 @@ bool FarmIrrigationPreviewSystem::Begin(
 	originalTile_ = *sourceTile;
 	tileIndex_ = tileIndex;
 	operation_ = operation;
-	candidateFeature_ = candidateFeature;
+	candidateFeature_ = candidateTile.feature;
+	candidateHeightLevel_ = candidateTile.heightLevel;
 	active_ = true;
 	return true;
 }
@@ -107,6 +121,7 @@ void FarmIrrigationPreviewSystem::Cancel() noexcept
 	tileIndex_ = -1;
 	operation_ = FarmIrrigationPreviewOperation::None;
 	candidateFeature_ = FarmTileFeature::None;
+	candidateHeightLevel_ = 0;
 	active_ = false;
 }
 

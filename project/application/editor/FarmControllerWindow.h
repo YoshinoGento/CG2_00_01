@@ -8,8 +8,8 @@
 struct FarmControllerActions {
 	std::optional<FarmTool> selectedTool;
 	bool applyCurrentTool = false;
-	bool raiseTile = false;
-	bool lowerTile = false;
+	bool beginRaiseTerrainPreview = false;
+	bool beginLowerTerrainPreview = false;
 	bool toggleCanal = false;
 	bool toggleWaterSource = false;
 	bool beginCanalPreview = false;

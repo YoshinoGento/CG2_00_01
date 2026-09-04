@@ -485,12 +485,26 @@ FarmControllerActions FarmControllerWindow::Draw(
 		viewModel.irrigationRangeTileCount);
 	if (viewModel.irrigationPreviewActive) {
 		ImGui::SeparatorText(text("Irrigation Preview"));
-		ImGui::TextColored(
-			ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
-			text("Tile #%d: %s -> %s"),
-			viewModel.irrigationPreviewTileIndex,
-			text(farm::ToString(viewModel.irrigationPreviewOriginalFeature)),
-			text(farm::ToString(viewModel.irrigationPreviewCandidateFeature)));
+		const bool terrainPreview =
+			viewModel.irrigationPreviewOperation ==
+				farm::FarmIrrigationPreviewOperation::RaiseTerrain ||
+			viewModel.irrigationPreviewOperation ==
+				farm::FarmIrrigationPreviewOperation::LowerTerrain;
+		if (terrainPreview) {
+			ImGui::TextColored(
+				ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
+				text("Tile #%d: H%d -> H%d"),
+				viewModel.irrigationPreviewTileIndex,
+				viewModel.irrigationPreviewOriginalHeightLevel,
+				viewModel.irrigationPreviewCandidateHeightLevel);
+		} else {
+			ImGui::TextColored(
+				ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
+				text("Tile #%d: %s -> %s"),
+				viewModel.irrigationPreviewTileIndex,
+				text(farm::ToString(viewModel.irrigationPreviewOriginalFeature)),
+				text(farm::ToString(viewModel.irrigationPreviewCandidateFeature)));
+		}
 		ImGui::Text(
 			text("Preview: Sources %d / Canals %d / Range %d"),
 			viewModel.irrigationPreviewWaterSourceCount,
@@ -533,23 +547,27 @@ FarmControllerActions FarmControllerWindow::Draw(
 		ImGui::AlignTextToFramePadding();
 		ImGui::TextUnformatted(text("Height"));
 		ImGui::SameLine();
-		ImGui::BeginDisabled(tile->heightLevel <= FarmToolActionSystem::kMinimumHeightLevel);
+		ImGui::BeginDisabled(
+			tile->heightLevel <= FarmToolActionSystem::kMinimumHeightLevel ||
+			viewModel.irrigationPreviewActive);
 		if (ImGui::Button("-##Height", { 34.0f, 0.0f })) {
-			actions.lowerTile = true;
+			actions.beginLowerTerrainPreview = true;
 		}
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-			ImGui::SetTooltip("%s", text("Lower selected tile (Page Down)"));
+			ImGui::SetTooltip("%s", text("Preview lowering selected tile"));
 		}
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		ImGui::Text("H%d", tile->heightLevel);
 		ImGui::SameLine();
-		ImGui::BeginDisabled(tile->heightLevel >= FarmToolActionSystem::kMaximumHeightLevel);
+		ImGui::BeginDisabled(
+			tile->heightLevel >= FarmToolActionSystem::kMaximumHeightLevel ||
+			viewModel.irrigationPreviewActive);
 		if (ImGui::Button("+##Height", { 34.0f, 0.0f })) {
-			actions.raiseTile = true;
+			actions.beginRaiseTerrainPreview = true;
 		}
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-			ImGui::SetTooltip("%s", text("Raise selected tile (Page Up)"));
+			ImGui::SetTooltip("%s", text("Preview raising selected tile"));
 		}
 		ImGui::EndDisabled();
 		ImGui::Text(
