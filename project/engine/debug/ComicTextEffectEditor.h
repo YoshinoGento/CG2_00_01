@@ -6,6 +6,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 class ComicTextEffectEditor final {
 public:
@@ -13,11 +14,20 @@ public:
 	void Draw(ComicTextEffectSystem& system, const Vector3& previewPosition);
 
 private:
+	void RefreshPresetList();
+	void SelectPreset(int index);
+	bool LoadCurrentPreset();
+	bool SaveCurrentPreset(bool overwrite);
+	void DeleteSelectedPreset();
+
 	ComicTextEffectPreset preset_{};
 	std::array<char, 64> presetName_{};
 	std::array<char, 256> texturePath_{};
 	std::array<char, 256> text_{};
 	std::string status_;
+	std::vector<std::string> presetNames_;
+	int selectedPresetIndex_ = -1;
+	std::string pendingDeletePreset_;
 };
 
 #endif
