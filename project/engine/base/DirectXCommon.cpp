@@ -275,25 +275,25 @@ void DirectXCommon::InitializeFullscreenPostEffectParameter() {
     SetHSVFilterParameter(hsvFilterParameter);
 }
 
-void DirectXCommon::ResizeSwapChainIfNeeded() {
+bool DirectXCommon::ResizeSwapChainIfNeeded() {
     if (!winApp_ || !swapChain_) {
-        return;
+        return false;
     }
 
     const uint32_t clientWidth = winApp_->GetClientWidth();
     const uint32_t clientHeight = winApp_->GetClientHeight();
     if (clientWidth == 0 || clientHeight == 0) {
-        return;
+        return true;
     }
     if (clientWidth == swapChainWidth_ && clientHeight == swapChainHeight_) {
-        return;
+        return true;
     }
 
     HRESULT hr = commandList_->Close();
     if (FAILED(hr)) {
         Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to close the command list. HRESULT=" +
             std::to_string(static_cast<long>(hr)));
-        return;
+        return false;
     }
     ID3D12CommandList* commandLists[] = { commandList_.Get() };
     commandQueue_->ExecuteCommandLists(1, commandLists);
@@ -305,13 +305,13 @@ void DirectXCommon::ResizeSwapChainIfNeeded() {
     if (FAILED(hr)) {
         Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to reset the command allocator. HRESULT=" +
             std::to_string(static_cast<long>(hr)));
-        return;
+        return false;
     }
     hr = commandList_->Reset(commandAllocator_.Get(), nullptr);
     if (FAILED(hr)) {
         Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to reset the command list. HRESULT=" +
             std::to_string(static_cast<long>(hr)));
-        return;
+        return false;
     }
 
     for (ComPtr<ID3D12Resource>& backBuffer : backBuffers_) {
@@ -328,29 +328,27 @@ void DirectXCommon::ResizeSwapChainIfNeeded() {
         Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to resize the swap chain. HRESULT=" +
             std::to_string(static_cast<long>(hr)));
 
-        // ResizeBuffers leaves the original swap chain intact on failure.
-        // Reacquire its buffers so drawing can continue instead of aborting and
-        // producing a misleading process-termination leak dump.
-        for (uint32_t i = 0; i < backBuffers_.size(); ++i) {
-            if (SUCCEEDED(swapChain_->GetBuffer(i, IID_PPV_ARGS(&backBuffers_[i])))) {
-                D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
-                rtvHandle.ptr += static_cast<size_t>(i) * rtvDescriptorSize_;
-                device_->CreateRenderTargetView(backBuffers_[i].Get(), nullptr, rtvHandle);
-            }
-        }
-        return;
+        // The old descriptors are no longer safe after a failed resize. Tell
+        // the framework to end this frame before any rendering uses them.
+        return false;
     }
 
     swapChainWidth_ = clientWidth;
     swapChainHeight_ = clientHeight;
 
     for (uint32_t i = 0; i < backBuffers_.size(); ++i) {
-        swapChain_->GetBuffer(i, IID_PPV_ARGS(&backBuffers_[i]));
+        hr = swapChain_->GetBuffer(i, IID_PPV_ARGS(&backBuffers_[i]));
+        if (FAILED(hr)) {
+            Logger::Log("DirectXCommon::ResizeSwapChainIfNeeded failed to acquire a back buffer. HRESULT=" +
+                std::to_string(static_cast<long>(hr)));
+            return false;
+        }
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
         rtvHandle.ptr += static_cast<size_t>(i) * rtvDescriptorSize_;
         device_->CreateRenderTargetView(backBuffers_[i].Get(), nullptr, rtvHandle);
     }
 
+    return true;
 }
 
 void DirectXCommon::SetFullscreenPostEffectParameter(const FullscreenPostEffectParameter& parameter) {

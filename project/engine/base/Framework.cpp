@@ -148,7 +148,12 @@ void Framework::Update() {
 	audio_->Update(frameClock_->GetRealDeltaSeconds());
 	if (winApp_->ProcessMessage()) {
 		endRequest_ = true;
+		return;
 	}
-	dxCommon_->ResizeSwapChainIfNeeded();
+	if (!dxCommon_->ResizeSwapChainIfNeeded()) {
+		Logger::Log("Framework::Update stopped because the swap chain could not be resized safely.");
+		endRequest_ = true;
+		return;
+	}
 	input_->Update();
 }

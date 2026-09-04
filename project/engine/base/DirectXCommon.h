@@ -145,7 +145,7 @@ public:
     void SetDissolveParameter(const DissolveParamForGPU& parameter);
     void SetRandomNoiseParameter(const RandomNoiseParamForGPU& parameter);
     void SetHSVFilterParameter(const HSVFilterParamForGPU& parameter);
-    void ResizeSwapChainIfNeeded();
+    [[nodiscard]] bool ResizeSwapChainIfNeeded();
     // 3. 蜈ｨ縺ｦ縺ｮ謠冗判繧堤ｵゆｺ・＠縲∫判髱｢繧定｡ｨ遉ｺ縺吶ｋ
     void PostDraw();
 
