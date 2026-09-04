@@ -96,6 +96,10 @@ bool ComicTextEffectEditor::SaveCurrentPreset(bool overwrite) {
 		status_ = "Save failed: preset already exists. Use Overwrite.";
 		return false;
 	}
+	if (overwrite && !presetExists) {
+		status_ = "Overwrite failed: preset does not exist. Use Save New.";
+		return false;
+	}
 	preset_.texturePath = texturePath_.data();
 	preset_.text = text_.data();
 	if (!ComicTextEffectSystem::SavePreset(presetName_.data(), preset_)) {
@@ -105,6 +109,86 @@ bool ComicTextEffectEditor::SaveCurrentPreset(bool overwrite) {
 	status_ = overwrite ? "Overwritten." : "Saved.";
 	RefreshPresetList();
 	return true;
+}
+
+void ComicTextEffectEditor::RenameSelectedPreset() {
+	if (selectedPresetIndex_ < 0 || selectedPresetIndex_ >= static_cast<int>(presetNames_.size())) {
+		status_ = "Rename failed: select a preset first.";
+		return;
+	}
+	if (!IsSafePresetName(presetName_.data())) {
+		status_ = "Rename failed. Use letters, numbers, _ or -.";
+		return;
+	}
+	const std::string oldName = presetNames_[selectedPresetIndex_];
+	const std::string newName = presetName_.data();
+	if (oldName == newName) {
+		status_ = "Rename skipped: the name has not changed.";
+		return;
+	}
+	const std::filesystem::path newPath = std::filesystem::path(kComicPresetDirectory) / (newName + ".json");
+	std::error_code error;
+	if (std::filesystem::exists(newPath, error) || error) {
+		status_ = "Rename failed: destination already exists or cannot be checked.";
+		return;
+	}
+	if (!SaveCurrentPreset(false)) return;
+	const std::filesystem::path oldPath = std::filesystem::path(kComicPresetDirectory) / (oldName + ".json");
+	if (!std::filesystem::remove(oldPath, error) || error) {
+		status_ = "Saved new name, but failed to remove old preset: " + oldName;
+		return;
+	}
+	status_ = "Renamed: " + oldName + " -> " + newName;
+	RefreshPresetList();
+}
+
+void ComicTextEffectEditor::DrawPresetLibrary() {
+	ImGui::SeparatorText("Preset Library");
+	if (ImGui::Button("Refresh List##Comic")) RefreshPresetList();
+	ImGui::SameLine();
+	ImGui::TextDisabled("%d preset(s)", static_cast<int>(presetNames_.size()));
+	if (ImGui::BeginListBox("Saved Presets##Comic", ImVec2(-FLT_MIN, 110.0f))) {
+		for (int index = 0; index < static_cast<int>(presetNames_.size()); ++index) {
+			const bool selected = index == selectedPresetIndex_;
+			if (ImGui::Selectable(presetNames_[index].c_str(), selected)) SelectPreset(index);
+			if (selected) ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndListBox();
+	}
+	if (selectedPresetIndex_ >= 0 && selectedPresetIndex_ < static_cast<int>(presetNames_.size())) {
+		ImGui::TextDisabled("Selected: %s", presetNames_[selectedPresetIndex_].c_str());
+	}
+	ImGui::SetNextItemWidth(-FLT_MIN);
+	ImGui::InputText("Preset Name##Comic", presetName_.data(), presetName_.size());
+	ImGui::TextDisabled("Name: letters, numbers, _ and - only");
+	if (ImGui::Button("Save New##Comic", ImVec2(120.0f, 0.0f))) SaveCurrentPreset(false);
+	ImGui::SameLine();
+	if (ImGui::Button("Overwrite##Comic", ImVec2(120.0f, 0.0f))) SaveCurrentPreset(true);
+	ImGui::SameLine();
+	if (ImGui::Button("Load##Comic", ImVec2(90.0f, 0.0f))) LoadCurrentPreset();
+	if (ImGui::Button("Rename Selected##Comic", ImVec2(170.0f, 0.0f))) RenameSelectedPreset();
+	ImGui::SameLine();
+	if (ImGui::Button("Delete Selected##Comic", ImVec2(170.0f, 0.0f))) {
+		if (selectedPresetIndex_ >= 0 && selectedPresetIndex_ < static_cast<int>(presetNames_.size())) {
+			pendingDeletePreset_ = presetNames_[selectedPresetIndex_];
+			ImGui::OpenPopup("Delete Comic Preset?");
+		} else status_ = "Delete failed: select a preset first.";
+	}
+	if (!status_.empty()) {
+		ImGui::TextWrapped("Result: %s", status_.c_str());
+	}
+	if (ImGui::BeginPopupModal("Delete Comic Preset?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+		ImGui::Text("Delete '%s'?", pendingDeletePreset_.c_str());
+		ImGui::TextUnformatted("This cannot be undone.");
+		if (ImGui::Button("Delete##ConfirmComic", ImVec2(120.0f, 0.0f))) {
+			DeleteSelectedPreset(); pendingDeletePreset_.clear(); ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel##Comic", ImVec2(120.0f, 0.0f))) {
+			pendingDeletePreset_.clear(); ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
 }
 
 void ComicTextEffectEditor::DeleteSelectedPreset() {
@@ -125,19 +209,7 @@ void ComicTextEffectEditor::DeleteSelectedPreset() {
 
 void ComicTextEffectEditor::Draw(ComicTextEffectSystem& system, const Vector3& previewPosition) {
 	ImGui::TextUnformatted("英字・数字・カタカナを自由入力して3D位置へ重ねます。");
-	ImGui::SeparatorText("Preset Library");
-	if (ImGui::Button("Refresh List##Comic")) RefreshPresetList();
-	ImGui::SameLine();
-	ImGui::TextDisabled("%d preset(s)", static_cast<int>(presetNames_.size()));
-	if (ImGui::BeginListBox("Saved Presets##Comic", ImVec2(-FLT_MIN, 110.0f))) {
-		for (int index = 0; index < static_cast<int>(presetNames_.size()); ++index) {
-			const bool selected = index == selectedPresetIndex_;
-			if (ImGui::Selectable(presetNames_[index].c_str(), selected)) SelectPreset(index);
-			if (selected) ImGui::SetItemDefaultFocus();
-		}
-		ImGui::EndListBox();
-	}
-	ImGui::InputText("Preset Name##Comic", presetName_.data(), presetName_.size());
+	DrawPresetLibrary();
 	ImGui::Checkbox("Editable Bitmap Text##Comic", &preset_.useEditableText);
 	ImGui::InputText("Display Text##Comic", text_.data(), text_.size());
 	ImGui::SliderFloat("Text Scale##Comic", &preset_.textScale, 0.1f, 5.0f);
@@ -165,45 +237,6 @@ void ComicTextEffectEditor::Draw(ComicTextEffectSystem& system, const Vector3& p
 	preset_.text = text_.data();
 	if (ImGui::Button("Preview Comic Text")) {
 		status_ = system.Play(preset_, previewPosition) ? "Preview started." : "Preview failed.";
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Save New##Comic")) {
-		SaveCurrentPreset(false);
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Overwrite##Comic")) {
-		SaveCurrentPreset(true);
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Load##Comic")) {
-		LoadCurrentPreset();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Delete##Comic")) {
-		if (selectedPresetIndex_ >= 0 && selectedPresetIndex_ < static_cast<int>(presetNames_.size())) {
-			pendingDeletePreset_ = presetNames_[selectedPresetIndex_];
-			ImGui::OpenPopup("Delete Comic Preset?");
-		} else {
-			status_ = "Delete failed: select a preset first.";
-		}
-	}
-	if (ImGui::BeginPopupModal("Delete Comic Preset?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-		ImGui::Text("Delete '%s'?", pendingDeletePreset_.c_str());
-		ImGui::TextUnformatted("This cannot be undone.");
-		if (ImGui::Button("Delete##ConfirmComic", ImVec2(120.0f, 0.0f))) {
-			DeleteSelectedPreset();
-			pendingDeletePreset_.clear();
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Cancel##Comic", ImVec2(120.0f, 0.0f))) {
-			pendingDeletePreset_.clear();
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-	}
-	if (!status_.empty()) {
-		ImGui::TextWrapped("%s", status_.c_str());
 	}
 	ImGui::SeparatorText("Runtime usage");
 	ImGui::TextWrapped("comicTextEffects.Play(\"%s\", hitWorldPosition);", presetName_.data());

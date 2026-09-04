@@ -21,6 +21,8 @@ private:
 	bool LoadPreset();
 	void RefreshPresetList();
 	void SelectPreset(int index);
+	void DrawPresetLibrary();
+	void RenameSelectedPreset();
 	void DeleteSelectedPreset();
 	std::string BuildPresetPath() const;
 

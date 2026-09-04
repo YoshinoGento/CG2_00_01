@@ -110,6 +110,10 @@ bool ParticleEffectEditor::SavePreset(bool overwrite) {
 		status_ = "Save failed: preset already exists. Use Overwrite.";
 		return false;
 	}
+	if (overwrite && !presetExists) {
+		status_ = "Overwrite failed: preset does not exist. Use Save New.";
+		return false;
+	}
 
 	nlohmann::json json = {
 		{ "version", 1 },
@@ -197,6 +201,89 @@ void ParticleEffectEditor::SelectPreset(int index) {
 	selectedPresetIndex_ = index;
 	strncpy_s(presetName_.data(), presetName_.size(), presetNames_[index].c_str(), _TRUNCATE);
 	LoadPreset();
+}
+
+void ParticleEffectEditor::RenameSelectedPreset() {
+	if (selectedPresetIndex_ < 0 || selectedPresetIndex_ >= static_cast<int>(presetNames_.size())) {
+		status_ = "Rename failed: select a preset first.";
+		return;
+	}
+	if (!IsSafePresetName(presetName_.data())) {
+		status_ = "Rename failed: use only A-Z, 0-9, _ or -.";
+		return;
+	}
+	const std::string oldName = presetNames_[selectedPresetIndex_];
+	const std::string newName = presetName_.data();
+	if (oldName == newName) {
+		status_ = "Rename skipped: the name has not changed.";
+		return;
+	}
+	const std::filesystem::path newPath = std::filesystem::path(kPresetDirectory) / (newName + ".json");
+	std::error_code error;
+	if (std::filesystem::exists(newPath, error) || error) {
+		status_ = "Rename failed: destination already exists or cannot be checked.";
+		return;
+	}
+	if (!SavePreset(false)) return;
+	const std::filesystem::path oldPath = std::filesystem::path(kPresetDirectory) / (oldName + ".json");
+	if (!std::filesystem::remove(oldPath, error) || error) {
+		status_ = "Saved new name, but failed to remove old preset: " + oldName;
+		return;
+	}
+	if (Framework* framework = Framework::GetInstance()) {
+		if (ParticleEffectLibrary* library = framework->GetParticleEffectLibrary()) library->ClearCache();
+	}
+	status_ = "Renamed: " + oldName + " -> " + newName;
+	RefreshPresetList();
+}
+
+void ParticleEffectEditor::DrawPresetLibrary() {
+	ImGui::SeparatorText("Preset Library");
+	if (ImGui::Button("Refresh List##Particle")) RefreshPresetList();
+	ImGui::SameLine();
+	ImGui::TextDisabled("%d preset(s)", static_cast<int>(presetNames_.size()));
+	if (ImGui::BeginListBox("Saved Presets##Particle", ImVec2(-FLT_MIN, 110.0f))) {
+		for (int index = 0; index < static_cast<int>(presetNames_.size()); ++index) {
+			const bool selected = index == selectedPresetIndex_;
+			if (ImGui::Selectable(presetNames_[index].c_str(), selected)) SelectPreset(index);
+			if (selected) ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndListBox();
+	}
+	if (selectedPresetIndex_ >= 0 && selectedPresetIndex_ < static_cast<int>(presetNames_.size())) {
+		ImGui::TextDisabled("Selected: %s", presetNames_[selectedPresetIndex_].c_str());
+	}
+	ImGui::SetNextItemWidth(-FLT_MIN);
+	ImGui::InputText("Preset Name##Particle", presetName_.data(), presetName_.size());
+	ImGui::TextDisabled("Name: letters, numbers, _ and - only");
+	if (ImGui::Button("Save New##Particle", ImVec2(120.0f, 0.0f))) SavePreset(false);
+	ImGui::SameLine();
+	if (ImGui::Button("Overwrite##Particle", ImVec2(120.0f, 0.0f))) SavePreset(true);
+	ImGui::SameLine();
+	if (ImGui::Button("Load##Particle", ImVec2(90.0f, 0.0f))) LoadPreset();
+	if (ImGui::Button("Rename Selected##Particle", ImVec2(170.0f, 0.0f))) RenameSelectedPreset();
+	ImGui::SameLine();
+	if (ImGui::Button("Delete Selected##Particle", ImVec2(170.0f, 0.0f))) {
+		if (selectedPresetIndex_ >= 0 && selectedPresetIndex_ < static_cast<int>(presetNames_.size())) {
+			pendingDeletePreset_ = presetNames_[selectedPresetIndex_];
+			ImGui::OpenPopup("Delete Particle Preset?");
+		} else status_ = "Delete failed: select a preset first.";
+	}
+	if (!status_.empty()) {
+		ImGui::TextWrapped("Result: %s", status_.c_str());
+	}
+	if (ImGui::BeginPopupModal("Delete Particle Preset?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+		ImGui::Text("Delete '%s'?", pendingDeletePreset_.c_str());
+		ImGui::TextUnformatted("This cannot be undone.");
+		if (ImGui::Button("Delete##ConfirmParticle", ImVec2(120.0f, 0.0f))) {
+			DeleteSelectedPreset(); pendingDeletePreset_.clear(); ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel##Particle", ImVec2(120.0f, 0.0f))) {
+			pendingDeletePreset_.clear(); ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
 }
 
 void ParticleEffectEditor::DeleteSelectedPreset() {
@@ -293,6 +380,7 @@ void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3&
 	}
 
 	ImGui::SeparatorText("Particle Effect Editor");
+	DrawPresetLibrary();
 	ImGui::Checkbox("Use Scene Sphere Position", &useScenePosition_);
 	if (!useScenePosition_) {
 		ImGui::DragFloat3("Editor Position", &settings_.translate.x, 0.05f, -100.0f, 100.0f);
@@ -369,63 +457,6 @@ void ParticleEffectEditor::Draw(ParticleManager& particleManager, const Vector3&
 		autoEmitTimer_ = 0.0f;
 	}
 
-	ImGui::SeparatorText("Preset Library");
-	if (ImGui::Button("Refresh List##Particle")) {
-		RefreshPresetList();
-	}
-	ImGui::SameLine();
-	ImGui::TextDisabled("%d preset(s)", static_cast<int>(presetNames_.size()));
-	if (ImGui::BeginListBox("Saved Presets##Particle", ImVec2(-FLT_MIN, 110.0f))) {
-		for (int index = 0; index < static_cast<int>(presetNames_.size()); ++index) {
-			const bool selected = index == selectedPresetIndex_;
-			if (ImGui::Selectable(presetNames_[index].c_str(), selected)) {
-				SelectPreset(index);
-			}
-			if (selected) {
-				ImGui::SetItemDefaultFocus();
-			}
-		}
-		ImGui::EndListBox();
-	}
-	ImGui::InputText("Preset Name", presetName_.data(), presetName_.size());
-	if (ImGui::Button("Save New", ImVec2(110.0f, 0.0f))) {
-		SavePreset(false);
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Overwrite", ImVec2(110.0f, 0.0f))) {
-		SavePreset(true);
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Load", ImVec2(80.0f, 0.0f))) {
-		LoadPreset();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Delete", ImVec2(80.0f, 0.0f))) {
-		if (selectedPresetIndex_ >= 0 && selectedPresetIndex_ < static_cast<int>(presetNames_.size())) {
-			pendingDeletePreset_ = presetNames_[selectedPresetIndex_];
-			ImGui::OpenPopup("Delete Particle Preset?");
-		} else {
-			status_ = "Delete failed: select a preset first.";
-		}
-	}
-	if (ImGui::BeginPopupModal("Delete Particle Preset?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-		ImGui::Text("Delete '%s'?", pendingDeletePreset_.c_str());
-		ImGui::TextUnformatted("This cannot be undone.");
-		if (ImGui::Button("Delete##ConfirmParticle", ImVec2(120.0f, 0.0f))) {
-			DeleteSelectedPreset();
-			pendingDeletePreset_.clear();
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Cancel##Particle", ImVec2(120.0f, 0.0f))) {
-			pendingDeletePreset_.clear();
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-	}
-	if (!status_.empty()) {
-		ImGui::TextWrapped("%s", status_.c_str());
-	}
 }
 
 #endif

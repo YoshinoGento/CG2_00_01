@@ -16,8 +16,10 @@ public:
 private:
 	void RefreshPresetList();
 	void SelectPreset(int index);
+	void DrawPresetLibrary();
 	bool LoadCurrentPreset();
 	bool SaveCurrentPreset(bool overwrite);
+	void RenameSelectedPreset();
 	void DeleteSelectedPreset();
 
 	ComicTextEffectPreset preset_{};
