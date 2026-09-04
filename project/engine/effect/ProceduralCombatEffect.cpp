@@ -60,6 +60,8 @@ void LightningEffect::Play(const LightningEffectSettings& requested, const Vecto
 	settings.width = ClampFinite(settings.width, 0.001f, 3.0f, 0.12f);
 	settings.jaggedness = ClampFinite(settings.jaggedness, 0.0f, 10.0f, 0.55f);
 	settings.segments = std::clamp(settings.segments, 2, 128);
+	settings.boltCount = std::clamp(settings.boltCount, 1, 16);
+	settings.spreadDegrees = ClampFinite(settings.spreadDegrees, 0.0f, 360.0f, 300.0f);
 	settings.branches = std::clamp(settings.branches, 0, 32);
 	settings.branchLength = ClampFinite(settings.branchLength, 0.05f, 1.0f, 0.32f);
 	settings.flickerSpeed = ClampFinite(settings.flickerSpeed, 0.0f, 120.0f, 24.0f);
@@ -80,39 +82,37 @@ void LightningEffect::Draw(LineDrawer& lines) const {
 		const auto& s = effect.settings;
 		const float life = 1.0f - effect.elapsed / s.duration;
 		const uint32_t phase = static_cast<uint32_t>(effect.elapsed * s.flickerSpeed);
-		const Vector3 direction = Normalize(s.direction);
-		Vector3 side = Normalize({ -direction.y, direction.x, 0.0f });
-		if (std::abs(direction.x) + std::abs(direction.y) < 0.01f) side = { 1.0f, 0.0f, 0.0f };
-		const Vector3 depth = Normalize({ -direction.z, 0.0f, direction.x });
-		std::vector<Vector3> points(static_cast<size_t>(s.segments) + 1u);
-		for (int index = 0; index <= s.segments; ++index) {
-			const float t = static_cast<float>(index) / static_cast<float>(s.segments);
-			Vector3 point = effect.origin + direction * (s.length * s.size * t);
-			if (index != 0 && index != s.segments) {
-				const float envelope = std::sin(t * kPi);
-				const uint32_t key = s.randomSeed + static_cast<uint32_t>(index * 977) + phase * 131u;
-				point += side * (SignedNoise(key) * s.jaggedness * s.size * envelope);
-				point += depth * (SignedNoise(key + 47u) * s.jaggedness * s.size * 0.45f * envelope);
+		const Vector3 baseDirection = Normalize(s.direction);
+		const float baseAngle = std::atan2(baseDirection.y, baseDirection.x);
+		const float spread = s.spreadDegrees * kPi / 180.0f;
+		for (int bolt = 0; bolt < s.boltCount; ++bolt) {
+			const uint32_t boltKey = s.randomSeed + phase * 313u + static_cast<uint32_t>(bolt * 1543);
+			const float ratio = s.boltCount <= 1 ? 0.5f : static_cast<float>(bolt) / static_cast<float>(s.boltCount - 1);
+			const float angle = baseAngle + (ratio - 0.5f) * spread + SignedNoise(boltKey) * 0.18f;
+			const Vector3 direction = Normalize({ std::cos(angle), std::sin(angle), SignedNoise(boltKey + 7u) * 0.22f });
+			const Vector3 side = Normalize({ -direction.y, direction.x, 0.0f });
+			std::vector<Vector3> points(static_cast<size_t>(s.segments) + 1u);
+			const float boltLength = s.length * s.size * (0.68f + 0.32f * (SignedNoise(boltKey + 11u) * 0.5f + 0.5f));
+			for (int index = 0; index <= s.segments; ++index) {
+				const float t = static_cast<float>(index) / static_cast<float>(s.segments);
+				Vector3 point = effect.origin + direction * (boltLength * t);
+				if (index != 0 && index != s.segments) {
+					const uint32_t key = boltKey + static_cast<uint32_t>(index * 977);
+					point += side * (SignedNoise(key) * s.jaggedness * s.size * std::sin(t * kPi));
+				}
+				points[static_cast<size_t>(index)] = point;
 			}
-			points[static_cast<size_t>(index)] = point;
-		}
-		for (int index = 0; index < s.segments; ++index) {
-			DrawThickSegment(lines, points[index], points[index + 1], s.width * s.size,
-				FadeColor(s.glowColor, life), FadeColor(s.coreColor, life));
-		}
-		for (int branch = 0; branch < s.branches; ++branch) {
-			const uint32_t key = s.randomSeed + phase * 313u + static_cast<uint32_t>(branch * 1543);
-			const int pointIndex = 1 + static_cast<int>(Hash(key) % static_cast<uint32_t>(s.segments - 1));
-			const float sign = SignedNoise(key + 9u) < 0.0f ? -1.0f : 1.0f;
-			const Vector3 branchDirection = Normalize(direction * 0.45f + side * sign + depth * SignedNoise(key + 21u));
-			const Vector3 start = points[pointIndex];
-			const Vector3 middle = start + branchDirection * (s.length * s.size * s.branchLength * 0.55f) +
-				side * (SignedNoise(key + 67u) * s.jaggedness * s.size);
-			const Vector3 end = start + branchDirection * (s.length * s.size * s.branchLength);
-			DrawThickSegment(lines, start, middle, s.width * s.size * 0.55f,
-				FadeColor(s.glowColor, life), FadeColor(s.coreColor, life));
-			DrawThickSegment(lines, middle, end, s.width * s.size * 0.35f,
-				FadeColor(s.glowColor, life), FadeColor(s.coreColor, life));
+			for (int index = 0; index < s.segments; ++index) {
+				DrawThickSegment(lines, points[index], points[index + 1], s.width * s.size,
+					FadeColor(s.glowColor, life), FadeColor(s.coreColor, life));
+			}
+			for (int branch = 0; branch < s.branches; ++branch) {
+				const int pointIndex = 1 + static_cast<int>(Hash(boltKey + branch * 59u) % static_cast<uint32_t>(s.segments - 1));
+				const Vector3 start = points[pointIndex];
+				const Vector3 end = start + Normalize(direction * 0.25f + side * SignedNoise(boltKey + branch * 83u)) *
+					(boltLength * s.branchLength);
+				lines.DrawLine(start, end, FadeColor(s.coreColor, life));
+			}
 		}
 	}
 }
@@ -145,21 +145,26 @@ void SlashEffect::Draw(LineDrawer& lines) const {
 		const float progress = std::clamp(effect.elapsed / s.duration, 0.0f, 1.0f);
 		const float life = 1.0f - progress;
 		const float radius = s.radius * s.size;
-		const float arc = s.arcDegrees * kPi / 180.0f;
-		const float baseRotation = s.rotationDegrees * kPi / 180.0f + progress * 0.3f;
-		for (int trail = s.afterimages; trail >= 0; --trail) {
-			const float trailFade = 1.0f - static_cast<float>(trail) / static_cast<float>(s.afterimages + 1);
-			const float rotation = baseRotation - trail * s.afterimageSpacingDegrees * kPi / 180.0f;
-			const Vector4 outer = FadeColor(s.outerColor, life * trailFade);
-			const Vector4 core = FadeColor(s.coreColor, life * trailFade);
+		const float curvature = s.arcDegrees * kPi / 180.0f;
+		const float baseRotation = s.rotationDegrees * kPi / 180.0f;
+		const int cutCount = s.afterimages + 1;
+		for (int cut = 0; cut < cutCount; ++cut) {
+			const float cutFade = 1.0f - static_cast<float>(cut) / static_cast<float>(cutCount + 1);
+			const float rotation = baseRotation + cut * s.afterimageSpacingDegrees * kPi / 180.0f;
+			const Vector4 outer = FadeColor(s.outerColor, life * cutFade);
+			const Vector4 core = FadeColor(s.coreColor, life * cutFade);
 			for (int index = 0; index < s.segments; ++index) {
-				const float t0 = static_cast<float>(index) / static_cast<float>(s.segments);
-				const float t1 = static_cast<float>(index + 1) / static_cast<float>(s.segments);
-				const float a0 = rotation - arc * 0.5f + arc * t0;
-				const float a1 = rotation - arc * 0.5f + arc * t1;
-				const Vector3 p0 = effect.origin + Vector3{ std::cos(a0) * radius, std::sin(a0) * radius, 0.0f };
-				const Vector3 p1 = effect.origin + Vector3{ std::cos(a1) * radius, std::sin(a1) * radius, 0.0f };
-				DrawThickSegment(lines, p0, p1, s.thickness * s.size * trailFade, outer, core);
+				const float t0 = static_cast<float>(index) / static_cast<float>(s.segments) - 0.5f;
+				const float t1 = static_cast<float>(index + 1) / static_cast<float>(s.segments) - 0.5f;
+				const auto makePoint = [&](float t) {
+					const float along = t * radius * 2.0f * (0.65f + 0.35f * progress);
+					const float bend = std::sin((t + 0.5f) * kPi) * curvature * radius * 0.16f;
+					return effect.origin + Vector3{
+						std::cos(rotation) * along - std::sin(rotation) * bend,
+						std::sin(rotation) * along + std::cos(rotation) * bend,
+						static_cast<float>(cut) * 0.01f };
+				};
+				DrawThickSegment(lines, makePoint(t0), makePoint(t1), s.thickness * s.size * cutFade, outer, core);
 			}
 		}
 	}

@@ -158,7 +158,7 @@ void EffectEditorScene::DrawEditorUi(const SceneEditorContext& context) {
 				ImGui::SameLine();
 				ImGui::Checkbox("Lightning##HitLayer", &hitLightningEnabled_);
 				ImGui::SameLine();
-				ImGui::Checkbox("Slash Accent##HitLayer", &hitSlashEnabled_);
+				ImGui::Checkbox("Impact Cuts##HitLayer", &hitSlashEnabled_);
 				const bool composedPreview = ImGui::Button("Preview Combined Hit", ImVec2(190.0f, 0.0f)) ||
 					ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
 				ImGui::SameLine();
@@ -176,7 +176,7 @@ void EffectEditorScene::DrawEditorUi(const SceneEditorContext& context) {
 					combatEffectEditor_->DrawLightning(*lightningEffect_, previewPosition_,
 						composedPreview && hitLightningEnabled_);
 				}
-				ImGui::SeparatorText("Slash Accent Layer");
+				ImGui::SeparatorText("Impact Cut Layer");
 				if (combatEffectEditor_ && slashEffect_) {
 					combatEffectEditor_->DrawSlash(*slashEffect_, previewPosition_,
 						composedPreview && hitSlashEnabled_);
