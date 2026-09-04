@@ -23,6 +23,7 @@ class Camera;
 class Framework;
 class Input;
 class Object3d;
+class Skybox;
 
 // Isolated visual test for fixed-step magnet-chain behavior.
 class MagnetPrototypeScene final : public BaseScene {
@@ -70,6 +71,7 @@ private:
 	std::unique_ptr<Object3d> playerVisual_;
 	std::array<std::unique_ptr<Object3d>, magnet::MagnetChainSystem::kStageBallCapacity>
 		stageBallVisuals_{};
+	std::unique_ptr<Skybox> skybox_;
 	magnet::MagnetStageSystem magnetStageSystem_;
 	magnet::MagnetChainSystem magnetChainSystem_;
 	magnet::MagneticOneShotSoundSystem magneticAttachmentSoundSystem_;
@@ -111,6 +113,10 @@ private:
 	bool goalGuidesReady_ = false;
 	BitmapFont gameFlowFont_;
 	std::unique_ptr<Sprite> pauseOverlaySprite_;
+	std::unique_ptr<Camera> pauseLabelCamera_;
+	std::unique_ptr<Object3d> pauseTitleObject_;
+	std::unique_ptr<Object3d> resumeLabelObject_;
+	std::unique_ptr<Object3d> restartLabelObject_;
 	SpriteText timerText_;
 	SpriteText pauseTitleText_;
 	std::array<SpriteText, 4> pauseMenuTexts_{};
