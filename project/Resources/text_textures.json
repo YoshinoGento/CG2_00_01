@@ -321,6 +321,10 @@
       "output": "Resources/generated/text/hud_tool_label.png", "fontSize": 28, "padding": [8, 4], "overwrite": true
     },
     {
+      "id": "hud_watering_guide_label", "text": "ENTER 少しずつ水やり", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_watering_guide_label.png", "fontSize": 22, "padding": [8, 4], "overwrite": true
+    },
+    {
       "id": "hud_tool_guide_label", "text": "Q/E \u9053\u5177  C \u4f5c\u7269  N \u7528\u6c34\u8def  M \u6c34\u6e90  ENTER \u4f7f\u7528", "font": "Resources/fonts/NotoSansJP-VF.ttf",
       "output": "Resources/generated/text/hud_tool_guide_label.png", "fontSize": 18, "padding": [8, 4], "overwrite": true
     },
@@ -531,9 +535,19 @@
       "color": [1.0, 0.76, 0.20, 1.0], "padding": [8, 4], "overwrite": true
     },
     {
-      "id": "hud_moisture_good", "text": "\u9069\u6e7f", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "id": "hud_moisture_good", "text": "\u9069\u91cf", "font": "Resources/fonts/NotoSansJP-VF.ttf",
       "output": "Resources/generated/text/hud_moisture_good.png", "fontSize": 24,
-      "color": [0.46, 0.86, 1.0, 1.0], "padding": [8, 4], "overwrite": true
+      "color": [0.34, 0.86, 0.46, 1.0], "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_moisture_excess", "text": "\u6c34\u904e\u591a", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_moisture_excess.png", "fontSize": 24,
+      "color": [1.0, 0.45, 0.65, 1.0], "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_next_reduce_water", "text": "\u7d66\u6c34\u3092\u6e1b\u3089\u3057\u3066\u5f85\u3064", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_next_reduce_water.png", "fontSize": 24,
+      "color": [1.0, 0.76, 0.65, 1.0], "padding": [8, 4], "overwrite": true
     },
     {
       "id": "hud_irrigation_active", "text": "\u7d66\u6c34\u53ef\u80fd", "font": "Resources/fonts/NotoSansJP-VF.ttf",
@@ -554,6 +568,11 @@
       "id": "hud_irrigation_dry", "text": "\u6c34\u5207\u308c", "font": "Resources/fonts/NotoSansJP-VF.ttf",
       "output": "Resources/generated/text/hud_irrigation_dry.png", "fontSize": 22,
       "color": [1.0, 0.42, 0.35, 1.0], "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_irrigation_delivered", "text": "\u76f4\u524d\u7d66\u6c34", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_irrigation_delivered.png", "fontSize": 22,
+      "color": [0.20, 0.88, 1.0, 1.0], "padding": [8, 4], "overwrite": true
     },
     {
       "id": "hud_irrigation_removal_preview", "text": "\u7528\u6c34\u8def\u64a4\u53bb\u4e88\u6e2c\u4e2d", "font": "Resources/fonts/NotoSansJP-VF.ttf",

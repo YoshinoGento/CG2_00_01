@@ -43,6 +43,7 @@ public:
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
 	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
 	bool SetScale(const Vector3& scale);
+	bool SetShearY(const Vector2& slope);
 	void SetTexture(Texture2DHandle textureHandle) { textureHandle_ = textureHandle; }
 	void SetTexture(uint32_t textureHandle);
 	void SetColor(const Vector4& color) { materialData_->color = color; }
@@ -94,6 +95,7 @@ private:
 	Matrix4x4 objectWorldMatrix_ = MatrixMath::MakeIdentity4x4();
 	bool computeSkinningPrepared_ = false;
 	bool isMirrored_ = false;
+	Vector2 shearY_{}; // Per-instance only; zero preserves the standard SRT transform.
 
 	struct Material {
 		Vector4 color;

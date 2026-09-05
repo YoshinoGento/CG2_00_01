@@ -4,6 +4,7 @@
 #include "farm/system/FarmEconomySystem.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <memory>
 #include <string_view>
@@ -11,6 +12,7 @@
 
 namespace {
 constexpr float kFullMoisture = 1.0f;
+constexpr float kMinimumWateringIncrement = 0.01f;
 constexpr float kInitialGrowth = 0.0f;
 constexpr float kHarvestReadyGrowth = 1.0f;
 constexpr float kHarvestMoistureCost = 0.25f;
@@ -179,6 +181,10 @@ private:
 void FarmToolActionSystem::Initialize(const farm::FarmRules& rules) noexcept
 {
 	cropQualitySystem_.Initialize(rules);
+	wateringMoistureIncrement_ = std::isfinite(rules.wateringMoistureIncrement) &&
+		rules.wateringMoistureIncrement >= kMinimumWateringIncrement &&
+		rules.wateringMoistureIncrement <= kFullMoisture
+		? rules.wateringMoistureIncrement : farm::FarmRules{}.wateringMoistureIncrement;
 	history_.Clear();
 }
 
@@ -228,10 +234,15 @@ FarmToolActionResult FarmToolActionSystem::EvaluateTool(
 			: FarmToolActionStatus::InvalidState;
 		break;
 	case FarmTool::Water:
-		if (tile->state != farm::FarmTileState::Tilled &&
-			tile->state != farm::FarmTileState::Planted) {
+		if ((tile->state != farm::FarmTileState::Tilled &&
+			tile->state != farm::FarmTileState::Planted) ||
+			!std::isfinite(tile->moisture) || tile->moisture < 0.0f ||
+			tile->moisture > kFullMoisture) {
 			result.status = FarmToolActionStatus::InvalidState;
 		} else {
+			result.moistureBefore = tile->moisture;
+			result.moistureAfter = (std::min)(kFullMoisture,
+				tile->moisture + wateringMoistureIncrement_);
 			result.status = tile->moisture >= kFullMoisture
 				? FarmToolActionStatus::AlreadyWatered
 				: FarmToolActionStatus::Applied;
@@ -299,7 +310,7 @@ FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(
 		commandName = "Hoe Tile";
 		break;
 	case FarmTool::Water:
-		after.moisture = kFullMoisture;
+		after.moisture = result.moistureAfter;
 		commandName = "Water Tile";
 		break;
 	case FarmTool::Seed:

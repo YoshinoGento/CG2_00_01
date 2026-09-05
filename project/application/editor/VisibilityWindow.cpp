@@ -6,6 +6,7 @@
 
 namespace {
 void ShowAll(editor::VisibilityEditorViewData& value) noexcept {
+	value.showFarmMeshes = true;
 	value.showTerrain = true;
 	value.showSphere = true;
 	value.showPlane = true;
@@ -19,6 +20,7 @@ void ShowAll(editor::VisibilityEditorViewData& value) noexcept {
 }
 
 void ApplyFarmEditingPreset(editor::VisibilityEditorViewData& value) noexcept {
+	value.showFarmMeshes = true;
 	value.showTerrain = false;
 	value.showSphere = false;
 	value.showPlane = false;
@@ -43,6 +45,7 @@ void HideDebugVisualizations(editor::VisibilityEditorViewData& value) noexcept {
 }
 
 void ResetVisibility(editor::VisibilityEditorViewData& value) noexcept {
+	value.showFarmMeshes = true;
 	value.showTerrain = true;
 	value.showSphere = true;
 	value.showPlane = true;
@@ -57,7 +60,7 @@ void ResetVisibility(editor::VisibilityEditorViewData& value) noexcept {
 }
 
 int CountVisibleItems(const editor::VisibilityEditorViewData& value) noexcept {
-	return static_cast<int>(value.showTerrain) +
+	return static_cast<int>(value.showFarmMeshes) + static_cast<int>(value.showTerrain) +
 		static_cast<int>(value.showSphere) +
 		static_cast<int>(value.showPlane) +
 		static_cast<int>(value.showSprite) +
@@ -87,7 +90,7 @@ editor::VisibilityEditorCommand VisibilityWindow::Draw(
 		return command;
 	}
 
-	ImGui::Text("%s: %d / 10", text("Visible"), CountVisibleItems(command.value));
+	ImGui::Text("%s: %d / 11", text("Visible"), CountVisibleItems(command.value));
 	const bool debugVisible =
 		command.value.showSkeleton ||
 		command.value.showLevelGizmos ||
@@ -172,6 +175,11 @@ editor::VisibilityEditorCommand VisibilityWindow::Draw(
 		text("Level Objects"), &command.value.showLevelObjects);
 
 	ImGui::SeparatorText(text("Farm Visualization"));
+	command.apply |= ImGui::Checkbox(text("Farm placeholder meshes"), &command.value.showFarmMeshes);
+	ImGui::Text(text("Farm mesh parts: %d"), viewData.farmMeshPartCount);
+	if (!viewData.farmMeshesReady || viewData.farmMeshLimitExceeded) {
+		ImGui::TextWrapped("%s", text("Farm meshes unavailable or over limit; debug lines remain."));
+	}
 	ImGui::TextDisabled("%s", text("Farm grid and tile selection stay visible."));
 
 	ImGui::SeparatorText(text("Debug Gizmos"));

@@ -9,6 +9,7 @@
 
 #ifdef USE_IMGUI
 #include "base/ImGuiManager.h"
+#include "externals/imgui/imgui_internal.h"
 
 namespace {
 bool ContainsSearchText(std::string_view text, std::string_view search) {
@@ -43,7 +44,8 @@ void FarmToolbarWindow::RequestSaveAsDialog(const std::string& suggestedName) {
 
 FarmToolbarActions FarmToolbarWindow::Draw(
 	const editor::GamePlayEditorViewModel& viewModel,
-	EditorLanguage language) {
+	EditorLanguage language,
+	bool gameMode) {
 	FarmToolbarActions actions;
 #ifdef USE_IMGUI
 	const auto text = [language](std::string_view english) {
@@ -52,9 +54,12 @@ FarmToolbarActions FarmToolbarWindow::Draw(
 	constexpr ImGuiWindowFlags kToolbarFlags =
 		ImGuiWindowFlags_NoTitleBar |
 		ImGuiWindowFlags_NoCollapse |
-		ImGuiWindowFlags_NoScrollbar |
-		ImGuiWindowFlags_NoScrollWithMouse;
-	if (!ImGui::Begin(text("Farm Toolbar###FarmToolbar"), nullptr, kToolbarFlags)) {
+		ImGuiWindowFlags_HorizontalScrollbar |
+		ImGuiWindowFlags_NoSavedSettings;
+	const float toolbarHeight = ImGui::GetFrameHeightWithSpacing() * 2.0f +
+		ImGui::GetStyle().WindowPadding.y * 2.0f + ImGui::GetStyle().ScrollbarSize;
+	if (!ImGui::BeginViewportSideBar("FarmToolbar", ImGui::GetMainViewport(),
+		ImGuiDir_Up, toolbarHeight, kToolbarFlags)) {
 		ImGui::End();
 		return actions;
 	}
@@ -84,199 +89,90 @@ FarmToolbarActions FarmToolbarWindow::Draw(
 		openLoadNextFrame_ = false;
 	}
 
-	ImGui::AlignTextToFramePadding();
-	ImGui::TextUnformatted("FARM");
+	ImGui::BeginDisabled(viewModel.irrigationPreviewActive);
+	if (ImGui::RadioButton(text("Development Mode"), !gameMode)) { actions.gameMode = false; }
 	ImGui::SameLine();
-	ImGui::TextDisabled("|");
-	ImGui::SameLine();
-	const ImVec2 transportButtonSize{ 30.0f, 0.0f };
-	if (!viewModel.simulation.paused) {
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.58f, 0.30f, 1.0f));
-	}
-	if (ImGui::Button(">##SimulationPlay", transportButtonSize)) {
-		actions.simulationAction = editor::SimulationEditorAction::Play;
-	}
-	if (!viewModel.simulation.paused) {
-		ImGui::PopStyleColor();
-	}
-	if (ImGui::IsItemHovered()) {
-		ImGui::SetTooltip("%s", text("Resume simulation"));
-	}
-	ImGui::SameLine();
-	if (viewModel.simulation.paused) {
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.80f, 0.48f, 0.12f, 1.0f));
-	}
-	if (ImGui::Button("||##SimulationPause", transportButtonSize)) {
-		actions.simulationAction = editor::SimulationEditorAction::Pause;
-	}
-	if (viewModel.simulation.paused) {
-		ImGui::PopStyleColor();
-	}
-	if (ImGui::IsItemHovered()) {
-		ImGui::SetTooltip("%s", text("Pause simulation"));
-	}
-	ImGui::SameLine();
-	ImGui::BeginDisabled(!viewModel.simulation.paused);
-	if (ImGui::Button(">|##SimulationStep", transportButtonSize)) {
-		actions.simulationAction = editor::SimulationEditorAction::Step;
-	}
+	if (ImGui::RadioButton(text("Game Mode"), gameMode)) { actions.gameMode = true; }
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-		ImGui::SetTooltip("%s", text("Advance one simulation step"));
+		ImGui::SetTooltip("%s", text(viewModel.irrigationPreviewActive
+			? "Finish or cancel the preview before switching modes"
+			: "Modes share the current Farm; switching does not reset or save it"));
 	}
 	ImGui::EndDisabled();
 	ImGui::SameLine();
-	ImGui::TextColored(
-		viewModel.simulation.paused
-			? ImVec4(1.0f, 0.66f, 0.20f, 1.0f)
-			: ImVec4(0.40f, 0.90f, 0.52f, 1.0f),
-		"%s",
-		text(viewModel.simulation.paused ? "PAUSED" : "PLAYING"));
+	ImGui::TextDisabled("|");
+	ImGui::SameLine();
+	if (ImGui::Button(viewModel.simulation.paused ? ">##Resume" : "||##Pause", {30.0f, 0.0f})) {
+		actions.simulationAction = viewModel.simulation.paused
+			? editor::SimulationEditorAction::Play : editor::SimulationEditorAction::Pause;
+	}
 	if (ImGui::IsItemHovered()) {
-		ImGui::SetTooltip(
-			"%s: %llu",
-			text("Simulation Tick"),
-			static_cast<unsigned long long>(viewModel.simulation.simulationTick));
+		ImGui::SetTooltip("%s", text(viewModel.simulation.paused ? "Resume simulation" : "Pause simulation"));
 	}
 	ImGui::SameLine();
-	ImGui::TextDisabled("|");
+	ImGui::TextUnformatted(text(viewModel.simulation.paused ? "PAUSED" : "PLAYING"));
 	ImGui::SameLine();
 	if (ImGui::Button(text("New"))) {
 		if (viewModel.farmDocumentDirty) {
 			pendingDocumentAction_ = PendingDocumentAction::NewDocument;
 			ImGui::OpenPopup(text("Discard unsaved Farm edits?###FarmDiscardChanges"));
-		} else {
-			actions.newDocument = true;
-		}
-	}
-	if (ImGui::IsItemHovered()) {
-		ImGui::SetTooltip("%s", text("Create an empty Farm document"));
+		} else { actions.newDocument = true; }
 	}
 	ImGui::SameLine();
-	if (ImGui::Button(text("Saves..."))) {
-		openLoadNextFrame_ = true;
-	}
-	if (ImGui::IsItemHovered()) {
-		ImGui::SetTooltip("%s", text("View, search, load, or rename saved Farm documents"));
-	}
+	if (ImGui::Button(text("Saves..."))) { openLoadNextFrame_ = true; }
 	ImGui::SameLine();
-
-	const bool canDirectSave = viewModel.farmDocumentExists &&
-		(viewModel.farmDocumentDirty || viewModel.farmDocumentHasError);
-	ImGui::BeginDisabled(viewModel.farmDocumentExists && !canDirectSave);
+	const bool canDirectSave = !viewModel.farmDocumentExists ||
+		viewModel.farmDocumentDirty || viewModel.farmDocumentHasError;
+	ImGui::BeginDisabled(!canDirectSave);
 	if (ImGui::Button(text("Save"))) {
-		if (viewModel.farmDocumentExists) {
-			actions.saveDocument = true;
-		} else {
-			RequestSaveAsDialog(viewModel.farmDocumentName);
-		}
-	}
-	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-		ImGui::SetTooltip(
-			viewModel.farmDocumentExists
-				? text(canDirectSave ? "Ctrl+S: Save changes" : "Farm document is already saved")
-				: text("Name and save this Farm document"));
+		if (viewModel.farmDocumentExists) { actions.saveDocument = true; }
+		else { RequestSaveAsDialog(viewModel.farmDocumentName); }
 	}
 	ImGui::EndDisabled();
 	ImGui::SameLine();
-	if (ImGui::Button(text("Save As..."))) {
-		RequestSaveAsDialog(viewModel.farmDocumentName);
-	}
-	if (ImGui::IsItemHovered()) {
-		ImGui::SetTooltip("%s", text("Save a copy with a new name (Japanese is supported)"));
-	}
-	ImGui::SameLine();
+	if (ImGui::Button(text("Save As..."))) { RequestSaveAsDialog(viewModel.farmDocumentName); }
 
-	const ImVec4 documentColor = viewModel.farmDocumentHasError
-		? ImVec4(1.0f, 0.30f, 0.22f, 1.0f)
-		: (!viewModel.farmDocumentExists
-			? ImVec4(0.30f, 0.72f, 1.0f, 1.0f)
-			: (viewModel.farmDocumentDirty
-				? ImVec4(1.0f, 0.76f, 0.16f, 1.0f)
-				: ImVec4(0.35f, 0.86f, 0.46f, 1.0f)));
-	const char* documentState = viewModel.farmDocumentHasError
-		? text("ERROR")
-		: (!viewModel.farmDocumentExists
-			? text("NEW")
-			: (viewModel.farmDocumentDirty ? text("UNSAVED") : text("SAVED")));
-	ImGui::TextColored(
-		documentColor,
-		"%s%s  %s",
-		viewModel.farmDocumentName.empty()
-			? "Farm"
-			: text(viewModel.farmDocumentName),
-		viewModel.farmDocumentDirty ? " *" : "",
-		documentState);
-	if (ImGui::IsItemHovered() && !viewModel.farmDocumentMessage.empty()) {
-		ImGui::SetTooltip("%s", text(viewModel.farmDocumentMessage));
-	}
+	const char* documentState = viewModel.farmDocumentHasError ? text("ERROR")
+		: viewModel.farmDocumentDirty ? text("UNSAVED") : text("SAVED");
+	// Clip long user names to a fixed slot so commands remain reachable.
+	const ImVec2 nameStart = ImGui::GetCursorScreenPos();
+	const ImVec2 nameSize{240.0f, ImGui::GetFrameHeight()};
+	ImGui::GetWindowDrawList()->PushClipRect(nameStart, {nameStart.x + nameSize.x, nameStart.y + nameSize.y}, true);
+	ImGui::GetWindowDrawList()->AddText(nameStart, ImGui::GetColorU32(ImGuiCol_Text),
+		viewModel.farmDocumentName.c_str());
+	ImGui::GetWindowDrawList()->PopClipRect();
+	ImGui::Dummy(nameSize);
+	if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", viewModel.farmDocumentName.c_str()); }
 	ImGui::SameLine();
-	ImGui::TextDisabled("|");
-	ImGui::SameLine();
-
-	struct ToolItem {
-		FarmTool tool;
-		const char* label;
-	};
-	constexpr std::array<ToolItem, 4> kTools = {{
-		{ FarmTool::Hoe, "Hoe" },
-		{ FarmTool::Water, "Water" },
-		{ FarmTool::Seed, "Seed" },
-		{ FarmTool::Harvest, "Harvest" },
-	}};
-	for (const ToolItem& item : kTools) {
-		const bool selected = item.tool == viewModel.currentFarmTool;
-		if (selected) {
-			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.56f, 0.30f, 1.0f));
-		}
-		if (ImGui::Button(text(item.label))) {
-			actions.selectedTool = item.tool;
-		}
-		if (selected) {
-			ImGui::PopStyleColor();
-		}
+	ImGui::TextColored(viewModel.farmDocumentHasError ? ImVec4(1,0.3f,0.2f,1)
+		: viewModel.farmDocumentDirty ? ImVec4(1,0.75f,0.2f,1) : ImVec4(0.4f,0.9f,0.55f,1),
+		"%s", documentState);
+	if (!gameMode) {
 		ImGui::SameLine();
-	}
-
-	ImGui::TextDisabled("|");
-	ImGui::SameLine();
-	ImGui::BeginDisabled(!viewModel.canUndo);
-	if (ImGui::Button(text("Undo"))) {
-		actions.undo = true;
-	}
-	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-		ImGui::SetTooltip(
-			viewModel.canUndo ? "Ctrl+Z: %s" : "%s",
-			viewModel.canUndo ? text(viewModel.undoName) : text("No Farm edit to undo"));
-	}
-	ImGui::EndDisabled();
-	ImGui::SameLine();
-	ImGui::BeginDisabled(!viewModel.canRedo);
-	if (ImGui::Button(text("Redo"))) {
-		actions.redo = true;
-	}
-	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-		ImGui::SetTooltip(
-			viewModel.canRedo ? "Ctrl+Y / Ctrl+Shift+Z: %s" : "%s",
-			viewModel.canRedo ? text(viewModel.redoName) : text("No Farm edit to redo"));
-	}
-	ImGui::EndDisabled();
-	ImGui::SameLine();
-
-	ImGui::TextDisabled("|");
-	ImGui::SameLine();
-	if (viewModel.selectedFarmTileIndex >= 0) {
-		ImGui::Text(text("Tile #%d"), viewModel.selectedFarmTileIndex);
-	} else {
-		ImGui::TextDisabled("%s", text("No tile selected"));
-	}
-	ImGui::SameLine();
-	const float resetButtonWidth = 112.0f;
-	const float resetPosition = ImGui::GetWindowContentRegionMax().x - resetButtonWidth;
-	if (ImGui::GetCursorPosX() < resetPosition) {
-		ImGui::SetCursorPosX(resetPosition);
-	}
-	if (ImGui::Button(text("Reset Layout"), ImVec2(resetButtonWidth, 0.0f))) {
-		actions.resetLayout = true;
+		ImGui::BeginDisabled(!viewModel.canUndo);
+		if (ImGui::ArrowButton("##UndoFarm", ImGuiDir_Left)) { actions.undo = true; }
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+			ImGui::SetTooltip("%s: %s", text("Undo"), text(viewModel.undoName));
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!viewModel.canRedo);
+		if (ImGui::ArrowButton("##RedoFarm", ImGuiDir_Right)) { actions.redo = true; }
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+			ImGui::SetTooltip("%s: %s", text("Redo"), text(viewModel.redoName));
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!viewModel.simulation.paused);
+		if (ImGui::Button(">|##SimulationStep", {30.0f, 0.0f})) {
+			actions.simulationAction = editor::SimulationEditorAction::Step;
+		}
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+			ImGui::SetTooltip("%s", text("Advance one simulation step"));
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		if (ImGui::Button(text("Reset Layout"))) { actions.resetLayout = true; }
 	}
 
 	if (ImGui::BeginPopupModal(
@@ -537,6 +433,7 @@ FarmToolbarActions FarmToolbarWindow::Draw(
 #else
 	(void)viewModel;
 	(void)language;
+	(void)gameMode;
 #endif
 	return actions;
 }

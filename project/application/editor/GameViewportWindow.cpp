@@ -9,17 +9,22 @@ void GameViewportWindow::Draw(
 	SrvManager& srvManager,
 	uint32_t finalDisplaySrvIndex,
 	const Vector2& virtualResolution,
-	EditorLanguage language) {
+	EditorLanguage language,
+	bool expanded) {
 	frameState_ = {};
 
 #ifdef USE_IMGUI
 	const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
-	ImGui::SetNextWindowPos(mainViewport->WorkPos, ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowPos(mainViewport->WorkPos, expanded ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(
-		{ (std::max)(mainViewport->WorkSize.x - 300.0f, 320.0f), mainViewport->WorkSize.y },
-		ImGuiCond_FirstUseEver);
+		expanded ? mainViewport->WorkSize : ImVec2{ (std::max)(mainViewport->WorkSize.x - 300.0f, 320.0f), mainViewport->WorkSize.y },
+		expanded ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+	const ImGuiWindowFlags flags = expanded
+		? ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking |
+			ImGuiWindowFlags_NoSavedSettings
+		: ImGuiWindowFlags_None;
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-	if (ImGui::Begin(editor::Localize(language, "Game Viewport###GameViewport"))) {
+	if (ImGui::Begin(expanded ? "FarmGameView" : editor::Localize(language, "Game Viewport###GameViewport"), nullptr, flags)) {
 		frameState_.focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 		const ImVec2 contentSize = ImGui::GetContentRegionAvail();
 		if (contentSize.x > 1.0f && contentSize.y > 1.0f &&
@@ -75,5 +80,6 @@ void GameViewportWindow::Draw(
 	(void)finalDisplaySrvIndex;
 	(void)virtualResolution;
 	(void)language;
+	(void)expanded;
 #endif
 }

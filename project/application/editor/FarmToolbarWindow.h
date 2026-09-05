@@ -13,6 +13,7 @@ struct FarmDocumentRenameAction {
 };
 
 struct FarmToolbarActions {
+	std::optional<bool> gameMode;
 	bool newDocument = false;
 	bool saveDocument = false;
 	std::optional<std::string> loadDocumentId;
@@ -31,7 +32,8 @@ class FarmToolbarWindow final {
 public:
 	[[nodiscard]] FarmToolbarActions Draw(
 		const editor::GamePlayEditorViewModel& viewModel,
-		EditorLanguage language);
+		EditorLanguage language,
+		bool gameMode = false);
 	void RequestSaveAsDialog(const std::string& suggestedName);
 
 private:

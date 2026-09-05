@@ -4,6 +4,7 @@
 #include "externals/imgui/imgui.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #endif
 
@@ -91,6 +92,36 @@ ImVec4 Brighten(const ImVec4& color, float amount) noexcept {
 	};
 }
 
+const char* GetWaterLabel(farm::FarmWaterStatus status) noexcept {
+	switch (status) {
+	case farm::FarmWaterStatus::Available: return "Wet";
+	case farm::FarmWaterStatus::Retained: return "Stored";
+	case farm::FarmWaterStatus::Waiting: return "Waiting";
+	case farm::FarmWaterStatus::Dry: return "Dry";
+	default: return "-";
+	}
+}
+
+float WaterFraction(const editor::FarmTileEditorViewData& tile) noexcept {
+	const float value = tile.feature == farm::FarmTileFeature::None ? tile.moisture : tile.storedWater;
+	return std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 0.0f;
+}
+
+ImVec4 GetWaterStatusColor(farm::FarmWaterStatus status) noexcept {
+	switch (status) {
+	case farm::FarmWaterStatus::Available: return { 0.04f, 0.40f, 0.56f, 1.0f };
+	case farm::FarmWaterStatus::Retained: return { 0.46f, 0.30f, 0.06f, 1.0f };
+	case farm::FarmWaterStatus::Waiting: return { 0.30f, 0.32f, 0.36f, 1.0f };
+	default: return { 0.09f, 0.16f, 0.21f, 1.0f };
+	}
+}
+
+ImVec4 GetWaterColor(const editor::FarmTileEditorViewData& tile) noexcept {
+	if (tile.feature != farm::FarmTileFeature::None) { return GetWaterStatusColor(tile.waterStatus); }
+	const float amount = WaterFraction(tile);
+	return { 0.38f - 0.30f * amount, 0.25f + 0.22f * amount, 0.20f + 0.44f * amount, 1.0f };
+}
+
 void DrawLegendItem(const char* label, const ImVec4& color) {
 	ImGui::ColorButton(label, color, ImGuiColorEditFlags_NoTooltip, { 10.0f, 10.0f });
 	ImGui::SameLine(0.0f, 4.0f);
@@ -124,6 +155,11 @@ FarmMapActions FarmMapWindow::Draw(
 	}
 
 	ImGui::Text(text("Farm Grid  %d x %d"), viewModel.farmWidth, viewModel.farmHeight);
+	ImGui::BeginDisabled(canalDragActive_);
+	if (ImGui::RadioButton(text("Crop view"), !waterView_)) { waterView_ = false; }
+	ImGui::SameLine();
+	if (ImGui::RadioButton(text("Water view"), waterView_)) { waterView_ = true; }
+	ImGui::EndDisabled();
 	const bool canalPathPreviewActive =
 		viewModel.irrigationPreviewActive &&
 		(viewModel.irrigationPreviewOperation == farm::FarmIrrigationPreviewOperation::PlaceCanalPath ||
@@ -166,10 +202,25 @@ FarmMapActions FarmMapWindow::Draw(
 	}
 	ImGui::Spacing();
 
+	const float tileHeight = ImGui::GetTextLineHeight() * 3.0f + 14.0f;
+	const float rows = std::ceil(static_cast<float>(viewModel.farmTiles.size()) / viewModel.farmWidth);
+	const float mapHeight = rows * (tileHeight + ImGui::GetStyle().CellPadding.y * 2.0f) + ImGui::GetStyle().ScrollbarSize;
+	float minimumColumnWidth = ImGui::GetFontSize() * 4.0f + 8.0f;
+	for (int state = 0; state <= static_cast<int>(FarmMapVisualState::Ready); ++state) {
+		minimumColumnWidth = (std::max)(minimumColumnWidth,
+			ImGui::CalcTextSize(GetStateName(static_cast<FarmMapVisualState>(state), language)).x +
+			ImGui::GetStyle().FramePadding.x * 2.0f);
+	}
 	if (ImGui::BeginTable(
 		"FarmMapGrid",
 		viewModel.farmWidth,
-		ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_NoPadOuterX)) {
+		ImGuiTableFlags_SizingFixedSame | ImGuiTableFlags_ScrollX | ImGuiTableFlags_NoPadOuterX,
+		{ 0.0f, mapHeight })) {
+		const float columnWidth = (std::max)(minimumColumnWidth,
+			ImGui::GetContentRegionAvail().x / viewModel.farmWidth - ImGui::GetStyle().CellPadding.x * 2.0f);
+		for (int column = 0; column < viewModel.farmWidth; ++column) {
+			ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthFixed, columnWidth);
+		}
 		for (const editor::FarmTileEditorViewData& tile : viewModel.farmTiles) {
 			ImGui::TableNextColumn();
 			const bool selected =
@@ -178,7 +229,7 @@ FarmMapActions FarmMapWindow::Draw(
 				 selection.generation == viewModel.farmGeneration &&
 				 selection.index == tile.index);
 			const FarmMapVisualState visualState = GetVisualState(tile);
-			const ImVec4 tileColor = GetStateColor(visualState);
+			const ImVec4 tileColor = waterView_ ? GetWaterColor(tile) : GetStateColor(visualState);
 
 			ImGui::PushID(tile.index);
 			ImGui::PushStyleColor(ImGuiCol_Button, tileColor);
@@ -195,15 +246,20 @@ FarmMapActions FarmMapWindow::Draw(
 				ImGuiStyleVar_FrameBorderSize,
 				tile.irrigationPreviewChanged || selected ? 3.0f : 1.0f);
 
-			char label[48]{};
-			std::snprintf(
-				label,
-				sizeof(label),
-				"%02d\n%s\nH%d",
-				tile.index,
-				GetStateName(visualState, language),
-				tile.heightLevel);
-			const bool tilePressed = ImGui::Button(label, { -1.0f, 58.0f });
+			char label[80]{};
+			if (waterView_) {
+				std::snprintf(label, sizeof(label), "%02d\n%.0f%%\n%s###Tile", tile.index,
+					WaterFraction(tile) * 100.0f, text(GetWaterLabel(tile.waterStatus)));
+			} else {
+				std::snprintf(
+					label,
+					sizeof(label),
+					"%02d\n%s\nH%d###Tile",
+					tile.index,
+					GetStateName(visualState, language),
+					tile.heightLevel);
+			}
+			const bool tilePressed = ImGui::Button(label, { -1.0f, tileHeight });
 			const bool tileHovered = ImGui::IsItemHovered(canalDragActive_
 				? ImGuiHoveredFlags_AllowWhenBlockedByActiveItem : ImGuiHoveredFlags_None);
 			const bool tileActivated = ImGui::IsItemActivated();
@@ -232,8 +288,13 @@ FarmMapActions FarmMapWindow::Draw(
 			const float barLeft = rectMin.x + 3.0f;
 			const float barWidth = (std::max)(rectMax.x - rectMin.x - 6.0f, 0.0f);
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
-			const float moisture = std::clamp(tile.feature == farm::FarmTileFeature::None
-				? tile.moisture : tile.storedWater, 0.0f, 1.0f);
+			const float moisture = WaterFraction(tile);
+			const bool received = viewModel.irrigationLastStep.valid && !viewModel.irrigationPreviewActive &&
+				tile.feature == farm::FarmTileFeature::None &&
+				std::isfinite(tile.irrigationFlow.soilReceived) && tile.irrigationFlow.soilReceived > 0.0f;
+			if (waterView_ && received) {
+				drawList->AddCircleFilled({ rectMax.x - 8.0f, rectMin.y + 10.0f }, 3.0f, IM_COL32(70, 245, 255, 255));
+			}
 			const float growth = std::clamp(tile.growth, 0.0f, 1.0f);
 			drawList->AddRectFilled(
 				{ barLeft, rectMax.y - 4.0f },
@@ -265,6 +326,11 @@ FarmMapActions FarmMapWindow::Draw(
 				ImGui::Text(text(tile.feature == farm::FarmTileFeature::None
 					? "Moisture: %.0f%%" : "Stored water: %.0f%%"), moisture * 100.0f);
 				ImGui::Text(text("Growth: %.0f%%"), growth * 100.0f);
+				if (viewModel.irrigationLastStep.valid && !viewModel.irrigationPreviewActive) {
+					ImGui::SeparatorText(text("Last Irrigation Step"));
+					ImGui::Text(text("Soil received: %.4f"), tile.irrigationFlow.soilReceived);
+					ImGui::Text(text("Sent to adjacent soil: %.4f"), tile.irrigationFlow.soilSent);
+				}
 				if (tile.irrigationPreviewChanged) {
 					ImGui::TextColored(
 						ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
@@ -315,20 +381,30 @@ FarmMapActions FarmMapWindow::Draw(
 
 	ImGui::Spacing();
 	ImGui::SeparatorText(text("Legend"));
-	DrawLegendItem(text("Empty"), GetStateColor(FarmMapVisualState::Empty));
-	DrawLegendItem(text("Dry Canal"), GetStateColor(FarmMapVisualState::CanalDry));
-	DrawLegendItem(text("Supplied"), GetStateColor(FarmMapVisualState::CanalSupplied));
-	DrawLegendItem(text("Water Source"), GetStateColor(FarmMapVisualState::WaterSource));
-	DrawLegendItem(text("Tilled"), GetStateColor(FarmMapVisualState::Tilled));
-	DrawLegendItem(text("Watered"), GetStateColor(FarmMapVisualState::Watered));
-	DrawLegendItem(text("Growing"), GetStateColor(FarmMapVisualState::Growing));
-	DrawLegendItem(text("Ready"), GetStateColor(FarmMapVisualState::Ready));
-	ImGui::TextWrapped("%s", text("Blue bar: soil moisture / stored canal water"));
-	DrawLegendItem(text("Water available"), GetStateColor(FarmMapVisualState::CanalSupplied));
-	DrawLegendItem(text("Retained water"), GetStateColor(FarmMapVisualState::CanalRetained));
-	DrawLegendItem(text("Waiting for water"), GetStateColor(FarmMapVisualState::CanalWaiting));
-	ImGui::TextDisabled("%s", text("Green/gold bar: growth"));
-	ImGui::TextDisabled("%s", text("Cyan line: supply strength"));
+	if (waterView_) {
+		ImGui::TextWrapped("%s", text("Water map: soil moisture / reservoir stock (%)"));
+		DrawLegendItem(text("Water available"), GetWaterStatusColor(farm::FarmWaterStatus::Available));
+		DrawLegendItem(text("Retained water"), GetWaterStatusColor(farm::FarmWaterStatus::Retained));
+		DrawLegendItem(text("Waiting for water"), GetWaterStatusColor(farm::FarmWaterStatus::Waiting));
+		DrawLegendItem(text("Water depleted"), GetWaterStatusColor(farm::FarmWaterStatus::Dry));
+		ImGui::TextWrapped("%s", text("Cyan dot: soil received water in the last step (history while paused)"));
+		ImGui::TextWrapped("%s", text("Soil: brown = low moisture, blue = high moisture; dash = no irrigation access"));
+	} else {
+		DrawLegendItem(text("Empty"), GetStateColor(FarmMapVisualState::Empty));
+		DrawLegendItem(text("Dry Canal"), GetStateColor(FarmMapVisualState::CanalDry));
+		DrawLegendItem(text("Supplied"), GetStateColor(FarmMapVisualState::CanalSupplied));
+		DrawLegendItem(text("Water Source"), GetStateColor(FarmMapVisualState::WaterSource));
+		DrawLegendItem(text("Tilled"), GetStateColor(FarmMapVisualState::Tilled));
+		DrawLegendItem(text("Watered"), GetStateColor(FarmMapVisualState::Watered));
+		DrawLegendItem(text("Growing"), GetStateColor(FarmMapVisualState::Growing));
+		DrawLegendItem(text("Ready"), GetStateColor(FarmMapVisualState::Ready));
+		ImGui::TextWrapped("%s", text("Blue bar: soil moisture / stored canal water"));
+		DrawLegendItem(text("Water available"), GetStateColor(FarmMapVisualState::CanalSupplied));
+		DrawLegendItem(text("Retained water"), GetStateColor(FarmMapVisualState::CanalRetained));
+		DrawLegendItem(text("Waiting for water"), GetStateColor(FarmMapVisualState::CanalWaiting));
+		ImGui::TextDisabled("%s", text("Green/gold bar: growth"));
+		ImGui::TextDisabled("%s", text("Cyan line: supply strength"));
+	}
 	ImGui::End();
 #else
 	(void)viewModel;

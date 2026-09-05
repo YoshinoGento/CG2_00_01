@@ -27,6 +27,7 @@
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
 #include "farm/system/FarmVisualSystem.h"
+#include "farm/render/FarmRenderer.h"
 #include "farm/ui/FarmHUD.h"
 #include "level/ui/StageClearHUD.h"
 
@@ -83,6 +84,8 @@ public:
 	void SetSkyboxInputEnabled(bool enabled);
 	void SetFieldInputEnabled(bool enabled);
 	void SetCameraInputEnabled(bool enabled);
+	bool SetFarmGameMode(bool enabled);
+	[[nodiscard]] bool IsFarmGameMode() const noexcept { return farmGameMode_; }
 	void SetDemoCameraPreset();
 	// Cylinderメッシュの再生成（パラメータ変更時に呼ぶ）
 	// アニメーションモデルの動的切り替え（ImGuiからの呼び出し用）
@@ -117,6 +120,8 @@ private:
 	void RouteFarmToolFeedback(const FarmToolActionResult& result);
 	void RouteFarmSale(const FarmSaleResult& result);
 	void ResetFarmSession();
+	bool MovePlayerToFarmTile(int tileIndex);
+	level::LevelGameplaySystem::GroundHeightQuery BuildPlayerGroundQuery() const;
 	bool TryBuildViewportRay(Vector3& outOrigin, Vector3& outDirection) const;
 	bool TrySelectFarmTileFromViewport();
 	void InitializeFarmHUD();
@@ -268,6 +273,7 @@ private:
 	FarmToolSystem farmToolSystem_;
 	FarmToolActionSystem farmToolActionSystem_;
 	farm::FarmVisualSystem farmVisualSystem_;
+	farm::FarmRenderer farmRenderer_;
 	editor::GamePlayEditorBridge gamePlayEditorBridge_;
 	FarmHUD farmHud_;
 	bool farmHudInitialized_ = false;
@@ -276,6 +282,12 @@ private:
 	std::uint32_t farmRestartCount_ = 0;
 
 	bool showTerrain_ = false;
+#ifdef USE_IMGUI
+	bool farmGameMode_ = false;
+#else
+	bool farmGameMode_ = true;
+#endif
+	bool developmentPlayerCamera_ = true;
 	bool showSphere_ = false;
 	bool showPlane_ = false;
 	bool showSprite_ = false;
@@ -287,7 +299,7 @@ private:
 	bool usePlayerCamera_ = true;
 	bool hasLevelCamera_ = false;
 	bool showSkeleton_ = false;
-	bool showDebugGrid_ = true;
+	bool showDebugGrid_ = false;
 
 	Vector2 spritePos_ = { 640.0f, 360.0f };
 	Vector3 objectPos_ = { 0.0f, 0.0f, 0.0f };

@@ -16,6 +16,11 @@ public:
 		bool jumpPressed = false;
 		bool sneakHeld = false;
 	};
+	// Borrowed only for UpdatePlayer; neither context nor callback is retained.
+	struct GroundHeightQuery {
+		const void* context = nullptr;
+		bool (*sample)(const void*, const Vector3&, float&) = nullptr;
+	};
 	struct Snapshot {
 		Vector3 playerPosition{};
 		Vector3 playerFacingDirection{};
@@ -58,7 +63,8 @@ public:
 	void AddCollectible(std::size_t renderIndex, const Vector3& position, float radius);
 	void AddObstacle(const Vector3& center, const Vector3& halfExtents);
 	bool AddEventTrigger(const Vector3& center, const Vector3& halfExtents, int32_t eventId);
-	void UpdatePlayer(const PlayerCommand& command, float fixedDeltaTime);
+	void UpdatePlayer(const PlayerCommand& command, float fixedDeltaTime, const GroundHeightQuery* groundQuery = nullptr);
+	[[nodiscard]] bool TryPlacePlayerOnGround(const Vector3& position, const GroundHeightQuery* groundQuery = nullptr);
 	void CaptureSnapshot(Snapshot& output) const;
 	bool RestoreSnapshot(const Snapshot& snapshot);
 
@@ -69,7 +75,9 @@ public:
 	bool IsPlayerMoving() const { return isPlayerMoving_; }
 	bool IsPlayerSneaking() const { return isPlayerSneaking_; }
 	bool IsPlayerGrounded() const { return isPlayerGrounded_; }
+	bool WasPlayerMovementBlocked() const { return playerMovementBlocked_; }
 	const Vector3& GetPlayerColliderHalfExtents() const { return playerColliderHalfExtents_; }
+	const Vector3& GetPlayerColliderCenterOffset() const { return playerColliderCenterOffset_; }
 	Vector3 GetPlayerColliderCenter() const {
 		return {
 			playerPosition_.x + playerColliderCenterOffset_.x,
@@ -91,9 +99,14 @@ public:
 	std::vector<int32_t> ConsumeTriggeredEventIds();
 
 private:
-	void SnapPlayerToGround();
+	void SnapPlayerToGround(const GroundHeightQuery* groundQuery = nullptr, bool followSlope = false);
+	float SampleGroundHeight(const GroundHeightQuery* groundQuery, const Vector3& position) const;
+	static constexpr float kMaxGroundStep = 0.25f;
+	static constexpr float kSlopeFollowDistance = 0.12f;
 	bool OverlapsObstacle(const Vector3& position) const;
-	void MovePlayerHorizontal(const Vector3& displacement);
+	void MovePlayerHorizontal(const Vector3& displacement, const GroundHeightQuery* groundQuery, bool allowStep);
+	static constexpr float kHorizontalSubstepDistance = 0.05f;
+	static constexpr int kMaxHorizontalSubsteps = 32;
 	void CollectOverlappingObjects();
 	void ActivateOverlappingEventTriggers();
 
@@ -107,6 +120,7 @@ private:
 	bool isPlayerMoving_ = false;
 	bool isPlayerSneaking_ = false;
 	bool isPlayerGrounded_ = false;
+	bool playerMovementBlocked_ = false;
 
 	Vector3 groundCenter_{};
 	Vector3 groundHalfExtents_{};

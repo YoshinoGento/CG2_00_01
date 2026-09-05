@@ -18,6 +18,17 @@ namespace MatrixMath {
 	// --- 行列生成 (基本) ---
 	Matrix4x4 MakeIdentity4x4();
 	Matrix4x4 MakeScaleMatrix(const Vector3& scale);
+	// Row vectors: scaled local X/Z displace Y before object rotation and translation.
+	inline Matrix4x4 MakeScaleShearYMatrix(const Vector3& scale, const Vector2& slope) {
+		Matrix4x4 result{};
+		result.m[0][0] = scale.x;
+		result.m[1][1] = scale.y;
+		result.m[2][2] = scale.z;
+		result.m[3][3] = 1.0f;
+		result.m[0][1] = scale.x * slope.x;
+		result.m[2][1] = scale.z * slope.y;
+		return result;
+	}
 	Matrix4x4 MakeRotateXMatrix(float radian);
 	Matrix4x4 MakeRotateYMatrix(float radian);
 	Matrix4x4 MakeRotateZMatrix(float radian);

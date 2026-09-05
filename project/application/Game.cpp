@@ -110,7 +110,6 @@ void Game::Initialize() {
 		assert(false && "PostEffectSystem initialization failed");
 	}
 	InitializeRuntimeTextTextures();
-	InitializeGameplayHud();
 	gameplayEffectManager_ = std::make_unique<GameplayEffectManager>();
 	floatingTextSystem_ = std::make_unique<FloatingTextSystem>();
 	floatingTextSystem_->Initialize(
@@ -126,23 +125,11 @@ void Game::Initialize() {
 #ifdef USE_IMGUI
 	editorShell_ = std::make_unique<EditorShell>();
 	editorShell_->Initialize();
-#else
-	postEffectSubmissionDemo_ = std::make_unique<PostEffectSubmissionDemo>();
-	postEffectSubmissionDemo_->Initialize(*postEffectSystem_, *winApp_);
-	postEffectSubmissionHud_ = std::make_unique<PostEffectSubmissionHUD>();
-	if (!postEffectSubmissionHud_->Initialize(spriteCommon_.get())) {
-		Logger::Log("Game::Initialize failed to initialize PostEffectSubmissionHUD.");
-		assert(false && "PostEffectSubmissionHUD initialization failed");
-	}
 #endif
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
 	SceneManager::GetInstance()->SetSceneFactory(sceneFactory_.get());
-#ifdef USE_IMGUI
-	SceneManager::GetInstance()->ChangeScene("TITLE");
-#else
 	SceneManager::GetInstance()->ChangeScene("GAMEPLAY");
-#endif
 }
 
 void Game::Finalize() {

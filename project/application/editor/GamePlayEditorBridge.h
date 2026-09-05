@@ -8,6 +8,7 @@
 #include "farm/system/FarmIrrigationSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
 #include "farm/system/FarmToolSystem.h"
+#include "farm/system/FarmTerrainQuerySystem.h"
 #include "math/Struct.h"
 
 #include <array>
@@ -49,6 +50,7 @@ struct FarmTileEditorViewData {
 	float irrigationSupplyStrength = 0.0f;
 	float storedWater = 0.0f;
 	farm::FarmWaterStatus waterStatus = farm::FarmWaterStatus::None;
+	farm::FarmIrrigationTileFlow irrigationFlow{};
 	float irrigationStrength = 0.0f;
 	int irrigationDownstreamCanalCount = 0;
 	int irrigationSupplierTileIndex = -1;
@@ -56,6 +58,10 @@ struct FarmTileEditorViewData {
 };
 
 struct VisibilityEditorViewData {
+	bool showFarmMeshes = true;
+	bool farmMeshesReady = false;
+	bool farmMeshLimitExceeded = false;
+	int farmMeshPartCount = 0;
 	int selectedTarget = 0;
 	bool showTerrain = true;
 	bool showSphere = true;
@@ -177,6 +183,11 @@ struct SimulationEditorViewData {
 };
 
 struct FarmPlaytestEditorViewData {
+	Vector3 playerPosition{};
+	bool playerGrounded = false;
+	bool canPlacePlayer = false;
+	bool playerMovementBlocked = false;
+	farm::FarmGroundSample playerGroundSample{};
 	int money = 0;
 	int targetMoney = 1;
 	int remainingMoney = 1;
@@ -213,6 +224,7 @@ struct GamePlayEditorViewModel {
 	int irrigationWaterSourceCount = 0;
 	int irrigationSuppliedCanalCount = 0;
 	int irrigationRangeTileCount = 0;
+	farm::FarmIrrigationStepSummary irrigationLastStep{};
 	bool irrigationPreviewActive = false;
 	bool irrigationPreviewCanConfirm = false;
 	int irrigationPreviewTileIndex = -1;
@@ -287,6 +299,7 @@ enum class GamePlayEditorCommandType {
 	UndoFarmEdit,
 	RedoFarmEdit,
 	RestartFarmSession,
+	MovePlayerToSelectedFarmTile,
 };
 
 struct GamePlayEditorCommand {

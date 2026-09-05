@@ -58,7 +58,42 @@ farm::FarmCropGrowthProfile SanitizeProfile(
 		profile.goodMoistureMinimum, fallback.goodMoistureMinimum);
 	result.goodMoistureMinimum = (std::max)(
 		result.goodMoistureMinimum, result.dryMoistureThreshold);
+	result.goodMoistureMaximum = SanitizeNormalized(
+		profile.goodMoistureMaximum, fallback.goodMoistureMaximum);
+	if (result.dryMoistureThreshold >= result.goodMoistureMinimum ||
+		result.goodMoistureMinimum >= result.goodMoistureMaximum ||
+		result.goodMoistureMaximum >= 1.0f) {
+		result.dryMoistureThreshold = fallback.dryMoistureThreshold;
+		result.goodMoistureMinimum = fallback.goodMoistureMinimum;
+		result.goodMoistureMaximum = fallback.goodMoistureMaximum;
+	}
+	result.saturatedGrowthMultiplier = SanitizeNormalized(
+		profile.saturatedGrowthMultiplier, fallback.saturatedGrowthMultiplier);
 	return result;
+}
+
+struct MoistureResponse {
+	FarmMoistureStatus status;
+	float rate;
+};
+
+// Thresholds are sanitized at Initialize. Runtime and forecasts share this curve.
+MoistureResponse EvaluateMoisture(const farm::FarmCropGrowthProfile& profile, float moisture) noexcept
+{
+	if (moisture <= profile.dryMoistureThreshold) {
+		return {FarmMoistureStatus::Dry, profile.growthPerSecondDry};
+	}
+	if (moisture < profile.goodMoistureMinimum) {
+		const float t = (moisture - profile.dryMoistureThreshold) /
+			(profile.goodMoistureMinimum - profile.dryMoistureThreshold);
+		return {FarmMoistureStatus::Low, std::lerp(profile.growthPerSecondDry, profile.growthPerSecondWet, t)};
+	}
+	if (moisture <= profile.goodMoistureMaximum) {
+		return {FarmMoistureStatus::Good, profile.growthPerSecondWet};
+	}
+	const float t = (moisture - profile.goodMoistureMaximum) / (1.0f - profile.goodMoistureMaximum);
+	return {FarmMoistureStatus::Excess,
+		profile.growthPerSecondWet * std::lerp(1.0f, profile.saturatedGrowthMultiplier, t)};
 }
 
 const farm::FarmCropGrowthProfile* GetGrowthProfile(
@@ -91,30 +126,34 @@ void FarmGrowthSystem::Initialize(const farm::FarmRules& rules) noexcept
 		defaults.irrigationMoistureRecoveryPerSecond);
 }
 
-void FarmGrowthSystem::Update(
+bool FarmGrowthSystem::Update(
 	farm::FarmGrid& grid,
 	float deltaTime,
 	float timeScale) const
 {
 	if (!std::isfinite(deltaTime) || !std::isfinite(timeScale) ||
 		deltaTime <= 0.0f || timeScale <= 0.0f) {
-		return;
+		return false;
 	}
 
 	const float scaledDeltaTime =
 		(std::min)(deltaTime, rules_.maxUpdateDeltaTime) * timeScale;
 	if (!std::isfinite(scaledDeltaTime) || scaledDeltaTime <= 0.0f) {
-		return;
+		return false;
 	}
+	bool changed = false;
 	for (int tileIndex = 0; tileIndex < grid.GetTileCount(); ++tileIndex) {
 		farm::FarmTile* tile = grid.GetMutableTile(tileIndex);
 		if (tile == nullptr) {
 			continue;
 		}
 
+		const float previousMoisture = tile->moisture;
+		const float previousGrowth = tile->growth;
 		tile->moisture = SanitizeTileValue(tile->moisture);
 		tile->growth = SanitizeTileValue(tile->growth);
-		if (tile->state != farm::FarmTileState::Planted ||
+		changed |= previousMoisture != tile->moisture || previousGrowth != tile->growth;
+		if (!IsCultivated(*tile) || tile->state != farm::FarmTileState::Planted ||
 			tile->crop == farm::CropType::None || farm::IsHarvestReady(*tile)) {
 			continue;
 		}
@@ -124,8 +163,7 @@ void FarmGrowthSystem::Update(
 			continue;
 		}
 
-		const float growthPerSecond = profile->growthPerSecondDry +
-			(profile->growthPerSecondWet - profile->growthPerSecondDry) * tile->moisture;
+		const float growthPerSecond = EvaluateMoisture(*profile, tile->moisture).rate;
 		tile->growth = std::clamp(
 			tile->growth + growthPerSecond * scaledDeltaTime,
 			kNormalizedMinimum,
@@ -134,7 +172,9 @@ void FarmGrowthSystem::Update(
 			tile->moisture - profile->moistureDecayPerSecond * scaledDeltaTime,
 			kNormalizedMinimum,
 			kNormalizedMaximum);
+		changed |= previousMoisture != tile->moisture || previousGrowth != tile->growth;
 	}
+	return changed;
 }
 
 FarmGrowthForecast FarmGrowthSystem::Evaluate(
@@ -146,7 +186,7 @@ FarmGrowthForecast FarmGrowthSystem::Evaluate(
 	FarmGrowthForecast result;
 	result.irrigationStrength = SanitizeNormalized(irrigationStrength, 0.0f);
 	result.irrigationAvailable = result.irrigationStrength > 0.0f;
-	if (tile.state == farm::FarmTileState::Empty ||
+	if (!IsCultivated(tile) ||
 		!std::isfinite(tile.moisture) || !std::isfinite(tile.growth)) {
 		return result;
 	}
@@ -164,13 +204,11 @@ FarmGrowthForecast FarmGrowthSystem::Evaluate(
 	result.moistureValid = true;
 	result.profileCrop = profileCrop;
 	result.goodMoistureMinimum = profile->goodMoistureMinimum;
-	if (moisture <= profile->dryMoistureThreshold) {
-		result.moistureStatus = FarmMoistureStatus::Dry;
-	} else if (moisture < profile->goodMoistureMinimum) {
-		result.moistureStatus = FarmMoistureStatus::Low;
-	} else {
-		result.moistureStatus = FarmMoistureStatus::Good;
-	}
+	result.goodMoistureMaximum = profile->goodMoistureMaximum;
+	const auto response = EvaluateMoisture(*profile, moisture);
+	result.moistureStatus = response.status;
+	result.growthEfficiency = profile->growthPerSecondWet > 0.0f
+		? response.rate / profile->growthPerSecondWet : 0.0f;
 
 	if (!std::isfinite(timeScale) || timeScale <= 0.0f) {
 		return result;
@@ -198,10 +236,7 @@ FarmGrowthForecast FarmGrowthSystem::Evaluate(
 		return result;
 	}
 
-	result.growthPerSecond =
-		(profile->growthPerSecondDry +
-			(profile->growthPerSecondWet - profile->growthPerSecondDry) * moisture) *
-		timeScale;
+	result.growthPerSecond = response.rate * timeScale;
 	if (result.growthPerSecond > 0.0f && std::isfinite(result.growthPerSecond)) {
 		result.secondsUntilReady =
 			(kNormalizedMaximum - growth) / result.growthPerSecond;

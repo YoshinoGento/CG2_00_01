@@ -18,6 +18,7 @@
 #include "3d/PrimitiveGenerator.h"
 #include "3d/LineDrawer.h"
 #include "level/LevelLoader.h"
+#include "farm/system/FarmTerrainQuerySystem.h"
 #include <dinput.h>
 #include "3d/Skybox.h"
 #include "2d/TextureManager.h"
@@ -46,7 +47,7 @@ constexpr float kTimelineAudioEnterTransitionSeconds = 0.08f;
 constexpr float kTimelineAudioExitTransitionSeconds = 0.75f;
 constexpr const char* kRostockSkyboxPath = "Resources/rostock_laage_airport_4k.dds";
 constexpr const char* kFarmDocumentDirectory = "Settings/farm";
-constexpr const char* kSceneLevelName = "scene";
+constexpr const char* kSceneLevelName = "farm_scene";
 constexpr const char* kMeshTypeName = "MESH";
 constexpr const char* kCameraTypeName = "CAMERA";
 constexpr const char* kLightTypeName = "LIGHT";
@@ -197,6 +198,7 @@ struct SelectedTileHUDData {
 	bool irrigationSupplied = false;
 	bool irrigationActive = false;
 	farm::FarmWaterStatus waterStatus = farm::FarmWaterStatus::None;
+	bool receivedIrrigation = false;
 	int irrigationStrengthPercent = 0;
 	farm::FarmTileState state = farm::FarmTileState::Empty;
 	farm::CropType crop = farm::CropType::None;
@@ -214,6 +216,8 @@ FarmHUDMoistureStatus ToHUDMoistureStatus(FarmMoistureStatus status) noexcept
 		return FarmHUDMoistureStatus::Low;
 	case FarmMoistureStatus::Good:
 		return FarmHUDMoistureStatus::Good;
+	case FarmMoistureStatus::Excess:
+		return FarmHUDMoistureStatus::Excess;
 	case FarmMoistureStatus::Invalid:
 	default:
 		return FarmHUDMoistureStatus::None;
@@ -250,6 +254,9 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 		? static_cast<int>(std::clamp(selectedTile->waterAmount, 0.0f, 1.0f) * 100.0f + 0.5f) : 0;
 	data.irrigationSupplied = irrigationSystem.IsSupplied(data.index);
 	data.waterStatus = irrigationSystem.GetWaterStatus(grid, data.index);
+	const auto flows = irrigationSystem.GetLastTileFlows(grid);
+	data.receivedIrrigation = data.index >= 0 && static_cast<std::size_t>(data.index) < flows.size() &&
+		flows[static_cast<std::size_t>(data.index)].soilReceived > 0.0f;
 	const float irrigationStrength =
 		selectedTile->feature == farm::FarmTileFeature::None
 		? irrigationSystem.GetIrrigationStrength(data.index)
@@ -276,6 +283,8 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 	data.irrigationActive = forecast.irrigationActive;
 	if (selectedTile->state == farm::FarmTileState::Empty) {
 		data.nextAction = FarmHUDNextAction::Hoe;
+	} else if (forecast.growing && forecast.moistureStatus == FarmMoistureStatus::Excess) {
+		data.nextAction = FarmHUDNextAction::ReduceWater;
 	} else if (selectedTile->state == farm::FarmTileState::Tilled) {
 		if (selectedSeedCount <= 0) {
 			data.nextAction = FarmHUDNextAction::BuySeed;
@@ -286,7 +295,8 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 	} else if (farm::IsHarvestReady(*selectedTile)) {
 		data.nextAction = FarmHUDNextAction::Harvest;
 	} else {
-		data.nextAction = selectedTile->moisture < 0.25f
+		data.nextAction = (forecast.moistureStatus == FarmMoistureStatus::Dry ||
+			forecast.moistureStatus == FarmMoistureStatus::Low)
 			? FarmHUDNextAction::Water : FarmHUDNextAction::Growing;
 	}
 	return data;
@@ -421,6 +431,20 @@ void GamePlayScene::SetCameraInputEnabled(bool enabled) {
 	cameraInputEnabled_ = enabled;
 }
 
+bool GamePlayScene::SetFarmGameMode(bool enabled) {
+	if (farmGameMode_ == enabled) { return true; }
+	if (farmIrrigationPreviewSystem_.IsActive() || timelineScrubbing_) { return false; }
+	farmCropSelectionSystem_.Cancel();
+	if (enabled) {
+		developmentPlayerCamera_ = usePlayerCamera_;
+		SetUsePlayerCamera(true);
+	} else {
+		SetUsePlayerCamera(developmentPlayerCamera_);
+	}
+	farmGameMode_ = enabled;
+	return true;
+}
+
 void GamePlayScene::SetDemoCameraPreset() {
 	usePlayerCamera_ = false;
 	cameraPos_ = { 0.0f, 5.5f, -12.0f };
@@ -478,6 +502,9 @@ void GamePlayScene::Initialize() {
 		textureHandles_.push_back(TextureManager::GetInstance()->LoadTexture2D("Resources/" + name));
 	}
 	levelWhiteTextureHandle_ = TextureManager::GetInstance()->LoadTexture2D("Resources/human/white.png");
+	if (!farmRenderer_.Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager(), levelWhiteTextureHandle_)) {
+		AddLog("Farm placeholder OBJ unavailable; keeping debug-line rendering.");
+	}
 	Texture2DHandle circle2Handle = TextureManager::GetInstance()->LoadTexture2D("Resources/circle2.png");
 	ringTexHandle_ = TextureManager::GetInstance()->LoadTexture2D("Resources/gradationLine.png");
 
@@ -561,10 +588,8 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle_, ringModel_.get());
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
-#ifdef USE_IMGUI
 	InitializeFarmHUD();
 	InitializeStageClearHUD();
-#endif
 
 }
 
@@ -641,7 +666,7 @@ void GamePlayScene::Update() {
 	const bool controlHeld = frameInput && (frameInput->PushKey(DIK_LCONTROL) || frameInput->PushKey(DIK_RCONTROL));
 	bool levelReloadRequested = frameInput &&
 		(frameInput->TriggerKey(DIK_F5) || (controlHeld && frameInput->TriggerKey(DIK_R)));
-	bool cameraModeToggleRequested = framework_ && framework_->GetInput() && framework_->GetInput()->TriggerKey(DIK_F1);
+	bool cameraModeToggleRequested = !farmGameMode_ && frameInput && frameInput->TriggerKey(DIK_F1);
 	if (ImGuiManager::GetInstance()->WantsCaptureKeyboard()) {
 		levelReloadRequested = false;
 		cameraModeToggleRequested = false;
@@ -661,7 +686,7 @@ void GamePlayScene::Update() {
 	farmIrrigationSystem_.Rebuild(farmGrid_);
 	HandleCameraInput(realDeltaTime_, farmGridInputConsumed);
 	ClampCameraPitch();
-	if (!farmGridInputConsumed) {
+	if (!farmGameMode_ && !farmGridInputConsumed) {
 		HandleKeyboardMovement();
 	}
 	SyncLevelGameplayPresentation();
@@ -670,12 +695,13 @@ void GamePlayScene::Update() {
 #ifndef USE_IMGUI
 	HandleFarmHistoryInput();
 #endif
-	HandleFarmDateDebugInput();
+	if (!farmGameMode_ && viewportFocused_ && !ImGuiManager::GetInstance()->WantsTextInput()) {
+		HandleFarmDateDebugInput();
+	}
 
 	camera_->SetTranslate(cameraPos_);
 	camera_->SetRotate(cameraRot_);
 	camera_->Update();
-	HandleFieldMouseSelection();
 
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
@@ -755,9 +781,11 @@ void GamePlayScene::Update() {
 	}
 
 	// スペースキー入力時の分岐（activeParticleType_ は Game.cpp の ImGui から書き換わる）
-	const bool cropBurstInputHandled = UpdateCropBurstDebugInput();
+	const bool particleTestInput = !farmGameMode_ && viewportFocused_ &&
+		gpuParticleDebugMode_ != GPUParticleDebugMode::Off;
+	const bool cropBurstInputHandled = particleTestInput && UpdateCropBurstDebugInput();
 	if (!cropBurstInputHandled &&
-		gpuParticleDebugMode_ != GPUParticleDebugMode::Off &&
+		particleTestInput &&
 		framework_->GetInput()->TriggerKey(DIK_SPACE)) {
 		switch (activeParticleType_) {
 		case 0: EmitSpark(spherePos_); break;
@@ -775,12 +803,9 @@ void GamePlayScene::Update() {
 
 	// Debug input changes particle requests; ParticleManager owns GPU state.
 	SyncGPUParticleDebugModeChange();
-	HandleReleaseParticleInteractionInput(sceneDeltaTime_);
-	HandleGPUParticleDebugModeInput();
-	UpdateCropBurstAutoPlayback(sceneDeltaTime_);
-
-	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Off && framework_->GetInput()->TriggerKey(DIK_G)) {
-		framework_->GetParticleManager()->RequestGPUParticleEmit(spherePos_, 256);
+	if (particleTestInput) {
+		HandleGPUParticleDebugModeInput();
+		UpdateCropBurstAutoPlayback(sceneDeltaTime_);
 	}
 
 	framework_->GetParticleManager()->Update(camera_.get(), timelineScrubbing_ ? 0.0f : sceneDeltaTime_);
@@ -805,16 +830,56 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 		if (farmIrrigationSystem_.UpdateWater(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale())) {
 			farmDocumentSystem_.MarkDirty();
 		}
-		farmGrowthSystem_.Update(
+		if (farmGrowthSystem_.Update(
 			farmGrid_,
 			fixedDeltaTime,
-			farmDateSystem_.GetTimeScale());
+			farmDateSystem_.GetTimeScale())) {
+			farmDocumentSystem_.MarkDirty();
+		}
 		farmDateSystem_.Update(fixedDeltaTime);
 	}
-	levelGameplay_.UpdatePlayer(pendingPlayerCommand_, fixedDeltaTime);
+	const auto groundQuery = BuildPlayerGroundQuery();
+	levelGameplay_.UpdatePlayer(pendingPlayerCommand_, fixedDeltaTime, &groundQuery);
 	pendingPlayerCommand_.jumpPressed = false;
 	CaptureTimelineSnapshot(timelineScratch_);
 	timeline_.Record(timelineScratch_);
+}
+
+level::LevelGameplaySystem::GroundHeightQuery GamePlayScene::BuildPlayerGroundQuery() const {
+	return {
+		this, [](const void* context, const Vector3& position, float& height) {
+			const auto& scene = *static_cast<const GamePlayScene*>(context);
+			const auto& offset = scene.levelGameplay_.GetPlayerColliderCenterOffset();
+			const auto& half = scene.levelGameplay_.GetPlayerColliderHalfExtents();
+			const auto sample = farm::FarmTerrainQuerySystem::SampleGround(scene.farmGrid_, scene.farmVisualSystem_,
+				{position.x + offset.x, position.y, position.z + offset.z}, {half.x, half.z});
+			if (!sample.valid) { return false; }
+			height = sample.height;
+			return true;
+		}
+	};
+}
+
+bool GamePlayScene::MovePlayerToFarmTile(int tileIndex) {
+#ifdef USE_IMGUI
+	if (farmGameMode_ || timelineScrubbing_ || farmIrrigationPreviewSystem_.IsActive() || farmProgressionSystem_.IsCleared()) { return false; }
+	const auto tile = farmVisualSystem_.GetTileVisualData(farmGrid_, tileIndex);
+	if (!tile.valid) { return false; }
+	const auto& offset = levelGameplay_.GetPlayerColliderCenterOffset();
+	const Vector3 destination{tile.center.x - offset.x, tile.center.y, tile.center.z - offset.z};
+	const auto query = BuildPlayerGroundQuery();
+	if (!levelGameplay_.TryPlacePlayerOnGround(destination, &query)) { return false; }
+	pendingPlayerCommand_ = {};
+	farmCropSelectionSystem_.Cancel();
+	UpdateLevelPlayerVisual();
+	UpdatePlayerCamera();
+	CaptureTimelineSnapshot(timelineScratch_);
+	timeline_.Record(timelineScratch_);
+	return true;
+#else
+	(void)tileIndex;
+	return false;
+#endif
 }
 
 void GamePlayScene::CreateSphere(float radius) {
@@ -838,7 +903,7 @@ void GamePlayScene::LoadSceneLevel() {
 
 	if (!levelData_) {
 		timeline_.Clear();
-		AddLog("Level load failed: Resources/levels/scene.json");
+		AddLog("Level load failed: Resources/levels/farm_scene.json");
 		return;
 	}
 
@@ -1475,6 +1540,12 @@ void GamePlayScene::RebuildCylinder() {
 void GamePlayScene::Draw() {
 	auto objCommon = framework_->GetObject3dCommon();
 	auto spriteCommon = framework_->GetSpriteCommon();
+	const farm::FarmGrid* previewGrid = farmIrrigationPreviewSystem_.GetPreviewGrid();
+	const farm::FarmIrrigationSystem* previewIrrigation = farmIrrigationPreviewSystem_.GetPreviewIrrigation();
+	const bool irrigationPreviewActive = previewGrid != nullptr && previewIrrigation != nullptr;
+	const farm::FarmGrid& displayedFarmGrid = irrigationPreviewActive ? *previewGrid : farmGrid_;
+	const farm::FarmIrrigationSystem& displayedIrrigation = irrigationPreviewActive ? *previewIrrigation : farmIrrigationSystem_;
+	farmRenderer_.Prepare(displayedFarmGrid, farmVisualSystem_, camera_.get());
 
 	auto DrawLevelObjects = [&]() {
 		if (!showLevelObjects_) {
@@ -1511,6 +1582,7 @@ void GamePlayScene::Draw() {
 			if (showPlane_ && object3d_) object3d_->DrawShadow();
 			if (showAnimModel_ && animObj_) animObj_->DrawShadow();
 			DrawLevelObjectShadows();
+			farmRenderer_.DrawShadow();
 			objCommon->EndShadowPass();
 		}
 	}
@@ -1519,20 +1591,12 @@ void GamePlayScene::Draw() {
 	const int divCount = 10;       // 分割数
 	const Vector4 gridColor = { 0.5f, 0.5f, 0.5f, 1.0f }; // グレー
 
-	for (int i = -divCount; i <= divCount; ++i) {
+	for (int i = -divCount; !farmGameMode_ && showDebugGrid_ && i <= divCount; ++i) {
 		float f = (float)i / (float)divCount * gridScale;
 		LineDrawer::GetInstance()->DrawLine({ -gridScale, -2.0f, f }, { gridScale, -2.0f, f }, gridColor);
 		LineDrawer::GetInstance()->DrawLine({ f, -2.0f, -gridScale }, { f, -2.0f, gridScale }, gridColor);
 	}
 
-	const farm::FarmGrid* previewGrid = farmIrrigationPreviewSystem_.GetPreviewGrid();
-	const farm::FarmIrrigationSystem* previewIrrigation =
-		farmIrrigationPreviewSystem_.GetPreviewIrrigation();
-	const bool irrigationPreviewActive = previewGrid != nullptr && previewIrrigation != nullptr;
-	const farm::FarmGrid& displayedFarmGrid = irrigationPreviewActive
-		? *previewGrid : farmGrid_;
-	const farm::FarmIrrigationSystem& displayedIrrigation = irrigationPreviewActive
-		? *previewIrrigation : farmIrrigationSystem_;
 	farmVisualSystem_.Draw(
 		displayedFarmGrid,
 		displayedIrrigation,
@@ -1542,7 +1606,8 @@ void GamePlayScene::Draw() {
 		*LineDrawer::GetInstance(),
 		irrigationPreviewActive
 			? &farmIrrigationPreviewSystem_.GetChangedTileIndices()
-			: nullptr);
+			: nullptr,
+		!farmGameMode_ || !farmRenderer_.IsReady());
 
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction &&
 		interactionBrushOperation_ != InteractionBrushOperation::None) {
@@ -1557,17 +1622,19 @@ void GamePlayScene::Draw() {
 			24);
 	}
 
-	DrawLevelDebugGizmos();
-	DrawLevelCollisionGizmos();
+	if (!farmGameMode_) {
+		DrawLevelDebugGizmos();
+		DrawLevelCollisionGizmos();
+	}
 
 	if (modelPriority_ == 0) {
 		objCommon->BeginObjectPass();
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
-		if (fieldManager_) fieldManager_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
 		DrawLevelObjects();
+		farmRenderer_.Draw();
 		objCommon->EndObjectPass();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
@@ -1584,11 +1651,11 @@ void GamePlayScene::Draw() {
 
 		objCommon->BeginObjectPass();
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
-		if (fieldManager_) fieldManager_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
 		if (showPlane_ && object3d_)    object3d_->Draw();
 		if (showAnimModel_ && animObj_) animObj_->Draw();
 		DrawLevelObjects();
+		farmRenderer_.Draw();
 		objCommon->EndObjectPass();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
@@ -1696,6 +1763,7 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.selectedTileIrrigationSupplied = selectedTileData.irrigationSupplied;
 	viewData.selectedTileIrrigationActive = selectedTileData.irrigationActive;
 	viewData.selectedTileWaterStatus = selectedTileData.waterStatus;
+	viewData.selectedTileReceivedIrrigation = selectedTileData.receivedIrrigation;
 	viewData.selectedTileIrrigationStrengthPercent =
 		selectedTileData.irrigationStrengthPercent;
 	viewData.selectedTileState = selectedTileData.state;
@@ -2068,12 +2136,19 @@ void GamePlayScene::HandleFarmHistoryInput() {
 		}
 		return;
 	}
+	bool changed = false;
 	if (input->TriggerKey(InputKey::Z) && shiftHeld) {
-		if (farmToolActionSystem_.Redo()) AddLog("Farm Redo");
+		changed = farmToolActionSystem_.Redo();
 	} else if (input->TriggerKey(InputKey::Z)) {
-		if (farmToolActionSystem_.Undo()) AddLog("Farm Undo");
+		changed = farmToolActionSystem_.Undo();
 	} else if (input->TriggerKey(InputKey::Y)) {
-		if (farmToolActionSystem_.Redo()) AddLog("Farm Redo");
+		changed = farmToolActionSystem_.Redo();
+	}
+	if (changed) {
+		farmIrrigationPreviewSystem_.Cancel();
+		farmIrrigationSystem_.Rebuild(farmGrid_);
+		farmDocumentSystem_.MarkDirty();
+		AddLog(input->TriggerKey(InputKey::Z) && !shiftHeld ? "Farm Undo" : "Farm Redo");
 	}
 }
 

@@ -179,6 +179,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClCompile Include="application\farm\system\FarmProgressionSystem.cpp" />
     <ClCompile Include="application\farm\system\FarmToolActionSystem.cpp" />
 	<ClCompile Include="application\farm\system\FarmVisualSystem.cpp" />
+	<ClCompile Include="application\farm\system\FarmTerrainQuerySystem.cpp" />
+	<ClCompile Include="application\farm\render\FarmRenderer.cpp" />
 	<ClCompile Include="engine\command\CommandHistory.cpp" />
     <ClCompile Include="engine\core\Component.cpp" />
     <ClCompile Include="engine\core\GameObject.cpp" />
@@ -474,6 +476,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmProgressionSystem.h" />
     <ClInclude Include="application\farm\system\FarmToolActionSystem.h" />
 	<ClInclude Include="application\farm\system\FarmVisualSystem.h" />
+	<ClInclude Include="application\farm\system\FarmTerrainQuerySystem.h" />
+	<ClInclude Include="application\farm\render\FarmRenderer.h" />
+    <ClInclude Include="application\farm\render\FarmMeshLayout.h" />
+    <ClInclude Include="application\farm\render\FarmSoilSurface.h" />
 	<ClInclude Include="engine\command\CommandHistory.h" />
     <ClInclude Include="engine\core\Component.h" />
     <ClInclude Include="engine\core\GameObject.h" />

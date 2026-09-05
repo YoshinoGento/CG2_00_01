@@ -90,7 +90,7 @@ void Object3d::Update(Camera* camera, float deltaTime) {
 	}
 
 	// --- 1. オブジェクト自身の変形行列を作る ---
-	Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(transform_.scale);
+	Matrix4x4 scaleMatrix = MatrixMath::MakeScaleShearYMatrix(transform_.scale, shearY_);
 	Matrix4x4 rotateMatrix = MatrixMath::Multiply(MatrixMath::MakeRotateXMatrix(transform_.rotate.x),
 		MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
 			MatrixMath::MakeRotateZMatrix(transform_.rotate.z)));
@@ -231,6 +231,12 @@ void Object3d::SetModel(Model* model) {
 	if (model_) {
 		InitializeSkeleton();
 	}
+}
+
+bool Object3d::SetShearY(const Vector2& slope) {
+	if (!std::isfinite(slope.x) || !std::isfinite(slope.y)) { return false; }
+	shearY_ = slope;
+	return true;
 }
 
 bool Object3d::SetScale(const Vector3& scale) {

@@ -26,6 +26,7 @@ public:
 
 private:
 	bool open_ = true;
+	bool waterView_ = false;
 	bool canalBrushEnabled_ = false;
 	bool canalDragActive_ = false;
 	bool canalEraseMode_ = false;

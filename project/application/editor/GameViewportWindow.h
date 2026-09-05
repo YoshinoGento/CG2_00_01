@@ -26,7 +26,8 @@ public:
 		SrvManager& srvManager,
 		uint32_t finalDisplaySrvIndex,
 		const Vector2& virtualResolution,
-		EditorLanguage language);
+		EditorLanguage language,
+		bool expanded = false);
 
 	const GameViewportFrameState& GetFrameState() const { return frameState_; }
 

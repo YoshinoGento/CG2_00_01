@@ -124,11 +124,14 @@ const char* GetNextActionLabel(
 		label = "Next: select Harvest and apply.";
 	} else if (tile.state == farm::FarmTileState::Empty) {
 		label = "Next: select Hoe to prepare this tile.";
+	} else if (tile.growthForecast.growing && tile.growthForecast.moistureStatus == FarmMoistureStatus::Excess) {
+		label = "Excess water: reduce irrigation and wait.";
 	} else if (tile.state == farm::FarmTileState::Tilled) {
 		label = tile.moisture > 0.5f
 			? "Next: select Seed to plant."
 			: "Next: Water this tile or plant a Seed.";
-	} else if (tile.moisture < 0.25f) {
+	} else if (tile.growthForecast.moistureStatus == FarmMoistureStatus::Dry ||
+		tile.growthForecast.moistureStatus == FarmMoistureStatus::Low) {
 		label = "Growing slowly: add Water.";
 	}
 	return editor::Localize(language, label);
@@ -148,6 +151,9 @@ const char* GetMoistureStatusLabel(
 	case FarmMoistureStatus::Good:
 		label = "Good";
 		break;
+	case FarmMoistureStatus::Excess:
+		label = "Excess water";
+		break;
 	case FarmMoistureStatus::Invalid:
 	default:
 		break;
@@ -162,7 +168,9 @@ ImVec4 GetMoistureStatusColor(FarmMoistureStatus status) noexcept {
 	case FarmMoistureStatus::Low:
 		return { 1.0f, 0.72f, 0.18f, 1.0f };
 	case FarmMoistureStatus::Good:
-		return { 0.34f, 0.78f, 1.0f, 1.0f };
+		return { 0.34f, 0.86f, 0.46f, 1.0f };
+	case FarmMoistureStatus::Excess:
+		return { 1.0f, 0.45f, 0.65f, 1.0f };
 	case FarmMoistureStatus::Invalid:
 	default:
 		return { 0.52f, 0.52f, 0.52f, 1.0f };
@@ -375,6 +383,31 @@ FarmControllerActions FarmControllerWindow::Draw(
 	const editor::FarmPlaytestEditorViewData& playtest = viewModel.farmPlaytest;
 
 	ImGui::SeparatorText(text("Playtest"));
+	if (ImGui::TreeNode(text("Player Grounding"))) {
+		ImGui::BeginDisabled(tile == nullptr || !playtest.canPlacePlayer);
+		if (ImGui::Button(text("Move Player To Selected Tile"), ImVec2(-1.0f, 0.0f))) {
+			actions.movePlayerToSelectedTile = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::TextUnformatted(text(playtest.playerGrounded ? "Grounded" : "Airborne"));
+		ImGui::Text("X %.2f / Y %.2f / Z %.2f", playtest.playerPosition.x, playtest.playerPosition.y, playtest.playerPosition.z);
+		const auto& ground = playtest.playerGroundSample;
+		const char* groundName = "Base Ground";
+		if (ground.valid) {
+			switch (ground.kind) {
+			case farm::FarmGroundKind::Soil: groundName = "Soil Surface"; break;
+			case farm::FarmGroundKind::CanalBed: groundName = "Canal Bed"; break;
+			case farm::FarmGroundKind::CanalBank: groundName = "Canal Bank"; break;
+			default: break;
+			}
+		}
+		ImGui::Text("%s: %s", text("Surface Below"), text(groundName));
+		if (ground.valid) { ImGui::Text("Y %.3f / #%d", ground.height, ground.tileIndex); }
+		if (playtest.playerMovementBlocked) {
+			ImGui::TextWrapped("%s", text("Movement Blocked"));
+		}
+		ImGui::TreePop();
+	}
 	const ImVec4 stateColor = playtest.cleared
 		? ImVec4(0.30f, 0.86f, 0.38f, 1.0f)
 		: ImVec4(0.94f, 0.72f, 0.18f, 1.0f);
@@ -483,6 +516,29 @@ FarmControllerActions FarmControllerWindow::Draw(
 		viewModel.irrigationWaterSourceCount,
 		viewModel.irrigationSuppliedCanalCount,
 		viewModel.irrigationRangeTileCount);
+	if (ImGui::CollapsingHeader(text("Last Irrigation Step"))) {
+		const auto& step = viewModel.irrigationLastStep;
+		if (!step.valid) {
+			ImGui::TextWrapped("%s", text("No valid measurement; run the farm after editing."));
+		} else {
+			ImGui::TextWrapped("%s", text("Last fixed step, not a rate. 1 unit = one full reservoir. Pause keeps history."));
+			ImGui::Text(text("Simulated time: %.4f s"), step.simulatedSeconds);
+			ImGui::Text(text("Stock before: %.4f"), step.stockBefore);
+			ImGui::Text(text("Source refill: +%.4f"), step.sourceRefill);
+			ImGui::Text(text("Internal transfer: %.4f"), step.transferred);
+			ImGui::Text(text("Delivered to soil: %.4f"), step.soilDelivered);
+			ImGui::Text(text("Stock after: %.4f"), step.stockAfter);
+			ImGui::Text(text("Balance residual: %.7f"), step.balanceError);
+			if (tile != nullptr) {
+				ImGui::SeparatorText(text("Selected Tile Delivery"));
+				const auto& flow = tile->irrigationFlow;
+				ImGui::Text(text("Source refill: +%.4f"), flow.sourceRefill);
+				ImGui::Text(text("Canal in / out: %.4f / %.4f"), flow.incoming, flow.outgoing);
+				ImGui::Text(text("Soil received: %.4f"), flow.soilReceived);
+				ImGui::Text(text("Sent to adjacent soil: %.4f"), flow.soilSent);
+			}
+		}
+	}
 	if (viewModel.irrigationPreviewActive) {
 		ImGui::SeparatorText(text("Irrigation Preview"));
 		if (viewModel.irrigationPathIssue == farm::FarmCanalPathIssue::NonStraight) {
@@ -683,8 +739,12 @@ FarmControllerActions FarmControllerWindow::Draw(
 				text("Growth profile: %s"),
 				text(farm::ToString(forecast.profileCrop)));
 			ImGui::TextDisabled(
-				text("Good moisture: %.0f%% or more"),
-				forecast.goodMoistureMinimum * 100.0f);
+				text("Optimal moisture: %.0f%% - %.0f%%"),
+				forecast.goodMoistureMinimum * 100.0f,
+				forecast.goodMoistureMaximum * 100.0f);
+			ImGui::Text(text("Growth efficiency: %.0f%% (optimal = 100%%)"),
+				forecast.growthEfficiency * 100.0f);
+			ImGui::TextWrapped("%s", text("Below range: too dry. Above range: excess water slows growth."));
 			ImGui::TextColored(
 				GetMoistureStatusColor(forecast.moistureStatus),
 				text("Moisture: %s"),
@@ -787,6 +847,14 @@ FarmControllerActions FarmControllerWindow::Draw(
 	}
 
 	const bool canApply = tile != nullptr && viewModel.selectedFarmAction.Succeeded();
+	if (canApply && viewModel.currentFarmTool == FarmTool::Water) {
+		const auto& watering = viewModel.selectedFarmAction;
+		ImGui::Text(text("Watering: %.0f%% -> %.0f%%"),
+			watering.moistureBefore * 100.0f, watering.moistureAfter * 100.0f);
+		ImGui::Text(text("Added moisture: %.0f percentage points"),
+			(watering.moistureAfter - watering.moistureBefore) * 100.0f);
+		ImGui::TextWrapped("%s", text("One dose per press. Irrigation and drying are separate."));
+	}
 	const ImVec4 statusColor = canApply
 		? ImVec4(0.25f, 0.95f, 0.38f, 1.0f)
 		: ImVec4(1.0f, 0.32f, 0.20f, 1.0f);

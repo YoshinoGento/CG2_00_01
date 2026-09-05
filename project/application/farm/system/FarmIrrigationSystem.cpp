@@ -20,6 +20,10 @@ float SanitizeStrength(float value, float fallback) noexcept
 
 void FarmIrrigationSystem::Initialize(const FarmRules& rules) noexcept
 {
+	lastStep_ = {};
+	lastTileFlows_.clear();
+	measuredTiles_.clear();
+	measuredGrid_ = nullptr;
 	const FarmRules defaults{};
 	auto rate = [](float value, float fallback) {
 		return std::isfinite(value) && value >= 0.0f ? value : fallback;
@@ -49,6 +53,7 @@ void FarmIrrigationSystem::Initialize(const FarmRules& rules) noexcept
 
 void FarmIrrigationSystem::Rebuild(const FarmGrid& grid)
 {
+	if (lastStep_.valid && !MeasurementMatches(grid)) { lastStep_.valid = false; }
 	const int tileCount = grid.GetTileCount();
 	waterSourceCount_ = 0;
 	suppliedCanalCount_ = 0;
@@ -265,14 +270,46 @@ FarmWaterStatus FarmIrrigationSystem::GetWaterStatus(const FarmGrid& grid, int t
 	return result;
 }
 
+bool FarmIrrigationSystem::MeasurementMatches(const FarmGrid& grid) const noexcept
+{
+	if (!lastStep_.valid || measuredGrid_ != &grid || measuredGeneration_ != grid.GetGeneration() ||
+		measuredTiles_.size() != static_cast<std::size_t>(grid.GetTileCount())) { return false; }
+	for (int i = 0; i < grid.GetTileCount(); ++i) {
+		const auto* tile = grid.GetTile(i);
+		const auto& identity = measuredTiles_[i];
+		if (!tile || tile->heightLevel != identity.height || tile->feature != identity.feature ||
+			tile->state != identity.state || tile->crop != identity.crop) { return false; }
+	}
+	return true;
+}
+
+FarmIrrigationStepSummary FarmIrrigationSystem::GetLastStep(const FarmGrid& grid) const noexcept
+{
+	return MeasurementMatches(grid) ? lastStep_ : FarmIrrigationStepSummary{};
+}
+
+std::span<const FarmIrrigationTileFlow> FarmIrrigationSystem::GetLastTileFlows(const FarmGrid& grid) const noexcept
+{
+	return MeasurementMatches(grid) ? std::span<const FarmIrrigationTileFlow>(lastTileFlows_)
+		: std::span<const FarmIrrigationTileFlow>{};
+}
+
 bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float timeScale)
 {
+	lastStep_ = {};
 	if (!std::isfinite(deltaTime) || !std::isfinite(timeScale) || deltaTime <= 0.0f || timeScale <= 0.0f) { return false; }
 	bool changed = false;
 	const double dt = static_cast<double>((std::min)(deltaTime, maxDeltaTime_)) * timeScale;
 	Rebuild(grid);
 	const int count = grid.GetTileCount();
 	const auto size = static_cast<std::size_t>(count);
+	if (count <= 0) { return false; }
+	lastTileFlows_.assign(size, {});
+	measuredTiles_.resize(size);
+	measuredGrid_ = &grid;
+	measuredGeneration_ = grid.GetGeneration();
+	lastStep_.simulatedSeconds = dt;
+	bool measurable = true;
 	waterBefore_.resize(size);
 	waterDelta_.assign(size, 0.0f);
 	soilDemand_.assign(size, 0.0f);
@@ -281,11 +318,21 @@ bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float ti
 	for (int i = 0; i < count; ++i) {
 		auto& tile = *grid.GetMutableTile(i);
 		const float oldWater = tile.waterAmount;
+		measuredTiles_[i] = { tile.heightLevel, tile.feature, tile.state, tile.crop };
+		measurable &= std::isfinite(oldWater) && oldWater >= 0.0f && oldWater <= 1.0f &&
+			std::isfinite(tile.moisture) && tile.moisture >= 0.0f && tile.moisture <= 1.0f &&
+			IsValidFarmTileFeature(tile.feature) &&
+			(tile.feature != FarmTileFeature::None || oldWater == 0.0f);
+		if (std::isfinite(oldWater)) { lastStep_.stockBefore += oldWater; }
 		tile.waterAmount = tile.feature == FarmTileFeature::None ? 0.0f : SanitizeStrength(tile.waterAmount, 0.0f);
 		if (tile.feature == FarmTileFeature::WaterSource) {
 			tile.waterAmount = static_cast<float>((std::min)(1.0, tile.waterAmount + refillPerSecond_ * dt));
 		}
 		waterBefore_[i] = tile.waterAmount;
+		if (tile.feature == FarmTileFeature::WaterSource && std::isfinite(oldWater)) {
+			lastTileFlows_[i].sourceRefill = tile.waterAmount - oldWater;
+			lastStep_.sourceRefill += lastTileFlows_[i].sourceRefill;
+		}
 		changed |= oldWater != tile.waterAmount;
 	}
 	// All transfers read the same snapshot. Incoming water cannot travel twice in this step.
@@ -298,6 +345,9 @@ bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float ti
 		changed |= amount > 0.0f;
 		waterDelta_[parent] -= amount;
 		waterDelta_[child] += amount;
+		lastTileFlows_[parent].outgoing += amount;
+		lastTileFlows_[child].incoming += amount;
+		lastStep_.transferred += amount;
 	}
 	for (int i = 0; i < count; ++i) {
 		grid.GetMutableTile(i)->waterAmount = std::clamp(waterBefore_[i] + waterDelta_[i], 0.0f, 1.0f);
@@ -324,11 +374,20 @@ bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float ti
 		const float delivered = soilDemand_[i] * ratio;
 		changed |= delivered > 0.0f;
 		auto& soil = *grid.GetMutableTile(i);
+		const float moistureBefore = soil.moisture;
 		soil.moisture = std::clamp(soil.moisture + delivered, 0.0f, 1.0f);
+		const float actual = soil.moisture - moistureBefore;
+		lastTileFlows_[i].soilReceived = actual;
+		lastTileFlows_[canal].soilSent += actual;
+		lastStep_.soilDelivered += actual;
 	}
 	for (int i = 0; i < count; ++i) {
 		grid.GetMutableTile(i)->waterAmount = (std::max)(0.0f, waterBefore_[i] - canalDemand_[i]);
+		lastStep_.stockAfter += grid.GetTile(i)->waterAmount;
 	}
+	lastStep_.balanceError = lastStep_.stockBefore + lastStep_.sourceRefill -
+		lastStep_.soilDelivered - lastStep_.stockAfter;
+	lastStep_.valid = measurable;
 	return changed;
 }
 

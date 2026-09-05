@@ -5,10 +5,30 @@
 
 #include <cstdint>
 #include <vector>
+#include <span>
 
 namespace farm {
 
 class FarmGrid;
+
+struct FarmIrrigationTileFlow {
+	float sourceRefill = 0.0f;
+	float incoming = 0.0f;
+	float outgoing = 0.0f;
+	float soilReceived = 0.0f;
+	float soilSent = 0.0f;
+};
+
+struct FarmIrrigationStepSummary {
+	bool valid = false;
+	double simulatedSeconds = 0.0;
+	double stockBefore = 0.0;
+	double sourceRefill = 0.0;
+	double transferred = 0.0;
+	double soilDelivered = 0.0;
+	double stockAfter = 0.0;
+	double balanceError = 0.0;
+};
 
 // Owns finite reservoir flow and soil delivery; topology is potential reachability.
 class FarmIrrigationSystem final {
@@ -16,6 +36,9 @@ public:
 	void Initialize(const FarmRules& rules = {}) noexcept;
 	void Rebuild(const FarmGrid& grid);
 	bool UpdateWater(FarmGrid& grid, float deltaTime, float timeScale);
+	[[nodiscard]] FarmIrrigationStepSummary GetLastStep(const FarmGrid& grid) const noexcept;
+	// View valid only until the next UpdateWater/Initialize; consumers must copy their view data.
+	[[nodiscard]] std::span<const FarmIrrigationTileFlow> GetLastTileFlows(const FarmGrid& grid) const noexcept;
 	[[nodiscard]] float GetAvailableIrrigationStrength(const FarmGrid& grid, int tileIndex) const noexcept;
 	[[nodiscard]] FarmWaterStatus GetWaterStatus(const FarmGrid& grid, int tileIndex) const noexcept;
 	[[nodiscard]] int GetAvailableCanalIndex(const FarmGrid& grid, int tileIndex) const noexcept {
@@ -36,6 +59,18 @@ public:
 	}
 
 private:
+	struct MeasuredTileIdentity {
+		int height = 0;
+		FarmTileFeature feature = FarmTileFeature::None;
+		FarmTileState state = FarmTileState::Empty;
+		CropType crop = CropType::None;
+	};
+	[[nodiscard]] bool MeasurementMatches(const FarmGrid& grid) const noexcept;
+	FarmIrrigationStepSummary lastStep_;
+	std::vector<FarmIrrigationTileFlow> lastTileFlows_;
+	std::vector<MeasuredTileIdentity> measuredTiles_;
+	const FarmGrid* measuredGrid_ = nullptr; // Identity only, never dereferenced or owned.
+	std::uint64_t measuredGeneration_ = 0;
 	[[nodiscard]] int FindWetCanal(const FarmGrid& grid, int tileIndex) const noexcept;
 	std::vector<float> waterBefore_, waterDelta_, soilDemand_, canalDemand_;
 	std::vector<int> soilCanals_;

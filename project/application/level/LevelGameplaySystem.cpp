@@ -49,6 +49,7 @@ bool OverlapsAabbSphere(
 
 void LevelGameplaySystem::Reset()
 {
+	playerMovementBlocked_ = false;
 	playerRenderIndex_ = 0;
 	playerPosition_ = {};
 	playerFacingDirection_ = { 0.0f, 0.0f, 1.0f };
@@ -154,8 +155,9 @@ bool LevelGameplaySystem::AddEventTrigger(
 	return true;
 }
 
-void LevelGameplaySystem::UpdatePlayer(const PlayerCommand& command, float fixedDeltaTime)
+void LevelGameplaySystem::UpdatePlayer(const PlayerCommand& command, float fixedDeltaTime, const GroundHeightQuery* groundQuery)
 {
+	playerMovementBlocked_ = false;
 	if (!hasPlayer_ || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f) {
 		return;
 	}
@@ -165,24 +167,28 @@ void LevelGameplaySystem::UpdatePlayer(const PlayerCommand& command, float fixed
 		return;
 	}
 
-	const Vector3& direction = command.moveDirection;
-	const float horizontalLength = std::sqrt(direction.x * direction.x + direction.z * direction.z);
+	const bool followSlope = isPlayerGrounded_ && !command.jumpPressed;
+	const Vector3 previousPosition = playerPosition_;
+	const Vector3 direction = IsFiniteVector(command.moveDirection) ? command.moveDirection : Vector3{};
+	const float horizontalLength = std::hypot(direction.x, direction.z);
 	isPlayerMoving_ = horizontalLength > 0.0001f;
 	isPlayerSneaking_ = isPlayerMoving_ && command.sneakHeld;
-	if (horizontalLength > 0.0001f) {
+	if (std::isfinite(horizontalLength) && horizontalLength > 0.0001f) {
 		playerFacingDirection_ = { direction.x / horizontalLength, 0.0f, direction.z / horizontalLength };
 		const float moveSpeed = isPlayerSneaking_ ? sneakMoveSpeed_ : walkMoveSpeed_;
 		const float step = moveSpeed * fixedDeltaTime / horizontalLength;
-		MovePlayerHorizontal({ direction.x * step, 0.0f, direction.z * step });
+		MovePlayerHorizontal({ direction.x * step, 0.0f, direction.z * step }, groundQuery, followSlope);
 	}
-
+	isPlayerMoving_ = std::abs(playerPosition_.x - previousPosition.x) > 0.000001f ||
+		std::abs(playerPosition_.z - previousPosition.z) > 0.000001f;
+	isPlayerSneaking_ = isPlayerMoving_ && command.sneakHeld;
 	if (command.jumpPressed && isPlayerGrounded_) {
 		verticalVelocity_ = jumpSpeed_;
 		isPlayerGrounded_ = false;
 	}
 	verticalVelocity_ -= gravity_ * fixedDeltaTime;
 	playerPosition_.y += verticalVelocity_ * fixedDeltaTime;
-	SnapPlayerToGround();
+	SnapPlayerToGround(groundQuery, followSlope);
 	CollectOverlappingObjects();
 	ActivateOverlappingEventTriggers();
 }
@@ -258,6 +264,7 @@ bool LevelGameplaySystem::RestoreSnapshot(const Snapshot& snapshot)
 		return false;
 	}
 	playerPosition_ = snapshot.playerPosition;
+	playerMovementBlocked_ = false;
 	playerFacingDirection_ = snapshot.playerFacingDirection;
 	verticalVelocity_ = snapshot.verticalVelocity;
 	isPlayerMoving_ = snapshot.isPlayerMoving;
@@ -276,7 +283,39 @@ bool LevelGameplaySystem::RestoreSnapshot(const Snapshot& snapshot)
 	return true;
 }
 
-void LevelGameplaySystem::SnapPlayerToGround()
+float LevelGameplaySystem::SampleGroundHeight(const GroundHeightQuery* query, const Vector3& position) const
+{
+	const float base = GetGroundSurfaceHeight();
+	float height = base;
+	if (query && query->sample && query->sample(query->context, position, height) && std::isfinite(height)) {
+		return (std::max)(base, height);
+	}
+	return base;
+}
+
+bool LevelGameplaySystem::TryPlacePlayerOnGround(const Vector3& position, const GroundHeightQuery* groundQuery)
+{
+	if (!hasPlayer_ || !hasGround_ || stageCleared_ || !IsFiniteVector(position)) { return false; }
+	const float minX = groundCenter_.x - groundHalfExtents_.x + playerColliderHalfExtents_.x - playerColliderCenterOffset_.x;
+	const float maxX = groundCenter_.x + groundHalfExtents_.x - playerColliderHalfExtents_.x - playerColliderCenterOffset_.x;
+	const float minZ = groundCenter_.z - groundHalfExtents_.z + playerColliderHalfExtents_.z - playerColliderCenterOffset_.z;
+	const float maxZ = groundCenter_.z + groundHalfExtents_.z - playerColliderHalfExtents_.z - playerColliderCenterOffset_.z;
+	if (position.x < minX || position.x > maxX || position.z < minZ || position.z > maxZ) { return false; }
+	float height = GetGroundSurfaceHeight();
+	if (groundQuery && (!groundQuery->sample || !groundQuery->sample(groundQuery->context, position, height) || !std::isfinite(height))) { return false; }
+	const Vector3 candidate{position.x, (std::max)(GetGroundSurfaceHeight(), height), position.z};
+	if (!IsFiniteVector(candidate) || OverlapsObstacle(candidate)) { return false; }
+	// Commit only after all checks; no triggers, collectibles or level progress are processed.
+	playerPosition_ = candidate;
+	verticalVelocity_ = 0.0f;
+	isPlayerGrounded_ = true;
+	isPlayerMoving_ = false;
+	isPlayerSneaking_ = false;
+	playerMovementBlocked_ = false;
+	return true;
+}
+
+void LevelGameplaySystem::SnapPlayerToGround(const GroundHeightQuery* groundQuery, bool followSlope)
 {
 	if (!hasPlayer_ || !hasGround_) {
 		return;
@@ -288,8 +327,9 @@ void LevelGameplaySystem::SnapPlayerToGround()
 	const float maxZ = groundCenter_.z + groundHalfExtents_.z - playerColliderHalfExtents_.z - playerColliderCenterOffset_.z;
 	playerPosition_.x = (minX <= maxX) ? std::clamp(playerPosition_.x, minX, maxX) : groundCenter_.x;
 	playerPosition_.z = (minZ <= maxZ) ? std::clamp(playerPosition_.z, minZ, maxZ) : groundCenter_.z;
-	const float groundHeight = GetGroundSurfaceHeight();
-	if (playerPosition_.y <= groundHeight) {
+	const float groundHeight = SampleGroundHeight(groundQuery, playerPosition_);
+	if (playerPosition_.y <= groundHeight ||
+		(followSlope && verticalVelocity_ <= 0.0f && playerPosition_.y - groundHeight <= kSlopeFollowDistance)) {
 		playerPosition_.y = groundHeight;
 		verticalVelocity_ = 0.0f;
 		isPlayerGrounded_ = true;
@@ -313,18 +353,33 @@ bool LevelGameplaySystem::OverlapsObstacle(const Vector3& position) const
 	return false;
 }
 
-void LevelGameplaySystem::MovePlayerHorizontal(const Vector3& displacement)
+void LevelGameplaySystem::MovePlayerHorizontal(const Vector3& displacement, const GroundHeightQuery* groundQuery, bool allowStep)
 {
-	Vector3 candidate = playerPosition_;
-	candidate.x += displacement.x;
-	if (!OverlapsObstacle(candidate)) {
-		playerPosition_.x = candidate.x;
-	}
-
-	candidate = playerPosition_;
-	candidate.z += displacement.z;
-	if (!OverlapsObstacle(candidate)) {
-		playerPosition_.z = candidate.z;
+	if (!IsFiniteVector(displacement)) { playerMovementBlocked_ = true; return; }
+	const float distance = (std::max)(std::abs(displacement.x), std::abs(displacement.z));
+	if (distance <= 0.0f) { return; }
+	// Bound work for malformed/hitch-sized updates; the normal FixedUpdate needs one substep.
+	constexpr float maxDistance = kHorizontalSubstepDistance * kMaxHorizontalSubsteps;
+	const float limitedDistance = (std::min)(distance, maxDistance);
+	const int steps = static_cast<int>(std::ceil(limitedDistance / kHorizontalSubstepDistance));
+	const float factor = (limitedDistance / distance) / static_cast<float>(steps);
+	if (distance > maxDistance) { playerMovementBlocked_ = true; }
+	const Vector3 step{displacement.x * factor, 0.0f, displacement.z * factor};
+	for (int i = 0; i < steps; ++i) {
+		for (int axis = 0; axis < 2; ++axis) {
+			const float amount = axis == 0 ? step.x : step.z;
+			if (amount == 0.0f) { continue; }
+			Vector3 candidate = playerPosition_;
+			if (axis == 0) { candidate.x += amount; } else { candidate.z += amount; }
+			if (groundQuery) {
+				const float height = SampleGroundHeight(groundQuery, candidate);
+				const float allowance = allowStep ? kMaxGroundStep : 0.000001f;
+				if (height > playerPosition_.y + allowance) { playerMovementBlocked_ = true; continue; }
+				if (allowStep) { candidate.y = (std::max)(candidate.y, height); }
+			}
+			if (OverlapsObstacle(candidate)) { playerMovementBlocked_ = true; continue; }
+			playerPosition_ = candidate;
+		}
 	}
 }
 

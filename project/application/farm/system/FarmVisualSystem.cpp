@@ -1,5 +1,7 @@
 #include "farm/system/FarmVisualSystem.h"
 
+#include "farm/render/FarmSoilSurface.h"
+
 #include "3d/LineDrawer.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmIrrigationSystem.h"
@@ -7,11 +9,43 @@
 #include <algorithm>
 #include <cmath>
 
+bool farm::FarmVisualSystem::TryGetSoilHeight(const FarmGrid& grid, const Vector3& position, float& height) const noexcept {
+	if (!std::isfinite(position.x) || !std::isfinite(position.z)) { return false; }
+	for (int index = 0; index < grid.GetTileCount(); ++index) {
+		const auto data = GetTileVisualData(grid, index);
+		const float halfPitch = (layout_.tileSize + layout_.tileGap) * 0.5f;
+		if (!data.valid || data.feature != FarmTileFeature::None ||
+			std::abs(position.x - data.center.x) > halfPitch || std::abs(position.z - data.center.z) > halfPitch) { continue; }
+		const auto surface = BuildFarmSoilSurface(grid, index, *this);
+		if (!surface.valid) { continue; }
+		for (int z = 0; z < 3; ++z) for (int x = 0; x < 3; ++x) {
+			const auto& a = surface.At(x, z);
+			const auto& d = surface.At(x + 1, z + 1);
+			const float u = (position.x - a.x) / (d.x - a.x);
+			const float v = (position.z - a.z) / (d.z - a.z);
+			if (u < 0.0f || v < 0.0f || u > 1.0f || v > 1.0f) { continue; }
+			const bool upper = u + v > 1.0f;
+			const auto slope = FarmSoilPatchSlope(surface, x, z, upper);
+			const auto& anchor = upper ? d : a;
+			const float result = anchor.y + slope.x * (position.x - anchor.x) + slope.y * (position.z - anchor.z);
+			if (!std::isfinite(result)) { return false; }
+			height = result;
+			return true;
+		}
+	}
+	return false;
+}
 namespace farm {
 namespace {
 constexpr float kRayEpsilon = 0.0001f;
 constexpr float kSelectionLift = 0.06f;
 constexpr float kSelectionMargin = 0.08f;
+constexpr float kWaterFootprintRatio = 0.62f;
+constexpr float kCropAnchorLift = 0.03f;
+
+bool IsFinite(const Vector3& value) noexcept {
+	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
 
 float SanitizeStrength(float value) noexcept
 {
@@ -122,16 +156,17 @@ bool HasVisibleCropBody(FarmCropGrowthStage stage) noexcept
 void DrawCropSilhouette(
 	LineDrawer& lineDrawer,
 	const FarmTile& tile,
-	const Vector3& center)
+	const FarmTileVisualData& visual)
 {
-	const FarmCropGrowthStage stage = GetCropGrowthStage(tile);
+	const FarmCropGrowthStage stage = visual.cropStage;
 	if (stage == FarmCropGrowthStage::None) {
 		return;
 	}
 
-	const float growth = std::clamp(tile.growth, 0.0f, 1.0f);
+	const Vector3& center = visual.center;
+	const float growth = SanitizeStrength(tile.growth);
 	const float stemHeight = 0.16f + growth * 0.68f;
-	const Vector3 stemBase = { center.x, center.y + 0.03f, center.z };
+	const Vector3 stemBase = visual.cropAnchor;
 	const Vector3 stemTop = { center.x, stemBase.y + stemHeight, center.z };
 	const Vector4 stemColor = tile.crop == CropType::Carrot
 		? Vector4{ 0.12f, 0.72f, 0.24f, 1.0f }
@@ -191,9 +226,14 @@ void DrawCropSilhouette(
 void FarmVisualSystem::Initialize(const FarmVisualLayout& layout) noexcept
 {
 	layout_ = layout;
-	layout_.tileSize = (std::max)(layout_.tileSize, 0.1f);
-	layout_.tileGap = (std::max)(layout_.tileGap, 0.0f);
-	layout_.heightStep = (std::max)(layout_.heightStep, 0.0f);
+	const FarmVisualLayout defaults;
+	if (!IsFinite(layout_.center)) { layout_.center = defaults.center; }
+	layout_.tileSize = std::isfinite(layout_.tileSize) ? (std::max)(layout_.tileSize, 0.1f) : defaults.tileSize;
+	layout_.tileGap = std::isfinite(layout_.tileGap) ? (std::max)(layout_.tileGap, 0.0f) : defaults.tileGap;
+	layout_.heightStep = std::isfinite(layout_.heightStep) ? (std::max)(layout_.heightStep, 0.0f) : defaults.heightStep;
+	layout_.waterBottomOffset = std::isfinite(layout_.waterBottomOffset) ? layout_.waterBottomOffset : defaults.waterBottomOffset;
+	layout_.waterMaxDepth = std::isfinite(layout_.waterMaxDepth)
+		? (std::max)(layout_.waterMaxDepth, 0.0f) : defaults.waterMaxDepth;
 }
 
 Vector3 FarmVisualSystem::GetTileCenter(const FarmGrid& grid, int tileIndex) const noexcept
@@ -215,6 +255,31 @@ Vector3 FarmVisualSystem::GetTileCenter(const FarmGrid& grid, int tileIndex) con
 	};
 }
 
+FarmTileVisualData FarmVisualSystem::GetTileVisualData(const FarmGrid& grid, int tileIndex) const noexcept
+{
+	const auto* tile = grid.GetTile(tileIndex);
+	if (!tile || !IsValidFarmTileFeature(tile->feature)) { return {}; }
+	FarmTileVisualData data;
+	data.center = GetTileCenter(grid, tileIndex);
+	data.halfExtent = layout_.tileSize * 0.5f;
+	data.feature = tile->feature;
+	data.cropAnchor = { data.center.x, data.center.y + kCropAnchorLift, data.center.z };
+	data.waterHalfExtent = data.halfExtent * kWaterFootprintRatio;
+	if (tile->feature == FarmTileFeature::None) {
+		data.soilWetness = SanitizeStrength(tile->moisture);
+		data.crop = tile->crop;
+		data.cropStage = GetCropGrowthStage(*tile);
+	} else {
+		data.waterFill = SanitizeStrength(tile->waterAmount);
+		data.showWaterSurface = data.waterFill > 0.0f;
+	}
+	data.waterSurfaceCenter = { data.center.x,
+		data.center.y + layout_.waterBottomOffset + layout_.waterMaxDepth * data.waterFill, data.center.z };
+	if (!IsFinite(data.center) || !IsFinite(data.cropAnchor) || !IsFinite(data.waterSurfaceCenter)) { return {}; }
+	data.valid = true;
+	return data;
+}
+
 bool FarmVisualSystem::TryPickTile(
 	const FarmGrid& grid,
 	const Vector3& rayOrigin,
@@ -222,14 +287,26 @@ bool FarmVisualSystem::TryPickTile(
 	int& outTileIndex) const noexcept
 {
 	outTileIndex = -1;
-	if (grid.GetTileCount() <= 0 || std::abs(rayDirection.y) <= kRayEpsilon) {
+	if (grid.GetTileCount() <= 0 || !IsFinite(rayOrigin) || !IsFinite(rayDirection) ||
+		(std::abs(rayDirection.x) <= kRayEpsilon && std::abs(rayDirection.y) <= kRayEpsilon && std::abs(rayDirection.z) <= kRayEpsilon)) {
 		return false;
 	}
 
 	float nearestDistance = 3.402823466e+38F;
-	const float halfExtent = layout_.tileSize * 0.5f;
+	const float halfExtent = (layout_.tileSize + layout_.tileGap) * 0.5f;
 	for (int index = 0; index < grid.GetTileCount(); ++index) {
-		const Vector3 center = GetTileCenter(grid, index);
+		const auto visual = GetTileVisualData(grid, index);
+		if (!visual.valid) { continue; }
+		if (visual.feature == FarmTileFeature::None) {
+			float distance = 0.0f;
+			if (TryPickFarmSoilSurface(BuildFarmSoilSurface(grid,index,*this),rayOrigin,rayDirection,distance) && distance < nearestDistance) {
+				nearestDistance = distance;
+				outTileIndex = index;
+			}
+			continue;
+		}
+		if (std::abs(rayDirection.y) <= kRayEpsilon) { continue; }
+		const Vector3 center = visual.center;
 		const float distance = (center.y - rayOrigin.y) / rayDirection.y;
 		if (!std::isfinite(distance) || distance < 0.0f || distance >= nearestDistance) {
 			continue;
@@ -253,7 +330,8 @@ void FarmVisualSystem::Draw(
 	const FarmIrrigationSystem& irrigationSystem,
 	const FarmToolActionResult& selectedAction,
 	LineDrawer& lineDrawer,
-	const std::vector<int>* irrigationPreviewChangedTiles) const
+	const std::vector<int>* irrigationPreviewChangedTiles,
+	bool debugGuides) const
 {
 	const float halfExtent = layout_.tileSize * 0.5f;
 	for (int index = 0; index < grid.GetTileCount(); ++index) {
@@ -262,21 +340,28 @@ void FarmVisualSystem::Draw(
 			continue;
 		}
 
-		const Vector3 center = GetTileCenter(grid, index);
+		const auto visual = GetTileVisualData(grid, index);
+		if (!visual.valid) { continue; }
+		const Vector3 center = visual.center;
 		const FarmWaterStatus waterStatus = irrigationSystem.GetWaterStatus(grid, index);
 		const Vector4 tileColor = GetTileColor(*tile, waterStatus);
+		if (debugGuides) {
 		DrawHorizontalRectangle(lineDrawer, center, halfExtent, tileColor);
+		if (visual.showWaterSurface) {
+			const Vector4 waterColor = { 0.20f, 0.78f, 0.96f, 1.0f };
+			DrawHorizontalRectangle(lineDrawer, visual.waterSurfaceCenter, visual.waterHalfExtent, waterColor);
+			for (int side = -1; side <= 1; side += 2) {
+				const float x = center.x + side * visual.waterHalfExtent;
+				lineDrawer.DrawLine({ x, center.y + layout_.waterBottomOffset, center.z },
+					{ x, visual.waterSurfaceCenter.y, center.z }, waterColor);
+			}
+		}
 		if (tile->feature == FarmTileFeature::Canal) {
 			Vector3 canalCenter = center;
-			canalCenter.y += 0.025f;
-			const float supplyStrength = SanitizeStrength(tile->waterAmount);
-			const bool supplied = supplyStrength > 0.0f;
+			canalCenter.y += layout_.waterBottomOffset;
 			const Vector4 flowColor = GetWaterStatusColor(waterStatus);
-			const float flowExtentScale = supplied
-				? 0.36f + 0.26f * supplyStrength
-				: 0.36f;
 			DrawHorizontalRectangle(
-				lineDrawer, canalCenter, halfExtent * flowExtentScale,
+				lineDrawer, canalCenter, visual.waterHalfExtent,
 				flowColor);
 			lineDrawer.DrawLine(
 				{ canalCenter.x - halfExtent * 0.45f, canalCenter.y, canalCenter.z },
@@ -329,9 +414,9 @@ void FarmVisualSystem::Draw(
 					8);
 			}
 		}
-		if (tile->feature == FarmTileFeature::None && tile->moisture > 0.05f) {
+		if (tile->feature == FarmTileFeature::None && visual.soilWetness > 0.05f) {
 			const Vector4 moistureColor = { 0.18f, 0.68f, 1.0f, 1.0f };
-			const float moistureExtent = halfExtent * std::clamp(tile->moisture, 0.15f, 0.85f);
+			const float moistureExtent = halfExtent * std::clamp(visual.soilWetness, 0.15f, 0.85f);
 			Vector3 moistureCenter = center;
 			moistureCenter.y += 0.03f;
 			lineDrawer.DrawLine(
@@ -340,8 +425,9 @@ void FarmVisualSystem::Draw(
 				moistureColor);
 		}
 
+		}
 		if (tile->feature == FarmTileFeature::None) {
-			DrawCropSilhouette(lineDrawer, *tile, center);
+			DrawCropSilhouette(lineDrawer, *tile, visual);
 		}
 
 		const bool irrigationPreviewChanged =

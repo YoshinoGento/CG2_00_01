@@ -17,6 +17,7 @@ struct FarmControllerActions {
 	bool confirmIrrigationPreview = false;
 	bool cancelIrrigationPreview = false;
 	bool restartFarm = false;
+	bool movePlayerToSelectedTile = false;
 };
 
 // Compact viewport companion. It reports actions and never mutates Farm state directly.

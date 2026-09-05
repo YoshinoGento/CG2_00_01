@@ -21,6 +21,7 @@ enum class FarmHUDNextAction : std::uint8_t {
 	Water,
 	Growing,
 	Harvest,
+	ReduceWater,
 };
 
 enum class FarmHUDFeedback : std::uint8_t {
@@ -44,6 +45,7 @@ enum class FarmHUDMoistureStatus : std::uint8_t {
 	Dry,
 	Low,
 	Good,
+	Excess,
 };
 
 struct FarmHUDViewData {
@@ -78,6 +80,7 @@ struct FarmHUDViewData {
 	int selectedTileIrrigationStrengthPercent = 0;
 	int selectedTileStoredWaterPercent = 0;
 	farm::FarmWaterStatus selectedTileWaterStatus = farm::FarmWaterStatus::None;
+	bool selectedTileReceivedIrrigation = false;
 	farm::FarmTileState selectedTileState = farm::FarmTileState::Empty;
 	farm::CropType selectedTileCrop = farm::CropType::None;
 	farm::FarmCropGrowthStage selectedTileGrowthStage = farm::FarmCropGrowthStage::None;
@@ -155,11 +158,12 @@ private:
 
 	std::array<Texture2DHandle, 4> currentToolTextureHandles_;
 	std::array<Texture2DHandle, 2> waterLabelTextureHandles_;
+	std::array<Texture2DHandle, 2> toolGuideTextureHandles_;
 	std::array<Texture2DHandle, 11> tileStateTextureHandles_;
 	std::array<Texture2DHandle, 3> cropTextureHandles_;
-	std::array<Texture2DHandle, 10> nextActionTextureHandles_;
-	std::array<Texture2DHandle, 3> moistureStatusTextureHandles_;
-	std::array<Texture2DHandle, 4> irrigationStatusTextureHandles_;
+	std::array<Texture2DHandle, 11> nextActionTextureHandles_;
+	std::array<Texture2DHandle, 4> moistureStatusTextureHandles_;
+	std::array<Texture2DHandle, 5> irrigationStatusTextureHandles_;
 	std::array<Texture2DHandle, 2> irrigationPreviewTextureHandles_;
 	std::array<Texture2DHandle, 13> feedbackTextureHandles_;
 

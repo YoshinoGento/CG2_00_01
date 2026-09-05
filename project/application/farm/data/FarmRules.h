@@ -10,6 +10,8 @@ struct FarmCropGrowthProfile {
 	float dryMoistureThreshold = 0.05f;
 	float moistureDecayPerSecond = 1.0f / 60.0f;
 	float goodMoistureMinimum = 0.20f;
+	float goodMoistureMaximum = 0.70f;
+	float saturatedGrowthMultiplier = 0.25f;
 };
 
 struct FarmRules {
@@ -27,6 +29,8 @@ struct FarmRules {
 		0.08f,
 		1.0f / 55.0f,
 		0.35f,
+		0.80f,
+		0.25f,
 	};
 	float maxMoisture = 1.0f;
 	float irrigationMoistureRecoveryPerSecond = 1.0f / 8.0f;
@@ -58,6 +62,7 @@ struct FarmRules {
 	float qualityHeightTolerance = 2.0f;
 	float minimumQualityPriceMultiplier = 0.50f;
 	float maximumQualityPriceMultiplier = 1.50f;
+	float wateringMoistureIncrement = 0.10f;
 };
 
 } // namespace farm

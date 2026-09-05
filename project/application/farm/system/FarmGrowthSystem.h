@@ -12,6 +12,7 @@ enum class FarmMoistureStatus {
 	Dry,
 	Low,
 	Good,
+	Excess,
 };
 
 struct FarmGrowthForecast {
@@ -20,6 +21,8 @@ struct FarmGrowthForecast {
 	farm::CropType profileCrop = farm::CropType::None;
 	FarmMoistureStatus moistureStatus = FarmMoistureStatus::Invalid;
 	float goodMoistureMinimum = 0.0f;
+	float goodMoistureMaximum = 0.0f;
+	float growthEfficiency = 0.0f;
 	float growthPerSecond = 0.0f;
 	float moistureDecayPerSecond = 0.0f;
 	float irrigationRecoveryPerSecond = 0.0f;
@@ -35,7 +38,8 @@ struct FarmGrowthForecast {
 class FarmGrowthSystem final {
 public:
 	void Initialize(const farm::FarmRules& rules = {}) noexcept;
-	void Update(
+	// Reports persistent tile changes, including repaired nonfinite values.
+	bool Update(
 		farm::FarmGrid& grid,
 		float deltaTime,
 		float timeScale) const;

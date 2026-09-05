@@ -92,6 +92,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.irrigationWaterSourceCount = 0;
 	output.irrigationSuppliedCanalCount = 0;
 	output.irrigationRangeTileCount = 0;
+	output.irrigationLastStep = {};
 	output.irrigationPreviewActive = false;
 	output.irrigationPreviewCanConfirm = false;
 	output.irrigationPreviewTileIndex = -1;
@@ -177,6 +178,8 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 		displayedIrrigation = previewIrrigation;
 	}
 	output.selectedFarmTileIndex = farmGrid_->GetSelectedIndex();
+	output.irrigationLastStep = displayedIrrigation->GetLastStep(*displayedGrid);
+	const auto irrigationFlows = displayedIrrigation->GetLastTileFlows(*displayedGrid);
 	output.farmGeneration = farmGrid_->GetGeneration();
 	output.farmDocumentDirty = farmDocumentSystem_->IsDirty();
 	output.farmDocumentExists = farmDocumentSystem_->FileExists();
@@ -215,6 +218,9 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 			destination.moisture = tile->moisture;
 			destination.storedWater = tile->waterAmount;
 			destination.waterStatus = displayedIrrigation->GetWaterStatus(*displayedGrid, index);
+			if (output.irrigationLastStep.valid && static_cast<std::size_t>(index) < irrigationFlows.size()) {
+				destination.irrigationFlow = irrigationFlows[static_cast<std::size_t>(index)];
+			}
 			destination.growth = tile->growth;
 			destination.irrigationInRange =
 				displayedIrrigation->IsInIrrigationRange(index);
@@ -271,6 +277,18 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 		*farmGrid_, output.currentFarmTool, selectedCrop,
 		&scene_->farmEconomySystem_);
 	output.farmPlaytest.money = scene_->farmEconomySystem_.GetMoney();
+	output.farmPlaytest.playerPosition = scene_->levelGameplay_.GetPlayerPosition();
+	output.farmPlaytest.playerGrounded = scene_->levelGameplay_.IsPlayerGrounded();
+	output.farmPlaytest.canPlacePlayer = scene_->levelGameplay_.HasPlayer() && scene_->levelGameplay_.HasGround() &&
+		!scene_->farmGameMode_ && !scene_->timelineScrubbing_ && !scene_->farmIrrigationPreviewSystem_.IsActive() &&
+		!scene_->farmProgressionSystem_.IsCleared();
+	output.farmPlaytest.playerMovementBlocked = scene_->levelGameplay_.WasPlayerMovementBlocked();
+	const auto& playerOffset = scene_->levelGameplay_.GetPlayerColliderCenterOffset();
+	const auto& playerHalf = scene_->levelGameplay_.GetPlayerColliderHalfExtents();
+	const auto& playerPosition = output.farmPlaytest.playerPosition;
+	output.farmPlaytest.playerGroundSample = farm::FarmTerrainQuerySystem::SampleGround(
+		*farmGrid_, scene_->farmVisualSystem_,
+		{playerPosition.x + playerOffset.x, playerPosition.y, playerPosition.z + playerOffset.z}, {playerHalf.x, playerHalf.z});
 	output.farmPlaytest.targetMoney = scene_->farmProgressionSystem_.GetTargetMoney();
 	output.farmPlaytest.remainingMoney = scene_->farmProgressionSystem_.GetRemainingMoney(
 		output.farmPlaytest.money);
@@ -305,6 +323,10 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 
 	output.visibility.selectedTarget = scene_->selectedTarget_;
 	output.visibility.showTerrain = scene_->showTerrain_;
+	output.visibility.showFarmMeshes = scene_->farmRenderer_.IsVisible();
+	output.visibility.farmMeshesReady = scene_->farmRenderer_.IsReady();
+	output.visibility.farmMeshLimitExceeded = scene_->farmRenderer_.IsLimitExceeded();
+	output.visibility.farmMeshPartCount = scene_->farmRenderer_.GetPartCount();
 	output.visibility.showSphere = scene_->showSphere_;
 	output.visibility.showPlane = scene_->showPlane_;
 	output.visibility.showSprite = scene_->showSprite_;
@@ -590,6 +612,8 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 	case GamePlayEditorCommandType::RestartFarmSession:
 		scene_->ResetFarmSession();
 		return true;
+	case GamePlayEditorCommandType::MovePlayerToSelectedFarmTile:
+		return command.farmTileIndex == farmGrid_->GetSelectedIndex() && scene_->MovePlayerToFarmTile(command.farmTileIndex);
 	default:
 		return false;
 	}
@@ -648,6 +672,7 @@ bool GamePlayEditorBridge::Execute(const VisibilityEditorCommand& command) {
 	}
 	scene_->selectedTarget_ = std::clamp(command.value.selectedTarget, 0, 4);
 	scene_->showTerrain_ = command.value.showTerrain;
+	scene_->farmRenderer_.SetVisible(command.value.showFarmMeshes);
 	scene_->showSphere_ = command.value.showSphere;
 	scene_->showPlane_ = command.value.showPlane;
 	scene_->showSprite_ = command.value.showSprite;

@@ -17,7 +17,7 @@
 #endif
 
 namespace {
-constexpr int kFarmWorkspaceLayoutVersion = 6;
+constexpr int kFarmWorkspaceLayoutVersion = 7;
 }
 
 EditorShell::EditorShell() = default;
@@ -41,7 +41,7 @@ void EditorShell::Initialize() {
 	cameraControlWindow_.SetOpen(false);
 	objectInspectorWindow_.SetOpen(false);
 	particleEffectWindow_.SetOpen(false);
-	showPostEffectDebugWindow_ = true;
+	showPostEffectDebugWindow_ = false;
 #endif
 }
 
@@ -64,22 +64,31 @@ void EditorShell::Draw(
 	PostEffectSystem* postEffectSystem) {
 #ifdef USE_IMGUI
 	DrawMainMenuBar();
+	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(currentScene);
+	if (playScene) {
+		playScene->GetEditorBridge().BuildViewModel(gamePlayEditorViewModel_);
+		HandleFarmDocumentShortcut(*playScene);
+		if (!playScene->IsFarmGameMode()) { HandleFarmHistoryShortcuts(*playScene); }
+		DrawFarmToolbar(*playScene);
+	}
+	const bool gameMode = playScene && playScene->IsFarmGameMode();
 	const ImGuiID dockspaceId = ImGui::GetID("FarmEditorDockSpace");
-	if (rebuildLayoutRequested_) {
+	if (rebuildLayoutRequested_ && !gameMode) {
 		BuildDefaultFarmLayout(dockspaceId);
 	}
-	ImGui::DockSpaceOverViewport(
-		dockspaceId,
-		ImGui::GetMainViewport(),
-		ImGuiDockNodeFlags_None);
+	if (gameMode) {
+		// Keep the development layout alive without an opaque fullscreen host.
+		ImGui::DockSpace(dockspaceId, ImVec2(0, 0), ImGuiDockNodeFlags_KeepAliveOnly);
+	} else {
+		ImGui::DockSpaceOverViewport(dockspaceId, ImGui::GetMainViewport());
+	}
 	DrawEditorSettingsWindow();
-	DrawConsole();
+	if (!gameMode) { DrawConsole(); }
 
-	if (showEngineDebugWindow_ && engineDebugWindowManager_ && input) {
+	if (!gameMode && showEngineDebugWindow_ && engineDebugWindowManager_ && input) {
 		engineDebugWindowManager_->Draw(*input);
 	}
 
-	GamePlayScene* playScene = dynamic_cast<GamePlayScene*>(currentScene);
 	if (playScene) {
 		playScene->GetEditorBridge().SetViewportState({}, {}, {}, false, false);
 	}
@@ -92,7 +101,7 @@ void EditorShell::Draw(
 				static_cast<float>(WinApp::kClientWidth),
 				static_cast<float>(WinApp::kClientHeight),
 			},
-			editorSettings_.GetLanguage());
+			editorSettings_.GetLanguage(), gameMode);
 	}
 
 	if (!playScene) {
@@ -109,8 +118,6 @@ void EditorShell::Draw(
 		viewportState.hovered,
 		viewportState.focused);
 	bridge.BuildViewModel(gamePlayEditorViewModel_);
-	HandleFarmDocumentShortcut(*playScene);
-	HandleFarmHistoryShortcuts(*playScene);
 	if (viewportState.leftClicked) {
 		editor::GamePlayEditorCommand selectCommand;
 		selectCommand.type = editor::GamePlayEditorCommandType::SelectFarmTileAtViewport;
@@ -132,7 +139,7 @@ void EditorShell::Draw(
 		gamePlayEditorViewModel_.farmGeneration,
 		static_cast<int>(gamePlayEditorViewModel_.farmTiles.size()));
 
-	DrawFarmToolbar(*playScene);
+	if (gameMode) { return; }
 	DrawFarmHierarchy(*playScene);
 	DrawFarmController(*playScene);
 	DrawFarmHistory(*playScene);
@@ -389,8 +396,11 @@ void EditorShell::DrawFarmToolbar(GamePlayScene& playScene) {
 	editor::GamePlayEditorBridge& bridge = playScene.GetEditorBridge();
 	const FarmToolbarActions actions = farmToolbarWindow_.Draw(
 		gamePlayEditorViewModel_,
-		editorSettings_.GetLanguage());
+		editorSettings_.GetLanguage(), playScene.IsFarmGameMode());
 	bool changed = false;
+	if (actions.gameMode.has_value()) {
+		changed |= playScene.SetFarmGameMode(*actions.gameMode);
+	}
 	if (actions.newDocument || actions.loadDocumentId.has_value() ||
 		actions.saveDocument || actions.saveAsName.has_value() ||
 		actions.renameDocument.has_value() || actions.deleteDocumentId.has_value()) {
@@ -641,6 +651,13 @@ void EditorShell::DrawFarmController(GamePlayScene& playScene) {
 		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
 		changed |= bridge.Execute(command);
 	}
+	if (actions.movePlayerToSelectedTile) {
+		editor::GamePlayEditorCommand command;
+		command.type = editor::GamePlayEditorCommandType::MovePlayerToSelectedFarmTile;
+		command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
+		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
+		changed |= bridge.Execute(command);
+	}
 	if (changed) {
 		bridge.BuildViewModel(gamePlayEditorViewModel_);
 	}
@@ -709,20 +726,13 @@ void EditorShell::BuildDefaultFarmLayout(unsigned int dockspaceId) {
 	ImGui::DockBuilderSetNodePos(dockspaceId, viewport->WorkPos);
 	ImGui::DockBuilderSetNodeSize(dockspaceId, viewport->WorkSize);
 
-	ImGuiID toolbarNode = 0;
-	ImGuiID bodyNode = 0;
-	ImGui::DockBuilderSplitNode(
-		dockspaceId,
-		ImGuiDir_Up,
-		0.055f,
-		&toolbarNode,
-		&bodyNode);
+	const ImGuiID bodyNode = dockspaceId;
 	ImGuiID historyNode = 0;
 	ImGuiID mainNode = 0;
 	ImGui::DockBuilderSplitNode(
 		bodyNode,
 		ImGuiDir_Down,
-		0.20f,
+		0.15f,
 		&historyNode,
 		&mainNode);
 	ImGuiID hierarchyNode = 0;
@@ -742,10 +752,6 @@ void EditorShell::BuildDefaultFarmLayout(unsigned int dockspaceId) {
 		&inspectorNode,
 		&viewportNode);
 
-	if (ImGuiDockNode* node = ImGui::DockBuilderGetNode(toolbarNode)) {
-		node->LocalFlags |= ImGuiDockNodeFlags_NoTabBar | ImGuiDockNodeFlags_NoResizeY;
-	}
-	ImGui::DockBuilderDockWindow("FarmToolbar", toolbarNode);
 	ImGui::DockBuilderDockWindow("FarmMap", hierarchyNode);
 	ImGui::DockBuilderDockWindow("FarmHierarchy", hierarchyNode);
 	ImGui::DockBuilderDockWindow("GameViewport", viewportNode);

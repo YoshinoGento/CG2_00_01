@@ -33,6 +33,8 @@ struct FarmToolActionResult {
 	int tileIndex = -1;
 	int reward = 0;
 	FarmCropQualityResult harvestQuality{};
+	float moistureBefore = 0.0f;
+	float moistureAfter = 0.0f;
 
 	[[nodiscard]] bool Succeeded() const noexcept {
 		return status == FarmToolActionStatus::Applied ||
@@ -89,4 +91,5 @@ private:
 		int plantedQuantity = 0);
 	CommandHistory history_{ 128 };
 	FarmCropQualitySystem cropQualitySystem_{};
+	float wateringMoistureIncrement_ = farm::FarmRules{}.wateringMoistureIncrement;
 };
