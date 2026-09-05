@@ -25,6 +25,22 @@ enum class CropType {
 	Carrot,
 };
 
+// Availability now, not a measurement of water delivered during the previous step.
+enum class FarmWaterStatus : std::uint8_t {
+	None, Available, Retained, Waiting, Dry,
+};
+
+inline const char* ToString(FarmWaterStatus status) noexcept
+{
+	switch (status) {
+	case FarmWaterStatus::Available: return "Water available";
+	case FarmWaterStatus::Retained: return "Retained water";
+	case FarmWaterStatus::Waiting: return "Waiting for water";
+	case FarmWaterStatus::Dry: return "Water depleted";
+	default: return "No irrigation access";
+	}
+}
+
 enum class FarmCropGrowthStage : std::uint8_t {
 	None,
 	Sprout,
@@ -75,6 +91,8 @@ struct FarmTile {
 	CropType crop = CropType::None;
 	float moisture = 0.0f;
 	float growth = 0.0f;
+	// Reservoir capacity is one; soil moisture is stored separately.
+	float waterAmount = 0.0f;
 };
 
 inline bool IsValidFarmTileFeature(FarmTileFeature feature) noexcept

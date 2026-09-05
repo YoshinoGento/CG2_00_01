@@ -21,6 +21,14 @@ float SanitizeStrength(float value, float fallback) noexcept
 void FarmIrrigationSystem::Initialize(const FarmRules& rules) noexcept
 {
 	const FarmRules defaults{};
+	auto rate = [](float value, float fallback) {
+		return std::isfinite(value) && value >= 0.0f ? value : fallback;
+	};
+	refillPerSecond_ = rate(rules.irrigationSourceRefillPerSecond, defaults.irrigationSourceRefillPerSecond);
+	transferPerSecond_ = rate(rules.irrigationWaterTransferPerSecond, defaults.irrigationWaterTransferPerSecond);
+	recoveryPerSecond_ = rate(rules.irrigationMoistureRecoveryPerSecond, defaults.irrigationMoistureRecoveryPerSecond);
+	maxDeltaTime_ = std::isfinite(rules.maxUpdateDeltaTime) && rules.maxUpdateDeltaTime > 0.0f
+		? rules.maxUpdateDeltaTime : defaults.maxUpdateDeltaTime;
 	supplied_.clear();
 	irrigationRange_.clear();
 	supplyStrengths_.clear();
@@ -193,6 +201,135 @@ void FarmIrrigationSystem::Rebuild(const FarmGrid& grid)
 			++irrigationRangeTileCount_;
 		}
 	}
+}
+
+int FarmIrrigationSystem::FindWetCanal(const FarmGrid& grid, int tileIndex) const noexcept
+{
+	const FarmTile* soil = grid.GetTile(tileIndex);
+	if (!soil || soil->feature != FarmTileFeature::None || grid.GetWidth() <= 0) { return -1; }
+	int best = -1;
+	float bestStrength = 0.0f;
+	for (std::size_t direction = 0; direction < kNeighborX.size(); ++direction) {
+		const int x = tileIndex % grid.GetWidth() + kNeighborX[direction];
+		const int y = tileIndex / grid.GetWidth() + kNeighborY[direction];
+		if (x < 0 || x >= grid.GetWidth() || y < 0 || y >= grid.GetHeight()) { continue; }
+		const int index = y * grid.GetWidth() + x;
+		const FarmTile* canal = grid.GetTile(index);
+		if (!canal || canal->feature != FarmTileFeature::Canal ||
+			canal->heightLevel < soil->heightLevel || !std::isfinite(canal->waterAmount) ||
+			canal->waterAmount <= 0.0f || canal->waterAmount > 1.0f) { continue; }
+		const float strength = IsSupplied(index) ? GetSupplyStrength(index) : canalTransferEfficiency_;
+		if (strength > bestStrength) { best = index; bestStrength = strength; }
+	}
+	return best;
+}
+
+float FarmIrrigationSystem::GetAvailableIrrigationStrength(const FarmGrid& grid, int tileIndex) const noexcept
+{
+	const int canal = FindWetCanal(grid, tileIndex);
+	return canal < 0 ? 0.0f : (IsSupplied(canal) ? GetSupplyStrength(canal) : canalTransferEfficiency_);
+}
+
+FarmWaterStatus FarmIrrigationSystem::GetWaterStatus(const FarmGrid& grid, int tileIndex) const noexcept
+{
+	const FarmTile* tile = grid.GetTile(tileIndex);
+	if (!tile || !IsValidFarmTileFeature(tile->feature) || grid.GetWidth() <= 0) {
+		return FarmWaterStatus::None;
+	}
+	if (tile->feature != FarmTileFeature::None) {
+		if (!std::isfinite(tile->waterAmount) || tile->waterAmount < 0.0f || tile->waterAmount > 1.0f) {
+			return FarmWaterStatus::None;
+		}
+		const bool connected = tile->feature == FarmTileFeature::WaterSource || IsSupplied(tileIndex);
+		if (tile->waterAmount > 0.0f) {
+			return connected ? FarmWaterStatus::Available : FarmWaterStatus::Retained;
+		}
+		return connected ? FarmWaterStatus::Waiting : FarmWaterStatus::Dry;
+	}
+	const int wetCanal = FindWetCanal(grid, tileIndex);
+	if (wetCanal >= 0) {
+		return IsSupplied(wetCanal) ? FarmWaterStatus::Available : FarmWaterStatus::Retained;
+	}
+	FarmWaterStatus result = FarmWaterStatus::None;
+	for (std::size_t direction = 0; direction < kNeighborX.size(); ++direction) {
+		const int x = tileIndex % grid.GetWidth() + kNeighborX[direction];
+		const int y = tileIndex / grid.GetWidth() + kNeighborY[direction];
+		if (x < 0 || x >= grid.GetWidth() || y < 0 || y >= grid.GetHeight()) { continue; }
+		const int index = y * grid.GetWidth() + x;
+		const FarmTile* canal = grid.GetTile(index);
+		if (!canal || canal->feature != FarmTileFeature::Canal || canal->heightLevel < tile->heightLevel ||
+			!std::isfinite(canal->waterAmount) || canal->waterAmount != 0.0f) { continue; }
+		if (IsSupplied(index)) { return FarmWaterStatus::Waiting; }
+		result = FarmWaterStatus::Dry;
+	}
+	return result;
+}
+
+bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float timeScale)
+{
+	if (!std::isfinite(deltaTime) || !std::isfinite(timeScale) || deltaTime <= 0.0f || timeScale <= 0.0f) { return false; }
+	bool changed = false;
+	const double dt = static_cast<double>((std::min)(deltaTime, maxDeltaTime_)) * timeScale;
+	Rebuild(grid);
+	const int count = grid.GetTileCount();
+	const auto size = static_cast<std::size_t>(count);
+	waterBefore_.resize(size);
+	waterDelta_.assign(size, 0.0f);
+	soilDemand_.assign(size, 0.0f);
+	canalDemand_.assign(size, 0.0f);
+	soilCanals_.assign(size, -1);
+	for (int i = 0; i < count; ++i) {
+		auto& tile = *grid.GetMutableTile(i);
+		const float oldWater = tile.waterAmount;
+		tile.waterAmount = tile.feature == FarmTileFeature::None ? 0.0f : SanitizeStrength(tile.waterAmount, 0.0f);
+		if (tile.feature == FarmTileFeature::WaterSource) {
+			tile.waterAmount = static_cast<float>((std::min)(1.0, tile.waterAmount + refillPerSecond_ * dt));
+		}
+		waterBefore_[i] = tile.waterAmount;
+		changed |= oldWater != tile.waterAmount;
+	}
+	// All transfers read the same snapshot. Incoming water cannot travel twice in this step.
+	for (int child : traversalQueue_) {
+		const int parent = GetUpstreamTileIndex(child);
+		if (parent < 0 || parent >= count) { continue; }
+		const int branches = (std::max)(1, GetDownstreamCanalCount(parent));
+		const float budget = static_cast<float>((std::min)(static_cast<double>(waterBefore_[parent]), transferPerSecond_ * dt));
+		const float amount = (std::min)(budget / branches, 1.0f - waterBefore_[child]);
+		changed |= amount > 0.0f;
+		waterDelta_[parent] -= amount;
+		waterDelta_[child] += amount;
+	}
+	for (int i = 0; i < count; ++i) {
+		grid.GetMutableTile(i)->waterAmount = std::clamp(waterBefore_[i] + waterDelta_[i], 0.0f, 1.0f);
+		waterBefore_[i] = grid.GetTile(i)->waterAmount;
+	}
+	// Soil demands share a canal's finite stock proportionally, independently of tile iteration order.
+	for (int i = 0; i < count; ++i) {
+		const auto& tile = *grid.GetTile(i);
+		if (tile.feature != FarmTileFeature::None || tile.state == FarmTileState::Empty ||
+			!std::isfinite(tile.moisture) || tile.moisture < 0.0f || tile.moisture > 1.0f) { continue; }
+		const int canal = FindWetCanal(grid, i);
+		if (canal < 0) { continue; }
+		const float strength = IsSupplied(canal) ? GetSupplyStrength(canal) : canalTransferEfficiency_;
+		const float demand = static_cast<float>((std::min)(
+			static_cast<double>(1.0f - std::clamp(tile.moisture, 0.0f, 1.0f)), recoveryPerSecond_ * strength * dt));
+		soilCanals_[i] = canal;
+		soilDemand_[i] = demand;
+		canalDemand_[canal] += demand;
+	}
+	for (int i = 0; i < count; ++i) {
+		const int canal = soilCanals_[i];
+		if (canal < 0 || canalDemand_[canal] <= 0.0f) { continue; }
+		const float ratio = (std::min)(1.0f, waterBefore_[canal] / canalDemand_[canal]);
+		const float delivered = soilDemand_[i] * ratio;
+		changed |= delivered > 0.0f;
+		auto& soil = *grid.GetMutableTile(i);
+		soil.moisture = std::clamp(soil.moisture + delivered, 0.0f, 1.0f);
+	}
+	for (int i = 0; i < count; ++i) {
+		grid.GetMutableTile(i)->waterAmount = (std::max)(0.0f, waterBefore_[i] - canalDemand_[i]);
+	}
+	return changed;
 }
 
 bool FarmIrrigationSystem::IsSupplied(int tileIndex) const noexcept

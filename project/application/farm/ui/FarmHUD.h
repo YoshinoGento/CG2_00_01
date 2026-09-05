@@ -65,6 +65,8 @@ struct FarmHUDViewData {
 	float timeScale = 1.0f;
 	bool goalCleared = false;
 	bool irrigationPreviewActive = false;
+	bool irrigationPreviewRemoval = false;
+	int irrigationPreviewChangeCount = 0;
 	bool selectedTileValid = false;
 	int selectedTileIndex = -1;
 	int selectedTileHeight = 0;
@@ -74,6 +76,8 @@ struct FarmHUDViewData {
 	bool selectedTileIrrigationSupplied = false;
 	bool selectedTileIrrigationActive = false;
 	int selectedTileIrrigationStrengthPercent = 0;
+	int selectedTileStoredWaterPercent = 0;
+	farm::FarmWaterStatus selectedTileWaterStatus = farm::FarmWaterStatus::None;
 	farm::FarmTileState selectedTileState = farm::FarmTileState::Empty;
 	farm::CropType selectedTileCrop = farm::CropType::None;
 	farm::FarmCropGrowthStage selectedTileGrowthStage = farm::FarmCropGrowthStage::None;
@@ -109,6 +113,7 @@ private:
 	void UpdateCropCountText();
 	void UpdateTimeScaleText();
 	void UpdateGoalText();
+	void UpdateIrrigationPreviewText();
 	void UpdateSelectedTileText();
 	void UpdateLocalizedSelections();
 	void UpdateFeedbackDetails();
@@ -149,12 +154,13 @@ private:
 	Sprite localizedFeedbackCrop_;
 
 	std::array<Texture2DHandle, 4> currentToolTextureHandles_;
+	std::array<Texture2DHandle, 2> waterLabelTextureHandles_;
 	std::array<Texture2DHandle, 11> tileStateTextureHandles_;
 	std::array<Texture2DHandle, 3> cropTextureHandles_;
 	std::array<Texture2DHandle, 10> nextActionTextureHandles_;
 	std::array<Texture2DHandle, 3> moistureStatusTextureHandles_;
-	std::array<Texture2DHandle, 1> irrigationStatusTextureHandles_;
-	std::array<Texture2DHandle, 1> irrigationPreviewTextureHandles_;
+	std::array<Texture2DHandle, 4> irrigationStatusTextureHandles_;
+	std::array<Texture2DHandle, 2> irrigationPreviewTextureHandles_;
 	std::array<Texture2DHandle, 13> feedbackTextureHandles_;
 
 	SpriteText dayText_;
@@ -167,6 +173,7 @@ private:
 	SpriteText goalText_;
 	SpriteText goalNeedText_;
 	SpriteText saleText_;
+	SpriteText irrigationPreviewCountText_;
 	SpriteText selectedTileTitleText_;
 	SpriteText selectedTileMetricsText_;
 	SpriteText selectedTileGrowthText_;

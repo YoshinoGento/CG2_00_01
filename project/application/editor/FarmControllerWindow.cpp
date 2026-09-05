@@ -485,12 +485,31 @@ FarmControllerActions FarmControllerWindow::Draw(
 		viewModel.irrigationRangeTileCount);
 	if (viewModel.irrigationPreviewActive) {
 		ImGui::SeparatorText(text("Irrigation Preview"));
+		if (viewModel.irrigationPathIssue == farm::FarmCanalPathIssue::NonStraight) {
+			ImGui::TextWrapped("%s", text("Move along one row or column; turn at a tile"));
+		} else if (viewModel.irrigationPathIssue == farm::FarmCanalPathIssue::BlockedTile) {
+			ImGui::TextWrapped(text("Canal path blocked at tile #%d"), viewModel.irrigationBlockedTileIndex);
+		}
+		ImGui::TextWrapped("%s", text("Farm time paused during preview"));
+		const bool canalRemovalPreview = viewModel.irrigationPreviewOperation ==
+			farm::FarmIrrigationPreviewOperation::RemoveCanalPath;
+		const bool canalPathPreview = canalRemovalPreview ||
+			viewModel.irrigationPreviewOperation ==
+				farm::FarmIrrigationPreviewOperation::PlaceCanalPath;
 		const bool terrainPreview =
 			viewModel.irrigationPreviewOperation ==
 				farm::FarmIrrigationPreviewOperation::RaiseTerrain ||
 			viewModel.irrigationPreviewOperation ==
 				farm::FarmIrrigationPreviewOperation::LowerTerrain;
-		if (terrainPreview) {
+		if (canalPathPreview) {
+			ImGui::TextColored(
+				ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
+				text(canalRemovalPreview ? "Canal removal: %d tiles" : "Canal path: %d tiles"),
+				viewModel.irrigationPreviewChangeCount);
+			ImGui::TextWrapped(
+				"%s",
+				text("Release the mouse, inspect the result, then confirm"));
+		} else if (terrainPreview) {
 			ImGui::TextColored(
 				ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
 				text("Tile #%d: H%d -> H%d"),
@@ -574,6 +593,11 @@ FarmControllerActions FarmControllerWindow::Draw(
 			text("Feature: %s"),
 			text(farm::ToString(tile->feature)));
 		if (tile->feature != farm::FarmTileFeature::None) {
+			char waterOverlay[64]{};
+			std::snprintf(waterOverlay, sizeof(waterOverlay), text("Stored water: %.0f%%"),
+				std::clamp(tile->storedWater, 0.0f, 1.0f) * 100.0f);
+			ImGui::ProgressBar(std::clamp(tile->storedWater, 0.0f, 1.0f), ImVec2(-1.0f, 0.0f), waterOverlay);
+			ImGui::TextWrapped("%s", text("Stored water remains after disconnection; removal discards it."));
 			const float supplyStrength =
 				std::clamp(tile->irrigationSupplyStrength, 0.0f, 1.0f);
 			char supplyOverlay[64]{};
@@ -633,6 +657,8 @@ FarmControllerActions FarmControllerWindow::Draw(
 		}
 
 		ImGui::SeparatorText(text("Crop Status"));
+		ImGui::Text("%s", text(farm::ToString(tile->waterStatus)));
+		ImGui::TextWrapped("%s", text("Availability is not measured delivery. Soil receives water only after cultivation."));
 		const float moisture = std::clamp(tile->moisture, 0.0f, 1.0f);
 		const float growth = std::clamp(tile->growth, 0.0f, 1.0f);
 		ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.25f, 0.60f, 0.95f, 1.0f));
@@ -652,6 +678,7 @@ FarmControllerActions FarmControllerWindow::Draw(
 				GetStateLabel(*tile, language));
 		}
 		if (forecast.moistureValid) {
+			ImGui::TextWrapped("%s", text("Recovery forecast is an upper bound while water remains; sharing reduces it."));
 			ImGui::Text(
 				text("Growth profile: %s"),
 				text(farm::ToString(forecast.profileCrop)));
@@ -666,7 +693,7 @@ FarmControllerActions FarmControllerWindow::Draw(
 				ImGui::TextColored(
 					ImVec4(0.20f, 0.88f, 1.0f, 1.0f),
 					"%s",
-					text("Irrigation active"));
+					text(farm::ToString(tile->waterStatus)));
 				ImGui::Text(
 					text("Irrigation recovery: %.1f%% / sec"),
 					forecast.irrigationRecoveryPerSecond * 100.0f);

@@ -1,7 +1,6 @@
 #include "farm/system/FarmGrowthSystem.h"
 
 #include "farm/core/FarmGrid.h"
-#include "farm/system/FarmIrrigationSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -94,7 +93,6 @@ void FarmGrowthSystem::Initialize(const farm::FarmRules& rules) noexcept
 
 void FarmGrowthSystem::Update(
 	farm::FarmGrid& grid,
-	const farm::FarmIrrigationSystem& irrigationSystem,
 	float deltaTime,
 	float timeScale) const
 {
@@ -116,18 +114,6 @@ void FarmGrowthSystem::Update(
 
 		tile->moisture = SanitizeTileValue(tile->moisture);
 		tile->growth = SanitizeTileValue(tile->growth);
-		const float irrigationStrength = std::clamp(
-			irrigationSystem.GetIrrigationStrength(tileIndex),
-			kNormalizedMinimum,
-			kNormalizedMaximum);
-		if (IsCultivated(*tile) && irrigationStrength > 0.0f) {
-			tile->moisture = std::clamp(
-				tile->moisture +
-					rules_.irrigationMoistureRecoveryPerSecond *
-						irrigationStrength * scaledDeltaTime,
-				kNormalizedMinimum,
-				kNormalizedMaximum);
-		}
 		if (tile->state != farm::FarmTileState::Planted ||
 			tile->crop == farm::CropType::None || farm::IsHarvestReady(*tile)) {
 			continue;

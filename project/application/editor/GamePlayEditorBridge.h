@@ -47,6 +47,8 @@ struct FarmTileEditorViewData {
 	bool irrigationSupplied = false;
 	bool irrigationInRange = false;
 	float irrigationSupplyStrength = 0.0f;
+	float storedWater = 0.0f;
+	farm::FarmWaterStatus waterStatus = farm::FarmWaterStatus::None;
 	float irrigationStrength = 0.0f;
 	int irrigationDownstreamCanalCount = 0;
 	int irrigationSupplierTileIndex = -1;
@@ -220,6 +222,9 @@ struct GamePlayEditorViewModel {
 	farm::FarmTileFeature irrigationPreviewCandidateFeature = farm::FarmTileFeature::None;
 	int irrigationPreviewOriginalHeightLevel = 0;
 	int irrigationPreviewCandidateHeightLevel = 0;
+	int irrigationPreviewChangeCount = 0;
+	farm::FarmCanalPathIssue irrigationPathIssue = farm::FarmCanalPathIssue::None;
+	int irrigationBlockedTileIndex = -1;
 	int irrigationPreviewWaterSourceCount = 0;
 	int irrigationPreviewSuppliedCanalCount = 0;
 	int irrigationPreviewRangeTileCount = 0;
@@ -274,6 +279,9 @@ enum class GamePlayEditorCommandType {
 	BeginFarmWaterSourcePreview,
 	BeginFarmRaiseTerrainPreview,
 	BeginFarmLowerTerrainPreview,
+	BeginFarmCanalPathPreview,
+	BeginFarmCanalRemovalPathPreview,
+	AppendFarmCanalPathPreview,
 	ConfirmFarmIrrigationPreview,
 	CancelFarmIrrigationPreview,
 	UndoFarmEdit,

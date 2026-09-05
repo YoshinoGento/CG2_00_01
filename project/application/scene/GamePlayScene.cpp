@@ -191,10 +191,12 @@ struct SelectedTileHUDData {
 	int index = -1;
 	int height = 0;
 	int moisturePercent = 0;
+	int storedWaterPercent = 0;
 	int growthPercent = 0;
 	farm::FarmTileFeature feature = farm::FarmTileFeature::None;
 	bool irrigationSupplied = false;
 	bool irrigationActive = false;
+	farm::FarmWaterStatus waterStatus = farm::FarmWaterStatus::None;
 	int irrigationStrengthPercent = 0;
 	farm::FarmTileState state = farm::FarmTileState::Empty;
 	farm::CropType crop = farm::CropType::None;
@@ -244,7 +246,10 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 	data.moisturePercent = moisturePercent;
 	data.growthPercent = growthPercent;
 	data.feature = selectedTile->feature;
+	data.storedWaterPercent = std::isfinite(selectedTile->waterAmount)
+		? static_cast<int>(std::clamp(selectedTile->waterAmount, 0.0f, 1.0f) * 100.0f + 0.5f) : 0;
 	data.irrigationSupplied = irrigationSystem.IsSupplied(data.index);
+	data.waterStatus = irrigationSystem.GetWaterStatus(grid, data.index);
 	const float irrigationStrength =
 		selectedTile->feature == farm::FarmTileFeature::None
 		? irrigationSystem.GetIrrigationStrength(data.index)
@@ -266,7 +271,7 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 		*selectedTile,
 		selectedSeedCrop,
 		timeScale,
-		irrigationSystem.GetIrrigationStrength(data.index));
+		irrigationSystem.GetAvailableIrrigationStrength(grid, data.index));
 	data.moistureStatus = ToHUDMoistureStatus(forecast.moistureStatus);
 	data.irrigationActive = forecast.irrigationActive;
 	if (selectedTile->state == farm::FarmTileState::Empty) {
@@ -796,10 +801,12 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 	}
 
 	levelRouteTimer_ += fixedDeltaTime;
-	if (!farmProgressionSystem_.IsCleared()) {
+	if (!farmProgressionSystem_.IsCleared() && !farmIrrigationPreviewSystem_.IsActive()) {
+		if (farmIrrigationSystem_.UpdateWater(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale())) {
+			farmDocumentSystem_.MarkDirty();
+		}
 		farmGrowthSystem_.Update(
 			farmGrid_,
-			farmIrrigationSystem_,
 			fixedDeltaTime,
 			farmDateSystem_.GetTimeScale());
 		farmDateSystem_.Update(fixedDeltaTime);
@@ -1533,7 +1540,9 @@ void GamePlayScene::Draw() {
 			displayedFarmGrid, farmToolSystem_.GetCurrentTool(),
 			farmCropSelectionSystem_.GetSelectedCrop(), &farmEconomySystem_),
 		*LineDrawer::GetInstance(),
-		irrigationPreviewActive);
+		irrigationPreviewActive
+			? &farmIrrigationPreviewSystem_.GetChangedTileIndices()
+			: nullptr);
 
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction &&
 		interactionBrushOperation_ != InteractionBrushOperation::None) {
@@ -1640,6 +1649,10 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	const farm::FarmIrrigationSystem* previewIrrigation =
 		farmIrrigationPreviewSystem_.GetPreviewIrrigation();
 	viewData.irrigationPreviewActive = previewGrid != nullptr && previewIrrigation != nullptr;
+	viewData.irrigationPreviewRemoval = farmIrrigationPreviewSystem_.GetOperation() ==
+		farm::FarmIrrigationPreviewOperation::RemoveCanalPath;
+	viewData.irrigationPreviewChangeCount = static_cast<int>(
+		farmIrrigationPreviewSystem_.GetChangeCount());
 	const farm::FarmGrid& displayedFarmGrid = viewData.irrigationPreviewActive
 		? *previewGrid : farmGrid_;
 	const farm::FarmIrrigationSystem& displayedIrrigation = viewData.irrigationPreviewActive
@@ -1677,10 +1690,12 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.selectedTileIndex = selectedTileData.index;
 	viewData.selectedTileHeight = selectedTileData.height;
 	viewData.selectedTileMoisturePercent = selectedTileData.moisturePercent;
+	viewData.selectedTileStoredWaterPercent = selectedTileData.storedWaterPercent;
 	viewData.selectedTileGrowthPercent = selectedTileData.growthPercent;
 	viewData.selectedTileFeature = selectedTileData.feature;
 	viewData.selectedTileIrrigationSupplied = selectedTileData.irrigationSupplied;
 	viewData.selectedTileIrrigationActive = selectedTileData.irrigationActive;
+	viewData.selectedTileWaterStatus = selectedTileData.waterStatus;
 	viewData.selectedTileIrrigationStrengthPercent =
 		selectedTileData.irrigationStrengthPercent;
 	viewData.selectedTileState = selectedTileData.state;

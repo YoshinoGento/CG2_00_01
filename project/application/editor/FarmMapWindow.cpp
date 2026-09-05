@@ -1,7 +1,7 @@
 #include "editor/FarmMapWindow.h"
 
 #ifdef USE_IMGUI
-#include "base/ImGuiManager.h"
+#include "externals/imgui/imgui.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -13,6 +13,8 @@ enum class FarmMapVisualState {
 	Empty,
 	CanalDry,
 	CanalSupplied,
+	CanalRetained,
+	CanalWaiting,
 	WaterSource,
 	Tilled,
 	Watered,
@@ -22,9 +24,12 @@ enum class FarmMapVisualState {
 
 FarmMapVisualState GetVisualState(const editor::FarmTileEditorViewData& tile) noexcept {
 	if (tile.feature == farm::FarmTileFeature::Canal) {
-		return tile.irrigationSupplied
-			? FarmMapVisualState::CanalSupplied
-			: FarmMapVisualState::CanalDry;
+		switch (tile.waterStatus) {
+		case farm::FarmWaterStatus::Available: return FarmMapVisualState::CanalSupplied;
+		case farm::FarmWaterStatus::Retained: return FarmMapVisualState::CanalRetained;
+		case farm::FarmWaterStatus::Waiting: return FarmMapVisualState::CanalWaiting;
+		default: return FarmMapVisualState::CanalDry;
+		}
 	}
 	if (tile.feature == farm::FarmTileFeature::WaterSource) {
 		return FarmMapVisualState::WaterSource;
@@ -46,6 +51,8 @@ FarmMapVisualState GetVisualState(const editor::FarmTileEditorViewData& tile) no
 ImVec4 GetStateColor(FarmMapVisualState state) noexcept {
 	switch (state) {
 	case FarmMapVisualState::CanalDry: return { 0.10f, 0.30f, 0.48f, 1.0f };
+	case FarmMapVisualState::CanalRetained: return { 0.65f, 0.44f, 0.12f, 1.0f };
+	case FarmMapVisualState::CanalWaiting: return { 0.36f, 0.39f, 0.44f, 1.0f };
 	case FarmMapVisualState::CanalSupplied: return { 0.08f, 0.72f, 0.98f, 1.0f };
 	case FarmMapVisualState::WaterSource: return { 0.14f, 0.90f, 1.0f, 1.0f };
 	case FarmMapVisualState::Tilled: return { 0.68f, 0.43f, 0.22f, 1.0f };
@@ -60,8 +67,10 @@ ImVec4 GetStateColor(FarmMapVisualState state) noexcept {
 const char* GetStateName(FarmMapVisualState state, EditorLanguage language) noexcept {
 	const char* stateName = "Empty";
 	switch (state) {
-	case FarmMapVisualState::CanalDry: stateName = "Dry Canal"; break;
-	case FarmMapVisualState::CanalSupplied: stateName = "Supplied"; break;
+	case FarmMapVisualState::CanalDry: stateName = "Dry"; break;
+	case FarmMapVisualState::CanalSupplied: stateName = "Wet"; break;
+	case FarmMapVisualState::CanalRetained: stateName = "Stored"; break;
+	case FarmMapVisualState::CanalWaiting: stateName = "Waiting"; break;
 	case FarmMapVisualState::WaterSource: stateName = "Water Source"; break;
 	case FarmMapVisualState::Tilled: stateName = "Tilled"; break;
 	case FarmMapVisualState::Watered: stateName = "Watered"; break;
@@ -115,6 +124,10 @@ FarmMapActions FarmMapWindow::Draw(
 	}
 
 	ImGui::Text(text("Farm Grid  %d x %d"), viewModel.farmWidth, viewModel.farmHeight);
+	const bool canalPathPreviewActive =
+		viewModel.irrigationPreviewActive &&
+		(viewModel.irrigationPreviewOperation == farm::FarmIrrigationPreviewOperation::PlaceCanalPath ||
+		 viewModel.irrigationPreviewOperation == farm::FarmIrrigationPreviewOperation::RemoveCanalPath);
 	if (viewModel.irrigationPreviewActive) {
 		ImGui::SameLine();
 		ImGui::TextColored(
@@ -122,7 +135,35 @@ FarmMapActions FarmMapWindow::Draw(
 			"%s",
 			text("Irrigation Preview"));
 	}
-	ImGui::TextDisabled("%s", text("Click a tile to select it"));
+	const bool brushBlocked = viewModel.irrigationPreviewActive && !canalPathPreviewActive;
+	ImGui::BeginDisabled(brushBlocked);
+	if (ImGui::Checkbox(text("Canal Brush"), &canalBrushEnabled_) && !canalBrushEnabled_) {
+		canalDragActive_ = false;
+	}
+	ImGui::EndDisabled();
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+		ImGui::SetTooltip("%s", text("Drag across adjacent empty tiles to preview a canal path"));
+	}
+	if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+		canalDragActive_ = false;
+		lastDragTileIndex_ = -1;
+	}
+	if (canalPathPreviewActive) {
+		canalEraseMode_ = viewModel.irrigationPreviewOperation ==
+			farm::FarmIrrigationPreviewOperation::RemoveCanalPath;
+	}
+	if (canalBrushEnabled_) {
+		ImGui::BeginDisabled(viewModel.irrigationPreviewActive);
+		if (ImGui::RadioButton(text("Place canals"), !canalEraseMode_)) canalEraseMode_ = false;
+		ImGui::SameLine();
+		if (ImGui::RadioButton(text("Erase canals"), canalEraseMode_)) canalEraseMode_ = true;
+		ImGui::EndDisabled();
+		ImGui::TextWrapped("%s", text(canalEraseMode_
+			? "Drag over canals; return along the path to shorten it"
+			: "Drag over empty tiles; return along the path to shorten it"));
+	} else {
+		ImGui::TextDisabled("%s", text("Click a tile to select it"));
+	}
 	ImGui::Spacing();
 
 	if (ImGui::BeginTable(
@@ -162,7 +203,27 @@ FarmMapActions FarmMapWindow::Draw(
 				tile.index,
 				GetStateName(visualState, language),
 				tile.heightLevel);
-			if (ImGui::Button(label, { -1.0f, 58.0f })) {
+			const bool tilePressed = ImGui::Button(label, { -1.0f, 58.0f });
+			const bool tileHovered = ImGui::IsItemHovered(canalDragActive_
+				? ImGuiHoveredFlags_AllowWhenBlockedByActiveItem : ImGuiHoveredFlags_None);
+			const bool tileActivated = ImGui::IsItemActivated();
+			if (canalBrushEnabled_ && !brushBlocked) {
+				if (tileActivated) {
+					canalDragActive_ = true;
+					lastDragTileIndex_ = -1;
+					if (!viewModel.irrigationPreviewActive) {
+						actions.beginCanalPathTileIndex = tile.index;
+						actions.removeCanalPath = canalEraseMode_;
+						lastDragTileIndex_ = tile.index;
+					}
+				}
+				if (canalDragActive_ && canalPathPreviewActive && tileHovered &&
+					ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
+					lastDragTileIndex_ != tile.index) {
+					actions.appendCanalPathTileIndex = tile.index;
+					lastDragTileIndex_ = tile.index;
+				}
+			} else if (tilePressed) {
 				actions.selectedTileIndex = tile.index;
 			}
 
@@ -171,7 +232,8 @@ FarmMapActions FarmMapWindow::Draw(
 			const float barLeft = rectMin.x + 3.0f;
 			const float barWidth = (std::max)(rectMax.x - rectMin.x - 6.0f, 0.0f);
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
-			const float moisture = std::clamp(tile.moisture, 0.0f, 1.0f);
+			const float moisture = std::clamp(tile.feature == farm::FarmTileFeature::None
+				? tile.moisture : tile.storedWater, 0.0f, 1.0f);
 			const float growth = std::clamp(tile.growth, 0.0f, 1.0f);
 			drawList->AddRectFilled(
 				{ barLeft, rectMax.y - 4.0f },
@@ -199,7 +261,9 @@ FarmMapActions FarmMapWindow::Draw(
 				ImGui::Text(text("Tile %d  (%d, %d)"), tile.index, tile.column, tile.row);
 				ImGui::Text(text("State: %s"), GetStateName(visualState, language));
 				ImGui::Text(text("Height: H%d"), tile.heightLevel);
-				ImGui::Text(text("Moisture: %.0f%%"), moisture * 100.0f);
+				ImGui::Text("%s", text(farm::ToString(tile.waterStatus)));
+				ImGui::Text(text(tile.feature == farm::FarmTileFeature::None
+					? "Moisture: %.0f%%" : "Stored water: %.0f%%"), moisture * 100.0f);
 				ImGui::Text(text("Growth: %.0f%%"), growth * 100.0f);
 				if (tile.irrigationPreviewChanged) {
 					ImGui::TextColored(
@@ -236,6 +300,18 @@ FarmMapActions FarmMapWindow::Draw(
 		}
 		ImGui::EndTable();
 	}
+	if (canalBrushEnabled_) {
+		ImGui::TextWrapped("%s", text("Straight drags fill skipped tiles"));
+	}
+	if (viewModel.irrigationPathIssue != farm::FarmCanalPathIssue::None) {
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.60f, 0.28f, 1.0f));
+		if (viewModel.irrigationPathIssue == farm::FarmCanalPathIssue::NonStraight) {
+			ImGui::TextWrapped("%s", text("Move along one row or column; turn at a tile"));
+		} else {
+			ImGui::TextWrapped(text("Canal path blocked at tile #%d"), viewModel.irrigationBlockedTileIndex);
+		}
+		ImGui::PopStyleColor();
+	}
 
 	ImGui::Spacing();
 	ImGui::SeparatorText(text("Legend"));
@@ -247,7 +323,10 @@ FarmMapActions FarmMapWindow::Draw(
 	DrawLegendItem(text("Watered"), GetStateColor(FarmMapVisualState::Watered));
 	DrawLegendItem(text("Growing"), GetStateColor(FarmMapVisualState::Growing));
 	DrawLegendItem(text("Ready"), GetStateColor(FarmMapVisualState::Ready));
-	ImGui::TextDisabled("%s", text("Blue bar: moisture"));
+	ImGui::TextWrapped("%s", text("Blue bar: soil moisture / stored canal water"));
+	DrawLegendItem(text("Water available"), GetStateColor(FarmMapVisualState::CanalSupplied));
+	DrawLegendItem(text("Retained water"), GetStateColor(FarmMapVisualState::CanalRetained));
+	DrawLegendItem(text("Waiting for water"), GetStateColor(FarmMapVisualState::CanalWaiting));
 	ImGui::TextDisabled("%s", text("Green/gold bar: growth"));
 	ImGui::TextDisabled("%s", text("Cyan line: supply strength"));
 	ImGui::End();

@@ -656,21 +656,40 @@ void EditorShell::DrawFarmMap(GamePlayScene& playScene) {
 		gamePlayEditorViewModel_,
 		selectionSystem_.GetSelection(),
 		editorSettings_.GetLanguage());
-	if (!actions.selectedTileIndex.has_value()) {
+	editor::GamePlayEditorCommandType commandType =
+		editor::GamePlayEditorCommandType::SelectFarmTile;
+	std::optional<int> commandTileIndex;
+	bool synchronizeSelection = false;
+	if (actions.beginCanalPathTileIndex.has_value()) {
+		commandType = actions.removeCanalPath
+			? editor::GamePlayEditorCommandType::BeginFarmCanalRemovalPathPreview
+			: editor::GamePlayEditorCommandType::BeginFarmCanalPathPreview;
+		commandTileIndex = actions.beginCanalPathTileIndex;
+		synchronizeSelection = true;
+	} else if (actions.appendCanalPathTileIndex.has_value()) {
+		commandType = editor::GamePlayEditorCommandType::AppendFarmCanalPathPreview;
+		commandTileIndex = actions.appendCanalPathTileIndex;
+	} else if (actions.selectedTileIndex.has_value()) {
+		commandTileIndex = actions.selectedTileIndex;
+		synchronizeSelection = true;
+	}
+	if (!commandTileIndex.has_value()) {
 		return;
 	}
 
 	editor::GamePlayEditorCommand command;
-	command.type = editor::GamePlayEditorCommandType::SelectFarmTile;
-	command.farmTileIndex = *actions.selectedTileIndex;
+	command.type = commandType;
+	command.farmTileIndex = *commandTileIndex;
 	command.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
 	if (!bridge.Execute(command)) {
 		return;
 	}
-	selectionSystem_.SelectFarmTile(
-		command.farmTileIndex,
-		command.farmGeneration,
-		static_cast<int>(gamePlayEditorViewModel_.farmTiles.size()));
+	if (synchronizeSelection) {
+		selectionSystem_.SelectFarmTile(
+			command.farmTileIndex,
+			command.farmGeneration,
+			static_cast<int>(gamePlayEditorViewModel_.farmTiles.size()));
+	}
 	bridge.BuildViewModel(gamePlayEditorViewModel_);
 #else
 	(void)playScene;

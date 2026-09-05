@@ -1,6 +1,7 @@
 #pragma once
 
 #include "farm/data/FarmRules.h"
+#include "farm/core/FarmTypes.h"
 
 #include <cstdint>
 #include <vector>
@@ -9,11 +10,17 @@ namespace farm {
 
 class FarmGrid;
 
-// Derives transient irrigation reachability from persistent terrain features.
+// Owns finite reservoir flow and soil delivery; topology is potential reachability.
 class FarmIrrigationSystem final {
 public:
 	void Initialize(const FarmRules& rules = {}) noexcept;
 	void Rebuild(const FarmGrid& grid);
+	bool UpdateWater(FarmGrid& grid, float deltaTime, float timeScale);
+	[[nodiscard]] float GetAvailableIrrigationStrength(const FarmGrid& grid, int tileIndex) const noexcept;
+	[[nodiscard]] FarmWaterStatus GetWaterStatus(const FarmGrid& grid, int tileIndex) const noexcept;
+	[[nodiscard]] int GetAvailableCanalIndex(const FarmGrid& grid, int tileIndex) const noexcept {
+		return FindWetCanal(grid, tileIndex);
+	}
 
 	[[nodiscard]] bool IsSupplied(int tileIndex) const noexcept;
 	[[nodiscard]] bool IsInIrrigationRange(int tileIndex) const noexcept;
@@ -29,6 +36,13 @@ public:
 	}
 
 private:
+	[[nodiscard]] int FindWetCanal(const FarmGrid& grid, int tileIndex) const noexcept;
+	std::vector<float> waterBefore_, waterDelta_, soilDemand_, canalDemand_;
+	std::vector<int> soilCanals_;
+	float refillPerSecond_ = 0.5f;
+	float transferPerSecond_ = 0.4f;
+	float recoveryPerSecond_ = 0.125f;
+	float maxDeltaTime_ = 0.25f;
 	std::vector<std::uint8_t> supplied_;
 	std::vector<std::uint8_t> irrigationRange_;
 	std::vector<float> supplyStrengths_;

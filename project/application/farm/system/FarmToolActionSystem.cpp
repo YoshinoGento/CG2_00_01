@@ -4,8 +4,10 @@
 #include "farm/system/FarmEconomySystem.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <memory>
 #include <string_view>
+#include <utility>
 
 namespace {
 constexpr float kFullMoisture = 1.0f;
@@ -20,7 +22,7 @@ bool TilesEqual(const farm::FarmTile& left, const farm::FarmTile& right)
 		left.state == right.state &&
 		left.crop == right.crop &&
 		left.moisture == right.moisture &&
-		left.growth == right.growth;
+		left.growth == right.growth && left.waterAmount == right.waterAmount;
 }
 
 class FarmTileEditCommand final : public IUndoableCommand {
@@ -118,6 +120,59 @@ private:
 	farm::CropType plantedCrop_ = farm::CropType::None;
 	int plantedQuantity_ = 0;
 	FarmCropQualityResult previousLastHarvestQuality_{};
+};
+
+struct FarmTileBatchEntry {
+	int tileIndex = -1;
+	farm::FarmTile before{};
+	farm::FarmTile after{};
+};
+
+class FarmTileBatchEditCommand final : public IUndoableCommand {
+public:
+	FarmTileBatchEditCommand(
+		farm::FarmGrid& grid,
+		std::vector<FarmTileBatchEntry> entries,
+		const char* name)
+		: grid_(&grid), gridGeneration_(grid.GetGeneration()),
+		entries_(std::move(entries)), name_(name ? name : "Farm Tile Batch Edit") {}
+
+	bool Execute() override { return Apply(true); }
+	bool Undo() override { return Apply(false); }
+	std::string_view GetName() const noexcept override { return name_; }
+
+private:
+	bool Apply(bool useAfter) {
+		if (grid_ == nullptr || grid_->GetGeneration() != gridGeneration_ || entries_.empty()) {
+			return false;
+		}
+
+		std::size_t appliedCount = 0;
+		for (; appliedCount < entries_.size(); ++appliedCount) {
+			const FarmTileBatchEntry& entry = entries_[appliedCount];
+			const farm::FarmTile& target = useAfter ? entry.after : entry.before;
+			if (!grid_->SetTile(entry.tileIndex, target)) {
+				break;
+			}
+		}
+		if (appliedCount == entries_.size()) {
+			return true;
+		}
+
+		while (appliedCount > 0) {
+			--appliedCount;
+			const FarmTileBatchEntry& entry = entries_[appliedCount];
+			const farm::FarmTile& rollback = useAfter ? entry.before : entry.after;
+			static_cast<void>(grid_->SetTile(entry.tileIndex, rollback));
+		}
+		return false;
+	}
+
+	// The scene-owned Grid outlives FarmToolActionSystem and its command history.
+	farm::FarmGrid* grid_ = nullptr;
+	uint64_t gridGeneration_ = 0;
+	std::vector<FarmTileBatchEntry> entries_;
+	std::string_view name_;
 };
 }
 
@@ -338,11 +393,73 @@ bool FarmToolActionSystem::ToggleSelectedCanal(farm::FarmGrid& grid)
 	const char* commandName = "Remove Canal";
 	if (before.feature == farm::FarmTileFeature::Canal) {
 		after.feature = farm::FarmTileFeature::None;
+		after.waterAmount = 0.0f;
 	} else {
 		after.feature = farm::FarmTileFeature::Canal;
 		commandName = "Place Canal";
 	}
 	return CommitTileChange(grid, tileIndex, before, after, commandName);
+}
+
+bool FarmToolActionSystem::PlaceCanalPath(
+	farm::FarmGrid& grid,
+	const std::vector<int>& tileIndices)
+{
+	return CommitCanalPath(grid, tileIndices, false);
+}
+
+bool FarmToolActionSystem::RemoveCanalPath(
+	farm::FarmGrid& grid, const std::vector<int>& tileIndices)
+{
+	return CommitCanalPath(grid, tileIndices, true);
+}
+
+bool FarmToolActionSystem::CommitCanalPath(
+	farm::FarmGrid& grid, const std::vector<int>& tileIndices, bool remove)
+{
+	if (tileIndices.empty() || grid.GetWidth() <= 0 ||
+		tileIndices.size() > static_cast<std::size_t>(grid.GetTileCount())) {
+		return false;
+	}
+
+	std::vector<FarmTileBatchEntry> entries;
+	entries.reserve(tileIndices.size());
+	for (std::size_t pathIndex = 0; pathIndex < tileIndices.size(); ++pathIndex) {
+		const int tileIndex = tileIndices[pathIndex];
+		const farm::FarmTile* tile = grid.GetTile(tileIndex);
+		const auto requiredFeature = remove
+			? farm::FarmTileFeature::Canal : farm::FarmTileFeature::None;
+		if (tile == nullptr || tile->feature != requiredFeature ||
+			tile->state != farm::FarmTileState::Empty || tile->crop != farm::CropType::None ||
+			tile->moisture != 0.0f || tile->growth != 0.0f) {
+			return false;
+		}
+		if (std::find(tileIndices.begin(), tileIndices.begin() + pathIndex, tileIndex) !=
+			tileIndices.begin() + pathIndex) {
+			return false;
+		}
+		if (pathIndex > 0) {
+			const int previousIndex = tileIndices[pathIndex - 1];
+			const int columnDelta = std::abs(
+				tileIndex % grid.GetWidth() - previousIndex % grid.GetWidth());
+			const int rowDelta = std::abs(
+				tileIndex / grid.GetWidth() - previousIndex / grid.GetWidth());
+			if (columnDelta + rowDelta != 1) {
+				return false;
+			}
+		}
+
+		FarmTileBatchEntry entry;
+		entry.tileIndex = tileIndex;
+		entry.before = *tile;
+		entry.after = *tile;
+		entry.after.feature = remove ? farm::FarmTileFeature::None : farm::FarmTileFeature::Canal;
+		entry.after.waterAmount = 0.0f;
+		entries.push_back(entry);
+	}
+
+	return history_.Execute(std::make_unique<FarmTileBatchEditCommand>(
+		grid, std::move(entries), remove ? "Remove Canal Path" : "Place Canal Path"));
 }
 
 bool FarmToolActionSystem::CanToggleCanal(
@@ -376,6 +493,7 @@ bool FarmToolActionSystem::ToggleSelectedWaterSource(farm::FarmGrid& grid)
 	const char* commandName = "Remove Water Source";
 	if (before.feature == farm::FarmTileFeature::WaterSource) {
 		after.feature = farm::FarmTileFeature::None;
+		after.waterAmount = 0.0f;
 	} else {
 		after.feature = farm::FarmTileFeature::WaterSource;
 		commandName = "Place Water Source";

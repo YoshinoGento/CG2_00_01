@@ -6,6 +6,8 @@
 #include "farm/system/FarmToolSystem.h"
 #include "command/CommandHistory.h"
 
+#include <vector>
+
 namespace farm {
 class FarmGrid;
 struct FarmTile;
@@ -65,6 +67,8 @@ public:
 	[[nodiscard]] bool CanToggleCanal(
 		const farm::FarmGrid& grid, int tileIndex) const noexcept;
 	bool ToggleSelectedCanal(farm::FarmGrid& grid);
+	bool PlaceCanalPath(farm::FarmGrid& grid, const std::vector<int>& tileIndices);
+	bool RemoveCanalPath(farm::FarmGrid& grid, const std::vector<int>& tileIndices);
 	[[nodiscard]] bool CanToggleWaterSource(
 		const farm::FarmGrid& grid, int tileIndex) const noexcept;
 	bool ToggleSelectedWaterSource(farm::FarmGrid& grid);
@@ -74,6 +78,7 @@ public:
 	[[nodiscard]] const CommandHistory& GetHistory() const noexcept { return history_; }
 
 private:
+	bool CommitCanalPath(farm::FarmGrid& grid, const std::vector<int>& tileIndices, bool remove);
 	bool CommitTileChange(
 		farm::FarmGrid& grid, int tileIndex, const farm::FarmTile& before,
 		const farm::FarmTile& after, const char* commandName,

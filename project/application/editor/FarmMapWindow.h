@@ -8,6 +8,9 @@
 
 struct FarmMapActions {
 	std::optional<int> selectedTileIndex;
+	std::optional<int> beginCanalPathTileIndex;
+	std::optional<int> appendCanalPathTileIndex;
+	bool removeCanalPath = false;
 };
 
 // Spatial, read-only Farm selection view. Mutations stay in Farm systems.
@@ -23,4 +26,8 @@ public:
 
 private:
 	bool open_ = true;
+	bool canalBrushEnabled_ = false;
+	bool canalDragActive_ = false;
+	bool canalEraseMode_ = false;
+	int lastDragTileIndex_ = -1;
 };

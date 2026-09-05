@@ -43,6 +43,7 @@ constexpr Vector2 kSeedPricePosition{ 1190.0f, 218.0f };
 constexpr Vector2 kSelectedTitlePosition{ 156.0f, 536.0f };
 constexpr Vector2 kSelectedMetricsPosition{ 105.0f, 614.0f };
 constexpr Vector2 kSelectedGrowthPosition{ 246.0f, 614.0f };
+constexpr Vector2 kIrrigationPreviewCountPosition{ 760.0f, 40.0f };
 
 constexpr float kDayScale = 1.15f;
 constexpr float kMoneyScale = 1.20f;
@@ -197,12 +198,16 @@ constexpr std::array<const char*, 3> kMoistureStatusPaths = {
 	"Resources/generated/text/hud_moisture_good.png",
 };
 
-constexpr std::array<const char*, 1> kIrrigationStatusPaths = {
+constexpr std::array<const char*, 4> kIrrigationStatusPaths = {
 	"Resources/generated/text/hud_irrigation_active.png",
+	"Resources/generated/text/hud_irrigation_retained.png",
+	"Resources/generated/text/hud_irrigation_waiting.png",
+	"Resources/generated/text/hud_irrigation_dry.png",
 };
 
-constexpr std::array<const char*, 1> kIrrigationPreviewPaths = {
+constexpr std::array<const char*, 2> kIrrigationPreviewPaths = {
 	"Resources/generated/text/hud_irrigation_preview.png",
+	"Resources/generated/text/hud_irrigation_removal_preview.png",
 };
 
 constexpr std::array<const char*, 13> kFeedbackPaths = {
@@ -387,6 +392,7 @@ bool FarmHUD::Initialize(SpriteCommon* spriteCommon) {
 	goalText_.Initialize(spriteCommon, &font_);
 	goalNeedText_.Initialize(spriteCommon, &font_);
 	saleText_.Initialize(spriteCommon, &font_);
+	irrigationPreviewCountText_.Initialize(spriteCommon, &font_);
 	selectedTileTitleText_.Initialize(spriteCommon, &font_);
 	selectedTileMetricsText_.Initialize(spriteCommon, &font_);
 	selectedTileGrowthText_.Initialize(spriteCommon, &font_);
@@ -410,6 +416,7 @@ bool FarmHUD::Initialize(SpriteCommon* spriteCommon) {
 	seedCountText_.SetText("999");
 	seedPriceText_.SetText("999G");
 	saleText_.SetText("999999G");
+	irrigationPreviewCountText_.SetText("x99");
 	timeScaleText_.SetText("X4");
 	goalText_.SetText("999999 / 999999G");
 	goalNeedText_.SetText("999");
@@ -452,7 +459,12 @@ bool FarmHUD::InitializeLocalizedSprites(SpriteCommon* spriteCommon) {
 }
 
 bool FarmHUD::LoadLocalizedTextureHandles() {
+	constexpr std::array<const char*, 2> waterPaths = {
+		"Resources/generated/text/hud_water_label.png",
+		"Resources/generated/text/hud_stored_water_label.png"
+	};
 	return LoadTextureHandles(currentToolTextureHandles_, kCurrentToolPaths) &&
+		LoadTextureHandles(waterLabelTextureHandles_, waterPaths) &&
 		LoadTextureHandles(tileStateTextureHandles_, kTileStatePaths) &&
 		LoadTextureHandles(cropTextureHandles_, kCropPaths) &&
 		LoadTextureHandles(nextActionTextureHandles_, kNextActionPaths) &&
@@ -490,6 +502,9 @@ bool FarmHUD::InitializePanels(SpriteCommon* spriteCommon) {
 
 void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 	FarmHUDViewData sanitized = viewData;
+	if (sanitized.selectedTileWaterStatus > farm::FarmWaterStatus::Dry) {
+		sanitized.selectedTileWaterStatus = farm::FarmWaterStatus::None;
+	}
 	sanitized.goalMoney = (std::max)(sanitized.goalMoney, 1);
 	sanitized.goalProgress = std::isfinite(sanitized.goalProgress)
 		? std::clamp(sanitized.goalProgress, 0.0f, 1.0f) : 0.0f;
@@ -526,6 +541,13 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 		sanitized.cropPieOpen = false;
 		sanitized.cropPieCenter = {};
 	}
+	if (!sanitized.irrigationPreviewActive) {
+		sanitized.irrigationPreviewRemoval = false;
+		sanitized.irrigationPreviewChangeCount = 0;
+	} else {
+		sanitized.irrigationPreviewChangeCount = std::clamp(
+			sanitized.irrigationPreviewChangeCount, 1, 999);
+	}
 	if (!sanitized.selectedTileValid || sanitized.selectedTileIndex < 0) {
 		sanitized.selectedTileValid = false;
 		sanitized.selectedTileIndex = -1;
@@ -536,12 +558,15 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 		sanitized.selectedTileIrrigationSupplied = false;
 		sanitized.selectedTileIrrigationActive = false;
 		sanitized.selectedTileIrrigationStrengthPercent = 0;
+		sanitized.selectedTileStoredWaterPercent = 0;
+		sanitized.selectedTileWaterStatus = farm::FarmWaterStatus::None;
 		sanitized.selectedTileCrop = farm::CropType::None;
 		sanitized.selectedTileGrowthStage = farm::FarmCropGrowthStage::None;
 		sanitized.selectedTileMoistureStatus = FarmHUDMoistureStatus::None;
 		sanitized.nextAction = FarmHUDNextAction::SelectTile;
 	} else {
 		if (!farm::IsValidFarmTileFeature(sanitized.selectedTileFeature)) {
+			sanitized.selectedTileWaterStatus = farm::FarmWaterStatus::None;
 			sanitized.selectedTileFeature = farm::FarmTileFeature::None;
 			sanitized.selectedTileIrrigationSupplied = false;
 			sanitized.selectedTileIrrigationActive = false;
@@ -560,6 +585,7 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 			std::clamp(sanitized.selectedTileGrowthPercent, 0, 100);
 		sanitized.selectedTileIrrigationStrengthPercent =
 			std::clamp(sanitized.selectedTileIrrigationStrengthPercent, 0, 100);
+		sanitized.selectedTileStoredWaterPercent = std::clamp(sanitized.selectedTileStoredWaterPercent, 0, 100);
 		if (sanitized.selectedTileMoistureStatus != FarmHUDMoistureStatus::Dry &&
 			sanitized.selectedTileMoistureStatus != FarmHUDMoistureStatus::Low &&
 			sanitized.selectedTileMoistureStatus != FarmHUDMoistureStatus::Good) {
@@ -599,6 +625,10 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 		viewData_.cropsNeeded != sanitized.cropsNeeded ||
 		viewData_.goalCleared != sanitized.goalCleared ||
 		!IsSameFloat(viewData_.goalProgress, sanitized.goalProgress);
+	const bool irrigationPreviewChanged =
+		viewData_.irrigationPreviewActive != sanitized.irrigationPreviewActive ||
+		viewData_.irrigationPreviewRemoval != sanitized.irrigationPreviewRemoval ||
+		viewData_.irrigationPreviewChangeCount != sanitized.irrigationPreviewChangeCount;
 	const bool selectedTileChanged =
 		viewData_.selectedTileValid != sanitized.selectedTileValid ||
 		viewData_.selectedTileIndex != sanitized.selectedTileIndex ||
@@ -606,6 +636,8 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 		viewData_.selectedTileMoisturePercent != sanitized.selectedTileMoisturePercent ||
 		viewData_.selectedTileGrowthPercent != sanitized.selectedTileGrowthPercent ||
 		viewData_.selectedTileFeature != sanitized.selectedTileFeature ||
+		viewData_.selectedTileStoredWaterPercent != sanitized.selectedTileStoredWaterPercent ||
+		viewData_.selectedTileWaterStatus != sanitized.selectedTileWaterStatus ||
 		viewData_.selectedTileIrrigationSupplied != sanitized.selectedTileIrrigationSupplied ||
 		viewData_.selectedTileIrrigationActive != sanitized.selectedTileIrrigationActive ||
 		viewData_.selectedTileIrrigationStrengthPercent !=
@@ -635,7 +667,8 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 		UpdateGoalText();
 		UpdateGoalBar();
 	}
-	if (selectedTileChanged || feedbackChanged || toolChanged || cropChanged) {
+	if (irrigationPreviewChanged) UpdateIrrigationPreviewText();
+	if (selectedTileChanged || feedbackChanged || toolChanged || cropChanged || irrigationPreviewChanged) {
 		UpdateLocalizedSelections();
 	}
 	if (feedbackChanged) UpdateFeedbackDetails();
@@ -665,14 +698,16 @@ void FarmHUD::Update(float deltaTime) {
 	localizedSelectedSeedCrop_.Update();
 	localizedNextAction_.Update();
 	if (viewData_.selectedTileValid &&
-		viewData_.selectedTileMoistureStatus != FarmHUDMoistureStatus::None) {
+		viewData_.selectedTileMoistureStatus != FarmHUDMoistureStatus::None &&
+		viewData_.selectedTileWaterStatus == farm::FarmWaterStatus::None) {
 		localizedMoistureStatus_.Update();
 	}
-	if (viewData_.selectedTileIrrigationActive) {
+	if (viewData_.selectedTileWaterStatus != farm::FarmWaterStatus::None) {
 		localizedIrrigationStatus_.Update();
 	}
 	if (viewData_.irrigationPreviewActive) {
 		localizedIrrigationPreview_.Update();
+		irrigationPreviewCountText_.Update();
 	}
 	if (viewData_.cropPieOpen) {
 		cropPieCenterPanel_.Update();
@@ -728,14 +763,16 @@ void FarmHUD::Draw() {
 	localizedSelectedSeedCrop_.Draw();
 	localizedNextAction_.Draw();
 	if (viewData_.selectedTileValid &&
-		viewData_.selectedTileMoistureStatus != FarmHUDMoistureStatus::None) {
+		viewData_.selectedTileMoistureStatus != FarmHUDMoistureStatus::None &&
+		viewData_.selectedTileWaterStatus == farm::FarmWaterStatus::None) {
 		localizedMoistureStatus_.Draw();
 	}
-	if (viewData_.selectedTileIrrigationActive) {
+	if (viewData_.selectedTileWaterStatus != farm::FarmWaterStatus::None) {
 		localizedIrrigationStatus_.Draw();
 	}
 	if (viewData_.irrigationPreviewActive) {
 		localizedIrrigationPreview_.Draw();
+		irrigationPreviewCountText_.Draw();
 	}
 	if (viewData_.cropPieOpen) {
 		cropPieCenterPanel_.Draw();
@@ -801,7 +838,7 @@ void FarmHUD::ApplyLayout() {
 	localizedSelectedSeedCrop_.SetPosition({ 988.0f, 188.0f });
 	localizedNextAction_.SetPosition({ 94.0f, 648.0f });
 	localizedMoistureStatus_.SetPosition({ 272.0f, 572.0f });
-	localizedIrrigationStatus_.SetPosition({ 272.0f, 592.0f });
+	localizedIrrigationStatus_.SetPosition({ 272.0f, 572.0f });
 	localizedIrrigationPreview_.SetPosition({ 500.0f, 34.0f });
 	localizedFeedback_.SetPosition({ 416.0f, 272.0f });
 	localizedFeedbackCrop_.SetPosition({ 566.0f, 272.0f });
@@ -820,6 +857,12 @@ void FarmHUD::ApplyLayout() {
 	ConfigureText(goalText_, kGoalPosition, kCompactScale, kCompactSpacing, kGoalTextColor);
 	ConfigureText(goalNeedText_, kGoalNeedPosition, kCompactScale, kCompactSpacing, kMutedTextColor);
 	ConfigureText(saleText_, kSalePosition, kCompactScale, kCompactSpacing, kTextColor);
+	ConfigureText(
+		irrigationPreviewCountText_,
+		kIrrigationPreviewCountPosition,
+		0.70f,
+		-7.0f,
+		kAccentColor);
 	ConfigureText(
 		selectedTileTitleText_,
 		kSelectedTitlePosition,
@@ -853,6 +896,7 @@ void FarmHUD::RefreshAllText() {
 	UpdateCropCountText();
 	UpdateTimeScaleText();
 	UpdateGoalText();
+	UpdateIrrigationPreviewText();
 	UpdateSelectedTileText();
 	UpdateLocalizedSelections();
 	UpdateFeedbackDetails();
@@ -897,6 +941,11 @@ void FarmHUD::UpdateGoalText() {
 	goalNeedText_.SetText(std::to_string((std::max)(viewData_.cropsNeeded, 0)));
 }
 
+void FarmHUD::UpdateIrrigationPreviewText() {
+	irrigationPreviewCountText_.SetText(
+		"x" + std::to_string((std::max)(viewData_.irrigationPreviewChangeCount, 0)));
+}
+
 void FarmHUD::UpdateSelectedTileText() {
 	if (!viewData_.selectedTileValid) {
 		selectedTileTitleText_.SetText("--");
@@ -909,13 +958,15 @@ void FarmHUD::UpdateSelectedTileText() {
 		"  H" + std::to_string(viewData_.selectedTileHeight));
 	const int waterPercent = viewData_.selectedTileFeature == farm::FarmTileFeature::None
 		? viewData_.selectedTileMoisturePercent
-		: viewData_.selectedTileIrrigationStrengthPercent;
+		: viewData_.selectedTileStoredWaterPercent;
 	selectedTileMetricsText_.SetText(std::to_string(waterPercent) + "%");
 	selectedTileGrowthText_.SetText(
 		std::to_string(viewData_.selectedTileGrowthPercent) + "%");
 }
 
 void FarmHUD::UpdateLocalizedSelections() {
+	SetLocalizedTexture(localizedLabels_[kWaterLabel], waterLabelTextureHandles_[
+		viewData_.selectedTileFeature == farm::FarmTileFeature::None ? 0 : 1], 0.72f);
 	const std::size_t currentToolIndex = viewData_.currentToolIndex >= 0
 		? static_cast<std::size_t>(viewData_.currentToolIndex) : 0;
 	SetLocalizedTexture(
@@ -941,9 +992,11 @@ void FarmHUD::UpdateLocalizedSelections() {
 			0.72f);
 	}
 	SetLocalizedTexture(
-		localizedIrrigationStatus_, irrigationStatusTextureHandles_[0], 0.70f);
+		localizedIrrigationStatus_, irrigationStatusTextureHandles_[
+			std::clamp(static_cast<int>(viewData_.selectedTileWaterStatus) - 1, 0, 3)], 0.70f);
 	SetLocalizedTexture(
-		localizedIrrigationPreview_, irrigationPreviewTextureHandles_[0], 0.86f);
+		localizedIrrigationPreview_,
+		irrigationPreviewTextureHandles_[viewData_.irrigationPreviewRemoval ? 1 : 0], 0.86f);
 	SetLocalizedTexture(
 		localizedFeedback_,
 		feedbackTextureHandles_[ToBoundedIndex<FarmHUDFeedback, 13>(viewData_.feedback)],

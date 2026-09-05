@@ -5,7 +5,6 @@
 
 namespace farm {
 class FarmGrid;
-class FarmIrrigationSystem;
 }
 
 enum class FarmMoistureStatus {
@@ -38,7 +37,6 @@ public:
 	void Initialize(const farm::FarmRules& rules = {}) noexcept;
 	void Update(
 		farm::FarmGrid& grid,
-		const farm::FarmIrrigationSystem& irrigationSystem,
 		float deltaTime,
 		float timeScale) const;
 	[[nodiscard]] FarmGrowthForecast Evaluate(

@@ -301,6 +301,10 @@
       "output": "Resources/generated/text/hud_crop_label.png", "fontSize": 22, "padding": [8, 4], "overwrite": true
     },
     {
+      "id": "hud_stored_water_label", "text": "\u6c34\u91cf", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_stored_water_label.png", "fontSize": 22, "padding": [8, 4], "overwrite": true
+    },
+    {
       "id": "hud_water_label", "text": "\u6c34\u5206", "font": "Resources/fonts/NotoSansJP-VF.ttf",
       "output": "Resources/generated/text/hud_water_label.png", "fontSize": 22, "padding": [8, 4], "overwrite": true
     },
@@ -532,9 +536,30 @@
       "color": [0.46, 0.86, 1.0, 1.0], "padding": [8, 4], "overwrite": true
     },
     {
-      "id": "hud_irrigation_active", "text": "\u704c\u6f11\u4e2d", "font": "Resources/fonts/NotoSansJP-VF.ttf",
-      "output": "Resources/generated/text/hud_irrigation_active.png", "fontSize": 24,
+      "id": "hud_irrigation_active", "text": "\u7d66\u6c34\u53ef\u80fd", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_irrigation_active.png", "fontSize": 22,
       "color": [0.20, 0.88, 1.0, 1.0], "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_irrigation_retained", "text": "\u6b8b\u6c34\u3042\u308a", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_irrigation_retained.png", "fontSize": 22,
+      "color": [1.0, 0.72, 0.24, 1.0], "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_irrigation_waiting", "text": "\u88dc\u7d66\u5f85\u3061", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_irrigation_waiting.png", "fontSize": 22,
+      "color": [0.78, 0.80, 0.84, 1.0], "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_irrigation_dry", "text": "\u6c34\u5207\u308c", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_irrigation_dry.png", "fontSize": 22,
+      "color": [1.0, 0.42, 0.35, 1.0], "padding": [8, 4], "overwrite": true
+    },
+    {
+      "id": "hud_irrigation_removal_preview", "text": "\u7528\u6c34\u8def\u64a4\u53bb\u4e88\u6e2c\u4e2d", "font": "Resources/fonts/NotoSansJP-VF.ttf",
+      "output": "Resources/generated/text/hud_irrigation_removal_preview.png", "fontSize": 28,
+      "color": [1.0, 0.45, 0.25, 1.0], "shadowColor": [0.0, 0.0, 0.0, 0.85],
+      "shadowOffset": [2, 2], "padding": [10, 6], "overwrite": true
     },
     {
       "id": "hud_irrigation_preview", "text": "\u704c\u6f11\u30d7\u30ec\u30d3\u30e5\u30fc\u4e2d", "font": "Resources/fonts/NotoSansJP-VF.ttf",

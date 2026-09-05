@@ -5,6 +5,7 @@
 #include "farm/system/FarmIrrigationSystem.h"
 
 #include <cstdint>
+#include <vector>
 
 namespace farm {
 
@@ -14,6 +15,14 @@ enum class FarmIrrigationPreviewOperation : std::uint8_t {
 	ToggleWaterSource,
 	RaiseTerrain,
 	LowerTerrain,
+	PlaceCanalPath,
+	RemoveCanalPath,
+};
+
+enum class FarmCanalPathIssue : std::uint8_t {
+	None,
+	NonStraight,
+	BlockedTile,
 };
 
 // Owns one temporary irrigation edit. Authoritative FarmGrid mutation stays elsewhere.
@@ -24,6 +33,12 @@ public:
 		const FarmGrid& sourceGrid,
 		int tileIndex,
 		FarmIrrigationPreviewOperation operation);
+	[[nodiscard]] bool AppendCanalPathTile(
+		const FarmGrid& sourceGrid,
+		int tileIndex);
+	[[nodiscard]] bool VisitCanalPathTile(const FarmGrid& sourceGrid, int tileIndex);
+	[[nodiscard]] FarmCanalPathIssue GetPathIssue() const noexcept { return pathIssue_; }
+	[[nodiscard]] int GetBlockedTileIndex() const noexcept { return blockedTileIndex_; }
 	void Cancel() noexcept;
 
 	[[nodiscard]] bool CanConfirm(const FarmGrid& sourceGrid) const noexcept;
@@ -44,6 +59,13 @@ public:
 	[[nodiscard]] int GetCandidateHeightLevel() const noexcept {
 		return candidateHeightLevel_;
 	}
+	[[nodiscard]] bool IsTileChanged(int tileIndex) const noexcept;
+	[[nodiscard]] std::size_t GetChangeCount() const noexcept {
+		return changedTileIndices_.size();
+	}
+	[[nodiscard]] const std::vector<int>& GetChangedTileIndices() const noexcept {
+		return changedTileIndices_;
+	}
 	[[nodiscard]] const FarmGrid* GetPreviewGrid() const noexcept {
 		return active_ ? &previewGrid_ : nullptr;
 	}
@@ -52,16 +74,21 @@ public:
 	}
 
 private:
+	[[nodiscard]] bool ExtendCanalPathTo(const FarmGrid& sourceGrid, int tileIndex);
 	FarmRules rules_{};
 	FarmGrid previewGrid_{};
 	FarmIrrigationSystem previewIrrigation_{};
 	FarmGrid::Snapshot sourceSnapshot_{};
+	std::uint64_t sourceGeneration_ = 0;
 	FarmTile originalTile_{};
 	int tileIndex_ = -1;
 	FarmIrrigationPreviewOperation operation_ = FarmIrrigationPreviewOperation::None;
 	FarmTileFeature candidateFeature_ = FarmTileFeature::None;
 	int candidateHeightLevel_ = 0;
+	std::vector<int> changedTileIndices_;
 	bool active_ = false;
+	FarmCanalPathIssue pathIssue_ = FarmCanalPathIssue::None;
+	int blockedTileIndex_ = -1;
 };
 
 } // namespace farm

@@ -3,6 +3,8 @@
 #include "farm/system/FarmToolActionSystem.h"
 #include "math/Struct.h"
 
+#include <vector>
+
 class LineDrawer;
 
 namespace farm {
@@ -34,7 +36,7 @@ public:
 		const FarmIrrigationSystem& irrigationSystem,
 		const FarmToolActionResult& selectedAction,
 		LineDrawer& lineDrawer,
-		bool irrigationPreviewActive = false) const;
+		const std::vector<int>* irrigationPreviewChangedTiles = nullptr) const;
 
 	[[nodiscard]] const FarmVisualLayout& GetLayout() const noexcept { return layout_; }
 

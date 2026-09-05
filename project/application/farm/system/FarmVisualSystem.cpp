@@ -18,20 +18,6 @@ float SanitizeStrength(float value) noexcept
 	return std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 0.0f;
 }
 
-Vector4 GetSupplyColor(float strength, bool supplied) noexcept
-{
-	if (!supplied) {
-		return { 0.10f, 0.32f, 0.52f, 1.0f };
-	}
-	const float normalized = SanitizeStrength(strength);
-	return {
-		0.12f + 0.33f * normalized,
-		0.48f + 0.46f * normalized,
-		0.66f + 0.34f * normalized,
-		1.0f,
-	};
-}
-
 void DrawDirectionArrow(
 	LineDrawer& lineDrawer,
 	const Vector3& center,
@@ -92,18 +78,20 @@ void DrawHorizontalRectangle(
 	lineDrawer.DrawLine(bottomLeft, topLeft, color);
 }
 
-Vector4 GetTileColor(
-	const FarmTile& tile,
-	int tileIndex,
-	const FarmIrrigationSystem& irrigationSystem)
+Vector4 GetWaterStatusColor(FarmWaterStatus status) noexcept
 {
-	if (tile.feature == FarmTileFeature::Canal) {
-		return GetSupplyColor(
-			irrigationSystem.GetSupplyStrength(tileIndex),
-			irrigationSystem.IsSupplied(tileIndex));
+	switch (status) {
+	case FarmWaterStatus::Available: return { 0.08f, 0.72f, 0.98f, 1.0f };
+	case FarmWaterStatus::Retained: return { 1.0f, 0.72f, 0.24f, 1.0f };
+	case FarmWaterStatus::Waiting: return { 0.55f, 0.58f, 0.64f, 1.0f };
+	default: return { 0.10f, 0.30f, 0.48f, 1.0f };
 	}
-	if (tile.feature == FarmTileFeature::WaterSource) {
-		return GetSupplyColor(irrigationSystem.GetSupplyStrength(tileIndex), true);
+}
+
+Vector4 GetTileColor(const FarmTile& tile, FarmWaterStatus waterStatus)
+{
+	if (tile.feature != FarmTileFeature::None) {
+		return GetWaterStatusColor(waterStatus);
 	}
 	if (tile.state == FarmTileState::Planted) {
 		return IsHarvestReady(tile)
@@ -265,7 +253,7 @@ void FarmVisualSystem::Draw(
 	const FarmIrrigationSystem& irrigationSystem,
 	const FarmToolActionResult& selectedAction,
 	LineDrawer& lineDrawer,
-	bool irrigationPreviewActive) const
+	const std::vector<int>* irrigationPreviewChangedTiles) const
 {
 	const float halfExtent = layout_.tileSize * 0.5f;
 	for (int index = 0; index < grid.GetTileCount(); ++index) {
@@ -275,15 +263,15 @@ void FarmVisualSystem::Draw(
 		}
 
 		const Vector3 center = GetTileCenter(grid, index);
-		const Vector4 tileColor = GetTileColor(*tile, index, irrigationSystem);
+		const FarmWaterStatus waterStatus = irrigationSystem.GetWaterStatus(grid, index);
+		const Vector4 tileColor = GetTileColor(*tile, waterStatus);
 		DrawHorizontalRectangle(lineDrawer, center, halfExtent, tileColor);
 		if (tile->feature == FarmTileFeature::Canal) {
 			Vector3 canalCenter = center;
 			canalCenter.y += 0.025f;
-			const bool supplied = irrigationSystem.IsSupplied(index);
-			const float supplyStrength = SanitizeStrength(
-				irrigationSystem.GetSupplyStrength(index));
-			const Vector4 flowColor = GetSupplyColor(supplyStrength, supplied);
+			const float supplyStrength = SanitizeStrength(tile->waterAmount);
+			const bool supplied = supplyStrength > 0.0f;
+			const Vector4 flowColor = GetWaterStatusColor(waterStatus);
 			const float flowExtentScale = supplied
 				? 0.36f + 0.26f * supplyStrength
 				: 0.36f;
@@ -324,15 +312,15 @@ void FarmVisualSystem::Draw(
 			Vector3 moundCenter = center;
 			moundCenter.y += 0.02f;
 			DrawHorizontalRectangle(lineDrawer, moundCenter, halfExtent * 0.58f, tileColor);
-			const int canalIndex = irrigationSystem.GetSupplyingCanalIndex(index);
+			const int canalIndex = irrigationSystem.GetAvailableCanalIndex(grid, index);
 			if (canalIndex >= 0) {
 				const float irrigationStrength = SanitizeStrength(
-					irrigationSystem.GetIrrigationStrength(index));
+					irrigationSystem.GetAvailableIrrigationStrength(grid, index));
 				Vector3 canalCenter = GetTileCenter(grid, canalIndex);
 				canalCenter.y += 0.09f;
 				Vector3 irrigationCenter = center;
 				irrigationCenter.y += 0.09f;
-				const Vector4 irrigationColor = GetSupplyColor(irrigationStrength, true);
+				const Vector4 irrigationColor = GetWaterStatusColor(waterStatus);
 				lineDrawer.DrawLine(canalCenter, irrigationCenter, irrigationColor);
 				lineDrawer.DrawWireSphere(
 					irrigationCenter,
@@ -356,8 +344,14 @@ void FarmVisualSystem::Draw(
 			DrawCropSilhouette(lineDrawer, *tile, center);
 		}
 
-		if (index == grid.GetSelectedIndex()) {
-			const Vector4 selectionColor = irrigationPreviewActive
+		const bool irrigationPreviewChanged =
+			irrigationPreviewChangedTiles != nullptr &&
+			std::find(
+				irrigationPreviewChangedTiles->begin(),
+				irrigationPreviewChangedTiles->end(),
+				index) != irrigationPreviewChangedTiles->end();
+		if (irrigationPreviewChanged || index == grid.GetSelectedIndex()) {
+			const Vector4 selectionColor = irrigationPreviewChanged
 				? Vector4{ 1.0f, 0.72f, 0.12f, 1.0f }
 				: selectedAction.Succeeded()
 				? Vector4{ 0.15f, 1.0f, 0.35f, 1.0f }

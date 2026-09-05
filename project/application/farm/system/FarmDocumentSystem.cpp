@@ -22,7 +22,7 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 4;
+constexpr int kSchemaVersion = 5;
 constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
@@ -96,6 +96,11 @@ bool ValidateTile(const farm::FarmTile& tile, std::string& error) {
 	}
 	if (!farm::IsValidFarmTileFeature(tile.feature)) {
 		error = "Tile feature is unsupported.";
+		return false;
+	}
+	if (!std::isfinite(tile.waterAmount) || tile.waterAmount < 0.0f || tile.waterAmount > 1.0f ||
+		(tile.feature == farm::FarmTileFeature::None && tile.waterAmount != 0.0f)) {
+		error = "Reservoir water is invalid or stored on a soil tile.";
 		return false;
 	}
 	if (!std::isfinite(tile.moisture) || !std::isfinite(tile.growth) ||
@@ -289,6 +294,7 @@ nlohmann::json BuildJson(
 			{ "crop", farm::ToString(tile.crop) },
 			{ "moisture", tile.moisture },
 			{ "growth", tile.growth },
+			{ "waterAmount", tile.waterAmount },
 		});
 	}
 	document["economy"] = {
@@ -409,6 +415,13 @@ bool ParseSnapshot(
 			tile.heightLevel = tileJson["height"].get<int>();
 			tile.moisture = tileJson["moisture"].get<float>();
 			tile.growth = tileJson["growth"].get<float>();
+			if (schemaVersion >= 5) {
+				if (!tileJson.contains("waterAmount") || !tileJson["waterAmount"].is_number()) {
+					error = "Farm tile has missing or invalid reservoir water.";
+					return false;
+				}
+				tile.waterAmount = tileJson["waterAmount"].get<float>();
+			}
 			if (!TryParseState(tileJson["state"].get<std::string>(), tile.state) ||
 				!TryParseCrop(tileJson["crop"].get<std::string>(), tile.crop)) {
 				error = "Farm tile contains an unsupported state or crop.";
