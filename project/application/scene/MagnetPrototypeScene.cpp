@@ -1496,9 +1496,9 @@ void MagnetPrototypeScene::DrawStageObjects() const
 			!furnaceVisualsReady_) && !hasGimmickVisual) {
 			DrawWireBox(runtimePosition, obstacle.size, color);
 		}
-		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||
-			(obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor &&
-				!magnetGimmickVisualsReady_)) {
+		if ((obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||
+			obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) &&
+			!magnetGimmickVisualsReady_) {
 			LineDrawer::GetInstance()->DrawWireSphere(
 				runtimePosition,
 				(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f,

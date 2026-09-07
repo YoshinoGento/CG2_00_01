@@ -81,6 +81,8 @@ public:
 	[[nodiscard]] float GetShutterVerticalOffset(
 		std::size_t obstacleIndex,
 		const MagnetStageBoxPlacement& obstacle) const noexcept;
+	[[nodiscard]] float GetShutterMaximumVerticalOffset(
+		const MagnetStageBoxPlacement& obstacle) const noexcept;
 	[[nodiscard]] physics::BodyHandle GetAnchoredBody(
 		std::size_t obstacleIndex) const noexcept;
 	[[nodiscard]] float GetAnchorAttractionRadius(

@@ -316,6 +316,29 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<None Include="Resources\magnet\chainsaw\chain_motion.png" />
 	<None Include="Resources\magnet\chainsaw\chainsaw_preview.png" />
 	<None Include="Resources\magnet\chainsaw\create_chainsaw.py" />
+	<None Include="Resources\magnet\gimmick_models\create_pinball_shutter.py" />
+	<None Include="Resources\magnet\pinball\pinball_bumper.blend" />
+	<None Include="Resources\magnet\pinball\pinball_bumper.obj" />
+	<None Include="Resources\magnet\pinball\pinball_bumper.mtl" />
+	<None Include="Resources\magnet\pinball\pinball_bumper_ring.obj" />
+	<None Include="Resources\magnet\pinball\pinball_bumper_ring.mtl" />
+	<None Include="Resources\magnet\pinball\bumper_navy.png" />
+	<None Include="Resources\magnet\pinball\bumper_cyan.png" />
+	<None Include="Resources\magnet\pinball\bumper_white.png" />
+	<None Include="Resources\magnet\pinball\bumper_orange.png" />
+	<None Include="Resources\magnet\pinball\bumper_metal.png" />
+	<None Include="Resources\magnet\pinball\pinball_bumper_preview.png" />
+	<None Include="Resources\magnet\shutter\timed_shutter.blend" />
+	<None Include="Resources\magnet\shutter\timed_shutter_frame.obj" />
+	<None Include="Resources\magnet\shutter\timed_shutter_frame.mtl" />
+	<None Include="Resources\magnet\shutter\timed_shutter_panel.obj" />
+	<None Include="Resources\magnet\shutter\timed_shutter_panel.mtl" />
+	<None Include="Resources\magnet\shutter\shutter_navy.png" />
+	<None Include="Resources\magnet\shutter\shutter_cyan.png" />
+	<None Include="Resources\magnet\shutter\shutter_metal.png" />
+	<None Include="Resources\magnet\shutter\shutter_white.png" />
+	<None Include="Resources\magnet\shutter\shutter_orange.png" />
+	<None Include="Resources\magnet\shutter\timed_shutter_preview.png" />
     <None Include="Resources\shader\LinePS.hlsl">
       <FileType>Document</FileType>
     </None>

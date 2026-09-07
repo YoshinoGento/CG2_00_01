@@ -36,6 +36,14 @@ constexpr std::array<const char*, kChainsawVisualFrameCount> kChainsawChainFileP
 	"Resources/magnet/chainsaw/chainsaw_chain_3.obj",
 };
 constexpr char kChainsawChainTexturePath[] = "Resources/magnet/chainsaw/chain_motion.png";
+constexpr char kPinballBodyModelPath[] = "magnet/pinball/pinball_bumper.obj";
+constexpr char kPinballBodyFilePath[] = "Resources/magnet/pinball/pinball_bumper.obj";
+constexpr char kPinballRingModelPath[] = "magnet/pinball/pinball_bumper_ring.obj";
+constexpr char kPinballRingFilePath[] = "Resources/magnet/pinball/pinball_bumper_ring.obj";
+constexpr char kShutterFrameModelPath[] = "magnet/shutter/timed_shutter_frame.obj";
+constexpr char kShutterFrameFilePath[] = "Resources/magnet/shutter/timed_shutter_frame.obj";
+constexpr char kShutterPanelModelPath[] = "magnet/shutter/timed_shutter_panel.obj";
+constexpr char kShutterPanelFilePath[] = "Resources/magnet/shutter/timed_shutter_panel.obj";
 constexpr char kWhiteTexturePath[] = "Resources/human/white.png";
 constexpr char kNoiseTexturePath[] = "Resources/noise1.png";
 constexpr float kTau = std::numbers::pi_v<float> * 2.0f;
@@ -51,6 +59,15 @@ constexpr float kChainsawSourceThickness = 0.35f;
 constexpr float kChainsawExposedRatio = 0.8f;
 constexpr float kChainsawChainFramesPerSecond = 24.0f;
 constexpr float kChainsawSparkLifetimeSeconds = 0.36f;
+constexpr float kPinballSourceDiameter = 1.74697f;
+constexpr float kPinballSourceHeight = 1.13f;
+constexpr float kPinballImpactAnimationSeconds = 0.22f;
+constexpr float kShutterSourceWidth = 4.0f;
+constexpr float kShutterSourceHeight = 5.32f;
+constexpr float kShutterSourceDepth = 0.903776f;
+constexpr float kShutterPanelSourceWidth = 3.34f;
+constexpr float kShutterPanelSourceHeight = 2.0f;
+constexpr float kShutterPanelSourceDepth = 0.52f;
 constexpr int kFieldSegments = 48;
 constexpr int kAnchorSuctionWaveCount = 3;
 constexpr int kAnchorFlowArrowCount = 8;
@@ -178,6 +195,8 @@ bool MagnetGimmickVisualSystem::Supports(MagnetObstacleKind kind) noexcept
 {
 	return kind == MagnetObstacleKind::TransferGate ||
 		kind == MagnetObstacleKind::Chainsaw ||
+		kind == MagnetObstacleKind::PinballBumper ||
+		kind == MagnetObstacleKind::TimedShutter ||
 		kind == MagnetObstacleKind::RepulsionField ||
 		kind == MagnetObstacleKind::MagneticAnchor;
 }
@@ -192,6 +211,10 @@ bool MagnetGimmickVisualSystem::Initialize(
 		!IsRegularFile(kTransferFrameFilePath) ||
 		!IsRegularFile(kChainsawBodyFilePath) ||
 		!IsRegularFile(kChainsawChainTexturePath) ||
+		!IsRegularFile(kPinballBodyFilePath) ||
+		!IsRegularFile(kPinballRingFilePath) ||
+		!IsRegularFile(kShutterFrameFilePath) ||
+		!IsRegularFile(kShutterPanelFilePath) ||
 		!IsRegularFile(kWhiteTexturePath) ||
 		!IsRegularFile(kNoiseTexturePath)) {
 		return false;
@@ -219,6 +242,20 @@ bool MagnetGimmickVisualSystem::Initialize(
 			chainsawChainModels_[frameIndex]->LoadTextures();
 		}
 	}
+	modelManager->LoadModel(kPinballBodyModelPath);
+	pinballBodyModel_ = modelManager->GetModel(kPinballBodyModelPath);
+	modelManager->LoadModel(kPinballRingModelPath);
+	pinballRingModel_ = modelManager->GetModel(kPinballRingModelPath);
+	modelManager->LoadModel(kShutterFrameModelPath);
+	shutterFrameModel_ = modelManager->GetModel(kShutterFrameModelPath);
+	modelManager->LoadModel(kShutterPanelModelPath);
+	shutterPanelModel_ = modelManager->GetModel(kShutterPanelModelPath);
+	for (Model* model : { pinballBodyModel_, pinballRingModel_,
+		shutterFrameModel_, shutterPanelModel_ }) {
+		if (model) {
+			model->LoadTextures();
+		}
+	}
 	portalModel_ = PrimitiveGenerator::CreateBox(modelManager, { 1.0f, 1.0f, 1.0f });
 	coreModel_ = PrimitiveGenerator::CreateSphere(modelManager, 1.0f, 20);
 	ringModel_ = PrimitiveGenerator::CreateRing(modelManager, 0.84f, 1.0f, 48);
@@ -229,6 +266,8 @@ bool MagnetGimmickVisualSystem::Initialize(
 	if (!transferFrameModel_ || !chainsawBodyModel_ ||
 		std::any_of(chainsawChainModels_.begin(), chainsawChainModels_.end(),
 			[](const Model* model) noexcept { return model == nullptr; }) ||
+		!pinballBodyModel_ || !pinballRingModel_ ||
+		!shutterFrameModel_ || !shutterPanelModel_ ||
 		!portalModel_ || !coreModel_ || !ringModel_ ||
 		!whiteTexture_.IsValid() || !noiseTexture_.IsValid()) {
 		Finalize();
@@ -243,6 +282,8 @@ bool MagnetGimmickVisualSystem::Initialize(
 		slot.configuredKind = MagnetObstacleKind::Count;
 	}
 	elapsedSeconds_ = 0.0f;
+	bumperImpactAges_.fill(kPinballImpactAnimationSeconds);
+	shutterPreviousOpenRatios_.fill(-1.0f);
 	ready_ = true;
 	return true;
 }
@@ -261,7 +302,13 @@ void MagnetGimmickVisualSystem::Finalize() noexcept
 	transferFrameModel_ = nullptr;
 	chainsawBodyModel_ = nullptr;
 	chainsawChainModels_.fill(nullptr);
+	pinballBodyModel_ = nullptr;
+	pinballRingModel_ = nullptr;
+	shutterFrameModel_ = nullptr;
+	shutterPanelModel_ = nullptr;
 	chainsawSparkBursts_ = {};
+	bumperImpactAges_.fill(kPinballImpactAnimationSeconds);
+	shutterPreviousOpenRatios_.fill(-1.0f);
 	whiteTexture_ = {};
 	noiseTexture_ = {};
 	elapsedSeconds_ = 0.0f;
@@ -273,6 +320,8 @@ void MagnetGimmickVisualSystem::Reset() noexcept
 {
 	elapsedSeconds_ = 0.0f;
 	chainsawSparkBursts_ = {};
+	bumperImpactAges_.fill(kPinballImpactAnimationSeconds);
+	shutterPreviousOpenRatios_.fill(-1.0f);
 	nextChainsawSparkBurst_ = 0;
 }
 
@@ -300,6 +349,14 @@ bool MagnetGimmickVisualSystem::ConfigureSlot(
 		primaryModel = chainsawBodyModel_;
 		secondaryModel = chainsawChainModels_.front();
 		secondaryLighting = false;
+		break;
+	case MagnetObstacleKind::PinballBumper:
+		primaryModel = pinballBodyModel_;
+		secondaryModel = pinballRingModel_;
+		break;
+	case MagnetObstacleKind::TimedShutter:
+		primaryModel = shutterFrameModel_;
+		secondaryModel = shutterPanelModel_;
 		break;
 	case MagnetObstacleKind::MagneticAnchor:
 	case MagnetObstacleKind::RepulsionField:
@@ -447,6 +504,136 @@ bool MagnetGimmickVisualSystem::UpdateChainsaw(
 	return true;
 }
 
+bool MagnetGimmickVisualSystem::UpdatePinballBumper(
+	VisualSlot& slot,
+	std::size_t obstacleIndex,
+	const MagnetStageBoxPlacement& obstacle,
+	Camera* camera,
+	float deltaTime) noexcept
+{
+	if (obstacleIndex >= bumperImpactAges_.size()) {
+		return false;
+	}
+	const Vector3 sourceScale{
+		obstacle.size.x / kPinballSourceDiameter,
+		obstacle.size.y / kPinballSourceHeight,
+		obstacle.size.z / kPinballSourceDiameter,
+	};
+	const Vector3 sourceOrigin{
+		obstacle.position.x,
+		obstacle.position.y - obstacle.size.y * 0.5f,
+		obstacle.position.z,
+	};
+	const float age = bumperImpactAges_[obstacleIndex];
+	const float impactRatio = std::clamp(
+		age / kPinballImpactAnimationSeconds, 0.0f, 1.0f);
+	const float response = std::sin(impactRatio * std::numbers::pi_v<float>) *
+		(1.0f - impactRatio * 0.30f);
+	const float idlePulse = 0.92f + 0.08f *
+		(0.5f + 0.5f * std::sin(elapsedSeconds_ * 3.8f + obstacle.id * 0.37f));
+
+	Object3d& body = *slot.primary;
+	body.SetPosition(sourceOrigin);
+	body.SetRotation({ 0.0f, elapsedSeconds_ * 0.16f, 0.0f });
+	body.SetColor({
+		(std::min)(1.0f, idlePulse + response * 0.22f),
+		(std::min)(1.0f, idlePulse + response * 0.06f),
+		idlePulse,
+		1.0f,
+	});
+	if (!body.SetScale(sourceScale) ||
+		!body.SetSurfaceTextureTransform({ 1.0f, 1.0f }, {})) {
+		return false;
+	}
+	body.Update(camera, deltaTime);
+
+	Object3d& ring = *slot.secondary;
+	ring.SetPosition(sourceOrigin + Vector3{
+		0.0f, -obstacle.size.y * 0.12f * response, 0.0f });
+	ring.SetRotation({});
+	ring.SetColor({ 1.0f, 0.92f - response * 0.18f,
+		0.92f - response * 0.36f, 1.0f });
+	const float radialExpansion = 1.0f + response * 0.09f;
+	if (!ring.SetScale({
+		sourceScale.x * radialExpansion,
+		sourceScale.y,
+		sourceScale.z * radialExpansion,
+	}) || !ring.SetSurfaceTextureTransform({ 1.0f, 1.0f }, {})) {
+		return false;
+	}
+	ring.Update(camera, deltaTime);
+	return true;
+}
+
+bool MagnetGimmickVisualSystem::UpdateTimedShutter(
+	VisualSlot& slot,
+	std::size_t obstacleIndex,
+	const MagnetStageBoxPlacement& obstacle,
+	const MagnetChainSystem& chainSystem,
+	Camera* camera,
+	float deltaTime) noexcept
+{
+	if (obstacleIndex >= shutterPreviousOpenRatios_.size()) {
+		return false;
+	}
+	const bool normalAlongX = obstacle.size.x <= obstacle.size.z;
+	const float openingWidth = normalAlongX ? obstacle.size.z : obstacle.size.x;
+	const float frameDepth = normalAlongX ? obstacle.size.x : obstacle.size.z;
+	const float maximumLift =
+		chainSystem.GetTimedShutterMaximumVerticalOffset(obstacle);
+	const float verticalOffset =
+		chainSystem.GetTimedShutterVerticalOffset(obstacleIndex, obstacle);
+	const float openRatio = chainSystem.GetTimedShutterOpenRatio(obstacleIndex);
+	if (!std::isfinite(maximumLift) || maximumLift <= 0.0f ||
+		!std::isfinite(verticalOffset) || verticalOffset < 0.0f ||
+		!std::isfinite(openRatio)) {
+		return false;
+	}
+
+	const float frameHeight = obstacle.size.y + maximumLift;
+	const Vector3 sourceBase{
+		obstacle.position.x,
+		obstacle.position.y - obstacle.size.y * 0.5f,
+		obstacle.position.z,
+	};
+	const Vector3 rotation{ 0.0f, normalAlongX ? kHalfPi : 0.0f, 0.0f };
+	Object3d& frame = *slot.primary;
+	frame.SetPosition(sourceBase);
+	frame.SetRotation(rotation);
+	const float guidePulse = 0.82f + 0.18f *
+		(0.5f + 0.5f * std::sin(elapsedSeconds_ * 4.0f + obstacle.id));
+	frame.SetColor({ guidePulse, guidePulse, guidePulse, 1.0f });
+	if (!frame.SetScale({
+		openingWidth / kShutterSourceWidth,
+		frameHeight / kShutterSourceHeight,
+		frameDepth / kShutterSourceDepth,
+	}) || !frame.SetSurfaceTextureTransform({ 1.0f, 1.0f }, {})) {
+		return false;
+	}
+	frame.Update(camera, deltaTime);
+
+	const float previousRatio = shutterPreviousOpenRatios_[obstacleIndex];
+	const bool closing = previousRatio >= 0.0f && openRatio + 1.0e-4f < previousRatio;
+	shutterPreviousOpenRatios_[obstacleIndex] = openRatio;
+	const float warningPulse = closing
+		? 0.64f + 0.36f * (0.5f + 0.5f * std::sin(elapsedSeconds_ * 20.0f))
+		: 1.0f;
+
+	Object3d& panel = *slot.secondary;
+	panel.SetPosition(sourceBase + Vector3{ 0.0f, verticalOffset, 0.0f });
+	panel.SetRotation(rotation);
+	panel.SetColor({ 1.0f, warningPulse, warningPulse, 1.0f });
+	if (!panel.SetScale({
+		openingWidth / kShutterPanelSourceWidth,
+		obstacle.size.y / kShutterPanelSourceHeight,
+		frameDepth / kShutterPanelSourceDepth,
+	}) || !panel.SetSurfaceTextureTransform({ 1.0f, 1.0f }, {})) {
+		return false;
+	}
+	panel.Update(camera, deltaTime);
+	return true;
+}
+
 bool MagnetGimmickVisualSystem::UpdateMagneticAnchor(
 	VisualSlot& slot,
 	std::size_t obstacleIndex,
@@ -581,6 +768,32 @@ bool MagnetGimmickVisualSystem::Update(
 	}
 	deltaTime = (std::min)(deltaTime, FrameClock::kMaximumFrameDeltaSeconds);
 	elapsedSeconds_ = std::remainder(elapsedSeconds_ + deltaTime, 4096.0f);
+	for (float& age : bumperImpactAges_) {
+		age = (std::min)(age + deltaTime, kPinballImpactAnimationSeconds);
+	}
+	const auto& impacts = chainSystem.GetWallImpactEvents();
+	for (std::size_t impactIndex = 0;
+		impactIndex < chainSystem.GetWallImpactEventCount(); ++impactIndex) {
+		if (!IsFinite(impacts[impactIndex].position)) {
+			continue;
+		}
+		for (std::size_t obstacleIndex = 0;
+			obstacleIndex < stageData.obstacleCount; ++obstacleIndex) {
+			const MagnetStageBoxPlacement& obstacle = stageData.obstacles[obstacleIndex];
+			if (obstacle.obstacleKind != MagnetObstacleKind::PinballBumper ||
+				!IsFinite(obstacle.position) || !IsPositiveFiniteSize(obstacle.size)) {
+				continue;
+			}
+			const float x = impacts[impactIndex].position.x - obstacle.position.x;
+			const float z = impacts[impactIndex].position.z - obstacle.position.z;
+			const float matchRadius =
+				(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f + 0.75f;
+			if (x * x + z * z <= matchRadius * matchRadius) {
+				bumperImpactAges_[obstacleIndex] = 0.0f;
+				break;
+			}
+		}
+	}
 	for (ChainsawSparkBurst& burst : chainsawSparkBursts_) {
 		if (!burst.active) {
 			continue;
@@ -601,9 +814,12 @@ bool MagnetGimmickVisualSystem::Update(
 			return false;
 		}
 		VisualSlot& slot = slots_[index];
-		if (slot.configuredKind != obstacle.obstacleKind &&
-			!ConfigureSlot(slot, obstacle.obstacleKind)) {
-			return false;
+		if (slot.configuredKind != obstacle.obstacleKind) {
+			bumperImpactAges_[index] = kPinballImpactAnimationSeconds;
+			shutterPreviousOpenRatios_[index] = -1.0f;
+			if (!ConfigureSlot(slot, obstacle.obstacleKind)) {
+				return false;
+			}
 		}
 		bool updated = false;
 		switch (obstacle.obstacleKind) {
@@ -612,6 +828,14 @@ bool MagnetGimmickVisualSystem::Update(
 			break;
 		case MagnetObstacleKind::Chainsaw:
 			updated = UpdateChainsaw(slot, obstacle, camera, deltaTime);
+			break;
+		case MagnetObstacleKind::PinballBumper:
+			updated = UpdatePinballBumper(
+				slot, index, obstacle, camera, deltaTime);
+			break;
+		case MagnetObstacleKind::TimedShutter:
+			updated = UpdateTimedShutter(
+				slot, index, obstacle, chainSystem, camera, deltaTime);
 			break;
 		case MagnetObstacleKind::MagneticAnchor:
 			updated = UpdateMagneticAnchor(

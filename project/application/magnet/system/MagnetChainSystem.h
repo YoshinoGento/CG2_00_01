@@ -150,6 +150,10 @@ public:
 		return obstacleCollisionSystem_.GetShutterVerticalOffset(
 			obstacleIndex, obstacle);
 	}
+	[[nodiscard]] float GetTimedShutterMaximumVerticalOffset(
+		const MagnetStageBoxPlacement& obstacle) const noexcept {
+		return obstacleCollisionSystem_.GetShutterMaximumVerticalOffset(obstacle);
+	}
 	[[nodiscard]] physics::BodyHandle GetAnchoredBody(
 		std::size_t obstacleIndex) const noexcept {
 		return obstacleCollisionSystem_.GetAnchoredBody(obstacleIndex);
