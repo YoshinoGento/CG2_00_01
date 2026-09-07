@@ -1286,6 +1286,33 @@ int main()
 		std::cerr << "Furnace did not dissolve the contacted chain ball.\n";
 		return 155;
 	}
+	const std::size_t furnaceEventCount =
+		furnaceSystem.GetFurnaceDissolveEventCount();
+	if (furnaceEventCount == 0 ||
+		furnaceEventCount > magnet::MagnetChainSystem::kStageBallCapacity) {
+		std::cerr << "Furnace did not publish bounded dissolve visual events.\n";
+		return 214;
+	}
+	for (std::size_t index = 0; index < furnaceEventCount; ++index) {
+		const auto& furnaceDissolveEvent =
+			furnaceSystem.GetFurnaceDissolveEvents()[index];
+		if (!furnaceDissolveEvent.body.IsValid() ||
+			furnaceDissolveEvent.obstacleId != furnaceStage.obstacles[0].id ||
+			!std::isfinite(furnaceDissolveEvent.position.x) ||
+			!std::isfinite(furnaceDissolveEvent.position.y) ||
+			!std::isfinite(furnaceDissolveEvent.position.z) ||
+			!std::isfinite(furnaceDissolveEvent.radius) ||
+			furnaceDissolveEvent.radius <= 0.0f) {
+			std::cerr << "Furnace dissolve visual event payload was invalid.\n";
+			return 215;
+		}
+	}
+	if (!furnaceSystem.Reset() ||
+		furnaceSystem.GetFurnaceDissolveEventCount() != 0) {
+		std::cerr << "Furnace dissolve visual event survived a runtime rebuild.\n";
+		return 216;
+	}
+	std::cout << "furnace_dissolve_event_checks=passed\n";
 
 	magnet::MagnetStageData playerTransferStage = BuildPickupStage();
 	playerTransferStage.name = "player_transfer_gate_runtime_test";

@@ -260,6 +260,14 @@ void MagnetPrototypeScene::Initialize()
 		Logger::Log(
 			"MagnetPrototypeScene: Player/SmallBall model initialization failed; using wire fallback.");
 	}
+	furnaceVisualsReady_ = furnaceVisualSystem_.Initialize(
+		framework_->GetObject3dCommon(),
+		framework_->GetModelManager(),
+		camera_.get());
+	if (!furnaceVisualsReady_) {
+		Logger::Log(
+			"MagnetPrototypeScene: Furnace visual initialization failed; using wire fallback.");
+	}
 	magneticImpactFeedbackSystem_.Reset();
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
@@ -302,6 +310,8 @@ void MagnetPrototypeScene::Finalize()
 		framework_->GetParticleManager()->ResetGPUParticles();
 	}
 	comicTextEffects_.reset();
+	furnaceVisualSystem_.Finalize();
+	furnaceVisualsReady_ = false;
 	chainsawCutSoundSystem_.Finalize();
 	chainsawProximitySoundSystem_.Finalize();
 	magneticGoalSoundSystem_.Finalize();
@@ -411,6 +421,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		chainsawCutSoundSystem_.Reset();
 		chainsawProximitySoundSystem_.Reset();
 		magneticImpactSoundSystem_.Reset();
+		furnaceVisualSystem_.Reset();
 		if (comicTextEffects_) { comicTextEffects_->Clear(); }
 		resetRequested_ = false;
 		if (!prototypeReady_) {
@@ -426,6 +437,13 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 	magnetChainSystem_.SetPlayerCommand(pendingCommand_);
 	prototypeReady_ = magnetChainSystem_.FixedUpdate(fixedDeltaTime);
 	if (prototypeReady_) {
+		if (furnaceVisualsReady_ && !furnaceVisualSystem_.AddDissolveEvents(
+			magnetChainSystem_.GetFurnaceDissolveEvents(),
+			magnetChainSystem_.GetFurnaceDissolveEventCount())) {
+			Logger::Log(
+				"MagnetPrototypeScene: Furnace dissolve event was invalid; disabling its visual path.");
+			furnaceVisualsReady_ = false;
+		}
 		if (magnetChainSystem_.GetAttachmentEvent().occurred) {
 			magneticAttachmentSoundSystem_.Play();
 		}
@@ -534,6 +552,12 @@ void MagnetPrototypeScene::Update()
 		Logger::Log(
 			"MagnetPrototypeScene: ball visual update failed; using wire fallback.");
 		ballVisualsReady_ = false;
+	}
+	if (furnaceVisualsReady_ && !furnaceVisualSystem_.Update(
+		frameDeltaSeconds, stageData, camera_.get())) {
+		Logger::Log(
+			"MagnetPrototypeScene: Furnace visual update failed; using wire fallback.");
+		furnaceVisualsReady_ = false;
 	}
 	if (framework_ && framework_->GetParticleManager() && camera_) {
 		framework_->GetParticleManager()->Update(camera_.get(), frameDeltaSeconds);
@@ -698,6 +722,9 @@ void MagnetPrototypeScene::Draw()
 	magneticImpactFeedbackSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
+	if (furnaceVisualsReady_) {
+		furnaceVisualSystem_.Draw(magnetStageSystem_.GetStageData());
+	}
 	DrawBallVisuals();
 	if (framework_ && framework_->GetParticleManager()) {
 		framework_->GetParticleManager()->Draw();
@@ -1427,7 +1454,10 @@ void MagnetPrototypeScene::DrawStageObjects() const
 		const bool shutterClosed = shutterOpenRatio < 0.5f;
 		const Vector4 color = GetObstacleColor(
 			obstacle.obstacleKind, shutterClosed);
-		DrawWireBox(runtimePosition, obstacle.size, color);
+		if (obstacle.obstacleKind != magnet::MagnetObstacleKind::Furnace ||
+			!furnaceVisualsReady_) {
+			DrawWireBox(runtimePosition, obstacle.size, color);
+		}
 		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||
 			obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) {
 			LineDrawer::GetInstance()->DrawWireSphere(

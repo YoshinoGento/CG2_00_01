@@ -308,6 +308,8 @@ bool MagnetChainSystem::RebuildRuntime()
 	attachmentEvent_ = {};
 	goalEvent_ = {};
 	chainsawCutEvent_ = {};
+	furnaceDissolveEvents_.fill({});
+	furnaceDissolveEventCount_ = 0;
 	goalHitCount_ = 0;
 	score_ = 0;
 	stageBalls_.fill({});
@@ -413,6 +415,7 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 	attachmentEvent_ = {};
 	goalEvent_ = {};
 	chainsawCutEvent_ = {};
+	furnaceDissolveEventCount_ = 0;
 	if (!healthy_ || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f ||
 		!IsFinite(command_.moveDirection) || !std::isfinite(command_.turnDirection)) {
 		return false;
@@ -1136,15 +1139,45 @@ bool MagnetChainSystem::ApplyObstacleEvent(
 	if (state == StageBallState::Inactive) {
 		return true;
 	}
+	const physics::SphereBody* body = physicsWorld_.GetBody(event.body);
+	if (!body || !body->active || !IsFinite(body->position) ||
+		!std::isfinite(body->radius) || body->radius <= 0.0f) {
+		return false;
+	}
+	const Vector3 dissolvePosition = body->position;
+	const float dissolveRadius = body->radius;
 	if (state == StageBallState::AttachedLeft ||
 		state == StageBallState::AttachedRight) {
-		return DetachChainSegment(event.body, true);
+		return DetachChainSegment(event.body, true) &&
+			PublishFurnaceDissolveEvent(
+				event.body, dissolvePosition, dissolveRadius, event.obstacleId);
 	}
 	if (!impactAttachmentSystem_.DetachBody(physicsWorld_, event.body) ||
 		!physicsWorld_.SetActive(event.body, false)) {
 		return false;
 	}
 	stageBallStates_[stageBallIndex] = StageBallState::Inactive;
+	return PublishFurnaceDissolveEvent(
+		event.body, dissolvePosition, dissolveRadius, event.obstacleId);
+}
+
+bool MagnetChainSystem::PublishFurnaceDissolveEvent(
+	physics::BodyHandle body,
+	const Vector3& position,
+	float radius,
+	uint32_t obstacleId) noexcept
+{
+	if (furnaceDissolveEventCount_ >= furnaceDissolveEvents_.size() ||
+		!IsFinite(position) || !std::isfinite(radius) || radius <= 0.0f ||
+		obstacleId == 0) {
+		return false;
+	}
+	furnaceDissolveEvents_[furnaceDissolveEventCount_++] = {
+		body,
+		position,
+		radius,
+		obstacleId,
+	};
 	return true;
 }
 
