@@ -268,6 +268,15 @@ void MagnetPrototypeScene::Initialize()
 		Logger::Log(
 			"MagnetPrototypeScene: Furnace visual initialization failed; using wire fallback.");
 	}
+	magnetGimmickVisualsReady_ = magnetGimmickVisualSystem_.Initialize(
+		framework_->GetObject3dCommon(),
+		framework_->GetModelManager(),
+		camera_.get());
+	if (!magnetGimmickVisualsReady_) {
+		Logger::Log(
+			"MagnetPrototypeScene: Transfer/repulsion/anchor visual initialization failed; "
+			"using wire fallback.");
+	}
 	magneticImpactFeedbackSystem_.Reset();
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
@@ -310,6 +319,8 @@ void MagnetPrototypeScene::Finalize()
 		framework_->GetParticleManager()->ResetGPUParticles();
 	}
 	comicTextEffects_.reset();
+	magnetGimmickVisualSystem_.Finalize();
+	magnetGimmickVisualsReady_ = false;
 	furnaceVisualSystem_.Finalize();
 	furnaceVisualsReady_ = false;
 	chainsawCutSoundSystem_.Finalize();
@@ -422,6 +433,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		chainsawProximitySoundSystem_.Reset();
 		magneticImpactSoundSystem_.Reset();
 		furnaceVisualSystem_.Reset();
+		magnetGimmickVisualSystem_.Reset();
 		if (comicTextEffects_) { comicTextEffects_->Clear(); }
 		resetRequested_ = false;
 		if (!prototypeReady_) {
@@ -452,6 +464,10 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		}
 		if (magnetChainSystem_.GetChainsawCutEvent().occurred) {
 			chainsawCutSoundSystem_.Play();
+			if (magnetGimmickVisualsReady_) {
+				magnetGimmickVisualSystem_.AddChainsawCutEffect(
+					magnetStageSystem_.GetStageData(), magnetChainSystem_);
+			}
 		}
 		const auto& wallImpactEvents = magnetChainSystem_.GetWallImpactEvents();
 		for (std::size_t index = 0;
@@ -558,6 +574,13 @@ void MagnetPrototypeScene::Update()
 		Logger::Log(
 			"MagnetPrototypeScene: Furnace visual update failed; using wire fallback.");
 		furnaceVisualsReady_ = false;
+	}
+	if (magnetGimmickVisualsReady_ && !magnetGimmickVisualSystem_.Update(
+		frameDeltaSeconds, stageData, magnetChainSystem_, camera_.get())) {
+		Logger::Log(
+			"MagnetPrototypeScene: Transfer/repulsion/anchor visual update failed; "
+			"using wire fallback.");
+		magnetGimmickVisualsReady_ = false;
 	}
 	if (framework_ && framework_->GetParticleManager() && camera_) {
 		framework_->GetParticleManager()->Update(camera_.get(), frameDeltaSeconds);
@@ -724,6 +747,10 @@ void MagnetPrototypeScene::Draw()
 	DrawSelectionHighlight();
 	if (furnaceVisualsReady_) {
 		furnaceVisualSystem_.Draw(magnetStageSystem_.GetStageData());
+	}
+	if (magnetGimmickVisualsReady_) {
+		magnetGimmickVisualSystem_.Draw(
+			magnetStageSystem_.GetStageData(), magnetChainSystem_);
 	}
 	DrawBallVisuals();
 	if (framework_ && framework_->GetParticleManager()) {
@@ -1454,19 +1481,23 @@ void MagnetPrototypeScene::DrawStageObjects() const
 		const bool shutterClosed = shutterOpenRatio < 0.5f;
 		const Vector4 color = GetObstacleColor(
 			obstacle.obstacleKind, shutterClosed);
-		if (obstacle.obstacleKind != magnet::MagnetObstacleKind::Furnace ||
-			!furnaceVisualsReady_) {
+		const bool hasGimmickVisual = magnetGimmickVisualsReady_ &&
+			magnet::MagnetGimmickVisualSystem::Supports(obstacle.obstacleKind);
+		if ((obstacle.obstacleKind != magnet::MagnetObstacleKind::Furnace ||
+			!furnaceVisualsReady_) && !hasGimmickVisual) {
 			DrawWireBox(runtimePosition, obstacle.size, color);
 		}
 		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||
-			obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) {
+			(obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor &&
+				!magnetGimmickVisualsReady_)) {
 			LineDrawer::GetInstance()->DrawWireSphere(
 				runtimePosition,
 				(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f,
 				color,
 				24);
 		}
-		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) {
+		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor &&
+			!magnetGimmickVisualsReady_) {
 			const float attractionRadius =
 				magnetChainSystem_.GetAnchorAttractionRadius(obstacle);
 			for (int segment = 0; segment < kAnchorFieldSegments; ++segment) {
@@ -1498,7 +1529,8 @@ void MagnetPrototypeScene::DrawStageObjects() const
 					obstacle.position, body->position, kAnchorColor);
 			}
 		}
-		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::RepulsionField) {
+		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::RepulsionField &&
+			!magnetGimmickVisualsReady_) {
 			const float radius =
 				magnetChainSystem_.GetRepulsionFieldRadius(obstacle);
 			const float fieldY = obstacle.position.y - obstacle.size.y * 0.5f + 0.03f;

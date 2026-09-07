@@ -251,6 +251,14 @@ void Object3d::SetModel(Model* model) {
 	}
 }
 
+bool Object3d::TrySwapStaticModel(Model* model) noexcept {
+	if (!model_ || !model || model_->HasSkinCluster() || model->HasSkinCluster()) {
+		return false;
+	}
+	model_ = model;
+	return true;
+}
+
 bool Object3d::SetSurfaceTextureTransform(
 	const Vector2& scale,
 	const Vector2& offset,

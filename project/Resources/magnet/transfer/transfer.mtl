@@ -1,0 +1,4 @@
+# Transfer gate frame intentionally uses the Object3d material supplied at runtime.
+newmtl TransferGateFrame
+Kd 1.000000 1.000000 1.000000
+d 1.000000

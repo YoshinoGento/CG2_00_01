@@ -71,7 +71,7 @@ const char* GetObstacleKindDescription(MagnetObstacleKind kind) noexcept
 Vector3 GetObstacleDefaultSize(MagnetObstacleKind kind) noexcept
 {
 	switch (kind) {
-	case MagnetObstacleKind::Chainsaw: return { 3.0f, 1.0f, 0.65f };
+	case MagnetObstacleKind::Chainsaw: return { 0.65f, 3.0f, 0.35f };
 	case MagnetObstacleKind::PinballBumper: return { 1.8f, 1.4f, 1.8f };
 	case MagnetObstacleKind::Furnace: return { 2.4f, 1.0f, 2.4f };
 	case MagnetObstacleKind::MagneticAnchor: return { 2.2f, 1.4f, 2.2f };
@@ -896,7 +896,9 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			}
 			if (ImGui::Button("この障害物を追加して選択", { -1.0f, 34.0f })) {
 				const Vector3 size = GetObstacleDefaultSize(obstaclePaletteKind_);
-				Vector3 position{ 0.0f, size.y * 0.5f, 4.0f };
+				const float centerHeightRatio =
+					obstaclePaletteKind_ == MagnetObstacleKind::Chainsaw ? 0.3f : 0.5f;
+				Vector3 position{ 0.0f, size.y * centerHeightRatio, 4.0f };
 				if (stageData) {
 					position.x = stageData->playerPosition.x;
 					position.z = std::clamp(

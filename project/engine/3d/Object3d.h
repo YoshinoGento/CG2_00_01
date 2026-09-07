@@ -37,6 +37,9 @@ public:
 	void Draw();
 	void DrawShadow();
 	void SetModel(Model* model);
+	// Preloaded rigid meshes only: preserves the existing Skeleton storage so
+	// render-frame swaps do not allocate or rebuild hierarchy state.
+	[[nodiscard]] bool TrySwapStaticModel(Model* model) noexcept;
 	void InitializeSkeleton();
 
 	std::optional<Skeleton>& GetSkeleton() { return skeleton_; }
