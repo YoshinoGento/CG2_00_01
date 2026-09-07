@@ -33,6 +33,8 @@ private:
 	std::unique_ptr<Skybox> menuSkybox_;
 	std::unique_ptr<Object3d> titleObject_;
 	std::unique_ptr<Object3d> transitionKeyObject_;
+	std::unique_ptr<Object3d> guideTitleObject_;
+	std::unique_ptr<Object3d> operationGuideObject_;
 	std::array<SpriteText, 9> lines_{};
 	std::size_t lineCount_ = 0;
 	bool uiReady_ = false;
