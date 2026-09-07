@@ -243,6 +243,11 @@ void MagnetPrototypeScene::Initialize()
 			"MagnetPrototypeScene: one or more gimmick sounds could not be loaded; "
 			"gameplay will continue without those sounds.");
 	}
+	if (!gimmickEffectSystem_.Initialize(framework_->GetParticleManager())) {
+		Logger::Log(
+			"MagnetPrototypeScene: gimmick particle effects are unavailable; "
+			"line effects will continue to work.");
+	}
 
 	bool stageReady = false;
 #ifdef MAGNET_STARTUP_STAGE_OBSTACLE
@@ -315,6 +320,7 @@ void MagnetPrototypeScene::Finalize()
 		framework_->GetParticleManager()->ResetGPUParticles();
 	}
 	comicTextEffects_.reset();
+	gimmickEffectSystem_.Finalize();
 	furnaceVisualSystem_.Finalize();
 	furnaceVisualsReady_ = false;
 	gimmickSoundSystem_.Finalize();
@@ -428,6 +434,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		chainsawProximitySoundSystem_.Reset();
 		magneticImpactSoundSystem_.Reset();
 		furnaceVisualSystem_.Reset();
+		gimmickEffectSystem_.Reset();
 		gimmickSoundSystem_.Reset();
 		if (comicTextEffects_) { comicTextEffects_->Clear(); }
 		resetRequested_ = false;
@@ -497,6 +504,8 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		}
 		magneticImpactSoundSystem_.PlayPending();
 		gimmickSoundSystem_.Update(
+			magnetChainSystem_, magnetStageSystem_.GetStageData());
+		gimmickEffectSystem_.CaptureEvents(
 			magnetChainSystem_, magnetStageSystem_.GetStageData());
 		magneticImpactFeedbackSystem_.Update(fixedDeltaTime);
 	}
@@ -571,6 +580,7 @@ void MagnetPrototypeScene::Update()
 	if (framework_ && framework_->GetParticleManager() && camera_) {
 		framework_->GetParticleManager()->Update(camera_.get(), frameDeltaSeconds);
 	}
+	gimmickEffectSystem_.Update(frameDeltaSeconds);
 	if (comicTextEffects_ && camera_) {
 		comicTextEffects_->Update(
 			frameDeltaSeconds,
@@ -729,6 +739,7 @@ void MagnetPrototypeScene::Draw()
 		DrawVelocity(stageBalls[index]);
 	}
 	magneticImpactFeedbackSystem_.Draw(*lineDrawer);
+	gimmickEffectSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
 	if (furnaceVisualsReady_) {

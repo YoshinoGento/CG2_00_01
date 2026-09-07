@@ -3,6 +3,7 @@
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/ChainsawProximitySoundSystem.h"
 #include "application/magnet/system/FurnaceVisualSystem.h"
+#include "application/magnet/system/GimmickEffectSystem.h"
 #include "application/magnet/system/GimmickSoundSystem.h"
 #include "application/magnet/system/MagnetChainSystem.h"
 #include "application/magnet/system/MagneticImpactFeedbackSystem.h"
@@ -83,6 +84,7 @@ private:
 	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
 	magnet::MagneticImpactSoundSystem magneticImpactSoundSystem_;
 	magnet::FurnaceVisualSystem furnaceVisualSystem_;
+	magnet::GimmickEffectSystem gimmickEffectSystem_;
 	magnet::GimmickSoundSystem gimmickSoundSystem_;
 	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;
 	ComicTextEffectPreset heavyImpactPreset_{};
