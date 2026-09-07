@@ -19,6 +19,7 @@
     <ClCompile Include="application\magnet\system\MagneticImpactAttachmentSystem.cpp" />
     <ClCompile Include="application\magnet\system\CircularArenaBoundary.cpp" />
     <ClCompile Include="application\magnet\system\MagneticImpactFeedbackSystem.cpp" />
+	<ClCompile Include="application\magnet\system\FurnaceVisualSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagneticImpactSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagneticOneShotSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\ChainsawProximitySoundSystem.cpp" />
@@ -147,6 +148,7 @@
     <ClInclude Include="application\magnet\system\MagneticImpactAttachmentSystem.h" />
     <ClInclude Include="application\magnet\system\CircularArenaBoundary.h" />
     <ClInclude Include="application\magnet\system\MagneticImpactFeedbackSystem.h" />
+	<ClInclude Include="application\magnet\system\FurnaceVisualSystem.h" />
 	<ClInclude Include="application\magnet\system\MagneticImpactSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\MagneticOneShotSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\ChainsawProximitySoundSystem.h" />
@@ -568,6 +570,9 @@
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
 	<None Include="Resources\magnet\small_ball\SmallBall.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\furnace\magma_base.png">
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
     <None Include="Resources\shader\Object3d.hlsli">

@@ -75,6 +75,14 @@ public:
 		std::size_t detachedBallCount = 0;
 		bool occurred = false;
 	};
+	struct FurnaceDissolveEvent {
+		physics::BodyHandle body{};
+		Vector3 position{};
+		float radius = 0.0f;
+		uint32_t obstacleId = 0;
+	};
+	using FurnaceDissolveEvents =
+		std::array<FurnaceDissolveEvent, kStageBallCapacity>;
 
 	[[nodiscard]] bool Initialize(const MagnetStageData& stageData);
 	[[nodiscard]] bool Reset();
@@ -186,6 +194,13 @@ public:
 	[[nodiscard]] const ChainsawCutEvent& GetChainsawCutEvent() const noexcept {
 		return chainsawCutEvent_;
 	}
+	[[nodiscard]] const FurnaceDissolveEvents&
+	GetFurnaceDissolveEvents() const noexcept {
+		return furnaceDissolveEvents_;
+	}
+	[[nodiscard]] std::size_t GetFurnaceDissolveEventCount() const noexcept {
+		return furnaceDissolveEventCount_;
+	}
 
 private:
 	static constexpr std::size_t kBendConstraintsPerSide = kLinksPerSide - 1;
@@ -214,6 +229,11 @@ private:
 		physics::BodyHandle contactedBody,
 		bool dissolveContact,
 		std::size_t* detachedBallCount = nullptr) noexcept;
+	[[nodiscard]] bool PublishFurnaceDissolveEvent(
+		physics::BodyHandle body,
+		const Vector3& position,
+		float radius,
+		uint32_t obstacleId) noexcept;
 	[[nodiscard]] std::size_t FindStageBallIndex(
 		physics::BodyHandle body) const noexcept;
 	[[nodiscard]] const MagnetStageBoxPlacement* FindObstacleById(
@@ -247,6 +267,8 @@ private:
 	AttachmentEvent attachmentEvent_{};
 	GoalEvent goalEvent_{};
 	ChainsawCutEvent chainsawCutEvent_{};
+	FurnaceDissolveEvents furnaceDissolveEvents_{};
+	std::size_t furnaceDissolveEventCount_ = 0;
 	std::array<Goal, MagnetStageData::kMaximumGoalCount> goals_{};
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;
