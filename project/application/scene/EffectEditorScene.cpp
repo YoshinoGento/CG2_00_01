@@ -7,7 +7,9 @@
 #include "base/SrvManager.h"
 #include "effect/ParticleManager.h"
 #include "effect/ComicTextEffect.h"
+#include "effect/ProceduralCombatEffect.h"
 #ifdef USE_IMGUI
+#include "debug/CombatEffectEditor.h"
 #include "debug/ComicTextEffectEditor.h"
 #include "debug/ParticleEffectEditor.h"
 #include "externals/imgui/imgui.h"
@@ -26,9 +28,12 @@ void EffectEditorScene::Initialize() {
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
+	lightningEffect_ = std::make_unique<LightningEffect>();
+	slashEffect_ = std::make_unique<SlashEffect>();
 #ifdef USE_IMGUI
 	particleEffectEditor_ = std::make_unique<ParticleEffectEditor>();
 	comicTextEffectEditor_ = std::make_unique<ComicTextEffectEditor>();
+	combatEffectEditor_ = std::make_unique<CombatEffectEditor>();
 #endif
 }
 
@@ -36,7 +41,10 @@ void EffectEditorScene::Finalize() {
 #ifdef USE_IMGUI
 	particleEffectEditor_.reset();
 	comicTextEffectEditor_.reset();
+	combatEffectEditor_.reset();
 #endif
+	lightningEffect_.reset();
+	slashEffect_.reset();
 	comicTextEffects_.reset();
 	if (framework_ && framework_->GetParticleManager()) {
 		framework_->GetParticleManager()->ClearAll();
@@ -63,6 +71,10 @@ void EffectEditorScene::Update() {
 			clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds,
 			camera_->GetViewProjectionMatrix());
 	}
+	const FrameClock* clock = framework_->GetFrameClock();
+	const float deltaTime = clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds;
+	if (lightningEffect_) lightningEffect_->Update(deltaTime);
+	if (slashEffect_) slashEffect_->Update(deltaTime);
 }
 
 void EffectEditorScene::DrawPreviewGrid() {
@@ -87,6 +99,8 @@ void EffectEditorScene::Draw() {
 		return;
 	}
 	DrawPreviewGrid();
+	if (lightningEffect_) lightningEffect_->Draw(*LineDrawer::GetInstance());
+	if (slashEffect_) slashEffect_->Draw(*LineDrawer::GetInstance());
 	if (ParticleManager* particles = framework_->GetParticleManager()) {
 		particles->Draw();
 	}
@@ -135,20 +149,44 @@ void EffectEditorScene::DrawEditorUi(const SceneEditorContext& context) {
 		{ controlsWidth, viewport->WorkSize.y },
 		ImGuiCond_FirstUseEver);
 	if (ImGui::Begin("エフェクト設定###EffectEditorControls")) {
-		ImGui::TextUnformatted("JSONプリセットを作成してゲーム中から名前で再生できます。");
 		ImGui::DragFloat3("Preview Origin", &previewPosition_.x, 0.05f, -50.0f, 50.0f);
-		if (ImGui::BeginTabBar("EffectEditorTabs")) {
-			if (ImGui::BeginTabItem("Particles")) {
+		if (ImGui::BeginTabBar("HitEffectEditorPages")) {
+			if (ImGui::BeginTabItem("Effects")) {
+				ImGui::SeparatorText("Hit Effect Composition");
+				ImGui::TextWrapped("Particle, lightning and slash accents are layered as one hit effect.");
+				ImGui::Checkbox("Particles##HitLayer", &hitParticleEnabled_);
+				ImGui::SameLine();
+				ImGui::Checkbox("Lightning##HitLayer", &hitLightningEnabled_);
+				ImGui::SameLine();
+				ImGui::Checkbox("Impact Cuts##HitLayer", &hitSlashEnabled_);
+				const bool composedPreview = ImGui::Button("Preview Combined Hit", ImVec2(190.0f, 0.0f)) ||
+					ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
+				ImGui::SameLine();
+				ImGui::TextDisabled("Right click also previews");
+
+				ImGui::SeparatorText("Particle Layer");
 				if (particleEffectEditor_ && framework_ && framework_->GetParticleManager()) {
 					const FrameClock* clock = framework_->GetFrameClock();
 					particleEffectEditor_->Draw(*framework_->GetParticleManager(), previewPosition_,
-						clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+						clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds,
+						composedPreview && hitParticleEnabled_);
+				}
+				ImGui::SeparatorText("Lightning Layer");
+				if (combatEffectEditor_ && lightningEffect_) {
+					combatEffectEditor_->DrawLightning(*lightningEffect_, previewPosition_,
+						composedPreview && hitLightningEnabled_);
+				}
+				ImGui::SeparatorText("Impact Cut Layer");
+				if (combatEffectEditor_ && slashEffect_) {
+					combatEffectEditor_->DrawSlash(*slashEffect_, previewPosition_,
+						composedPreview && hitSlashEnabled_);
 				}
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem("Comic Text")) {
+				const bool textPreview = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
 				if (comicTextEffectEditor_ && comicTextEffects_) {
-					comicTextEffectEditor_->Draw(*comicTextEffects_, previewPosition_);
+					comicTextEffectEditor_->Draw(*comicTextEffects_, previewPosition_, textPreview);
 				}
 				ImGui::EndTabItem();
 			}

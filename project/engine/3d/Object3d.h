@@ -16,6 +16,21 @@
  */
 class Object3d {
 public:
+	enum class SurfaceMappingMode : int32_t {
+		ModelUv = 0,
+		TriplanarWorld = 1,
+	};
+
+	struct DissolveSettings {
+		float threshold = 0.0f;
+		float edgeWidth = 0.08f;
+		float edgeIntensity = 1.0f;
+		bool enabled = false;
+		Vector4 edgeColor{ 1.0f, 0.55f, 0.05f, 1.0f };
+		Vector2 noiseUvScale{ 1.0f, 1.0f };
+		Vector2 noiseUvOffset{};
+	};
+
 	// シェーダーと一致させる構造体 (16バイト境界に注意)
 	void Initialize(Object3dCommon* object3dCommon);
 	void Update(Camera* camera, float deltaTime);
@@ -41,6 +56,12 @@ public:
 	[[nodiscard]] bool SetRotationQuaternion(const Quaternion& rotation) noexcept;
 	bool SetScale(const Vector3& scale);
 	void SetTexture(Texture2DHandle textureHandle) { textureHandle_ = textureHandle; }
+	[[nodiscard]] bool SetSurfaceTextureTransform(
+		const Vector2& scale,
+		const Vector2& offset,
+		SurfaceMappingMode mappingMode = SurfaceMappingMode::ModelUv) noexcept;
+	void SetDissolveMask(Texture2DHandle textureHandle) { dissolveMaskHandle_ = textureHandle; }
+	[[nodiscard]] bool SetDissolveSettings(const DissolveSettings& settings) noexcept;
 	void SetColor(const Vector4& color) { materialData_->color = color; }
 	void SetEnableLighting(bool enabled) { materialData_->enableLighting = enabled ? 1 : 0; }
 	// 環境マップ用のテクスチャハンドルをセット
@@ -77,6 +98,7 @@ private:
 	Object3dCommon* object3dCommon_ = nullptr;
 	Model* model_ = nullptr;
 	Texture2DHandle textureHandle_{};
+	Texture2DHandle dissolveMaskHandle_{};
 	TextureCubeHandle environmentMapHandle_{};
 	int cullMode_ = 2;
 	Animation animation_;
@@ -97,9 +119,21 @@ private:
 		int32_t enableLighting;
 		float shininess;
 		float environmentCoefficient;
-		float padding[2];
+		int32_t surfaceMappingMode;
 		Matrix4x4 uvTransform;
 	};
+	static_assert(sizeof(Material) == 96);
+
+	struct DissolveMaterial {
+		float threshold;
+		float edgeWidth;
+		float edgeIntensity;
+		int32_t enabled;
+		Vector4 edgeColor;
+		Vector2 noiseUvScale;
+		Vector2 noiseUvOffset;
+	};
+	static_assert(sizeof(DissolveMaterial) == 48);
 
 	// GPUに送るための頂点スキンデータ
 	struct VertexShaderSkinning
@@ -119,6 +153,8 @@ private:
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource_;
 	Material* materialData_ = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> dissolveMaterialResource_;
+	DissolveMaterial* dissolveMaterialData_ = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> transformationMatrixResource_;
 	TransformationMatrix* transformationMatrixData_ = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> shadowTransformationMatrixResource_;

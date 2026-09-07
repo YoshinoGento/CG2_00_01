@@ -48,9 +48,25 @@ cbuffer cbShadowScene : register(b4)
     ShadowScene gShadowScene;
 };
 
+struct DissolveMaterial
+{
+    float threshold;
+    float edgeWidth;
+    float edgeIntensity;
+    int enabled;
+    float4 edgeColor;
+    float2 noiseUvScale;
+    float2 noiseUvOffset;
+};
+cbuffer cbDissolveMaterial : register(b5)
+{
+    DissolveMaterial gDissolve;
+};
+
 Texture2D<float4> gTexture : register(t0); // Index 5
 TextureCube<float4> gEnvironmentTexture : register(t1); // ★追加
 Texture2D<float> gDirectionalShadowMap : register(t3);
+Texture2D<float4> gDissolveMask : register(t4);
 SamplerState gSampler : register(s0);
 SamplerComparisonState gShadowSampler : register(s1);
 
@@ -64,6 +80,32 @@ float3 SafeNormalize(float3 value, float3 fallbackValue)
 {
     const float lengthSquared = dot(value, value);
     return lengthSquared > 1.0e-10f ? value * rsqrt(lengthSquared) : fallbackValue;
+}
+
+float2 TransformSurfaceUv(float2 uv)
+{
+    return mul(float4(uv, 0.0f, 1.0f), gMaterial.uvTransform).xy;
+}
+
+float4 SampleSurfaceTexture(float2 modelUv, float3 worldPosition, float3 worldNormal)
+{
+    if (gMaterial.surfaceMappingMode != 1)
+    {
+        return gTexture.Sample(gSampler, TransformSurfaceUv(modelUv));
+    }
+
+    float3 blendWeight = pow(abs(worldNormal), 8.0f);
+    blendWeight /= max(blendWeight.x + blendWeight.y + blendWeight.z, 1.0e-5f);
+
+    const float2 xProjectionUv = TransformSurfaceUv(float2(worldPosition.z, worldPosition.y));
+    const float2 yProjectionUv = TransformSurfaceUv(float2(worldPosition.x, worldPosition.z));
+    const float2 zProjectionUv = TransformSurfaceUv(float2(worldPosition.x, worldPosition.y));
+    const float4 xProjection = gTexture.Sample(gSampler, xProjectionUv);
+    const float4 yProjection = gTexture.Sample(gSampler, yProjectionUv);
+    const float4 zProjection = gTexture.Sample(gSampler, zProjectionUv);
+    return xProjection * blendWeight.x +
+        yProjection * blendWeight.y +
+        zProjection * blendWeight.z;
 }
 
 float EvaluateBlinnPhongSpecular(float3 normal, float3 lightDirection, float3 toEye, float shininess)
@@ -120,14 +162,27 @@ float EvaluateDirectionalShadow(float3 worldPosition, float3 normal, float3 ligh
 PixelShaderOutput main(VertexShaderOutput input)
 {
     PixelShaderOutput output;
+    float dissolveEdge = 0.0f;
+    if (gDissolve.enabled != 0)
+    {
+        const float2 dissolveUv = input.texcoord * gDissolve.noiseUvScale + gDissolve.noiseUvOffset;
+        const float mask = gDissolveMask.Sample(gSampler, dissolveUv).r;
+        const float distanceFromEdge = mask - saturate(gDissolve.threshold);
+        clip(distanceFromEdge);
+        dissolveEdge = 1.0f - smoothstep(0.0f, max(gDissolve.edgeWidth, 0.001f), distanceFromEdge);
+    }
     float3 N = length(input.normal) > 0.00001f ? normalize(input.normal) : float3(0.0f, 1.0f, 0.0f);
     output.normal = float4(N * 0.5f + 0.5f, 1.0f);
-    float4 textureColor = gTexture.Sample(gSampler, input.texcoord);
+    float4 textureColor = SampleSurfaceTexture(input.texcoord, input.worldPosition, N);
     
     // ライティング無効ならテクスチャ色をそのまま出す
     if (gMaterial.enableLighting == 0)
     {
         output.color = gMaterial.color * textureColor;
+        output.color.rgb = lerp(
+            output.color.rgb,
+            gDissolve.edgeColor.rgb * max(gDissolve.edgeIntensity, 0.0f),
+            saturate(dissolveEdge));
         return output;
     }
 
@@ -175,6 +230,10 @@ PixelShaderOutput main(VertexShaderOutput input)
     output.color.rgb += environmentColor * gMaterial.environmentCoefficient;
     
     output.color.a = gMaterial.color.a * textureColor.a;
+    output.color.rgb = lerp(
+        output.color.rgb,
+        gDissolve.edgeColor.rgb * max(gDissolve.edgeIntensity, 0.0f),
+        saturate(dissolveEdge));
 
     return output;
 }

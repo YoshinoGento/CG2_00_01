@@ -19,6 +19,10 @@
     <ClCompile Include="application\magnet\system\MagneticImpactAttachmentSystem.cpp" />
     <ClCompile Include="application\magnet\system\CircularArenaBoundary.cpp" />
     <ClCompile Include="application\magnet\system\MagneticImpactFeedbackSystem.cpp" />
+	<ClCompile Include="application\magnet\system\FurnaceVisualSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagneticImpactSoundSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagneticOneShotSoundSystem.cpp" />
+	<ClCompile Include="application\magnet\system\ChainsawProximitySoundSystem.cpp" />
     <ClCompile Include="application\magnet\system\ObstacleCollisionSystem.cpp" />
     <ClCompile Include="application\magnet\system\SpinChargeController.cpp" />
     <ClCompile Include="application\magnet\system\MagnetChainSystem.cpp" />
@@ -123,12 +127,31 @@
 	<None Include="Resources\ui\font\comic_katakana_font.png">
 	  <Filter>Resource Files</Filter>
 	</None>
+	<None Include="Resources\audio\magnet\kaveHannsya.mp3">
+	  <Filter>Resource Files</Filter>
+	</None>
+	<None Include="Resources\audio\magnet\kuttuku.wav">
+	  <Filter>Resource Files</Filter>
+	</None>
+	<None Include="Resources\audio\magnet\goal.wav">
+	  <Filter>Resource Files</Filter>
+	</None>
+	<None Include="Resources\audio\magnet\Chainsaw.wav">
+	  <Filter>Resource Files</Filter>
+	</None>
+	<None Include="Resources\audio\magnet\cuts.wav">
+	  <Filter>Resource Files</Filter>
+	</None>
 	<ClInclude Include="application\magnet\stage\MagnetStageSystem.h" />
     <ClInclude Include="application\magnet\system\BallMomentumTracker.h" />
     <ClInclude Include="application\magnet\system\BallReacquisitionCooldown.h" />
     <ClInclude Include="application\magnet\system\MagneticImpactAttachmentSystem.h" />
     <ClInclude Include="application\magnet\system\CircularArenaBoundary.h" />
     <ClInclude Include="application\magnet\system\MagneticImpactFeedbackSystem.h" />
+	<ClInclude Include="application\magnet\system\FurnaceVisualSystem.h" />
+	<ClInclude Include="application\magnet\system\MagneticImpactSoundSystem.h" />
+	<ClInclude Include="application\magnet\system\MagneticOneShotSoundSystem.h" />
+	<ClInclude Include="application\magnet\system\ChainsawProximitySoundSystem.h" />
     <ClInclude Include="application\magnet\system\ObstacleCollisionSystem.h" />
     <ClInclude Include="application\magnet\system\SpinChargeController.h" />
     <ClInclude Include="application\magnet\system\MagnetChainSystem.h" />
@@ -534,6 +557,9 @@
     <None Include="Resources\levels\magnet\stage_01.json">
       <Filter>Resource Files</Filter>
     </None>
+	<None Include="Resources\levels\magnet\stage_Obstacle.json">
+	  <Filter>Resource Files</Filter>
+	</None>
 	<None Include="Resources\magnet\player\player.obj">
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
@@ -544,6 +570,9 @@
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
 	<None Include="Resources\magnet\small_ball\SmallBall.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\furnace\magma_base.png">
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
     <None Include="Resources\shader\Object3d.hlsli">

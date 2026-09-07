@@ -25,6 +25,14 @@ public:
 	static constexpr std::size_t kMaximumEventCount =
 		MagnetStageData::kMaximumBallCount * 3 + 1;
 	using Events = std::array<Event, kMaximumEventCount>;
+	struct ImpactEvent {
+		physics::BodyHandle body{};
+		Vector3 position{};
+		float relativeSpeed = 0.0f;
+	};
+	static constexpr std::size_t kMaximumImpactEventCount =
+		MagnetStageData::kMaximumBallCount + 1;
+	using ImpactEvents = std::array<ImpactEvent, kMaximumImpactEventCount>;
 
 	struct Settings {
 		float solidRestitution = 0.55f;
@@ -62,6 +70,12 @@ public:
 
 	[[nodiscard]] const Events& GetEvents() const noexcept { return events_; }
 	[[nodiscard]] std::size_t GetEventCount() const noexcept { return eventCount_; }
+	[[nodiscard]] const ImpactEvents& GetImpactEvents() const noexcept {
+		return impactEvents_;
+	}
+	[[nodiscard]] std::size_t GetImpactEventCount() const noexcept {
+		return impactEventCount_;
+	}
 	[[nodiscard]] bool IsShutterClosed(std::size_t obstacleIndex) const noexcept;
 	[[nodiscard]] float GetShutterOpenRatio(std::size_t obstacleIndex) const noexcept;
 	[[nodiscard]] float GetShutterVerticalOffset(
@@ -92,7 +106,8 @@ private:
 	[[nodiscard]] bool ResolveBoxBody(
 		physics::PhysicsWorld& physicsWorld,
 		physics::BodyHandle handle,
-		const MagnetStageBoxPlacement& obstacle) const noexcept;
+		const MagnetStageBoxPlacement& obstacle,
+		bool reportImpact) noexcept;
 	[[nodiscard]] bool ResolveBumperBody(
 		physics::PhysicsWorld& physicsWorld,
 		physics::BodyHandle handle,
@@ -125,12 +140,18 @@ private:
 		physics::BodyHandle body,
 		uint32_t obstacleId,
 		uint32_t destinationObstacleId = 0) noexcept;
+	void AddImpactEvent(
+		physics::BodyHandle body,
+		const Vector3& position,
+		float relativeSpeed) noexcept;
 
 	Settings settings_{};
 	Events events_{};
+	ImpactEvents impactEvents_{};
 	std::array<AnchorState, MagnetStageData::kMaximumObstacleCount> anchors_{};
 	std::array<float, physics::PhysicsWorld::kMaximumBodies> transferCooldowns_{};
 	std::size_t eventCount_ = 0;
+	std::size_t impactEventCount_ = 0;
 	float elapsedSeconds_ = 0.0f;
 };
 

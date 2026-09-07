@@ -115,9 +115,11 @@ bool HasVerticalOverlap(const physics::SphereBody& body,
 void ObstacleCollisionSystem::Reset() noexcept
 {
 	events_.fill({});
+	impactEvents_.fill({});
 	anchors_.fill({});
 	transferCooldowns_.fill(0.0f);
 	eventCount_ = 0;
+	impactEventCount_ = 0;
 	elapsedSeconds_ = 0.0f;
 }
 
@@ -188,6 +190,7 @@ bool ObstacleCollisionSystem::Resolve(
 	float fixedDeltaTime) noexcept
 {
 	eventCount_ = 0;
+	impactEventCount_ = 0;
 	if ((!ballBodies && ballCount > 0) || (!obstacles && obstacleCount > 0) ||
 		ballCount > MagnetStageData::kMaximumBallCount ||
 		obstacleCount > MagnetStageData::kMaximumObstacleCount ||
@@ -217,21 +220,23 @@ bool ObstacleCollisionSystem::Resolve(
 		}
 		switch (obstacle.obstacleKind) {
 		case MagnetObstacleKind::Solid:
-			if (!ResolveBoxBody(physicsWorld, playerBody, obstacle)) { return false; }
+			if (!ResolveBoxBody(physicsWorld, playerBody, obstacle, true)) { return false; }
 			for (std::size_t bodyIndex = 0; bodyIndex < ballCount; ++bodyIndex) {
-				if (!ResolveBoxBody(physicsWorld, ballBodies[bodyIndex], obstacle)) {
+				if (!ResolveBoxBody(
+					physicsWorld, ballBodies[bodyIndex], obstacle, true)) {
 					return false;
 				}
 			}
 			break;
 		case MagnetObstacleKind::Chainsaw:
-			if (!ResolveBoxBody(physicsWorld, playerBody, obstacle)) { return false; }
+			if (!ResolveBoxBody(physicsWorld, playerBody, obstacle, false)) { return false; }
 			for (std::size_t bodyIndex = 0; bodyIndex < ballCount; ++bodyIndex) {
 				if (BodyTouchesBox(physicsWorld, ballBodies[bodyIndex], obstacle) &&
 					!AddEvent(EventType::CutChain, ballBodies[bodyIndex], obstacle.id)) {
 					return false;
 				}
-				if (!ResolveBoxBody(physicsWorld, ballBodies[bodyIndex], obstacle)) {
+				if (!ResolveBoxBody(
+					physicsWorld, ballBodies[bodyIndex], obstacle, false)) {
 					return false;
 				}
 			}
@@ -245,7 +250,7 @@ bool ObstacleCollisionSystem::Resolve(
 			}
 			break;
 		case MagnetObstacleKind::Furnace:
-			if (!ResolveBoxBody(physicsWorld, playerBody, obstacle)) { return false; }
+			if (!ResolveBoxBody(physicsWorld, playerBody, obstacle, false)) { return false; }
 			for (std::size_t bodyIndex = 0; bodyIndex < ballCount; ++bodyIndex) {
 				if (BodyTouchesBox(physicsWorld, ballBodies[bodyIndex], obstacle) &&
 					!AddEvent(EventType::DissolveBall, ballBodies[bodyIndex], obstacle.id)) {
@@ -264,10 +269,11 @@ bool ObstacleCollisionSystem::Resolve(
 			MagnetStageBoxPlacement runtimeObstacle = obstacle;
 			runtimeObstacle.position.y +=
 				GetShutterVerticalOffset(obstacleIndex, obstacle);
-			if (!ResolveBoxBody(physicsWorld, playerBody, runtimeObstacle)) { return false; }
+			if (!ResolveBoxBody(
+				physicsWorld, playerBody, runtimeObstacle, true)) { return false; }
 			for (std::size_t bodyIndex = 0; bodyIndex < ballCount; ++bodyIndex) {
 				if (!ResolveBoxBody(
-					physicsWorld, ballBodies[bodyIndex], runtimeObstacle)) {
+					physicsWorld, ballBodies[bodyIndex], runtimeObstacle, true)) {
 					return false;
 				}
 			}
@@ -545,7 +551,8 @@ bool ObstacleCollisionSystem::BeginTransferCooldown(
 bool ObstacleCollisionSystem::ResolveBoxBody(
 	physics::PhysicsWorld& physicsWorld,
 	physics::BodyHandle handle,
-	const MagnetStageBoxPlacement& obstacle) const noexcept
+	const MagnetStageBoxPlacement& obstacle,
+	bool reportImpact) noexcept
 {
 	const physics::SphereBody* body = physicsWorld.GetBody(handle);
 	if (!body || !body->active || !HasVerticalOverlap(*body, obstacle)) {
@@ -588,6 +595,9 @@ bool ObstacleCollisionSystem::ResolveBoxBody(
 	Vector3 velocity = body->linearVelocity;
 	const float normalSpeed = DotXZ(velocity, normal);
 	if (normalSpeed < 0.0f) {
+		if (reportImpact) {
+			AddImpactEvent(handle, position, -normalSpeed);
+		}
 		const Vector3 normalVelocity = normal * normalSpeed;
 		velocity = (velocity - normalVelocity) * settings_.solidTangentialDamping -
 			normalVelocity * settings_.solidRestitution;
@@ -804,6 +814,32 @@ bool ObstacleCollisionSystem::AddEvent(
 	events_[eventCount_++] = {
 		type, body, obstacleId, destinationObstacleId };
 	return true;
+}
+
+void ObstacleCollisionSystem::AddImpactEvent(
+	physics::BodyHandle body,
+	const Vector3& position,
+	float relativeSpeed) noexcept
+{
+	if (!body.IsValid() || !IsFinite(position) || !std::isfinite(relativeSpeed) ||
+		relativeSpeed <= 0.0f) {
+		return;
+	}
+	const ImpactEvent event{ body, position, relativeSpeed };
+	if (impactEventCount_ < impactEvents_.size()) {
+		impactEvents_[impactEventCount_++] = event;
+		return;
+	}
+	std::size_t weakestIndex = 0;
+	for (std::size_t index = 1; index < impactEvents_.size(); ++index) {
+		if (impactEvents_[index].relativeSpeed <
+			impactEvents_[weakestIndex].relativeSpeed) {
+			weakestIndex = index;
+		}
+	}
+	if (relativeSpeed > impactEvents_[weakestIndex].relativeSpeed) {
+		impactEvents_[weakestIndex] = event;
+	}
 }
 
 } // namespace magnet

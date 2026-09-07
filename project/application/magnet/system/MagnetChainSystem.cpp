@@ -305,6 +305,11 @@ bool MagnetChainSystem::RebuildRuntime()
 	impactAttachmentSystem_.Reset();
 	obstacleCollisionSystem_.Reset();
 	lastReleaseConvergenceDiagnostics_ = {};
+	attachmentEvent_ = {};
+	goalEvent_ = {};
+	chainsawCutEvent_ = {};
+	furnaceDissolveEvents_.fill({});
+	furnaceDissolveEventCount_ = 0;
 	goalHitCount_ = 0;
 	score_ = 0;
 	stageBalls_.fill({});
@@ -407,6 +412,10 @@ bool MagnetChainSystem::CreateConstraintSlots()
 
 bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 {
+	attachmentEvent_ = {};
+	goalEvent_ = {};
+	chainsawCutEvent_ = {};
+	furnaceDissolveEventCount_ = 0;
 	if (!healthy_ || !std::isfinite(fixedDeltaTime) || fixedDeltaTime <= 0.0f ||
 		!IsFinite(command_.moveDirection) || !std::isfinite(command_.turnDirection)) {
 		return false;
@@ -526,6 +535,9 @@ bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
 		stageBallStates_[index] = StageBallState::Inactive;
 		++goalHitCount_;
 		score_ += enteredGoal->score;
+		++goalEvent_.scoredBallCount;
+		goalEvent_.scoreAwarded += enteredGoal->score;
+		goalEvent_.occurred = true;
 	}
 	return true;
 }
@@ -629,6 +641,12 @@ bool MagnetChainSystem::AttachStageBall(
 		}
 		return false;
 	}
+	attachmentEvent_ = {
+		stageBalls_[stageBallIndex],
+		linkIndex,
+		attachRight,
+		true,
+	};
 	return true;
 }
 
@@ -978,6 +996,7 @@ bool MagnetChainSystem::ReleaseChains() noexcept
 		return false;
 	}
 
+	std::size_t releasedBallCount = 0;
 	for (std::size_t index = 0; index < stageBallCount_; ++index) {
 		if (stageBallStates_[index] == StageBallState::AttachedLeft ||
 			stageBallStates_[index] == StageBallState::AttachedRight) {
@@ -999,7 +1018,11 @@ bool MagnetChainSystem::ReleaseChains() noexcept
 			}
 			stageBallStates_[index] = StageBallState::Released;
 			reacquisitionCooldown_.Begin(index);
+			++releasedBallCount;
 		}
+	}
+	if (releasedBallCount == 0) {
+		return false;
 	}
 	leftChain_.fill({});
 	rightChain_.fill({});
@@ -1093,7 +1116,18 @@ bool MagnetChainSystem::ApplyObstacleEvent(
 			state != StageBallState::AttachedRight) {
 			return true;
 		}
-		return DetachChainSegment(event.body, false);
+		std::size_t detachedBallCount = 0;
+		if (!DetachChainSegment(event.body, false, &detachedBallCount) ||
+			detachedBallCount == 0) {
+			return false;
+		}
+		if (!chainsawCutEvent_.occurred) {
+			chainsawCutEvent_.contactedBody = event.body;
+			chainsawCutEvent_.obstacleId = event.obstacleId;
+		}
+		chainsawCutEvent_.detachedBallCount += detachedBallCount;
+		chainsawCutEvent_.occurred = true;
+		return true;
 	}
 	if (event.type == ObstacleCollisionSystem::EventType::EnterTransferGate) {
 		return false;
@@ -1105,15 +1139,45 @@ bool MagnetChainSystem::ApplyObstacleEvent(
 	if (state == StageBallState::Inactive) {
 		return true;
 	}
+	const physics::SphereBody* body = physicsWorld_.GetBody(event.body);
+	if (!body || !body->active || !IsFinite(body->position) ||
+		!std::isfinite(body->radius) || body->radius <= 0.0f) {
+		return false;
+	}
+	const Vector3 dissolvePosition = body->position;
+	const float dissolveRadius = body->radius;
 	if (state == StageBallState::AttachedLeft ||
 		state == StageBallState::AttachedRight) {
-		return DetachChainSegment(event.body, true);
+		return DetachChainSegment(event.body, true) &&
+			PublishFurnaceDissolveEvent(
+				event.body, dissolvePosition, dissolveRadius, event.obstacleId);
 	}
 	if (!impactAttachmentSystem_.DetachBody(physicsWorld_, event.body) ||
 		!physicsWorld_.SetActive(event.body, false)) {
 		return false;
 	}
 	stageBallStates_[stageBallIndex] = StageBallState::Inactive;
+	return PublishFurnaceDissolveEvent(
+		event.body, dissolvePosition, dissolveRadius, event.obstacleId);
+}
+
+bool MagnetChainSystem::PublishFurnaceDissolveEvent(
+	physics::BodyHandle body,
+	const Vector3& position,
+	float radius,
+	uint32_t obstacleId) noexcept
+{
+	if (furnaceDissolveEventCount_ >= furnaceDissolveEvents_.size() ||
+		!IsFinite(position) || !std::isfinite(radius) || radius <= 0.0f ||
+		obstacleId == 0) {
+		return false;
+	}
+	furnaceDissolveEvents_[furnaceDissolveEventCount_++] = {
+		body,
+		position,
+		radius,
+		obstacleId,
+	};
 	return true;
 }
 
@@ -1139,8 +1203,12 @@ bool MagnetChainSystem::ApplyTransferGateEvent(
 
 bool MagnetChainSystem::DetachChainSegment(
 	physics::BodyHandle contactedBody,
-	bool dissolveContact) noexcept
+	bool dissolveContact,
+	std::size_t* detachedBallCount) noexcept
 {
+	if (detachedBallCount) {
+		*detachedBallCount = 0;
+	}
 	const std::size_t stageBallIndex = FindStageBallIndex(contactedBody);
 	if (stageBallIndex >= stageBallCount_) {
 		return false;
@@ -1220,6 +1288,9 @@ bool MagnetChainSystem::DetachChainSegment(
 	if (releasedAny) {
 		impactAttachmentSystem_.BeginRelease();
 	}
+	if (detachedBallCount) {
+		*detachedBallCount = oldChainCount - contactedLinkIndex;
+	}
 	return true;
 }
 
@@ -1289,6 +1360,17 @@ std::size_t MagnetChainSystem::GetReleasedBallCount() const noexcept
 		stageBallStates_.begin(),
 		stageBallStates_.begin() + static_cast<std::ptrdiff_t>(stageBallCount_),
 		StageBallState::Released));
+}
+
+bool MagnetChainSystem::IsActiveUnattachedBallBody(
+	physics::BodyHandle body) const noexcept
+{
+	const std::size_t stageBallIndex = FindStageBallIndex(body);
+	if (stageBallIndex >= stageBallCount_) {
+		return false;
+	}
+	return stageBallStates_[stageBallIndex] == StageBallState::Available ||
+		stageBallStates_[stageBallIndex] == StageBallState::Released;
 }
 
 float MagnetChainSystem::GetMaximumConstraintError() const noexcept

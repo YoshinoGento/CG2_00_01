@@ -1,8 +1,12 @@
 #pragma once
 
 #include "application/magnet/stage/MagnetStageSystem.h"
+#include "application/magnet/system/ChainsawProximitySoundSystem.h"
+#include "application/magnet/system/FurnaceVisualSystem.h"
 #include "application/magnet/system/MagnetChainSystem.h"
 #include "application/magnet/system/MagneticImpactFeedbackSystem.h"
+#include "application/magnet/system/MagneticImpactSoundSystem.h"
+#include "application/magnet/system/MagneticOneShotSoundSystem.h"
 #include "application/magnet/ui/MagnetPrototypeWindow.h"
 #include "application/scene/BaseScene.h"
 #include "2d/BitmapFont.h"
@@ -71,7 +75,13 @@ private:
 	std::unique_ptr<Skybox> skybox_;
 	magnet::MagnetStageSystem magnetStageSystem_;
 	magnet::MagnetChainSystem magnetChainSystem_;
+	magnet::MagneticOneShotSoundSystem magneticAttachmentSoundSystem_;
+	magnet::MagneticOneShotSoundSystem magneticGoalSoundSystem_;
+	magnet::MagneticOneShotSoundSystem chainsawCutSoundSystem_;
+	magnet::ChainsawProximitySoundSystem chainsawProximitySoundSystem_;
 	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
+	magnet::MagneticImpactSoundSystem magneticImpactSoundSystem_;
+	magnet::FurnaceVisualSystem furnaceVisualSystem_;
 	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;
 	ComicTextEffectPreset heavyImpactPreset_{};
 	magnet::MagnetPrototypeWindow prototypeWindow_;
@@ -82,6 +92,7 @@ private:
 	bool resetRequested_ = false;
 	bool prototypeReady_ = false;
 	bool ballVisualsReady_ = false;
+	bool furnaceVisualsReady_ = false;
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;

@@ -32,6 +32,10 @@
 
 namespace {
 
+#ifdef MAGNET_STARTUP_STAGE_OBSTACLE
+constexpr char kReleaseStageSaveName[] = "stage_Obstacle";
+#endif
+
 constexpr Vector4 kPlayerColor = { 1.0f, 0.15f, 0.12f, 1.0f };
 constexpr Vector4 kLeftChainColor = { 0.15f, 0.65f, 1.0f, 1.0f };
 constexpr Vector4 kRightChainColor = { 0.25f, 0.9f, 0.75f, 1.0f };
@@ -83,6 +87,27 @@ constexpr int kPauseMenuItemCount = 4;
 constexpr Vector4 kUiTextColor = { 0.88f, 0.94f, 0.98f, 1.0f };
 constexpr Vector4 kUiAccentColor = { 1.0f, 0.82f, 0.24f, 1.0f };
 constexpr float kComicTextMinimumImpactSpeed = 6.0f;
+constexpr const char* kMagneticImpactSoundPath =
+	"Resources/audio/magnet/kaveHannsya.mp3";
+constexpr const char* kMagneticAttachmentSoundPath =
+	"Resources/audio/magnet/kuttuku.wav";
+constexpr const char* kMagneticGoalSoundPath =
+	"Resources/audio/magnet/goal.wav";
+constexpr const char* kChainsawLoopSoundPath =
+	"Resources/audio/magnet/Chainsaw.wav";
+constexpr const char* kChainsawCutSoundPath =
+	"Resources/audio/magnet/cuts.wav";
+constexpr magnet::ChainsawProximitySoundSystem::Settings kChainsawLoopSoundSettings{
+	10.0f,
+	2.5f,
+	0.32f,
+	1.0f,
+	7.0f,
+};
+constexpr magnet::MagneticOneShotSoundSystem::Settings kChainsawCutSoundSettings{
+	0.72f,
+	1.0f,
+};
 
 [[nodiscard]] bool IsFiniteVector3(const Vector3& value) noexcept
 {
@@ -183,8 +208,49 @@ void MagnetPrototypeScene::Initialize()
 	}
 	gameFlowUiReady_ = InitializeGameFlowUi();
 	GameFlowState::GetInstance().EnsureBgm(framework_->GetAudio());
+	if (!magneticImpactSoundSystem_.Initialize(
+		framework_->GetAudio(), kMagneticImpactSoundPath)) {
+		Logger::Log(
+			"MagnetPrototypeScene: magnetic impact SE could not be loaded; "
+			"gameplay will continue without it.");
+	}
+	if (!magneticAttachmentSoundSystem_.Initialize(
+		framework_->GetAudio(), kMagneticAttachmentSoundPath)) {
+		Logger::Log(
+			"MagnetPrototypeScene: magnetic attachment SE could not be loaded; "
+			"gameplay will continue without it.");
+	}
+	if (!magneticGoalSoundSystem_.Initialize(
+		framework_->GetAudio(), kMagneticGoalSoundPath)) {
+		Logger::Log(
+			"MagnetPrototypeScene: magnetic goal SE could not be loaded; "
+			"gameplay will continue without it.");
+	}
+	if (!chainsawProximitySoundSystem_.Initialize(
+		framework_->GetAudio(), kChainsawLoopSoundPath, kChainsawLoopSoundSettings)) {
+		Logger::Log(
+			"MagnetPrototypeScene: Chainsaw loop SE could not be loaded; "
+			"gameplay will continue without it.");
+	}
+	if (!chainsawCutSoundSystem_.Initialize(
+		framework_->GetAudio(), kChainsawCutSoundPath, kChainsawCutSoundSettings)) {
+		Logger::Log(
+			"MagnetPrototypeScene: Chainsaw cut SE could not be loaded; "
+			"gameplay will continue without it.");
+	}
 
-	prototypeReady_ = magnetStageSystem_.Initialize() &&
+	bool stageReady = false;
+#ifdef MAGNET_STARTUP_STAGE_OBSTACLE
+	stageReady = magnetStageSystem_.LoadNamed(kReleaseStageSaveName);
+#else
+	stageReady = magnetStageSystem_.Initialize();
+#endif
+	if (!stageReady) {
+		Logger::Log(
+			"MagnetPrototypeScene: startup stage initialization failed: " +
+			magnetStageSystem_.GetLastOperationMessage());
+	}
+	prototypeReady_ = stageReady &&
 		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
 	ballVisualsReady_ = prototypeReady_ && InitializeBallVisuals();
 	if (ballVisualsReady_) {
@@ -194,13 +260,21 @@ void MagnetPrototypeScene::Initialize()
 		Logger::Log(
 			"MagnetPrototypeScene: Player/SmallBall model initialization failed; using wire fallback.");
 	}
+	furnaceVisualsReady_ = furnaceVisualSystem_.Initialize(
+		framework_->GetObject3dCommon(),
+		framework_->GetModelManager(),
+		camera_.get());
+	if (!furnaceVisualsReady_) {
+		Logger::Log(
+			"MagnetPrototypeScene: Furnace visual initialization failed; using wire fallback.");
+	}
 	magneticImpactFeedbackSystem_.Reset();
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
 	ComicTextEffectSystem::LoadPreset("HeavyImpact", heavyImpactPreset_);
 	if (!prototypeReady_) {
-		Logger::Log("MagnetPrototypeScene: MagnetChainSystem initialization failed.");
-		assert(false && "MagnetChainSystem initialization failed.");
+		Logger::Log("MagnetPrototypeScene: magnet prototype initialization failed.");
+		assert(false && "Magnet prototype initialization failed.");
 	}
 	pendingCommand_ = {};
 	resetRequested_ = false;
@@ -236,6 +310,13 @@ void MagnetPrototypeScene::Finalize()
 		framework_->GetParticleManager()->ResetGPUParticles();
 	}
 	comicTextEffects_.reset();
+	furnaceVisualSystem_.Finalize();
+	furnaceVisualsReady_ = false;
+	chainsawCutSoundSystem_.Finalize();
+	chainsawProximitySoundSystem_.Finalize();
+	magneticGoalSoundSystem_.Finalize();
+	magneticAttachmentSoundSystem_.Finalize();
+	magneticImpactSoundSystem_.Finalize();
 	playerVisual_.reset();
 	for (auto& visual : stageBallVisuals_) { visual.reset(); }
 	ballVisualsReady_ = false;
@@ -335,6 +416,12 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 	if (resetRequested_) {
 		prototypeReady_ = magnetChainSystem_.Reset();
 		magneticImpactFeedbackSystem_.Reset();
+		magneticGoalSoundSystem_.Reset();
+		magneticAttachmentSoundSystem_.Reset();
+		chainsawCutSoundSystem_.Reset();
+		chainsawProximitySoundSystem_.Reset();
+		magneticImpactSoundSystem_.Reset();
+		furnaceVisualSystem_.Reset();
 		if (comicTextEffects_) { comicTextEffects_->Clear(); }
 		resetRequested_ = false;
 		if (!prototypeReady_) {
@@ -346,9 +433,48 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 
 	const bool releaseWasRequested =
 		pendingCommand_.releaseChains && magnetChainSystem_.HasAttachedBalls();
+	magneticImpactSoundSystem_.BeginFixedUpdate(fixedDeltaTime);
 	magnetChainSystem_.SetPlayerCommand(pendingCommand_);
 	prototypeReady_ = magnetChainSystem_.FixedUpdate(fixedDeltaTime);
 	if (prototypeReady_) {
+		if (furnaceVisualsReady_ && !furnaceVisualSystem_.AddDissolveEvents(
+			magnetChainSystem_.GetFurnaceDissolveEvents(),
+			magnetChainSystem_.GetFurnaceDissolveEventCount())) {
+			Logger::Log(
+				"MagnetPrototypeScene: Furnace dissolve event was invalid; disabling its visual path.");
+			furnaceVisualsReady_ = false;
+		}
+		if (magnetChainSystem_.GetAttachmentEvent().occurred) {
+			magneticAttachmentSoundSystem_.Play();
+		}
+		if (magnetChainSystem_.GetGoalEvent().occurred) {
+			magneticGoalSoundSystem_.Play();
+		}
+		if (magnetChainSystem_.GetChainsawCutEvent().occurred) {
+			chainsawCutSoundSystem_.Play();
+		}
+		const auto& wallImpactEvents = magnetChainSystem_.GetWallImpactEvents();
+		for (std::size_t index = 0;
+			index < magnetChainSystem_.GetWallImpactEventCount();
+			++index) {
+			if (!magnetChainSystem_.IsActiveUnattachedBallBody(
+				wallImpactEvents[index].body)) {
+				continue;
+			}
+			magneticImpactSoundSystem_.AddImpact(
+				wallImpactEvents[index].relativeSpeed);
+		}
+		const auto& arenaImpactEvents = magnetChainSystem_.GetArenaImpactEvents();
+		for (std::size_t index = 0;
+			index < magnetChainSystem_.GetArenaImpactEventCount();
+			++index) {
+			if (!magnetChainSystem_.IsActiveUnattachedBallBody(
+				arenaImpactEvents[index].body)) {
+				continue;
+			}
+			magneticImpactSoundSystem_.AddImpact(
+				arenaImpactEvents[index].relativeSpeed);
+		}
 		const auto& impactEvents = magnetChainSystem_.GetMagneticImpactEvents();
 		const std::size_t impactCount = magnetChainSystem_.GetMagneticImpactEventCount();
 		magneticImpactFeedbackSystem_.AddImpacts(
@@ -357,9 +483,12 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 			for (std::size_t index = 0; index < impactCount; ++index) {
 				if (impactEvents[index].relativeSpeed >= kComicTextMinimumImpactSpeed) {
 					comicTextEffects_->Play(heavyImpactPreset_, impactEvents[index].position);
+					magneticImpactSoundSystem_.AddImpact(
+						impactEvents[index].relativeSpeed);
 				}
 			}
 		}
+		magneticImpactSoundSystem_.PlayPending();
 		magneticImpactFeedbackSystem_.Update(fixedDeltaTime);
 	}
 	if (!prototypeReady_) {
@@ -380,6 +509,20 @@ void MagnetPrototypeScene::Update()
 	const float frameDeltaSeconds = frameClock
 		? frameClock->GetFrameDeltaSeconds()
 		: FrameClock::kDefaultFixedDeltaSeconds;
+	const bool chainsawSoundEnabled = prototypeReady_ &&
+		editorMode_ == magnet::MagnetEditorMode::Play &&
+		!paused_ && !rankingTransitionRequested_;
+	const physics::SphereBody* playerBody = chainsawSoundEnabled
+		? magnetChainSystem_.GetPhysicsWorld().GetBody(
+			magnetChainSystem_.GetPlayerBody())
+		: nullptr;
+	const magnet::MagnetStageData& stageData = magnetStageSystem_.GetStageData();
+	chainsawProximitySoundSystem_.Update(
+		frameDeltaSeconds,
+		playerBody != nullptr,
+		playerBody ? playerBody->position : Vector3{},
+		stageData.obstacles.data(),
+		stageData.obstacleCount);
 	if (camera_) {
 		Vector3 desiredPosition = camera_->GetTranslate();
 		bool shouldMoveCamera = false;
@@ -409,6 +552,12 @@ void MagnetPrototypeScene::Update()
 		Logger::Log(
 			"MagnetPrototypeScene: ball visual update failed; using wire fallback.");
 		ballVisualsReady_ = false;
+	}
+	if (furnaceVisualsReady_ && !furnaceVisualSystem_.Update(
+		frameDeltaSeconds, stageData, camera_.get())) {
+		Logger::Log(
+			"MagnetPrototypeScene: Furnace visual update failed; using wire fallback.");
+		furnaceVisualsReady_ = false;
 	}
 	if (framework_ && framework_->GetParticleManager() && camera_) {
 		framework_->GetParticleManager()->Update(camera_.get(), frameDeltaSeconds);
@@ -573,6 +722,9 @@ void MagnetPrototypeScene::Draw()
 	magneticImpactFeedbackSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
+	if (furnaceVisualsReady_) {
+		furnaceVisualSystem_.Draw(magnetStageSystem_.GetStageData());
+	}
 	DrawBallVisuals();
 	if (framework_ && framework_->GetParticleManager()) {
 		framework_->GetParticleManager()->Draw();
@@ -1302,7 +1454,10 @@ void MagnetPrototypeScene::DrawStageObjects() const
 		const bool shutterClosed = shutterOpenRatio < 0.5f;
 		const Vector4 color = GetObstacleColor(
 			obstacle.obstacleKind, shutterClosed);
-		DrawWireBox(runtimePosition, obstacle.size, color);
+		if (obstacle.obstacleKind != magnet::MagnetObstacleKind::Furnace ||
+			!furnaceVisualsReady_) {
+			DrawWireBox(runtimePosition, obstacle.size, color);
+		}
 		if (obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||
 			obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) {
 			LineDrawer::GetInstance()->DrawWireSphere(

@@ -33,6 +33,7 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	assert(object3dCommon);
 	object3dCommon_ = object3dCommon;
 	textureHandle_ = TextureManager::GetInstance()->GetFallback2D();
+	dissolveMaskHandle_ = TextureManager::GetInstance()->GetFallback2D();
 	environmentMapHandle_ = TextureManager::GetInstance()->GetFallbackCube();
 	DirectXCommon* dxCommon = object3dCommon_->GetDxCommon();
 
@@ -42,7 +43,21 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	materialData_->enableLighting = 1;
 	materialData_->shininess = 40.0f;
 	materialData_->environmentCoefficient = 0.0f;
+	materialData_->surfaceMappingMode = static_cast<int32_t>(SurfaceMappingMode::ModelUv);
 	materialData_->uvTransform = MatrixMath::MakeIdentity4x4();
+
+	constexpr size_t kConstantBufferAlignment = 256;
+	dissolveMaterialResource_ = dxCommon->CreateBufferResource(kConstantBufferAlignment);
+	dissolveMaterialResource_->Map(0, nullptr, (void**)&dissolveMaterialData_);
+	*dissolveMaterialData_ = {
+		0.0f,
+		0.08f,
+		1.0f,
+		0,
+		{ 1.0f, 0.55f, 0.05f, 1.0f },
+		{ 1.0f, 1.0f },
+		{},
+	};
 
 	transformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
 	transformationMatrixResource_->Map(0, nullptr, (void**)&transformationMatrixData_);
@@ -174,6 +189,15 @@ void Object3d::Draw() {
 		commandList->SetGraphicsRootDescriptorTable(9, srvManager->GetGPUDescriptorHandle(skinCluster.paletteSrvHandle));
 	}
 
+	const UINT dissolveMaskRootIndex = useVertexShaderSkinning ? 10u : 9u;
+	const UINT dissolveMaterialRootIndex = useVertexShaderSkinning ? 11u : 10u;
+	commandList->SetGraphicsRootDescriptorTable(
+		dissolveMaskRootIndex,
+		TextureManager::GetInstance()->GetGpuHandle(dissolveMaskHandle_));
+	commandList->SetGraphicsRootConstantBufferView(
+		dissolveMaterialRootIndex,
+		dissolveMaterialResource_->GetGPUVirtualAddress());
+
 	// モデルの描画実行
 	model_->Draw(object3dCommon_->GetDxCommon());
 }
@@ -225,6 +249,58 @@ void Object3d::SetModel(Model* model) {
 	if (model_) {
 		InitializeSkeleton();
 	}
+}
+
+bool Object3d::SetSurfaceTextureTransform(
+	const Vector2& scale,
+	const Vector2& offset,
+	SurfaceMappingMode mappingMode) noexcept {
+	if (!materialData_ ||
+		!std::isfinite(scale.x) || !std::isfinite(scale.y) ||
+		!std::isfinite(offset.x) || !std::isfinite(offset.y) ||
+		scale.x <= 0.0f || scale.y <= 0.0f ||
+		(mappingMode != SurfaceMappingMode::ModelUv &&
+			mappingMode != SurfaceMappingMode::TriplanarWorld)) {
+		return false;
+	}
+
+	Matrix4x4 uvTransform = MatrixMath::MakeIdentity4x4();
+	uvTransform.m[0][0] = std::clamp(scale.x, 0.001f, 256.0f);
+	uvTransform.m[1][1] = std::clamp(scale.y, 0.001f, 256.0f);
+	uvTransform.m[3][0] = offset.x;
+	uvTransform.m[3][1] = offset.y;
+	materialData_->surfaceMappingMode = static_cast<int32_t>(mappingMode);
+	materialData_->uvTransform = uvTransform;
+	return true;
+}
+
+bool Object3d::SetDissolveSettings(const DissolveSettings& settings) noexcept {
+	if (!dissolveMaterialData_ ||
+		!std::isfinite(settings.threshold) ||
+		!std::isfinite(settings.edgeWidth) ||
+		!std::isfinite(settings.edgeIntensity) ||
+		!std::isfinite(settings.edgeColor.x) ||
+		!std::isfinite(settings.edgeColor.y) ||
+		!std::isfinite(settings.edgeColor.z) ||
+		!std::isfinite(settings.edgeColor.w) ||
+		!std::isfinite(settings.noiseUvScale.x) ||
+		!std::isfinite(settings.noiseUvScale.y) ||
+		!std::isfinite(settings.noiseUvOffset.x) ||
+		!std::isfinite(settings.noiseUvOffset.y)) {
+		return false;
+	}
+
+	dissolveMaterialData_->threshold = std::clamp(settings.threshold, 0.0f, 1.0f);
+	dissolveMaterialData_->edgeWidth = std::clamp(settings.edgeWidth, 0.001f, 1.0f);
+	dissolveMaterialData_->edgeIntensity = std::clamp(settings.edgeIntensity, 0.0f, 16.0f);
+	dissolveMaterialData_->enabled = settings.enabled ? 1 : 0;
+	dissolveMaterialData_->edgeColor = settings.edgeColor;
+	dissolveMaterialData_->noiseUvScale = {
+		std::clamp(settings.noiseUvScale.x, 0.01f, 64.0f),
+		std::clamp(settings.noiseUvScale.y, 0.01f, 64.0f),
+	};
+	dissolveMaterialData_->noiseUvOffset = settings.noiseUvOffset;
+	return true;
 }
 
 bool Object3d::SetRotationQuaternion(const Quaternion& rotation) noexcept {

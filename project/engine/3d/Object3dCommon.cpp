@@ -150,9 +150,9 @@ D3D12_GPU_DESCRIPTOR_HANDLE Object3dCommon::GetShadowMapSrvHandle() const {
 void Object3dCommon::CreateRootSignature() {
     ID3D12Device* device = dxCommon_->GetDevice();
 
-    // ★重要：パラメータを 7つ に増やします
-    // (0:Material, 1:Transform, 2:DirLight, 3:Camera, 4:SpotLight, 5:Texture, 6:EnvironmentMap)
-    D3D12_ROOT_PARAMETER rootParameters[9] = {};
+    // The optional dissolve bindings are present for every Object3d, but the shader
+    // does not sample the mask unless the per-object material enables the effect.
+    D3D12_ROOT_PARAMETER rootParameters[11] = {};
 
     // 0: Material (Pixel)
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
@@ -217,6 +217,20 @@ void Object3dCommon::CreateRootSignature() {
 	rootParameters[8].DescriptorTable.NumDescriptorRanges = 1;
 	rootParameters[8].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+	D3D12_DESCRIPTOR_RANGE dissolveMaskRange[1] = {};
+	dissolveMaskRange[0].BaseShaderRegister = 4;
+	dissolveMaskRange[0].NumDescriptors = 1;
+	dissolveMaskRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	dissolveMaskRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	rootParameters[9].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[9].DescriptorTable.pDescriptorRanges = dissolveMaskRange;
+	rootParameters[9].DescriptorTable.NumDescriptorRanges = 1;
+	rootParameters[9].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	rootParameters[10].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParameters[10].Descriptor.ShaderRegister = 5;
+	rootParameters[10].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
     // --- サンプラーの設定 (s0) ---
     D3D12_STATIC_SAMPLER_DESC staticSamplers[2] = {};
     staticSamplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -260,7 +274,7 @@ void Object3dCommon::CreateRootSignature() {
 void Object3dCommon::CreateSkinningRootSignature() {
     ID3D12Device* device = dxCommon_->GetDevice();
 
-    D3D12_ROOT_PARAMETER rootParameters[10] = {};
+    D3D12_ROOT_PARAMETER rootParameters[12] = {};
 
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[0].Descriptor.ShaderRegister = 0;
@@ -328,6 +342,20 @@ void Object3dCommon::CreateSkinningRootSignature() {
     rootParameters[9].DescriptorTable.pDescriptorRanges = paletteRange;
     rootParameters[9].DescriptorTable.NumDescriptorRanges = 1;
     rootParameters[9].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	D3D12_DESCRIPTOR_RANGE dissolveMaskRange[1] = {};
+	dissolveMaskRange[0].BaseShaderRegister = 4;
+	dissolveMaskRange[0].NumDescriptors = 1;
+	dissolveMaskRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	dissolveMaskRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	rootParameters[10].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[10].DescriptorTable.pDescriptorRanges = dissolveMaskRange;
+	rootParameters[10].DescriptorTable.NumDescriptorRanges = 1;
+	rootParameters[10].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	rootParameters[11].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParameters[11].Descriptor.ShaderRegister = 5;
+	rootParameters[11].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_STATIC_SAMPLER_DESC staticSamplers[2] = {};
     staticSamplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;

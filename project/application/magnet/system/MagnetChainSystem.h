@@ -58,6 +58,31 @@ public:
 		bool applied = false;
 		bool valid = false;
 	};
+	struct AttachmentEvent {
+		physics::BodyHandle body{};
+		std::size_t linkIndex = 0;
+		bool attachedRight = false;
+		bool occurred = false;
+	};
+	struct GoalEvent {
+		std::size_t scoredBallCount = 0;
+		std::size_t scoreAwarded = 0;
+		bool occurred = false;
+	};
+	struct ChainsawCutEvent {
+		physics::BodyHandle contactedBody{};
+		uint32_t obstacleId = 0;
+		std::size_t detachedBallCount = 0;
+		bool occurred = false;
+	};
+	struct FurnaceDissolveEvent {
+		physics::BodyHandle body{};
+		Vector3 position{};
+		float radius = 0.0f;
+		uint32_t obstacleId = 0;
+	};
+	using FurnaceDissolveEvents =
+		std::array<FurnaceDissolveEvent, kStageBallCapacity>;
 
 	[[nodiscard]] bool Initialize(const MagnetStageData& stageData);
 	[[nodiscard]] bool Reset();
@@ -100,6 +125,8 @@ public:
 	[[nodiscard]] static constexpr float GetAttachmentRadius() noexcept { return kAttachmentRadius; }
 	[[nodiscard]] float GetArenaRadius() const noexcept { return arenaBoundary_.GetRadius(); }
 	[[nodiscard]] bool HasAttachedBalls() const noexcept { return GetAttachedBallCount() > 0; }
+	[[nodiscard]] bool IsActiveUnattachedBallBody(
+		physics::BodyHandle body) const noexcept;
 	[[nodiscard]] const Goal& GetGoal() const noexcept { return goals_[0]; }
 	[[nodiscard]] std::size_t GetGoalCount() const noexcept { return goalCount_; }
 	[[nodiscard]] std::size_t GetGoalHitCount() const noexcept { return goalHitCount_; }
@@ -140,9 +167,39 @@ public:
 	[[nodiscard]] std::size_t GetMagneticImpactEventCount() const noexcept {
 		return impactAttachmentSystem_.GetImpactEventCount();
 	}
+	[[nodiscard]] const ObstacleCollisionSystem::ImpactEvents&
+	GetWallImpactEvents() const noexcept {
+		return obstacleCollisionSystem_.GetImpactEvents();
+	}
+	[[nodiscard]] std::size_t GetWallImpactEventCount() const noexcept {
+		return obstacleCollisionSystem_.GetImpactEventCount();
+	}
+	[[nodiscard]] const CircularArenaBoundary::ImpactEvents&
+	GetArenaImpactEvents() const noexcept {
+		return arenaBoundary_.GetImpactEvents();
+	}
+	[[nodiscard]] std::size_t GetArenaImpactEventCount() const noexcept {
+		return arenaBoundary_.GetImpactEventCount();
+	}
 	[[nodiscard]] const ReleaseConvergenceDiagnostics&
 		GetLastReleaseConvergenceDiagnostics() const noexcept {
 		return lastReleaseConvergenceDiagnostics_;
+	}
+	[[nodiscard]] const AttachmentEvent& GetAttachmentEvent() const noexcept {
+		return attachmentEvent_;
+	}
+	[[nodiscard]] const GoalEvent& GetGoalEvent() const noexcept {
+		return goalEvent_;
+	}
+	[[nodiscard]] const ChainsawCutEvent& GetChainsawCutEvent() const noexcept {
+		return chainsawCutEvent_;
+	}
+	[[nodiscard]] const FurnaceDissolveEvents&
+	GetFurnaceDissolveEvents() const noexcept {
+		return furnaceDissolveEvents_;
+	}
+	[[nodiscard]] std::size_t GetFurnaceDissolveEventCount() const noexcept {
+		return furnaceDissolveEventCount_;
 	}
 
 private:
@@ -170,7 +227,13 @@ private:
 		const ObstacleCollisionSystem::Event& event) noexcept;
 	[[nodiscard]] bool DetachChainSegment(
 		physics::BodyHandle contactedBody,
-		bool dissolveContact) noexcept;
+		bool dissolveContact,
+		std::size_t* detachedBallCount = nullptr) noexcept;
+	[[nodiscard]] bool PublishFurnaceDissolveEvent(
+		physics::BodyHandle body,
+		const Vector3& position,
+		float radius,
+		uint32_t obstacleId) noexcept;
 	[[nodiscard]] std::size_t FindStageBallIndex(
 		physics::BodyHandle body) const noexcept;
 	[[nodiscard]] const MagnetStageBoxPlacement* FindObstacleById(
@@ -201,6 +264,11 @@ private:
 	Vector3 stagePlayerPosition_{ 0.0f, 0.75f, 0.0f };
 	PlayerCommand command_{};
 	ReleaseConvergenceDiagnostics lastReleaseConvergenceDiagnostics_{};
+	AttachmentEvent attachmentEvent_{};
+	GoalEvent goalEvent_{};
+	ChainsawCutEvent chainsawCutEvent_{};
+	FurnaceDissolveEvents furnaceDissolveEvents_{};
+	std::size_t furnaceDissolveEventCount_ = 0;
 	std::array<Goal, MagnetStageData::kMaximumGoalCount> goals_{};
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;

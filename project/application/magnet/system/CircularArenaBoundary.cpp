@@ -18,9 +18,10 @@ void CircularArenaBoundary::SetSettings(const Settings& settings) noexcept
 bool CircularArenaBoundary::Resolve(
 	physics::PhysicsWorld& physicsWorld,
 	const physics::BodyHandle* bodies,
-	std::size_t bodyCount) const noexcept
+	std::size_t bodyCount) noexcept
 {
-	if (!bodies && bodyCount > 0) {
+	impactEventCount_ = 0;
+	if ((!bodies && bodyCount > 0) || bodyCount > impactEvents_.size()) {
 		return false;
 	}
 	for (std::size_t index = 0; index < bodyCount; ++index) {
@@ -49,6 +50,10 @@ bool CircularArenaBoundary::Resolve(
 		const float outwardSpeed =
 			correctedVelocity.x * normal.x + correctedVelocity.z * normal.z;
 		if (outwardSpeed > 0.0f) {
+			ImpactEvent& impact = impactEvents_[impactEventCount_++];
+			impact.body = bodies[index];
+			impact.position = correctedPosition;
+			impact.relativeSpeed = outwardSpeed;
 			const Vector3 normalVelocity = normal * outwardSpeed;
 			const Vector3 tangentVelocity = correctedVelocity - normalVelocity;
 			correctedVelocity =
