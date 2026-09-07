@@ -609,7 +609,7 @@ bool ObstacleCollisionSystem::ResolveBoxBody(
 bool ObstacleCollisionSystem::ResolveBumperBody(
 	physics::PhysicsWorld& physicsWorld,
 	physics::BodyHandle handle,
-	const MagnetStageBoxPlacement& obstacle) const noexcept
+	const MagnetStageBoxPlacement& obstacle) noexcept
 {
 	const physics::SphereBody* body = physicsWorld.GetBody(handle);
 	if (!body || !body->active || !HasVerticalOverlap(*body, obstacle)) {
@@ -660,6 +660,7 @@ bool ObstacleCollisionSystem::ResolveBumperBody(
 	Vector3 velocity = body->linearVelocity;
 	const float normalSpeed = DotXZ(velocity, normal);
 	if (normalSpeed <= 0.0f) {
+		AddImpactEvent(handle, position, -normalSpeed);
 		const Vector3 tangentialVelocity = velocity - normal * normalSpeed;
 		const float exitSpeed = (std::max)(
 			-normalSpeed * settings_.bumperRestitution,
