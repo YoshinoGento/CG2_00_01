@@ -632,6 +632,75 @@
 	<None Include="Resources\magnet\chainsaw\create_chainsaw.py">
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
+	<None Include="Resources\magnet\gimmick_models\create_pinball_shutter.py">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\pinball_bumper.blend">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\pinball_bumper.obj">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\pinball_bumper.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\pinball_bumper_ring.obj">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\pinball_bumper_ring.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\bumper_navy.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\bumper_cyan.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\bumper_white.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\bumper_orange.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\bumper_metal.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\pinball\pinball_bumper_preview.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\timed_shutter.blend">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\timed_shutter_frame.obj">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\timed_shutter_frame.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\timed_shutter_panel.obj">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\timed_shutter_panel.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\shutter_navy.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\shutter_cyan.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\shutter_metal.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\shutter_white.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\shutter_orange.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\shutter\timed_shutter_preview.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
     <None Include="Resources\shader\Object3d.hlsli">
       <Filter>Resource Files\Resources\shader</Filter>
     </None>
