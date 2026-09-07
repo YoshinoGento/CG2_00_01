@@ -83,6 +83,39 @@ float DistanceSquaredXZ(const Vector3& a, const Vector3& b) noexcept
 	return deltaX * deltaX + deltaZ * deltaZ;
 }
 
+bool IsInsideArena(const Vector3& position, float arenaRadius) noexcept
+{
+	if (!std::isfinite(position.x) || !std::isfinite(position.z) ||
+		!std::isfinite(arenaRadius) || arenaRadius <= 0.0f) {
+		return false;
+	}
+	const float distanceSquared = position.x * position.x + position.z * position.z;
+	return std::isfinite(distanceSquared) &&
+		distanceSquared <= arenaRadius * arenaRadius + 1.0e-4f;
+}
+
+float GetMaximumAuthoredCenterRadius(const MagnetStageData& stageData) noexcept
+{
+	float maximumRadiusSquared =
+		stageData.playerPosition.x * stageData.playerPosition.x +
+		stageData.playerPosition.z * stageData.playerPosition.z;
+	const auto includePosition = [&](const Vector3& position) noexcept {
+		maximumRadiusSquared = (std::max)(
+			maximumRadiusSquared,
+			position.x * position.x + position.z * position.z);
+	};
+	for (std::size_t index = 0; index < stageData.ballCount; ++index) {
+		includePosition(stageData.balls[index].position);
+	}
+	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
+		includePosition(stageData.goals[index].position);
+	}
+	for (std::size_t index = 0; index < stageData.obstacleCount; ++index) {
+		includePosition(stageData.obstacles[index].position);
+	}
+	return std::sqrt((std::max)(maximumRadiusSquared, 0.0f));
+}
+
 bool ReadFiniteFloat(const nlohmann::json& object, const char* key, float& output)
 {
 	if (!object.contains(key) || !object[key].is_number()) {
@@ -220,6 +253,9 @@ bool MagnetStageSystem::GenerateBalanced(
 				kBallPlaneHeight,
 				zDistribution(randomEngine),
 			};
+			if (!IsInsideArena(position, candidate.arenaRadius)) {
+				continue;
+			}
 			float candidateMinimumDistanceSquared =
 				DistanceSquaredXZ(position, playerPosition);
 			for (std::size_t existingIndex = 0; existingIndex < ballIndex; ++existingIndex) {
@@ -261,10 +297,7 @@ bool MagnetStageSystem::AddBall(const Vector3& position)
 {
 	if (stageData_.ballCount >= stageData_.balls.size() ||
 		!IsFinitePosition(position) ||
-		position.x < stageData_.generation.minimumX ||
-		position.x > stageData_.generation.maximumX ||
-		position.z < stageData_.generation.minimumZ ||
-		position.z > stageData_.generation.maximumZ) {
+		!IsInsideArena(position, stageData_.arenaRadius)) {
 		SetOperationResult(false, "球の位置が不正か、配置上限に達しています。");
 		return false;
 	}
@@ -309,10 +342,7 @@ bool MagnetStageSystem::RemoveBall(uint32_t id)
 bool MagnetStageSystem::SetBallPosition(uint32_t id, const Vector3& position)
 {
 	if (!IsFinitePosition(position) ||
-		position.x < stageData_.generation.minimumX ||
-		position.x > stageData_.generation.maximumX ||
-		position.z < stageData_.generation.minimumZ ||
-		position.z > stageData_.generation.maximumZ) {
+		!IsInsideArena(position, stageData_.arenaRadius)) {
 		SetOperationResult(false, "編集した球の位置がステージ範囲外です。");
 		return false;
 	}
@@ -335,10 +365,7 @@ bool MagnetStageSystem::SetBallPosition(uint32_t id, const Vector3& position)
 bool MagnetStageSystem::SetPlayerPosition(const Vector3& position)
 {
 	if (!IsFinitePosition(position) ||
-		position.x < stageData_.generation.minimumX ||
-		position.x > stageData_.generation.maximumX ||
-		position.z < stageData_.generation.minimumZ ||
-		position.z > stageData_.generation.maximumZ) {
+		!IsInsideArena(position, stageData_.arenaRadius)) {
 		SetOperationResult(false, "プレイヤーの開始位置がステージ範囲外です。");
 		return false;
 	}
@@ -357,6 +384,12 @@ bool MagnetStageSystem::SetArenaRadius(float radius)
 	if (!std::isfinite(radius) || radius < kMinimumArenaRadius ||
 		radius > kMaximumArenaRadius) {
 		SetOperationResult(false, "ステージ半径は4～40の範囲で指定してください。");
+		return false;
+	}
+	if (GetMaximumAuthoredCenterRadius(stageData_) > radius + 1.0e-4f) {
+		SetOperationResult(
+			false,
+			"外側に配置済みの物があります。先に内側へ移動してから縮小してください。");
 		return false;
 	}
 	stageData_.arenaRadius = radius;
@@ -384,10 +417,7 @@ bool MagnetStageSystem::AddBoxObject(
 			(ToObstacleKindString(obstacleKind) == nullptr ||
 			 (obstacleKind == MagnetObstacleKind::TransferGate &&
 			  placement.transferPairId == 0))) ||
-		position.x < stageData_.generation.minimumX ||
-		position.x > stageData_.generation.maximumX ||
-		position.z < stageData_.generation.minimumZ ||
-		position.z > stageData_.generation.maximumZ) {
+		!IsInsideArena(position, stageData_.arenaRadius)) {
 		SetOperationResult(false, "配置するオブジェクトの位置またはサイズが不正です。");
 		return false;
 	}
@@ -463,10 +493,7 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 {
 	MagnetStageBoxPlacement candidate{ id, position, size };
 	if (!IsValidBoxPlacement(candidate) ||
-		position.x < stageData_.generation.minimumX ||
-		position.x > stageData_.generation.maximumX ||
-		position.z < stageData_.generation.minimumZ ||
-		position.z > stageData_.generation.maximumZ) {
+		!IsInsideArena(position, stageData_.arenaRadius)) {
 		SetOperationResult(false, "編集した位置またはサイズがステージ範囲外です。");
 		return false;
 	}
@@ -748,8 +775,9 @@ bool MagnetStageSystem::Load(const std::string& path)
 		}
 
 		MagnetStageData candidate{};
+		const bool hasAuthoredArena = root.contains("arena");
 		candidate.name = root["name"].get<std::string>();
-		if (root.contains("arena")) {
+		if (hasAuthoredArena) {
 			if (!root["arena"].is_object() ||
 				!ReadFiniteFloat(root["arena"], "radius", candidate.arenaRadius)) {
 				SetOperationResult(false, "ステージの大きさ設定が不正です。");
@@ -852,6 +880,21 @@ bool MagnetStageSystem::Load(const std::string& path)
 			return false;
 		}
 		candidate.generation.ballCount = candidate.ballCount;
+		if (!hasAuthoredArena) {
+			// Schema 1-4 used the generator rectangle as the authoring boundary.
+			// Grow the migrated circular arena only as far as existing centers require.
+			const float requiredRadius = GetMaximumAuthoredCenterRadius(candidate);
+			if (!std::isfinite(requiredRadius) ||
+				requiredRadius > kMaximumArenaRadius) {
+				SetOperationResult(
+					false,
+					"旧ステージの配置が現在対応できる最大サイズを超えています。");
+				return false;
+			}
+			candidate.arenaRadius = (std::max)(
+				candidate.arenaRadius,
+				(std::min)(requiredRadius + 0.01f, kMaximumArenaRadius));
+		}
 
 		if (!ValidateStageData(candidate)) {
 			SetOperationResult(false, "読み込んだステージの検証に失敗しました。");
@@ -1082,19 +1125,13 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 	}
 	if (!IsFinitePosition(stageData.playerPosition) ||
 		std::abs(stageData.playerPosition.y - kPlayerPlaneHeight) > 1.0e-4f ||
-		stageData.playerPosition.x < stageData.generation.minimumX ||
-		stageData.playerPosition.x > stageData.generation.maximumX ||
-		stageData.playerPosition.z < stageData.generation.minimumZ ||
-		stageData.playerPosition.z > stageData.generation.maximumZ) {
+		!IsInsideArena(stageData.playerPosition, stageData.arenaRadius)) {
 		return false;
 	}
 	for (std::size_t index = 0; index < stageData.ballCount; ++index) {
 		const MagnetStageBallPlacement& ball = stageData.balls[index];
 		if (ball.id == 0 || !IsFinitePosition(ball.position) ||
-			ball.position.x < stageData.generation.minimumX ||
-			ball.position.x > stageData.generation.maximumX ||
-			ball.position.z < stageData.generation.minimumZ ||
-			ball.position.z > stageData.generation.maximumZ) {
+			!IsInsideArena(ball.position, stageData.arenaRadius)) {
 			return false;
 		}
 		for (std::size_t previousIndex = 0; previousIndex < index; ++previousIndex) {
@@ -1107,10 +1144,7 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 		for (std::size_t index = 0; index < count; ++index) {
 			const MagnetStageBoxPlacement& placement = placements[index];
 			if (placement.id == 0 || !IsValidBoxPlacement(placement) ||
-				placement.position.x < stageData.generation.minimumX ||
-				placement.position.x > stageData.generation.maximumX ||
-				placement.position.z < stageData.generation.minimumZ ||
-				placement.position.z > stageData.generation.maximumZ) {
+				!IsInsideArena(placement.position, stageData.arenaRadius)) {
 				return false;
 			}
 			for (std::size_t previousIndex = 0; previousIndex < index; ++previousIndex) {

@@ -263,6 +263,7 @@ bool PhysicsWorld::SetActive(BodyHandle handle, bool active) noexcept
 	body->previousPosition = body->position;
 	if (!active) {
 		body->linearVelocity = {};
+		body->angularVelocity = {};
 	}
 	return true;
 }
