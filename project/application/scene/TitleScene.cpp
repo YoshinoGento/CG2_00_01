@@ -45,18 +45,38 @@ void TitleScene::Initialize()
 		line.SetCharacterSpacing(kCharacterSpacing);
 	}
 
+	ModelManager* modelManager = framework->GetModelManager();
+	if (modelManager) {
+		titleCamera_ = std::make_unique<Camera>();
+		titleCamera_->SetTranslate({ 0.0f, 0.0f, -10.0f });
+		titleCamera_->SetRotate({ 0.0f, 0.0f, 0.0f });
+		titleCamera_->Update();
+
+		constexpr const char* kSpaceModelPath = "title/Space.obj";
+		modelManager->LoadModel(kSpaceModelPath);
+		Model* spaceModel = modelManager->GetModel(kSpaceModelPath);
+		if (spaceModel) {
+			spaceModel->LoadTextures();
+			transitionKeyObject_ = std::make_unique<Object3d>();
+			transitionKeyObject_->Initialize(framework->GetObject3dCommon());
+			transitionKeyObject_->SetModel(spaceModel);
+			transitionKeyObject_->SetScale({ 0.60f, 0.60f, 0.60f });
+			transitionKeyObject_->SetPosition({ 0.147f, -2.17f, 0.0f });
+			transitionKeyObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+			transitionKeyObject_->SetColor(kAccentColor);
+			transitionKeyObject_->SetEnableLighting(false);
+			transitionKeyObject_->SetCullMode(0);
+			transitionKeyObject_->Update(titleCamera_.get(), 0.0f);
+		}
+	}
+
 	if (page_ == Page::Title) {
-		ModelManager* modelManager = framework->GetModelManager();
 		if (modelManager) {
 			constexpr const char* kTitleModelPath = "title/Title.obj";
 			modelManager->LoadModel(kTitleModelPath);
 			Model* titleModel = modelManager->GetModel(kTitleModelPath);
 			if (titleModel) {
 				titleModel->LoadTextures();
-				titleCamera_ = std::make_unique<Camera>();
-				titleCamera_->SetTranslate({ 0.0f, 0.0f, -10.0f });
-				titleCamera_->SetRotate({ 0.0f, 0.0f, 0.0f });
-				titleCamera_->Update();
 				titleObject_ = std::make_unique<Object3d>();
 				titleObject_->Initialize(framework->GetObject3dCommon());
 				titleObject_->SetModel(titleModel);
@@ -68,7 +88,9 @@ void TitleScene::Initialize()
 				titleObject_->Update(titleCamera_.get(), 0.0f);
 			}
 		}
-		SetLine(0, "PRESS B OR ENTER", { 445.0f, 420.0f }, 1.05f, kAccentColor);
+		if (!transitionKeyObject_) {
+			SetLine(0, "PRESS SPACE", { 500.0f, 420.0f }, 1.05f, kAccentColor);
+		}
 	} else if (page_ == Page::Instructions) {
 		SetLine(0, "HOW TO PLAY", { 465.0f, 105.0f }, 1.55f, kPrimaryColor);
 		SetLine(1, "LEFT STICK OR WASD  MOVE", { 350.0f, 215.0f }, 0.95f, kTextColor);
@@ -76,7 +98,9 @@ void TitleScene::Initialize()
 		SetLine(3, "RT OR Q  SHOOT MAGNETS", { 360.0f, 335.0f }, 0.95f, kTextColor);
 		SetLine(4, "PUT MAGNETS IN GOALS", { 375.0f, 395.0f }, 0.95f, kTextColor);
 		SetLine(5, "MENU OR ESC  PAUSE", { 395.0f, 455.0f }, 0.95f, kTextColor);
-		SetLine(6, "PRESS B OR ENTER TO START", { 350.0f, 565.0f }, 0.95f, kAccentColor);
+		if (!transitionKeyObject_) {
+			SetLine(6, "PRESS SPACE TO START", { 410.0f, 565.0f }, 0.95f, kAccentColor);
+		}
 	} else {
 		SetLine(0, "RANKING", { 520.0f, 75.0f }, 1.65f, kPrimaryColor);
 		const auto& state = GameFlowState::GetInstance();
@@ -92,13 +116,16 @@ void TitleScene::Initialize()
 				{ 490.0f, 190.0f + 60.0f * static_cast<float>(index) },
 				1.0f, index == 0 ? kAccentColor : kTextColor);
 		}
-		SetLine(6, "PRESS B OR ENTER TO CONTINUE", { 315.0f, 565.0f }, 0.95f, kAccentColor);
+		if (!transitionKeyObject_) {
+			SetLine(6, "PRESS SPACE TO CONTINUE", { 375.0f, 565.0f }, 0.95f, kAccentColor);
+		}
 	}
 	uiReady_ = true;
 }
 
 void TitleScene::Finalize()
 {
+	transitionKeyObject_.reset();
 	titleObject_.reset();
 	titleCamera_.reset();
 	background_.reset();
@@ -110,9 +137,11 @@ void TitleScene::Update()
 	if (titleObject_ && titleCamera_) {
 		titleObject_->Update(titleCamera_.get(), 0.0f);
 	}
+	if (transitionKeyObject_ && titleCamera_) {
+		transitionKeyObject_->Update(titleCamera_.get(), 0.0f);
+	}
 	Input* input = Framework::GetInstance()->GetInput();
-	if (!input || (!input->TriggerKey(InputKey::Enter) &&
-		!input->TriggerGamepadButton(InputGamepadButton::B))) { return; }
+	if (!input || !input->TriggerKey(InputKey::Space)) { return; }
 	if (page_ == Page::Title) {
 		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
 	} else if (page_ == Page::Instructions) {
@@ -127,10 +156,11 @@ void TitleScene::Draw()
 	if (!uiReady_) { return; }
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
 	background_->Draw();
-	if (titleObject_) {
+	if (titleObject_ || transitionKeyObject_) {
 		Object3dCommon* objectCommon = Framework::GetInstance()->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
-		titleObject_->Draw();
+		if (titleObject_) { titleObject_->Draw(); }
+		if (transitionKeyObject_) { transitionKeyObject_->Draw(); }
 		objectCommon->EndObjectPass();
 	}
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
