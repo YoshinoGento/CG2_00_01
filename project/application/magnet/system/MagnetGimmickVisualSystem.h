@@ -77,6 +77,19 @@ private:
 		const MagnetStageBoxPlacement& obstacle,
 		Camera* camera,
 		float deltaTime) noexcept;
+	[[nodiscard]] bool UpdatePinballBumper(
+		VisualSlot& slot,
+		std::size_t obstacleIndex,
+		const MagnetStageBoxPlacement& obstacle,
+		Camera* camera,
+		float deltaTime) noexcept;
+	[[nodiscard]] bool UpdateTimedShutter(
+		VisualSlot& slot,
+		std::size_t obstacleIndex,
+		const MagnetStageBoxPlacement& obstacle,
+		const MagnetChainSystem& chainSystem,
+		Camera* camera,
+		float deltaTime) noexcept;
 	[[nodiscard]] bool UpdateMagneticAnchor(
 		VisualSlot& slot,
 		std::size_t obstacleIndex,
@@ -95,10 +108,16 @@ private:
 	Model* transferFrameModel_ = nullptr; // Borrowed from ModelManager.
 	Model* chainsawBodyModel_ = nullptr; // Borrowed from ModelManager.
 	std::array<Model*, kChainsawVisualFrameCount> chainsawChainModels_{}; // Borrowed.
+	Model* pinballBodyModel_ = nullptr; // Borrowed from ModelManager.
+	Model* pinballRingModel_ = nullptr; // Borrowed from ModelManager.
+	Model* shutterFrameModel_ = nullptr; // Borrowed from ModelManager.
+	Model* shutterPanelModel_ = nullptr; // Borrowed from ModelManager.
 	std::unique_ptr<Model> portalModel_;
 	std::unique_ptr<Model> coreModel_;
 	std::unique_ptr<Model> ringModel_;
 	std::array<VisualSlot, MagnetStageData::kMaximumObstacleCount> slots_{};
+	std::array<float, MagnetStageData::kMaximumObstacleCount> bumperImpactAges_{};
+	std::array<float, MagnetStageData::kMaximumObstacleCount> shutterPreviousOpenRatios_{};
 	std::array<ChainsawSparkBurst, kMaximumChainsawSparkBursts> chainsawSparkBursts_{};
 	Texture2DHandle whiteTexture_{};
 	Texture2DHandle noiseTexture_{};

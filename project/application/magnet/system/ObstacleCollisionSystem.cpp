@@ -371,11 +371,19 @@ float ObstacleCollisionSystem::GetShutterVerticalOffset(
 	std::size_t obstacleIndex,
 	const MagnetStageBoxPlacement& obstacle) const noexcept
 {
-	if (!IsFinite(obstacle.size) || obstacle.size.y <= 0.0f) {
+	return GetShutterOpenRatio(obstacleIndex) *
+		GetShutterMaximumVerticalOffset(obstacle);
+}
+
+float ObstacleCollisionSystem::GetShutterMaximumVerticalOffset(
+	const MagnetStageBoxPlacement& obstacle) const noexcept
+{
+	if (!IsFinite(obstacle.size) || obstacle.size.y <= 0.0f ||
+		!std::isfinite(settings_.shutterLiftPadding) ||
+		settings_.shutterLiftPadding < 0.0f) {
 		return 0.0f;
 	}
-	return GetShutterOpenRatio(obstacleIndex) *
-		(obstacle.size.y + settings_.shutterLiftPadding);
+	return obstacle.size.y + settings_.shutterLiftPadding;
 }
 
 physics::BodyHandle ObstacleCollisionSystem::GetAnchoredBody(
