@@ -1,0 +1,7 @@
+{
+  "texture": "Resources/ui/font/japanese_instruction_font.png",
+  "glyphWidth": 64,
+  "glyphHeight": 64,
+  "columns": 16,
+  "characters": " 遊び方左スティックまたは移動・回転磁石を発射ゴールに入れるポズWASDLBRTQMENUC："
+}

@@ -8,6 +8,7 @@
 #include "3d/ModelManager.h"
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
+#include "3d/Skybox.h"
 #include "base/Framework.h"
 #include "io/Input.h"
 
@@ -26,32 +27,34 @@ void TitleScene::Initialize()
 	Framework* framework = Framework::GetInstance();
 	SpriteCommon* spriteCommon = framework ? framework->GetSpriteCommon() : nullptr;
 	GameFlowState::GetInstance().EnsureBgm(framework ? framework->GetAudio() : nullptr);
+	const char* fontPath = page_ == Page::Instructions
+		? "Resources/ui/font/japanese_instruction_font.json"
+		: "Resources/ui/font/ascii_bitmap_font.json";
 	if (!spriteCommon ||
-		!font_.InitializeFromJson(spriteCommon, "Resources/ui/font/ascii_bitmap_font.json")) {
+		!font_.InitializeFromJson(spriteCommon, fontPath)) {
 		return;
 	}
 
-	background_ = std::make_unique<Sprite>();
-	if (!background_->Initialize(spriteCommon, "Resources/human/white.png")) {
-		background_.reset();
-		return;
-	}
-	background_->SetPosition({ 0.0f, 0.0f });
-	background_->SetSize({ 1280.0f, 720.0f });
-	background_->SetColor({ 0.018f, 0.035f, 0.065f, 1.0f });
-	background_->Update();
 	for (SpriteText& line : lines_) {
 		line.Initialize(spriteCommon, &font_);
 		line.SetCharacterSpacing(kCharacterSpacing);
 	}
 
+	titleCamera_ = std::make_unique<Camera>();
+	titleCamera_->SetTranslate({ 0.0f, 0.0f, -10.0f });
+	titleCamera_->SetRotate({ 0.0f, 0.0f, 0.0f });
+	titleCamera_->Update();
+
+	// Menu scenes own a separate sky from gameplay so their look can be tuned independently.
+	menuSkybox_ = std::make_unique<Skybox>();
+	menuSkybox_->InitializeGradient(
+		framework->GetDxCommon(),
+		{ 0.30f, 0.36f, 0.52f, 1.0f },
+		{ 0.52f, 0.41f, 0.31f, 1.0f });
+	menuSkybox_->Update(titleCamera_.get());
+
 	ModelManager* modelManager = framework->GetModelManager();
 	if (modelManager) {
-		titleCamera_ = std::make_unique<Camera>();
-		titleCamera_->SetTranslate({ 0.0f, 0.0f, -10.0f });
-		titleCamera_->SetRotate({ 0.0f, 0.0f, 0.0f });
-		titleCamera_->Update();
-
 		constexpr const char* kSpaceModelPath = "title/Space.obj";
 		modelManager->LoadModel(kSpaceModelPath);
 		Model* spaceModel = modelManager->GetModel(kSpaceModelPath);
@@ -92,12 +95,12 @@ void TitleScene::Initialize()
 			SetLine(0, "PRESS SPACE", { 500.0f, 420.0f }, 1.05f, kAccentColor);
 		}
 	} else if (page_ == Page::Instructions) {
-		SetLine(0, "HOW TO PLAY", { 465.0f, 105.0f }, 1.55f, kPrimaryColor);
-		SetLine(1, "LEFT STICK OR WASD  MOVE", { 350.0f, 215.0f }, 0.95f, kTextColor);
-		SetLine(2, "LB RB  ROTATE", { 440.0f, 275.0f }, 0.95f, kTextColor);
-		SetLine(3, "RT OR Q  SHOOT MAGNETS", { 360.0f, 335.0f }, 0.95f, kTextColor);
-		SetLine(4, "PUT MAGNETS IN GOALS", { 375.0f, 395.0f }, 0.95f, kTextColor);
-		SetLine(5, "MENU OR ESC  PAUSE", { 395.0f, 455.0f }, 0.95f, kTextColor);
+		SetLine(0, "遊び方", { 575.0f, 105.0f }, 0.78f, kPrimaryColor);
+		SetLine(1, "左スティック または WASD：移動", { 365.0f, 215.0f }, 0.55f, kTextColor);
+		SetLine(2, "LB・RB：回転", { 520.0f, 275.0f }, 0.55f, kTextColor);
+		SetLine(3, "RT または Q：磁石を発射", { 430.0f, 335.0f }, 0.55f, kTextColor);
+		SetLine(4, "磁石をゴールに入れる", { 465.0f, 395.0f }, 0.55f, kTextColor);
+		SetLine(5, "MENU または ESC：ポーズ", { 420.0f, 455.0f }, 0.55f, kTextColor);
 		if (!transitionKeyObject_) {
 			SetLine(6, "PRESS SPACE TO START", { 410.0f, 565.0f }, 0.95f, kAccentColor);
 		}
@@ -127,8 +130,8 @@ void TitleScene::Finalize()
 {
 	transitionKeyObject_.reset();
 	titleObject_.reset();
+	menuSkybox_.reset();
 	titleCamera_.reset();
-	background_.reset();
 	uiReady_ = false;
 }
 
@@ -139,6 +142,9 @@ void TitleScene::Update()
 	}
 	if (transitionKeyObject_ && titleCamera_) {
 		transitionKeyObject_->Update(titleCamera_.get(), 0.0f);
+	}
+	if (menuSkybox_ && titleCamera_) {
+		menuSkybox_->Update(titleCamera_.get());
 	}
 	Input* input = Framework::GetInstance()->GetInput();
 	if (!input || !input->TriggerKey(InputKey::Space)) { return; }
@@ -154,8 +160,7 @@ void TitleScene::Update()
 void TitleScene::Draw()
 {
 	if (!uiReady_) { return; }
-	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
-	background_->Draw();
+	if (menuSkybox_) { menuSkybox_->Draw(); }
 	if (titleObject_ || transitionKeyObject_) {
 		Object3dCommon* objectCommon = Framework::GetInstance()->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
