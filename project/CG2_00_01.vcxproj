@@ -175,6 +175,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\magnet\system\CircularArenaBoundary.cpp" />
     <ClCompile Include="application\magnet\system\MagneticImpactFeedbackSystem.cpp" />
 	<ClCompile Include="application\magnet\system\FurnaceVisualSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagnetGimmickVisualSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagneticImpactSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagneticOneShotSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\GimmickSoundSystem.cpp" />
@@ -298,6 +299,23 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<None Include="Resources\magnet\small_ball\SmallBall.obj" />
 	<None Include="Resources\magnet\small_ball\SmallBall.mtl" />
 	<None Include="Resources\magnet\furnace\magma_base.png" />
+	<None Include="Resources\magnet\transfer\transfer.obj" />
+	<None Include="Resources\magnet\transfer\transfer.mtl" />
+	<None Include="Resources\magnet\chainsaw\chainsaw.blend" />
+	<None Include="Resources\magnet\chainsaw\chainsaw.obj" />
+	<None Include="Resources\magnet\chainsaw\chainsaw.mtl" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_chain.obj" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_chain.mtl" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_chain_1.obj" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_chain_1.mtl" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_chain_2.obj" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_chain_2.mtl" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_chain_3.obj" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_chain_3.mtl" />
+	<None Include="Resources\magnet\chainsaw\blade_metal.png" />
+	<None Include="Resources\magnet\chainsaw\chain_motion.png" />
+	<None Include="Resources\magnet\chainsaw\chainsaw_preview.png" />
+	<None Include="Resources\magnet\chainsaw\create_chainsaw.py" />
     <None Include="Resources\shader\LinePS.hlsl">
       <FileType>Document</FileType>
     </None>
@@ -489,6 +507,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\magnet\system\CircularArenaBoundary.h" />
     <ClInclude Include="application\magnet\system\MagneticImpactFeedbackSystem.h" />
 	<ClInclude Include="application\magnet\system\FurnaceVisualSystem.h" />
+	<ClInclude Include="application\magnet\system\MagnetGimmickVisualSystem.h" />
 	<ClInclude Include="application\magnet\system\MagneticImpactSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\MagneticOneShotSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\GimmickSoundSystem.h" />

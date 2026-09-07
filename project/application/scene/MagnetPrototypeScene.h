@@ -4,6 +4,7 @@
 #include "application/magnet/system/ChainsawProximitySoundSystem.h"
 #include "application/magnet/system/FurnaceVisualSystem.h"
 #include "application/magnet/system/GimmickSoundSystem.h"
+#include "application/magnet/system/MagnetGimmickVisualSystem.h"
 #include "application/magnet/system/MagnetChainSystem.h"
 #include "application/magnet/system/MagneticImpactFeedbackSystem.h"
 #include "application/magnet/system/MagneticImpactSoundSystem.h"
@@ -84,6 +85,7 @@ private:
 	magnet::MagneticImpactSoundSystem magneticImpactSoundSystem_;
 	magnet::FurnaceVisualSystem furnaceVisualSystem_;
 	magnet::GimmickSoundSystem gimmickSoundSystem_;
+	magnet::MagnetGimmickVisualSystem magnetGimmickVisualSystem_;
 	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;
 	ComicTextEffectPreset heavyImpactPreset_{};
 	magnet::MagnetPrototypeWindow prototypeWindow_;
@@ -95,6 +97,7 @@ private:
 	bool prototypeReady_ = false;
 	bool ballVisualsReady_ = false;
 	bool furnaceVisualsReady_ = false;
+	bool magnetGimmickVisualsReady_ = false;
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
 	bool cameraFollow_ = true;
