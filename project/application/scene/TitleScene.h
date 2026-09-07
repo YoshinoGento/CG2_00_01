@@ -8,6 +8,7 @@
 
 class Camera;
 class Object3d;
+class Skybox;
 
 /**
  * TitleScene
@@ -28,8 +29,8 @@ private:
 
 	Page page_ = Page::Title;
 	BitmapFont font_;
-	std::unique_ptr<Sprite> background_;
 	std::unique_ptr<Camera> titleCamera_;
+	std::unique_ptr<Skybox> menuSkybox_;
 	std::unique_ptr<Object3d> titleObject_;
 	std::unique_ptr<Object3d> transitionKeyObject_;
 	std::array<SpriteText, 9> lines_{};
