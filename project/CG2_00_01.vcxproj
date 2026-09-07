@@ -173,6 +173,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClCompile Include="application\farm\system\FarmCropSelectionSystem.cpp" />
 	<ClCompile Include="application\farm\system\FarmCropQualitySystem.cpp" />
     <ClCompile Include="application\farm\system\FarmGrowthSystem.cpp" />
+    <ClCompile Include="application\farm\system\FarmGrowthComparisonSystem.cpp" />
     <ClCompile Include="application\farm\system\FarmInputSystem.cpp" />
 	<ClCompile Include="application\farm\system\FarmIrrigationSystem.cpp" />
 	<ClCompile Include="application\farm\system\FarmIrrigationPreviewSystem.cpp" />
@@ -470,6 +471,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmCropSelectionSystem.h" />
 	<ClInclude Include="application\farm\system\FarmCropQualitySystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthSystem.h" />
+    <ClInclude Include="application\farm\system\FarmGrowthComparisonSystem.h" />
     <ClInclude Include="application\farm\system\FarmInputSystem.h" />
 	<ClInclude Include="application\farm\system\FarmIrrigationSystem.h" />
 	<ClInclude Include="application\farm\system\FarmIrrigationPreviewSystem.h" />

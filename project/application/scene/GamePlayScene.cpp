@@ -470,6 +470,7 @@ void GamePlayScene::Initialize() {
 	farmToolSystem_.Initialize();
 	farmEconomySystem_.Initialize();
 	farmGrowthSystem_.Initialize();
+	farmGrowthComparisonSystem_.Initialize();
 	farmIrrigationPreviewSystem_.Initialize();
 	farmIrrigationSystem_.Initialize();
 	farmToolActionSystem_.Initialize();
@@ -705,6 +706,8 @@ void GamePlayScene::Update() {
 
 	sprite_->SetPosition(spritePos_);
 	sprite_->Update();
+	farmGrowthComparisonSystem_.ObserveBeforeStep(farmGrid_);
+	if (farmProgressionSystem_.IsCleared()) farmGrowthComparisonSystem_.Stop();
 	farmFeedbackSystem_.Update(realDeltaTime_);
 	if (farmHudInitialized_) {
 		farmHud_.SetViewData(BuildFarmHUDViewData());
@@ -827,6 +830,7 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 
 	levelRouteTimer_ += fixedDeltaTime;
 	if (!farmProgressionSystem_.IsCleared() && !farmIrrigationPreviewSystem_.IsActive()) {
+		farmGrowthComparisonSystem_.ObserveBeforeStep(farmGrid_);
 		if (farmIrrigationSystem_.UpdateWater(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale())) {
 			farmDocumentSystem_.MarkDirty();
 		}
@@ -836,6 +840,7 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 			farmDateSystem_.GetTimeScale())) {
 			farmDocumentSystem_.MarkDirty();
 		}
+		farmGrowthComparisonSystem_.ObserveAfterStep(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale());
 		farmDateSystem_.Update(fixedDeltaTime);
 	}
 	const auto groundQuery = BuildPlayerGroundQuery();

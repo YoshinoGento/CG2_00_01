@@ -127,6 +127,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.currentFarmTool = FarmTool::Hoe;
 	output.selectedFarmAction = {};
 	output.farmPlaytest = {};
+	output.farmGrowthComparison = {};
 	output.visibility = {};
 	output.camera = {};
 	output.objectInspector.directionalLight = {};
@@ -181,6 +182,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.irrigationLastStep = displayedIrrigation->GetLastStep(*displayedGrid);
 	const auto irrigationFlows = displayedIrrigation->GetLastTileFlows(*displayedGrid);
 	output.farmGeneration = farmGrid_->GetGeneration();
+	output.farmGrowthComparison = scene_->farmGrowthComparisonSystem_.GetView(*farmGrid_);
 	output.farmDocumentDirty = farmDocumentSystem_->IsDirty();
 	output.farmDocumentExists = farmDocumentSystem_->FileExists();
 	output.farmDocumentHasError = farmDocumentSystem_->HasError();
@@ -447,6 +449,21 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 	}
 
 	switch (command.type) {
+	case GamePlayEditorCommandType::PinFarmComparisonA:
+	case GamePlayEditorCommandType::PinFarmComparisonB:
+		if (scene_->farmGameMode_ || scene_->timelineScrubbing_ || scene_->farmIrrigationPreviewSystem_.IsActive()) return false;
+		return scene_->farmGrowthComparisonSystem_.Pin(*farmGrid_,
+			command.type == GamePlayEditorCommandType::PinFarmComparisonA ? 0 : 1, command.farmTileIndex);
+	case GamePlayEditorCommandType::StartFarmComparison:
+		if (scene_->farmGameMode_ || scene_->timelineScrubbing_ || scene_->farmIrrigationPreviewSystem_.IsActive() ||
+			scene_->farmProgressionSystem_.IsCleared()) return false;
+		return scene_->farmGrowthComparisonSystem_.Start(*farmGrid_);
+	case GamePlayEditorCommandType::StopFarmComparison:
+		scene_->farmGrowthComparisonSystem_.ObserveBeforeStep(*farmGrid_);
+		return scene_->farmGrowthComparisonSystem_.Stop();
+	case GamePlayEditorCommandType::ResetFarmComparison:
+		scene_->farmGrowthComparisonSystem_.Reset();
+		return true;
 	case GamePlayEditorCommandType::SelectFarmTile:
 		scene_->farmIrrigationPreviewSystem_.Cancel();
 		return SelectCommandTarget(command);

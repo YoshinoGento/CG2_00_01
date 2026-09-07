@@ -18,6 +18,7 @@ struct FarmControllerActions {
 	bool cancelIrrigationPreview = false;
 	bool restartFarm = false;
 	bool movePlayerToSelectedTile = false;
+	std::optional<editor::GamePlayEditorCommandType> comparisonCommand;
 };
 
 // Compact viewport companion. It reports actions and never mutates Farm state directly.

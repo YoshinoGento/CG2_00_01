@@ -21,8 +21,11 @@ constexpr Vector2 kSelectedPanelPosition{ 24.0f, 520.0f };
 constexpr Vector2 kSelectedPanelSize{ 350.0f, 176.0f };
 constexpr Vector2 kToolPanelPosition{ 390.0f, 548.0f };
 constexpr Vector2 kToolPanelSize{ 628.0f, 148.0f };
-constexpr Vector2 kFeedbackPanelPosition{ 400.0f, 264.0f };
-constexpr Vector2 kFeedbackPanelSize{ 480.0f, 58.0f };
+// Leave the center for StageClearHUD (title/retry), and keep the bottom tools clear.
+constexpr Vector2 kFeedbackPanelPosition{ 352.0f, 414.0f };
+constexpr Vector2 kFeedbackPanelSize{ 576.0f, 92.0f };
+constexpr float kFeedbackPadding = 16.0f;
+constexpr float kFeedbackMetricsScale = 0.90f;
 constexpr Vector2 kGoalTrackPosition{ 900.0f, 136.0f };
 constexpr Vector2 kGoalTrackSize{ 332.0f, 12.0f };
 constexpr Vector2 kToolSlotSize{ 140.0f, 58.0f };
@@ -731,18 +734,19 @@ void FarmHUD::Update(float deltaTime) {
 		for (Sprite& panel : cropPiePanels_) panel.Update();
 		for (Sprite& name : localizedCropPieNames_) name.Update();
 		for (Sprite& trait : localizedCropPieTraits_) trait.Update();
+		for (SpriteText& statsText : cropPieStatsText_) statsText.Update();
+		for (SpriteText& valueText : cropPieValueText_) valueText.Update();
 		localizedCropPieGuide_.Update();
 	}
 	if (viewData_.feedback != FarmHUDFeedback::None) {
 		feedbackPanel_.Update();
 		localizedFeedback_.Update();
-		if (viewData_.feedback == FarmHUDFeedback::Harvest &&
+		if ((viewData_.feedback == FarmHUDFeedback::Harvest ||
+			viewData_.feedback == FarmHUDFeedback::Sale) &&
 			farm::IsPlantableCrop(viewData_.feedbackCrop)) {
 			localizedFeedbackCrop_.Update();
-	feedbackMetricsText_.Update();
-	for (SpriteText& statsText : cropPieStatsText_) statsText.Update();
-	for (SpriteText& valueText : cropPieValueText_) valueText.Update();
 		}
+		feedbackMetricsText_.Update();
 	}
 
 	dayText_.Update();
@@ -858,8 +862,8 @@ void FarmHUD::ApplyLayout() {
 	localizedMoistureStatus_.SetPosition({ 272.0f, 572.0f });
 	localizedIrrigationStatus_.SetPosition({ 272.0f, 572.0f });
 	localizedIrrigationPreview_.SetPosition({ 500.0f, 34.0f });
-	localizedFeedback_.SetPosition({ 416.0f, 272.0f });
-	localizedFeedbackCrop_.SetPosition({ 566.0f, 272.0f });
+	localizedFeedback_.SetPosition({ kFeedbackPanelPosition.x + kFeedbackPadding, kFeedbackPanelPosition.y + 8.0f });
+	localizedFeedbackCrop_.SetPosition({ kFeedbackPanelPosition.x + 182.0f, kFeedbackPanelPosition.y + 8.0f });
 	ScaleSprite(localizedCropPieGuide_, 0.72f);
 	for (Sprite& trait : localizedCropPieTraits_) {
 		ScaleSprite(trait, 0.72f);
@@ -901,9 +905,9 @@ void FarmHUD::ApplyLayout() {
 		kGoalTextColor);
 	ConfigureText(
 		feedbackMetricsText_,
-		{ 710.0f, 276.0f },
-		0.70f,
-		-7.0f,
+		{ kFeedbackPanelPosition.x + kFeedbackPadding, kFeedbackPanelPosition.y + 52.0f },
+		kFeedbackMetricsScale,
+		0.0f,
 		kAccentColor);
 }
 
@@ -1029,21 +1033,25 @@ void FarmHUD::UpdateLocalizedSelections() {
 }
 
 void FarmHUD::UpdateFeedbackDetails() {
+	std::string text;
 	if (viewData_.feedback == FarmHUDFeedback::Harvest &&
 		farm::IsPlantableCrop(viewData_.feedbackCrop)) {
-		feedbackMetricsText_.SetText(
+		text =
 			"Q" + std::to_string(viewData_.feedbackQualityScore) + "  " +
-			std::to_string(viewData_.feedbackSaleValue) + "G");
-		return;
-	}
-	if (viewData_.feedback == FarmHUDFeedback::Sale &&
+			std::to_string(viewData_.feedbackSaleValue) + "G";
+	} else if (viewData_.feedback == FarmHUDFeedback::Sale &&
 		viewData_.feedbackSaleCount > 0 && viewData_.feedbackSaleValue > 0) {
-		feedbackMetricsText_.SetText(
+		text =
 			"x" + std::to_string(viewData_.feedbackSaleCount) + "  +" +
-			std::to_string(viewData_.feedbackSaleValue) + "G");
-		return;
+			std::to_string(viewData_.feedbackSaleValue) + "G";
 	}
-	feedbackMetricsText_.SetText("");
+	// Metrics contain ASCII only; reserve enough width even for maximum int counts/prices.
+	const float naturalWidth = font_.GetGlyphSize().x * static_cast<float>(text.size());
+	const float scale = naturalWidth > 0.0f
+		? (std::min)(kFeedbackMetricsScale, (kFeedbackPanelSize.x - 2.0f * kFeedbackPadding) / naturalWidth)
+		: kFeedbackMetricsScale;
+	feedbackMetricsText_.SetText(text);
+	feedbackMetricsText_.SetScale(scale);
 }
 
 void FarmHUD::UpdateCropPieStats() {

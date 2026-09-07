@@ -4,6 +4,7 @@
 #include "farm/system/FarmDocumentSystem.h"
 #include "farm/system/FarmFeedbackSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
+#include "farm/system/FarmGrowthComparisonSystem.h"
 #include "farm/system/FarmIrrigationPreviewSystem.h"
 #include "farm/system/FarmIrrigationSystem.h"
 #include "farm/system/FarmToolActionSystem.h"
@@ -260,6 +261,7 @@ struct GamePlayEditorViewModel {
 	FarmTool currentFarmTool = FarmTool::Hoe;
 	FarmToolActionResult selectedFarmAction{};
 	FarmPlaytestEditorViewData farmPlaytest;
+	FarmComparisonView farmGrowthComparison;
 	VisibilityEditorViewData visibility;
 	CameraEditorViewData camera;
 	ObjectInspectorEditorViewData objectInspector;
@@ -300,6 +302,11 @@ enum class GamePlayEditorCommandType {
 	RedoFarmEdit,
 	RestartFarmSession,
 	MovePlayerToSelectedFarmTile,
+	PinFarmComparisonA,
+	PinFarmComparisonB,
+	StartFarmComparison,
+	StopFarmComparison,
+	ResetFarmComparison,
 };
 
 struct GamePlayEditorCommand {

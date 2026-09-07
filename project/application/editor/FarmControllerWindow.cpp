@@ -382,6 +382,88 @@ FarmControllerActions FarmControllerWindow::Draw(
 		: nullptr;
 	const editor::FarmPlaytestEditorViewData& playtest = viewModel.farmPlaytest;
 
+	std::array<char, 128> comparisonHeader{};
+	std::snprintf(comparisonHeader.data(), comparisonHeader.size(), "%s###GrowthComparison", text("Growth Comparison"));
+	if (ImGui::CollapsingHeader(comparisonHeader.data())) {
+		const FarmComparisonView& comparison = viewModel.farmGrowthComparison;
+		const bool running = comparison.status == FarmComparisonStatus::Running;
+		const bool blocked = viewModel.irrigationPreviewActive || playtest.cleared;
+		ImGui::BeginDisabled(running || blocked || tile == nullptr);
+		if (ImGui::Button(text("Pin Selected As A"), { -1.0f, 0.0f })) actions.comparisonCommand = editor::GamePlayEditorCommandType::PinFarmComparisonA;
+		if (ImGui::Button(text("Pin Selected As B"), { -1.0f, 0.0f })) actions.comparisonCommand = editor::GamePlayEditorCommandType::PinFarmComparisonB;
+		ImGui::EndDisabled();
+		const float controlWidth = (std::max)(24.0f, (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2.0f) / 3.0f);
+		ImGui::BeginDisabled(running || blocked || comparison.startIssue != FarmComparisonIssue::None);
+		if (ImGui::Button(">##StartComparison", { controlWidth, 0.0f })) actions.comparisonCommand = editor::GamePlayEditorCommandType::StartFarmComparison;
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", text("Start Comparison"));
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!running);
+		if (ImGui::Button("||##StopComparison", { controlWidth, 0.0f })) actions.comparisonCommand = editor::GamePlayEditorCommandType::StopFarmComparison;
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", text("Stop Comparison"));
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		if (ImGui::Button("X##ResetComparison", { controlWidth, 0.0f })) actions.comparisonCommand = editor::GamePlayEditorCommandType::ResetFarmComparison;
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", text("Reset Comparison"));
+		const char* status = "Comparison Idle";
+		switch (comparison.status) {
+		case FarmComparisonStatus::Running: status = "Comparison Running"; break;
+		case FarmComparisonStatus::Stopped: status = "Comparison Stopped"; break;
+		case FarmComparisonStatus::Completed: status = "Comparison Completed"; break;
+		case FarmComparisonStatus::Invalidated: status = "Comparison Invalidated"; break;
+		default: break;
+		}
+		ImGui::TextWrapped("%s", text(status));
+		ImGui::Text(text("Growth seconds: %.2f"), comparison.elapsedSeconds);
+		if (!running && comparison.startIssue != FarmComparisonIssue::None) {
+			const char* issue = "Comparison: select two tiles";
+			switch (comparison.startIssue) {
+			case FarmComparisonIssue::SameTile: issue = "Comparison: different tiles required"; break;
+			case FarmComparisonIssue::NotGrowing: issue = "Comparison: two growing crops required"; break;
+			case FarmComparisonIssue::Crop: issue = "Comparison: crop mismatch"; break;
+			case FarmComparisonIssue::Height: issue = "Comparison: height mismatch"; break;
+			case FarmComparisonIssue::Growth: issue = "Comparison: initial growth mismatch"; break;
+			case FarmComparisonIssue::InvalidData: issue = "Comparison: invalid tile data"; break;
+			default: break;
+			}
+			ImGui::TextWrapped("%s", text(issue));
+		}
+		if (ImGui::BeginTable("GrowthComparisonTable", 3, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) {
+			ImGui::TableSetupColumn(text("Comparison Metric"));
+			ImGui::TableSetupColumn("A");
+			ImGui::TableSetupColumn("B");
+			ImGui::TableHeadersRow();
+			constexpr std::array labels = {"Tile", "Crop", "Height", "Initial Water", "Current Water", "Initial Growth", "Current Growth", "Growth Gain", "Ready At"};
+			for (std::size_t metric = 0; metric < labels.size(); ++metric) {
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::TextWrapped("%s", text(labels[metric]));
+				for (int slot = 0; slot < 2; ++slot) {
+					ImGui::TableSetColumnIndex(slot + 1);
+					const FarmComparisonRow& row = comparison.rows[static_cast<std::size_t>(slot)];
+					if (row.tileIndex < 0) { ImGui::TextUnformatted("--"); continue; }
+					switch (metric) {
+					case 0: ImGui::Text("#%d", row.tileIndex); break;
+					case 1: ImGui::TextWrapped("%s", text(farm::ToString(row.current.crop))); break;
+					case 2: ImGui::Text("H%d", row.current.heightLevel); break;
+					case 3: ImGui::Text("%.1f%%", row.initial.moisture * 100.0f); break;
+					case 4: ImGui::Text("%.1f%%", row.current.moisture * 100.0f); break;
+					case 5: ImGui::Text("%.2f%%", row.initial.growth * 100.0f); break;
+					case 6: ImGui::Text("%.2f%%", row.current.growth * 100.0f); break;
+					case 7: ImGui::Text("%+.2f", (row.current.growth - row.initial.growth) * 100.0f); break;
+					case 8:
+						if (row.readySeconds >= 0.0) ImGui::Text("%.2fs", row.readySeconds);
+						else ImGui::TextUnformatted("--");
+						break;
+					default: break;
+					}
+				}
+			}
+			ImGui::EndTable();
+		}
+		ImGui::TextWrapped("%s", text("Observation includes automatic irrigation and drying; gain is percentage points."));
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", text("Pause, plant matching crops, adjust water, pin A/B, start, then resume. Do not edit during measurement."));
+	}
 	ImGui::SeparatorText(text("Playtest"));
 	if (ImGui::TreeNode(text("Player Grounding"))) {
 		ImGui::BeginDisabled(tile == nullptr || !playtest.canPlacePlayer);

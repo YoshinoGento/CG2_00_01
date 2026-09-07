@@ -20,6 +20,7 @@
 #include "farm/system/FarmCropSelectionSystem.h"
 #include "farm/system/FarmFeedbackSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
+#include "farm/system/FarmGrowthComparisonSystem.h"
 #include "farm/system/FarmInputSystem.h"
 #include "farm/system/FarmIrrigationPreviewSystem.h"
 #include "farm/system/FarmIrrigationSystem.h"
@@ -266,6 +267,7 @@ private:
 	FarmCropSelectionSystem farmCropSelectionSystem_;
 	FarmFeedbackSystem farmFeedbackSystem_;
 	FarmGrowthSystem farmGrowthSystem_;
+	FarmGrowthComparisonSystem farmGrowthComparisonSystem_;
 	FarmInputSystem farmInputSystem_;
 	farm::FarmIrrigationPreviewSystem farmIrrigationPreviewSystem_;
 	farm::FarmIrrigationSystem farmIrrigationSystem_;

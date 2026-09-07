@@ -7,6 +7,7 @@
 
 namespace {
 constexpr float kFeedbackDurationSeconds = 2.0f;
+constexpr float kSaleFeedbackDurationSeconds = 4.0f;
 }
 
 void FarmFeedbackSystem::Initialize(bool resetStats) noexcept
@@ -139,7 +140,8 @@ void FarmFeedbackSystem::Clear() noexcept
 void FarmFeedbackSystem::Show(std::string message, FarmFeedbackKind kind)
 {
 	message_ = std::move(message);
-	remainingSeconds_ = kFeedbackDurationSeconds;
+	remainingSeconds_ = kind == FarmFeedbackKind::Sale
+		? kSaleFeedbackDurationSeconds : kFeedbackDurationSeconds;
 	lastKind_ = kind;
 	lastQualityScore_ = 0;
 	lastSaleCount_ = 0;
