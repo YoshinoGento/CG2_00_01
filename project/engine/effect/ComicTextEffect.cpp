@@ -172,11 +172,13 @@ void ComicTextEffectSystem::Draw() {
 }
 
 bool ComicTextEffectSystem::IsSafePresetName(const std::string& presetName) {
-	if (presetName.empty()) {
+	if (presetName.empty() || presetName == "." || presetName == ".." ||
+		presetName.back() == '.' || presetName.back() == ' ') {
 		return false;
 	}
 	for (const unsigned char ch : presetName) {
-		if (!(std::isalnum(ch) || ch == '_' || ch == '-')) {
+		if (ch < 0x20 || ch == '<' || ch == '>' || ch == ':' || ch == '"' ||
+			ch == '/' || ch == '\\' || ch == '|' || ch == '?' || ch == '*') {
 			return false;
 		}
 	}

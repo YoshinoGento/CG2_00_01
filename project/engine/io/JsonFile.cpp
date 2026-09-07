@@ -8,11 +8,19 @@
 #include <system_error>
 #include <utility>
 
+namespace {
+	std::filesystem::path Utf8Path(const std::string& value)
+	{
+		return std::filesystem::path(std::u8string(
+			reinterpret_cast<const char8_t*>(value.data()), value.size()));
+	}
+}
+
 namespace JsonFile {
 	bool Exists(const std::string& path)
 	{
 		std::error_code error;
-		return std::filesystem::exists(path, error) && !error;
+		return std::filesystem::exists(Utf8Path(path), error) && !error;
 	}
 
 	bool Load(const std::string& path, nlohmann::json& outJson)
@@ -22,7 +30,7 @@ namespace JsonFile {
 			return false;
 		}
 
-		std::ifstream file(path);
+		std::ifstream file(Utf8Path(path));
 		if (!file.is_open()) {
 			Logger::Log("JsonFile::Load failed. Could not open file: " + path);
 			return false;
@@ -43,7 +51,7 @@ namespace JsonFile {
 
 	bool Save(const std::string& path, const nlohmann::json& json, int indent)
 	{
-		std::ofstream file(path);
+		std::ofstream file(Utf8Path(path));
 		if (!file.is_open()) {
 			Logger::Log("JsonFile::Save failed. Could not open file: " + path);
 			return false;
