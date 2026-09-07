@@ -37,14 +37,14 @@
         278.0
     ],
     "startScale": 0.11999999731779099,
-    "text": "アーンパーンチ！！！！！",
+    "text": "バキッ！！！",
     "textColor": [
         1.0,
         0.7200000286102295,
         0.07999999821186066,
         1.0
     ],
-    "textScale": 1.25,
+    "textScale": 0.7789999842643738,
     "texturePath": "Resources/effects/comic/booom_impact.png",
     "type": "comicText",
     "useEditableText": true

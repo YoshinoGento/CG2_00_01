@@ -201,6 +201,12 @@ public:
 	[[nodiscard]] std::size_t GetFurnaceDissolveEventCount() const noexcept {
 		return furnaceDissolveEventCount_;
 	}
+	[[nodiscard]] const ObstacleCollisionSystem::Events& GetObstacleEvents() const noexcept {
+		return obstacleCollisionSystem_.GetEvents();
+	}
+	[[nodiscard]] std::size_t GetObstacleEventCount() const noexcept {
+		return obstacleCollisionSystem_.GetEventCount();
+	}
 
 private:
 	static constexpr std::size_t kBendConstraintsPerSide = kLinksPerSide - 1;

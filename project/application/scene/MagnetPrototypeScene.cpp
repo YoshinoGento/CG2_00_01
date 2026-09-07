@@ -238,6 +238,11 @@ void MagnetPrototypeScene::Initialize()
 			"MagnetPrototypeScene: Chainsaw cut SE could not be loaded; "
 			"gameplay will continue without it.");
 	}
+	if (!gimmickSoundSystem_.Initialize(framework_->GetAudio())) {
+		Logger::Log(
+			"MagnetPrototypeScene: one or more gimmick sounds could not be loaded; "
+			"gameplay will continue without those sounds.");
+	}
 
 	bool stageReady = false;
 #ifdef MAGNET_STARTUP_STAGE_OBSTACLE
@@ -312,6 +317,7 @@ void MagnetPrototypeScene::Finalize()
 	comicTextEffects_.reset();
 	furnaceVisualSystem_.Finalize();
 	furnaceVisualsReady_ = false;
+	gimmickSoundSystem_.Finalize();
 	chainsawCutSoundSystem_.Finalize();
 	chainsawProximitySoundSystem_.Finalize();
 	magneticGoalSoundSystem_.Finalize();
@@ -422,6 +428,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		chainsawProximitySoundSystem_.Reset();
 		magneticImpactSoundSystem_.Reset();
 		furnaceVisualSystem_.Reset();
+		gimmickSoundSystem_.Reset();
 		if (comicTextEffects_) { comicTextEffects_->Clear(); }
 		resetRequested_ = false;
 		if (!prototypeReady_) {
@@ -489,6 +496,8 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 			}
 		}
 		magneticImpactSoundSystem_.PlayPending();
+		gimmickSoundSystem_.Update(
+			magnetChainSystem_, magnetStageSystem_.GetStageData());
 		magneticImpactFeedbackSystem_.Update(fixedDeltaTime);
 	}
 	if (!prototypeReady_) {

@@ -111,7 +111,7 @@ private:
 	[[nodiscard]] bool ResolveBumperBody(
 		physics::PhysicsWorld& physicsWorld,
 		physics::BodyHandle handle,
-		const MagnetStageBoxPlacement& obstacle) const noexcept;
+		const MagnetStageBoxPlacement& obstacle) noexcept;
 	[[nodiscard]] bool BodyTouchesBox(
 		const physics::PhysicsWorld& physicsWorld,
 		physics::BodyHandle handle,
