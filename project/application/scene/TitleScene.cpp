@@ -71,6 +71,42 @@ void TitleScene::Initialize()
 			transitionKeyObject_->SetCullMode(0);
 			transitionKeyObject_->Update(titleCamera_.get(), 0.0f);
 		}
+
+		if (page_ == Page::Instructions) {
+			constexpr const char* kGuideModelPath = "title/guide.obj";
+			modelManager->LoadModel(kGuideModelPath);
+			Model* guideModel = modelManager->GetModel(kGuideModelPath);
+			if (guideModel) {
+				guideModel->LoadTextures();
+				guideTitleObject_ = std::make_unique<Object3d>();
+				guideTitleObject_->Initialize(framework->GetObject3dCommon());
+				guideTitleObject_->SetModel(guideModel);
+				guideTitleObject_->SetScale({ 0.40f, 0.40f, 0.40f });
+				guideTitleObject_->SetPosition({ 0.044f, 1.35f, 0.0f });
+				guideTitleObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+				guideTitleObject_->SetColor(kPrimaryColor);
+				guideTitleObject_->SetEnableLighting(false);
+				guideTitleObject_->SetCullMode(0);
+				guideTitleObject_->Update(titleCamera_.get(), 0.0f);
+			}
+
+			constexpr const char* kOperationModelPath = "title/Operation.obj";
+			modelManager->LoadModel(kOperationModelPath);
+			Model* operationModel = modelManager->GetModel(kOperationModelPath);
+			if (operationModel) {
+				operationModel->LoadTextures();
+				operationGuideObject_ = std::make_unique<Object3d>();
+				operationGuideObject_->Initialize(framework->GetObject3dCommon());
+				operationGuideObject_->SetModel(operationModel);
+				operationGuideObject_->SetScale({ 0.34f, 0.34f, 0.34f });
+				operationGuideObject_->SetPosition({ 0.20f, -0.84f, 0.0f });
+				operationGuideObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+				operationGuideObject_->SetColor(kTextColor);
+				operationGuideObject_->SetEnableLighting(false);
+				operationGuideObject_->SetCullMode(0);
+				operationGuideObject_->Update(titleCamera_.get(), 0.0f);
+			}
+		}
 	}
 
 	if (page_ == Page::Title) {
@@ -95,12 +131,16 @@ void TitleScene::Initialize()
 			SetLine(0, "PRESS SPACE", { 500.0f, 420.0f }, 1.05f, kAccentColor);
 		}
 	} else if (page_ == Page::Instructions) {
-		SetLine(0, "遊び方", { 575.0f, 105.0f }, 0.78f, kPrimaryColor);
-		SetLine(1, "左スティック または WASD：移動", { 365.0f, 215.0f }, 0.55f, kTextColor);
-		SetLine(2, "LB・RB：回転", { 520.0f, 275.0f }, 0.55f, kTextColor);
-		SetLine(3, "RT または Q：磁石を発射", { 430.0f, 335.0f }, 0.55f, kTextColor);
-		SetLine(4, "磁石をゴールに入れる", { 465.0f, 395.0f }, 0.55f, kTextColor);
-		SetLine(5, "MENU または ESC：ポーズ", { 420.0f, 455.0f }, 0.55f, kTextColor);
+		if (!guideTitleObject_) {
+			SetLine(0, "遊び方", { 575.0f, 105.0f }, 0.78f, kPrimaryColor);
+		}
+		if (!operationGuideObject_) {
+			SetLine(1, "左スティック または WASD：移動", { 365.0f, 215.0f }, 0.55f, kTextColor);
+			SetLine(2, "LB・RB：回転", { 520.0f, 275.0f }, 0.55f, kTextColor);
+			SetLine(3, "RT または Q：磁石を発射", { 430.0f, 335.0f }, 0.55f, kTextColor);
+			SetLine(4, "磁石をゴールに入れる", { 465.0f, 395.0f }, 0.55f, kTextColor);
+			SetLine(5, "MENU または ESC：ポーズ", { 420.0f, 455.0f }, 0.55f, kTextColor);
+		}
 		if (!transitionKeyObject_) {
 			SetLine(6, "PRESS SPACE TO START", { 410.0f, 565.0f }, 0.95f, kAccentColor);
 		}
@@ -128,6 +168,8 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
+	operationGuideObject_.reset();
+	guideTitleObject_.reset();
 	transitionKeyObject_.reset();
 	titleObject_.reset();
 	menuSkybox_.reset();
@@ -142,6 +184,12 @@ void TitleScene::Update()
 	}
 	if (transitionKeyObject_ && titleCamera_) {
 		transitionKeyObject_->Update(titleCamera_.get(), 0.0f);
+	}
+	if (guideTitleObject_ && titleCamera_) {
+		guideTitleObject_->Update(titleCamera_.get(), 0.0f);
+	}
+	if (operationGuideObject_ && titleCamera_) {
+		operationGuideObject_->Update(titleCamera_.get(), 0.0f);
 	}
 	if (menuSkybox_ && titleCamera_) {
 		menuSkybox_->Update(titleCamera_.get());
@@ -161,11 +209,14 @@ void TitleScene::Draw()
 {
 	if (!uiReady_) { return; }
 	if (menuSkybox_) { menuSkybox_->Draw(); }
-	if (titleObject_ || transitionKeyObject_) {
+	if (titleObject_ || transitionKeyObject_ || guideTitleObject_ ||
+		operationGuideObject_) {
 		Object3dCommon* objectCommon = Framework::GetInstance()->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
 		if (titleObject_) { titleObject_->Draw(); }
 		if (transitionKeyObject_) { transitionKeyObject_->Draw(); }
+		if (guideTitleObject_) { guideTitleObject_->Draw(); }
+		if (operationGuideObject_) { operationGuideObject_->Draw(); }
 		objectCommon->EndObjectPass();
 	}
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
