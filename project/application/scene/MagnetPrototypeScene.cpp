@@ -1149,7 +1149,7 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 	for (SpriteText& text : pauseMenuTexts_) { initializeText(text); }
 	initializeText(pauseHelpText_);
 
-	timerText_.SetPosition({ 600.0f, 28.0f });
+	timerText_.SetPosition({ 595.0f, 28.0f });
 	timerText_.SetScale(1.0f);
 	timerText_.SetColor(kUiAccentColor);
 	pauseTitleText_.SetText(pauseTitleObject_ ? "" : "PAUSE");
@@ -1237,7 +1237,7 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 	const int remainingSeconds = static_cast<int>(std::ceil(
 		(std::max)(0.0f,
 			magnetStageSystem_.GetStageData().timeLimitSeconds - gameElapsedSeconds_)));
-	std::snprintf(timerBuffer, sizeof(timerBuffer), "TIME %02d", remainingSeconds);
+	std::snprintf(timerBuffer, sizeof(timerBuffer), "%02d", remainingSeconds);
 	timerText_.SetText(timerBuffer);
 	timerText_.Update();
 	if (timerDigitsReady_) {
