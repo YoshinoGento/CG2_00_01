@@ -740,6 +740,7 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			selectedBox->size.y,
 			selectedBox->size.z,
 		};
+		float rotationYDegrees = selectedBox->rotationYDegrees;
 		const char* positionLabel = isGoal
 			? "位置 XYZ##GoalPosition"
 			: "位置 XYZ##ObstaclePosition";
@@ -749,12 +750,42 @@ void MagnetPrototypeWindow::DrawStageEditor(
 		bool transformChanged = ImGui::DragFloat3(positionLabel, position, 0.10f);
 		transformChanged = ImGui::DragFloat3(sizeLabel, size, 0.10f, 0.10f, 50.0f) ||
 			transformChanged;
+		ImGui::SetNextItemWidth(-1.0f);
+		transformChanged = ImGui::DragFloat(
+			"回転 Y（度）##SelectedBoxRotationY",
+			&rotationYDegrees,
+			1.0f,
+			-180.0f,
+			180.0f,
+			"%.1f°",
+			ImGuiSliderFlags_AlwaysClamp) || transformChanged;
+		const float rotationButtonWidth = (std::max)(
+			1.0f,
+			(ImGui::GetContentRegionAvail().x -
+				ImGui::GetStyle().ItemSpacing.x * 2.0f) / 3.0f);
+		if (ImGui::Button("左へ90°", { rotationButtonWidth, 0.0f })) {
+			rotationYDegrees -= 90.0f;
+			transformChanged = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("回転を0°", { rotationButtonWidth, 0.0f })) {
+			rotationYDegrees = 0.0f;
+			transformChanged = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("右へ90°", { rotationButtonWidth, 0.0f })) {
+			rotationYDegrees += 90.0f;
+			transformChanged = true;
+		}
+		ImGui::TextDisabled(
+			"地面に対して水平に回転します。見た目と当たり判定も同時に回ります。");
 		if (transformChanged) {
 			request.stageAction = MagnetStageEditorAction::MoveBoxObject;
 			request.selectedObjectType = selectedObjectType_;
 			request.selectedObjectId = selectedBox->id;
 			request.editedObjectPosition = { position[0], position[1], position[2] };
 			request.editedObjectSize = { size[0], size[1], size[2] };
+			request.editedObjectRotationYDegrees = rotationYDegrees;
 		}
 		if (isGoal) {
 			int score = static_cast<int>(selectedBox->score);

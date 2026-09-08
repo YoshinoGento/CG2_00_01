@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 namespace magnet {
 namespace {
@@ -10,12 +11,44 @@ constexpr float kContactOffset = 0.002f;
 constexpr float kEpsilon = 1.0e-6f;
 constexpr float kAnchorCaptureDistance = 0.16f;
 constexpr float kAnchorAdditionalReach = 3.5f;
+constexpr float kDegreesToRadians = std::numbers::pi_v<float> / 180.0f;
+
+Vector3 RotateXZ(const Vector3& value, float radians) noexcept
+{
+	const float cosine = std::cos(radians);
+	const float sine = std::sin(radians);
+	return {
+		value.x * cosine + value.z * sine,
+		value.y,
+		-value.x * sine + value.z * cosine,
+	};
+}
+
+float GetRotationYRadians(const MagnetStageBoxPlacement& placement) noexcept
+{
+	return placement.rotationYDegrees * kDegreesToRadians;
+}
+
+Vector3 ToLocalPointXZ(
+	const Vector3& point,
+	const MagnetStageBoxPlacement& placement) noexcept
+{
+	return RotateXZ(point - placement.position, -GetRotationYRadians(placement));
+}
+
+Vector3 ToWorldPointXZ(
+	const Vector3& point,
+	const MagnetStageBoxPlacement& placement) noexcept
+{
+	return placement.position + RotateXZ(point, GetRotationYRadians(placement));
+}
 
 Vector3 GetTransferNormal(const MagnetStageBoxPlacement& gate) noexcept
 {
-	return gate.size.x <= gate.size.z
+	const Vector3 localNormal = gate.size.x <= gate.size.z
 		? Vector3{ 1.0f, 0.0f, 0.0f }
 		: Vector3{ 0.0f, 0.0f, 1.0f };
+	return RotateXZ(localNormal, GetRotationYRadians(gate));
 }
 
 Vector3 GetTransferTangent(const Vector3& normal) noexcept
@@ -27,7 +60,8 @@ float GetHalfExtentAlong(
 	const MagnetStageBoxPlacement& gate,
 	const Vector3& axis) noexcept
 {
-	return std::abs(axis.x) > 0.5f
+	const Vector3 localAxis = RotateXZ(axis, -GetRotationYRadians(gate));
+	return std::abs(localAxis.x) > std::abs(localAxis.z)
 		? gate.size.x * 0.5f
 		: gate.size.z * 0.5f;
 }
@@ -214,6 +248,7 @@ bool ObstacleCollisionSystem::Resolve(
 	for (std::size_t obstacleIndex = 0; obstacleIndex < obstacleCount; ++obstacleIndex) {
 		const MagnetStageBoxPlacement& obstacle = obstacles[obstacleIndex];
 		if (!IsFinite(obstacle.position) || !IsFinite(obstacle.size) ||
+			!std::isfinite(obstacle.rotationYDegrees) ||
 			obstacle.size.x <= 0.0f || obstacle.size.y <= 0.0f ||
 			obstacle.size.z <= 0.0f) {
 			return false;
@@ -498,6 +533,8 @@ bool ObstacleCollisionSystem::TeleportBody(
 		source.transferPairId != destination.transferPairId ||
 		!IsFinite(source.position) || !IsFinite(source.size) ||
 		!IsFinite(destination.position) || !IsFinite(destination.size) ||
+		!std::isfinite(source.rotationYDegrees) ||
+		!std::isfinite(destination.rotationYDegrees) ||
 		source.size.x <= 0.0f || source.size.z <= 0.0f ||
 		destination.size.x <= 0.0f || destination.size.z <= 0.0f) {
 		return false;
@@ -566,40 +603,45 @@ bool ObstacleCollisionSystem::ResolveBoxBody(
 	if (!body || !body->active || !HasVerticalOverlap(*body, obstacle)) {
 		return true;
 	}
-	const float minimumX = obstacle.position.x - obstacle.size.x * 0.5f - body->radius;
-	const float maximumX = obstacle.position.x + obstacle.size.x * 0.5f + body->radius;
-	const float minimumZ = obstacle.position.z - obstacle.size.z * 0.5f - body->radius;
-	const float maximumZ = obstacle.position.z + obstacle.size.z * 0.5f + body->radius;
-	Vector3 position = body->position;
-	Vector3 normal{};
+	const float minimumX = -obstacle.size.x * 0.5f - body->radius;
+	const float maximumX = obstacle.size.x * 0.5f + body->radius;
+	const float minimumZ = -obstacle.size.z * 0.5f - body->radius;
+	const float maximumZ = obstacle.size.z * 0.5f + body->radius;
+	Vector3 localPosition = ToLocalPointXZ(body->position, obstacle);
+	Vector3 localNormal{};
 	bool collided = false;
-	if (position.x >= minimumX && position.x <= maximumX &&
-		position.z >= minimumZ && position.z <= maximumZ) {
+	if (localPosition.x >= minimumX && localPosition.x <= maximumX &&
+		localPosition.z >= minimumZ && localPosition.z <= maximumZ) {
 		const float distances[] = {
-			position.x - minimumX, maximumX - position.x,
-			position.z - minimumZ, maximumZ - position.z,
+			localPosition.x - minimumX, maximumX - localPosition.x,
+			localPosition.z - minimumZ, maximumZ - localPosition.z,
 		};
 		std::size_t side = 0;
 		for (std::size_t index = 1; index < 4; ++index) {
 			if (distances[index] < distances[side]) { side = index; }
 		}
 		switch (side) {
-		case 0: position.x = minimumX - kContactOffset; normal = { -1.0f, 0.0f, 0.0f }; break;
-		case 1: position.x = maximumX + kContactOffset; normal = { 1.0f, 0.0f, 0.0f }; break;
-		case 2: position.z = minimumZ - kContactOffset; normal = { 0.0f, 0.0f, -1.0f }; break;
-		default: position.z = maximumZ + kContactOffset; normal = { 0.0f, 0.0f, 1.0f }; break;
+		case 0: localPosition.x = minimumX - kContactOffset; localNormal = { -1.0f, 0.0f, 0.0f }; break;
+		case 1: localPosition.x = maximumX + kContactOffset; localNormal = { 1.0f, 0.0f, 0.0f }; break;
+		case 2: localPosition.z = minimumZ - kContactOffset; localNormal = { 0.0f, 0.0f, -1.0f }; break;
+		default: localPosition.z = maximumZ + kContactOffset; localNormal = { 0.0f, 0.0f, 1.0f }; break;
 		}
 		collided = true;
 	} else {
 		float hitTime = 0.0f;
-		if (SweepPointAgainstBoxXZ(body->previousPosition, body->position,
-			minimumX, maximumX, minimumZ, maximumZ, hitTime, normal)) {
-			position = body->previousPosition +
-				(body->position - body->previousPosition) * hitTime + normal * kContactOffset;
+		const Vector3 localPrevious = ToLocalPointXZ(body->previousPosition, obstacle);
+		if (SweepPointAgainstBoxXZ(localPrevious, localPosition,
+			minimumX, maximumX, minimumZ, maximumZ, hitTime, localNormal)) {
+			localPosition = localPrevious +
+				(localPosition - localPrevious) * hitTime + localNormal * kContactOffset;
 			collided = true;
 		}
 	}
 	if (!collided) { return true; }
+	const Vector3 normal = RotateXZ(
+		localNormal, GetRotationYRadians(obstacle));
+	Vector3 position = ToWorldPointXZ(localPosition, obstacle);
+	position.y = body->position.y;
 	Vector3 velocity = body->linearVelocity;
 	const float normalSpeed = DotXZ(velocity, normal);
 	if (normalSpeed < 0.0f) {
@@ -689,17 +731,19 @@ bool ObstacleCollisionSystem::BodyTouchesBox(
 	if (!body || !body->active || !HasVerticalOverlap(*body, obstacle)) {
 		return false;
 	}
-	const float minimumX = obstacle.position.x - obstacle.size.x * 0.5f - body->radius;
-	const float maximumX = obstacle.position.x + obstacle.size.x * 0.5f + body->radius;
-	const float minimumZ = obstacle.position.z - obstacle.size.z * 0.5f - body->radius;
-	const float maximumZ = obstacle.position.z + obstacle.size.z * 0.5f + body->radius;
-	if (body->position.x >= minimumX && body->position.x <= maximumX &&
-		body->position.z >= minimumZ && body->position.z <= maximumZ) {
+	const float minimumX = -obstacle.size.x * 0.5f - body->radius;
+	const float maximumX = obstacle.size.x * 0.5f + body->radius;
+	const float minimumZ = -obstacle.size.z * 0.5f - body->radius;
+	const float maximumZ = obstacle.size.z * 0.5f + body->radius;
+	const Vector3 localPosition = ToLocalPointXZ(body->position, obstacle);
+	if (localPosition.x >= minimumX && localPosition.x <= maximumX &&
+		localPosition.z >= minimumZ && localPosition.z <= maximumZ) {
 		return true;
 	}
 	float hitTime = 0.0f;
 	Vector3 hitNormal{};
-	return SweepPointAgainstBoxXZ(body->previousPosition, body->position,
+	return SweepPointAgainstBoxXZ(
+		ToLocalPointXZ(body->previousPosition, obstacle), localPosition,
 		minimumX, maximumX, minimumZ, maximumZ, hitTime, hitNormal);
 }
 

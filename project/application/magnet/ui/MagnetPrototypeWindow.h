@@ -76,6 +76,7 @@ struct MagnetPrototypeUiRequest {
 	uint32_t selectedObjectId = 0;
 	Vector3 editedObjectPosition{};
 	Vector3 editedObjectSize{ 1.0f, 1.0f, 1.0f };
+	float editedObjectRotationYDegrees = 0.0f;
 	uint32_t editedGoalScore = 1;
 	MagnetObstacleKind editedObstacleKind = MagnetObstacleKind::Solid;
 	uint32_t editedTransferPairId = 1;

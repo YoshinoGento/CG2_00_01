@@ -22,6 +22,7 @@ constexpr char kWallModelPath[] = "magnet/wall/wall.obj";
 constexpr char kWallFilePath[] = "Resources/magnet/wall/wall.obj";
 constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
 constexpr float kTau = std::numbers::pi_v<float> * 2.0f;
+constexpr float kDegreesToRadians = std::numbers::pi_v<float> / 180.0f;
 constexpr int kGoalLightningBranchCount = 7;
 constexpr int kGoalLightningSegmentCount = 7;
 constexpr Vector4 kGoalLightningColor{ 0.04f, 0.62f, 1.0f, 0.78f };
@@ -49,6 +50,17 @@ constexpr Vector4 kGoalLightningBrightColor{ 0.78f, 0.96f, 1.0f, 1.0f };
 {
 	const float distance = std::abs(left - right);
 	return (std::min)(distance, 1.0f - distance);
+}
+
+[[nodiscard]] Vector3 RotateXZ(const Vector3& value, float radians) noexcept
+{
+	const float cosine = std::cos(radians);
+	const float sine = std::sin(radians);
+	return {
+		value.x * cosine + value.z * sine,
+		value.y,
+		-value.x * sine + value.z * cosine,
+	};
 }
 
 } // namespace
@@ -138,13 +150,18 @@ bool MagnetStageStructureVisualSystem::Update(
 	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
 		const MagnetStageBoxPlacement& goal = stageData.goals[index];
 		if (!IsFinite(goal.position) || !IsPositiveFiniteSize(goal.size) ||
+			!std::isfinite(goal.rotationYDegrees) ||
 			!goalVisuals_[index]) {
 			return false;
 		}
 		const bool normalAlongX = goal.size.x <= goal.size.z;
 		Object3d& visual = *goalVisuals_[index];
 		visual.SetPosition(goal.position);
-		visual.SetRotation({ 0.0f, normalAlongX ? kHalfPi : 0.0f, 0.0f });
+		visual.SetRotation({
+			0.0f,
+			(normalAlongX ? kHalfPi : 0.0f) +
+				goal.rotationYDegrees * kDegreesToRadians,
+			0.0f });
 		visual.SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 		const Vector3 scale = normalAlongX
 			? Vector3{ goal.size.z, goal.size.y, goal.size.x }
@@ -162,13 +179,18 @@ bool MagnetStageStructureVisualSystem::Update(
 			continue;
 		}
 		if (!IsFinite(wall.position) || !IsPositiveFiniteSize(wall.size) ||
+			!std::isfinite(wall.rotationYDegrees) ||
 			!wallVisuals_[index]) {
 			return false;
 		}
 		const bool normalAlongX = wall.size.x <= wall.size.z;
 		Object3d& visual = *wallVisuals_[index];
 		visual.SetPosition(wall.position);
-		visual.SetRotation({ 0.0f, normalAlongX ? kHalfPi : 0.0f, 0.0f });
+		visual.SetRotation({
+			0.0f,
+			(normalAlongX ? kHalfPi : 0.0f) +
+				wall.rotationYDegrees * kDegreesToRadians,
+			0.0f });
 		visual.SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 		const Vector3 scale = normalAlongX
 			? Vector3{ wall.size.z, wall.size.y, wall.size.x }
@@ -186,7 +208,8 @@ void MagnetStageStructureVisualSystem::DrawGoalSuction(
 	const MagnetStageBoxPlacement& goal) const noexcept
 {
 	LineDrawer* lineDrawer = LineDrawer::GetInstance();
-	if (!lineDrawer || !IsFinite(goal.position) || !IsPositiveFiniteSize(goal.size)) {
+	if (!lineDrawer || !IsFinite(goal.position) || !IsPositiveFiniteSize(goal.size) ||
+		!std::isfinite(goal.rotationYDegrees)) {
 		return;
 	}
 
@@ -194,12 +217,15 @@ void MagnetStageStructureVisualSystem::DrawGoalSuction(
 	const float openingWidth = (normalAlongX ? goal.size.z : goal.size.x) * 0.62f;
 	const float openingHeight = goal.size.y * 0.62f;
 	const float depth = normalAlongX ? goal.size.x : goal.size.z;
-	const Vector3 horizontal = normalAlongX
+	const Vector3 localHorizontal = normalAlongX
 		? Vector3{ 0.0f, 0.0f, 1.0f }
 		: Vector3{ 1.0f, 0.0f, 0.0f };
-	const Vector3 normal = normalAlongX
+	const Vector3 localNormal = normalAlongX
 		? Vector3{ -1.0f, 0.0f, 0.0f }
 		: Vector3{ 0.0f, 0.0f, -1.0f };
+	const float rotationYRadians = goal.rotationYDegrees * kDegreesToRadians;
+	const Vector3 horizontal = RotateXZ(localHorizontal, rotationYRadians);
+	const Vector3 normal = RotateXZ(localNormal, rotationYRadians);
 	const Vector3 center = goal.position + normal * (depth * 0.51f + 0.025f);
 
 	for (int branch = 0; branch < kGoalLightningBranchCount; ++branch) {

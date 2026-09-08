@@ -1,4 +1,7 @@
 {
+    "arena": {
+        "radius": 18.5
+    },
     "bounds": {
         "maximumX": 9.0,
         "maximumZ": 9.0,
@@ -170,8 +173,26 @@
             "position": [
                 0.0,
                 1.0,
-                8.0
+                18.5
             ],
+            "rotationYDegrees": 180.0,
+            "score": 1,
+            "size": [
+                2.5,
+                2.0,
+                1.0
+            ],
+            "type": "goal"
+        },
+        {
+            "id": 2,
+            "position": [
+                0.0,
+                1.0,
+                -18.5
+            ],
+            "rotationYDegrees": 0.0,
+            "score": 1,
             "size": [
                 2.5,
                 2.0,
@@ -181,11 +202,13 @@
         },
         {
             "id": 1,
+            "obstacleKind": "solid",
             "position": [
                 -4.0,
                 1.0,
-                1.5
+                1.399999976158142
             ],
+            "rotationYDegrees": 0.0,
             "size": [
                 1.5,
                 2.0,
@@ -195,19 +218,213 @@
         },
         {
             "id": 2,
+            "obstacleKind": "solid",
             "position": [
                 4.0,
                 1.0,
                 1.5
             ],
+            "rotationYDegrees": 0.0,
             "size": [
                 1.5,
                 2.0,
                 3.0
             ],
             "type": "obstacle"
+        },
+        {
+            "id": 3,
+            "obstacleKind": "timed_shutter",
+            "position": [
+                0.0,
+                1.0,
+                18.100000381469727
+            ],
+            "rotationYDegrees": 180.0,
+            "size": [
+                3.4000000953674316,
+                2.0,
+                0.550000011920929
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 4,
+            "obstacleKind": "timed_shutter",
+            "position": [
+                0.0,
+                1.0,
+                -18.100000381469727
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                4.0,
+                2.0,
+                0.550000011920929
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 5,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                2.799999952316284,
+                0.699999988079071,
+                16.299999237060547
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.7999999523162842,
+                1.399999976158142,
+                1.7999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 6,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                2.799999952316284,
+                0.699999988079071,
+                -16.299999237060547
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.7999999523162842,
+                1.399999976158142,
+                1.7999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 7,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                -2.799999952316284,
+                0.699999988079071,
+                16.299999237060547
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.7999999523162842,
+                1.399999976158142,
+                1.7999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 8,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                -2.799999952316284,
+                0.699999988079071,
+                -16.299999237060547
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.7999999523162842,
+                1.399999976158142,
+                1.7999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 9,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                4.900000095367432,
+                0.699999988079071,
+                13.800000190734863
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.7999999523162842,
+                1.399999976158142,
+                1.7999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 10,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                4.900000095367432,
+                0.699999988079071,
+                -13.800000190734863
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.7999999523162842,
+                1.399999976158142,
+                1.7999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 11,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                -4.900000095367432,
+                0.699999988079071,
+                13.800000190734863
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.7999999523162842,
+                1.399999976158142,
+                1.7999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 12,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                -4.900000095367432,
+                0.699999988079071,
+                -14.199999809265137
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.7999999523162842,
+                1.399999976158142,
+                1.7999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 13,
+            "obstacleKind": "chainsaw",
+            "position": [
+                -9.5,
+                0.9000000357627869,
+                -6.800000190734863
+            ],
+            "rotationYDegrees": -90.0,
+            "size": [
+                0.6499999761581421,
+                3.0,
+                0.3499999940395355
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 14,
+            "obstacleKind": "chainsaw",
+            "position": [
+                9.5,
+                0.9000000357627869,
+                6.800000190734863
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                0.6499999761581421,
+                3.0,
+                0.3499999940395355
+            ],
+            "type": "obstacle"
         }
     ],
     "schema": "magnet_stage",
-    "schemaVersion": 3
+    "schemaVersion": 9
 }

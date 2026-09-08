@@ -31,6 +31,7 @@ public:
 		Vector3 center{};
 		float width = kMagnetDiameter * 2.5f;
 		float depth = 1.5f;
+		float rotationYRadians = 0.0f;
 		GoalSize size = GoalSize::Standard;
 		std::size_t score = 1;
 	};

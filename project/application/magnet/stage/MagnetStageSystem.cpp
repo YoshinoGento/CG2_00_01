@@ -40,6 +40,8 @@ constexpr float kMaximumBoxSize = 50.0f;
 constexpr float kMaximumBoxHeight = 50.0f;
 constexpr float kMinimumArenaRadius = 4.0f;
 constexpr float kMaximumArenaRadius = 40.0f;
+constexpr float kMaximumRotationInputDegrees = 360000.0f;
+constexpr float kMaximumNormalizedRotationDegrees = 180.0f;
 constexpr std::size_t kCandidateCountPerBall = 96;
 constexpr std::size_t kMaximumStageNameLength = 64;
 constexpr std::size_t kMaximumPathLength = 260;
@@ -163,6 +165,22 @@ bool ReadSize(const nlohmann::json& object, Vector3& output)
 	};
 	return std::isfinite(output.x) && std::isfinite(output.y) &&
 		std::isfinite(output.z);
+}
+
+bool NormalizeRotationYDegrees(float input, float& output) noexcept
+{
+	if (!std::isfinite(input) ||
+		std::abs(input) > kMaximumRotationInputDegrees) {
+		return false;
+	}
+	output = std::remainder(input, 360.0f);
+	if (!std::isfinite(output)) {
+		return false;
+	}
+	if (std::abs(output) < 1.0e-4f) {
+		output = 0.0f;
+	}
+	return true;
 }
 
 } // namespace
@@ -489,9 +507,15 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 	MagnetStageObjectType type,
 	uint32_t id,
 	const Vector3& position,
-	const Vector3& size)
+	const Vector3& size,
+	float rotationYDegrees)
 {
 	MagnetStageBoxPlacement candidate{ id, position, size };
+	if (!NormalizeRotationYDegrees(
+		rotationYDegrees, candidate.rotationYDegrees)) {
+		SetOperationResult(false, "回転角度は有限の度数で指定してください。");
+		return false;
+	}
 	if (!IsValidBoxPlacement(candidate) ||
 		!IsInsideArena(position, stageData_.arenaRadius)) {
 		SetOperationResult(false, "編集した位置またはサイズがステージ範囲外です。");
@@ -674,6 +698,7 @@ bool MagnetStageSystem::Save(const std::string& path)
 						placement.position.y,
 						placement.position.z } },
 					{ "size", { placement.size.x, placement.size.y, placement.size.z } },
+					{ "rotationYDegrees", placement.rotationYDegrees },
 				};
 				if (std::strcmp(type, kGoalType) == 0) {
 					object["score"] = placement.score;
@@ -842,6 +867,13 @@ bool MagnetStageSystem::Load(const std::string& path)
 				SetOperationResult(false, "ゴールまたは障害物のサイズが不正です。");
 				return false;
 			}
+			float rotationYDegrees = 0.0f;
+			if (schemaVersion >= 9u &&
+				(!ReadFiniteFloat(object, "rotationYDegrees", rotationYDegrees) ||
+				 !NormalizeRotationYDegrees(rotationYDegrees, rotationYDegrees))) {
+				SetOperationResult(false, "ゴールまたは障害物の回転角度が不正です。");
+				return false;
+			}
 			if (type == kGoalType && candidate.goalCount < candidate.goals.size()) {
 				uint32_t score = 1;
 				if (object.contains("score")) {
@@ -851,7 +883,9 @@ bool MagnetStageSystem::Load(const std::string& path)
 					}
 					score = object["score"].get<uint32_t>();
 				}
-				candidate.goals[candidate.goalCount++] = { id, position, size, score };
+				candidate.goals[candidate.goalCount++] = {
+					id, position, size, score, MagnetObstacleKind::Solid, 0u,
+					rotationYDegrees };
 			} else if (type == kObstacleType &&
 				candidate.obstacleCount < candidate.obstacles.size()) {
 				MagnetObstacleKind obstacleKind = MagnetObstacleKind::Solid;
@@ -869,7 +903,8 @@ bool MagnetStageSystem::Load(const std::string& path)
 					transferPairId = object["transferPairId"].get<uint32_t>();
 				}
 				candidate.obstacles[candidate.obstacleCount++] = {
-					id, position, size, 1u, obstacleKind, transferPairId };
+					id, position, size, 1u, obstacleKind, transferPairId,
+					rotationYDegrees };
 			} else {
 				SetOperationResult(false, "未対応のオブジェクトがあるか、配置上限を超えています。");
 				return false;
@@ -1030,7 +1065,10 @@ bool MagnetStageSystem::IsValidBoxPlacement(
 		std::isfinite(placement.size.z) &&
 		placement.size.x >= kMinimumBoxSize && placement.size.x <= kMaximumBoxSize &&
 		placement.size.y >= kMinimumBoxSize && placement.size.y <= kMaximumBoxSize &&
-		placement.size.z >= kMinimumBoxSize && placement.size.z <= kMaximumBoxSize;
+		placement.size.z >= kMinimumBoxSize && placement.size.z <= kMaximumBoxSize &&
+		std::isfinite(placement.rotationYDegrees) &&
+		std::abs(placement.rotationYDegrees) <=
+			kMaximumNormalizedRotationDegrees + 1.0e-4f;
 }
 
 bool MagnetStageSystem::IsSafeJsonPath(const std::string& path)
