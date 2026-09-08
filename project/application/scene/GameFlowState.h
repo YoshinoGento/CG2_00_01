@@ -6,6 +6,8 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <string>
+#include <utility>
 
 class GameFlowState final {
 public:
@@ -58,6 +60,16 @@ public:
 	}
 	[[nodiscard]] std::size_t GetRankingCount() const noexcept { return rankingCount_; }
 
+	void SetActiveStageSaveName(std::string saveName)
+	{
+		activeStageSaveName_ = std::move(saveName);
+	}
+
+	[[nodiscard]] const std::string& GetActiveStageSaveName() const noexcept
+	{
+		return activeStageSaveName_;
+	}
+
 private:
 	GameFlowState() noexcept;
 	void LoadRanking() noexcept;
@@ -69,4 +81,5 @@ private:
 	float seVolume_ = 0.5f;
 	std::array<std::size_t, kRankingCapacity> ranking_{};
 	std::size_t rankingCount_ = 0;
+	std::string activeStageSaveName_;
 };

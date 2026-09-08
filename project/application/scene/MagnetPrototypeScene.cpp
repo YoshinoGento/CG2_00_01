@@ -277,11 +277,28 @@ void MagnetPrototypeScene::Initialize()
 	}
 
 	bool stageReady = false;
+	GameFlowState& gameFlowState = GameFlowState::GetInstance();
+	const std::string& activeStageSaveName =
+		gameFlowState.GetActiveStageSaveName();
+	if (!activeStageSaveName.empty()) {
+		stageReady = magnetStageSystem_.LoadNamed(activeStageSaveName);
+		if (!stageReady) {
+			Logger::Log(
+				"MagnetPrototypeScene: active stage reload failed; falling back to startup stage: " +
+				magnetStageSystem_.GetLastOperationMessage());
+		}
+	}
+	if (!stageReady) {
 #ifdef MAGNET_STARTUP_STAGE_OBSTACLE
-	stageReady = magnetStageSystem_.LoadNamed(kReleaseStageSaveName);
+		stageReady = magnetStageSystem_.LoadNamed(kReleaseStageSaveName);
 #else
-	stageReady = magnetStageSystem_.Initialize();
+		stageReady = magnetStageSystem_.Initialize();
 #endif
+	}
+	if (stageReady) {
+		gameFlowState.SetActiveStageSaveName(
+			magnetStageSystem_.GetStageData().name);
+	}
 	if (!stageReady) {
 		Logger::Log(
 			"MagnetPrototypeScene: startup stage initialization failed: " +
@@ -1522,12 +1539,19 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 			request.editedAnchorAttractionRadius);
 		break;
 	case magnet::MagnetStageEditorAction::SaveNamed:
-		(void)magnetStageSystem_.SaveNamed(
+		if (magnetStageSystem_.SaveNamed(
 			request.stageSaveName.data(),
-			request.allowOverwrite);
+			request.allowOverwrite)) {
+			GameFlowState::GetInstance().SetActiveStageSaveName(
+				request.stageSaveName.data());
+		}
 		break;
 	case magnet::MagnetStageEditorAction::LoadNamed:
 		stageChanged = magnetStageSystem_.LoadNamed(request.stageSaveName.data());
+		if (stageChanged) {
+			GameFlowState::GetInstance().SetActiveStageSaveName(
+				request.stageSaveName.data());
+		}
 		break;
 	case magnet::MagnetStageEditorAction::RefreshSaves:
 		(void)magnetStageSystem_.RefreshSaveEntries();
