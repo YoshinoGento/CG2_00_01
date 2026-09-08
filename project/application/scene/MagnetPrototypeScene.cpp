@@ -1235,8 +1235,6 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 	if (!gameFlowUiReady_) { return; }
 	char timerBuffer[32]{};
 	const int remainingSeconds = static_cast<int>(std::ceil(
-		(std::max)(0.0f, kGameDurationSeconds - gameElapsedSeconds_)));
-	std::snprintf(timerBuffer, sizeof(timerBuffer), "%02d", remainingSeconds);
 		(std::max)(0.0f,
 			magnetStageSystem_.GetStageData().timeLimitSeconds - gameElapsedSeconds_)));
 	std::snprintf(timerBuffer, sizeof(timerBuffer), "TIME %02d", remainingSeconds);
