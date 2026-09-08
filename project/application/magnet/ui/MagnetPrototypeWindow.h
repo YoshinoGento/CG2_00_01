@@ -36,6 +36,7 @@ struct MagnetPrototypeViewData {
 	std::size_t magneticAttachmentCount = 0;
 	std::size_t goalHitCount = 0;
 	std::size_t score = 0;
+	uint32_t scoreNumberTextureSrvIndex = UINT32_MAX;
 	float goalWidth = 0.0f;
 	const MagnetStageData* stageData = nullptr;
 	const MagnetStageSaveEntry* saveEntries = nullptr;
@@ -50,6 +51,7 @@ enum class MagnetStageEditorAction : uint8_t {
 	None,
 	GenerateBalanced,
 	SetArenaRadius,
+	SetTimeLimit,
 	MovePlayer,
 	AddBall,
 	RemoveBall,
@@ -71,6 +73,7 @@ struct MagnetPrototypeUiRequest {
 	MagnetStageEditorAction stageAction = MagnetStageEditorAction::None;
 	MagnetStageGenerationSettings generationSettings{};
 	float arenaRadius = 10.0f;
+	float timeLimitSeconds = kDefaultStageTimeLimitSeconds;
 	std::array<char, MagnetStageSystem::kMaximumSaveNameLength + 1> stageSaveName{};
 	uint32_t selectedBallId = 0;
 	MagnetStageObjectType selectedObjectType = MagnetStageObjectType::None;

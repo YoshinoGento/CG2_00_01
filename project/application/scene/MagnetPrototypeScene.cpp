@@ -84,7 +84,6 @@ constexpr float kGoalGuideScreenMargin = 38.0f;
 constexpr float kGoalGuideArmLength = 18.0f;
 constexpr float kGoalGuideThickness = 4.0f;
 constexpr float kGoalGuideHalfAngle = 0.70f;
-constexpr float kGameDurationSeconds = 60.0f;
 constexpr int kPauseMenuItemCount = 5;
 constexpr Vector4 kUiTextColor = { 0.88f, 0.94f, 0.98f, 1.0f };
 constexpr Vector4 kUiAccentColor = { 1.0f, 0.82f, 0.24f, 1.0f };
@@ -234,7 +233,9 @@ void MagnetPrototypeScene::Initialize()
 		Logger::Log("MagnetPrototypeScene: goal guide initialization failed.");
 	}
 	gameFlowUiReady_ = InitializeGameFlowUi();
-	GameFlowState::GetInstance().EnsureBgm(framework_->GetAudio());
+	tutorialUiReady_ = !tutorialMode_ || InitializeTutorialUi();
+	GameFlowState::GetInstance().EnsureBgm(
+		framework_->GetAudio(), GameFlowState::BgmTrack::Gameplay);
 	if (!magneticImpactSoundSystem_.Initialize(
 		framework_->GetAudio(), kMagneticImpactSoundPath)) {
 		Logger::Log(
@@ -277,18 +278,56 @@ void MagnetPrototypeScene::Initialize()
 	}
 
 	bool stageReady = false;
+	GameFlowState& gameFlowState = GameFlowState::GetInstance();
+	const std::string& activeStageSaveName =
+		gameFlowState.GetActiveStageSaveName();
+	if (!activeStageSaveName.empty()) {
+		stageReady = magnetStageSystem_.LoadNamed(activeStageSaveName);
+		if (!stageReady) {
+			Logger::Log(
+				"MagnetPrototypeScene: active stage reload failed; falling back to startup stage: " +
+				magnetStageSystem_.GetLastOperationMessage());
+		}
+	}
+	if (!stageReady) {
 #ifdef MAGNET_STARTUP_STAGE_OBSTACLE
-	stageReady = magnetStageSystem_.LoadNamed(kReleaseStageSaveName);
+		stageReady = magnetStageSystem_.LoadNamed(kReleaseStageSaveName);
 #else
-	stageReady = magnetStageSystem_.Initialize();
+		stageReady = magnetStageSystem_.Initialize();
 #endif
+	}
+	if (stageReady) {
+		gameFlowState.SetActiveStageSaveName(
+			magnetStageSystem_.GetStageData().name);
+	}
 	if (!stageReady) {
 		Logger::Log(
 			"MagnetPrototypeScene: startup stage initialization failed: " +
 			magnetStageSystem_.GetLastOperationMessage());
 	}
+	if (stageReady && tutorialMode_) {
+		while (magnetStageSystem_.GetStageData().ballCount > 0) {
+			(void)magnetStageSystem_.RemoveBall(
+				magnetStageSystem_.GetStageData().balls[0].id);
+		}
+		while (magnetStageSystem_.GetStageData().goalCount > 0) {
+			(void)magnetStageSystem_.RemoveBoxObject(
+				magnet::MagnetStageObjectType::Goal,
+				magnetStageSystem_.GetStageData().goals[0].id);
+		}
+		while (magnetStageSystem_.GetStageData().obstacleCount > 0) {
+			(void)magnetStageSystem_.RemoveBoxObject(
+				magnet::MagnetStageObjectType::Obstacle,
+				magnetStageSystem_.GetStageData().obstacles[0].id);
+		}
+		(void)magnetStageSystem_.SetPlayerPosition({ 0.0f, 0.75f, 0.0f });
+	}
 	prototypeReady_ = stageReady &&
 		magnetChainSystem_.Initialize(magnetStageSystem_.GetStageData());
+	if (prototypeReady_ && tutorialMode_) {
+		magnetChainSystem_.SetActiveGoalCount(0);
+		magnetChainSystem_.SetActiveObstacleCount(0);
+	}
 	ballVisualsReady_ = prototypeReady_ && InitializeBallVisuals();
 	if (ballVisualsReady_) {
 		ballVisualsReady_ = UpdateBallVisuals(0.0f);
@@ -353,10 +392,14 @@ void MagnetPrototypeScene::Initialize()
 	menuStickDownWasPressed_ = false;
 	menuStickLeftWasPressed_ = false;
 	menuStickRightWasPressed_ = false;
+	tutorialPhase_ = TutorialPhase::Movement;
+	tutorialMovementDistance_ = 0.0f;
+	tutorialScoreAtGoalStart_ = 0;
 #ifdef USE_IMGUI
 	particleEffectEditor_ = std::make_unique<ParticleEffectEditor>();
 #endif
 	RefreshGameFlowUi();
+	UpdateTutorialUi();
 }
 
 void MagnetPrototypeScene::Finalize()
@@ -386,6 +429,7 @@ void MagnetPrototypeScene::Finalize()
 	playerVisual_.reset();
 	for (auto& visual : stageBallVisuals_) { visual.reset(); }
 	ballVisualsReady_ = false;
+	scoreHudObject_.reset();
 	seVolumeLabelObject_.reset();
 	volumeLabelObject_.reset();
 	backTitleLabelObject_.reset();
@@ -395,6 +439,19 @@ void MagnetPrototypeScene::Finalize()
 	pauseLabelCamera_.reset();
 	pauseOverlaySprite_.reset();
 	gameFlowUiReady_ = false;
+	for (auto& sprite : tutorialKeySprites_) { sprite.reset(); }
+	for (auto& sprite : tutorialKeyImageSprites_) { sprite.reset(); }
+	tutorialMoveGuideSprite_.reset();
+	tutorialAttractGuideSprite_.reset();
+	tutorialShootGuideSprite_.reset();
+	tutorialGimmickGuideSprite_.reset();
+	tutorialSkipSprite_.reset();
+	tutorialSkipEnterSprite_.reset();
+	tutorialTransitionKeyObject_.reset();
+	tutorialObstacleGuidePanel_.reset();
+	for (auto& sprite : tutorialObstacleIcons_) { sprite.reset(); }
+	tutorialObstacleGuideVisible_ = false;
+	tutorialUiReady_ = false;
 	for (auto& guide : goalGuideSprites_) {
 		for (auto& arm : guide) { arm.reset(); }
 	}
@@ -443,6 +500,19 @@ void MagnetPrototypeScene::PrepareFixedUpdate()
 		HandlePauseMenuInput(*input);
 		return;
 	}
+	// Tutorial navigation must remain available after holding Tab. ImGui may
+	// retain keyboard capture for a frame after its navigation key is released,
+	// so handle these scene controls before honoring UI keyboard capture.
+	if (tutorialMode_ && input->TriggerKey(InputKey::Enter)) {
+		SkipTutorialPhase();
+		return;
+	}
+	if (tutorialMode_ && tutorialPhase_ == TutorialPhase::TryObstacles &&
+		input->TriggerKey(InputKey::Space)) {
+		rankingTransitionRequested_ = true;
+		SceneManager::GetInstance()->ChangeScene("MAGNET_PROTOTYPE");
+		return;
+	}
 	if (ImGuiManager::GetInstance()->WantsCaptureKeyboard()) { return; }
 
 	if (input->PushKey(InputKey::W)) { pendingCommand_.moveDirection.z += 1.0f; }
@@ -476,8 +546,9 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		pendingCommand_ = {};
 		return;
 	}
-	gameElapsedSeconds_ += fixedDeltaTime;
-	if (gameElapsedSeconds_ >= kGameDurationSeconds) {
+	if (!tutorialMode_) { gameElapsedSeconds_ += fixedDeltaTime; }
+	if (!tutorialMode_ &&
+		gameElapsedSeconds_ >= magnetStageSystem_.GetStageData().timeLimitSeconds) {
 		CompleteTimedGame();
 		pendingCommand_ = {};
 		return;
@@ -585,6 +656,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 	}
 	pendingCommand_.emergencyStop = false;
 	pendingCommand_.releaseChains = false;
+	if (prototypeReady_ && tutorialMode_) { UpdateTutorialProgress(fixedDeltaTime); }
 }
 
 void MagnetPrototypeScene::Update()
@@ -648,6 +720,7 @@ void MagnetPrototypeScene::Update()
 			"MagnetPrototypeScene: ball visual update failed; using wire fallback.");
 		ballVisualsReady_ = false;
 	}
+	if (tutorialMode_) { UpdateTutorialUi(); }
 	if (furnaceVisualsReady_ && !furnaceVisualSystem_.Update(
 		frameDeltaSeconds, stageData, camera_.get())) {
 		Logger::Log(
@@ -705,6 +778,7 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	viewData.magneticAttachmentCount = magnetChainSystem_.GetMagneticAttachmentCount();
 	viewData.goalHitCount = magnetChainSystem_.GetGoalHitCount();
 	viewData.score = magnetChainSystem_.GetScore();
+	viewData.scoreNumberTextureSrvIndex = scoreNumberTextureSrvIndex_;
 	viewData.goalWidth = magnetChainSystem_.GetGoal().width;
 	viewData.stageData = &magnetStageSystem_.GetStageData();
 	viewData.saveEntries = magnetStageSystem_.GetSaveEntries().data();
@@ -868,15 +942,20 @@ void MagnetPrototypeScene::Draw()
 	gimmickEffectSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
+	magnet::MagnetStageData visibleStageData = magnetStageSystem_.GetStageData();
+	if (tutorialMode_) {
+		if (tutorialPhase_ < TutorialPhase::ScoreGoal) { visibleStageData.goalCount = 0; }
+		if (tutorialPhase_ < TutorialPhase::TryObstacles) { visibleStageData.obstacleCount = 0; }
+	}
 	if (stageStructureVisualsReady_) {
-		magnetStageStructureVisualSystem_.Draw(magnetStageSystem_.GetStageData());
+		magnetStageStructureVisualSystem_.Draw(visibleStageData);
 	}
 	if (furnaceVisualsReady_) {
-		furnaceVisualSystem_.Draw(magnetStageSystem_.GetStageData());
+		furnaceVisualSystem_.Draw(visibleStageData);
 	}
 	if (magnetGimmickVisualsReady_) {
 		magnetGimmickVisualSystem_.Draw(
-			magnetStageSystem_.GetStageData(), magnetChainSystem_);
+			visibleStageData, magnetChainSystem_);
 	}
 	DrawBallVisuals();
 	if (glassWallVisual_) {
@@ -903,6 +982,11 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 		spriteCommon, "Resources/ui/font/ascii_bitmap_font.json")) {
 		return false;
 	}
+	const Texture2DHandle scoreNumberTexture =
+		TextureManager::GetInstance()->LoadTexture2D("Resources/ui/numbers.png");
+	scoreNumberTextureSrvIndex_ = scoreNumberTexture.IsValid()
+		? scoreNumberTexture.Index()
+		: UINT32_MAX;
 	pauseOverlaySprite_ = std::make_unique<Sprite>();
 	if (!pauseOverlaySprite_->Initialize(spriteCommon, "Resources/human/white.png")) {
 		pauseOverlaySprite_.reset();
@@ -919,6 +1003,23 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 		pauseLabelCamera_->SetTranslate({ 0.0f, 0.0f, -10.0f });
 		pauseLabelCamera_->SetRotate({ 0.0f, 0.0f, 0.0f });
 		pauseLabelCamera_->Update();
+
+		constexpr const char* kScoreHudModelPath = "title/Score.obj";
+		modelManager->LoadModel(kScoreHudModelPath);
+		Model* scoreHudModel = modelManager->GetModel(kScoreHudModelPath);
+		if (scoreHudModel) {
+			scoreHudModel->LoadTextures();
+			scoreHudObject_ = std::make_unique<Object3d>();
+			scoreHudObject_->Initialize(framework_->GetObject3dCommon());
+			scoreHudObject_->SetModel(scoreHudModel);
+			scoreHudObject_->SetScale({ 0.22f, 0.22f, 0.22f });
+			scoreHudObject_->SetPosition({ -3.58f, 1.98f, 0.0f });
+			scoreHudObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+			scoreHudObject_->SetColor(kUiAccentColor);
+			scoreHudObject_->SetEnableLighting(false);
+			scoreHudObject_->SetCullMode(0);
+			scoreHudObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
 
 		constexpr const char* kPauseTitleModelPath = "pause/pause.obj";
 		modelManager->LoadModel(kPauseTitleModelPath);
@@ -1113,7 +1214,8 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 	if (!gameFlowUiReady_) { return; }
 	char timerBuffer[32]{};
 	const int remainingSeconds = static_cast<int>(std::ceil(
-		(std::max)(0.0f, kGameDurationSeconds - gameElapsedSeconds_)));
+		(std::max)(0.0f,
+			magnetStageSystem_.GetStageData().timeLimitSeconds - gameElapsedSeconds_)));
 	std::snprintf(timerBuffer, sizeof(timerBuffer), "TIME %02d", remainingSeconds);
 	timerText_.SetText(timerBuffer);
 	timerText_.Update();
@@ -1183,8 +1285,18 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 void MagnetPrototypeScene::DrawGameFlowUi()
 {
 	if (!gameFlowUiReady_) { return; }
+	if (scoreHudObject_) {
+		Object3dCommon* objectCommon = framework_->GetObject3dCommon();
+		objectCommon->BeginObjectPass();
+		scoreHudObject_->Draw();
+		objectCommon->EndObjectPass();
+	}
 	framework_->GetSpriteCommon()->PreDraw();
-	timerText_.Draw();
+	if (!tutorialMode_) { timerText_.Draw(); }
+	if (tutorialMode_) {
+		DrawTutorialUi();
+		DrawTutorialSkipUi();
+	}
 	if (!paused_) { return; }
 	pauseOverlaySprite_->Draw();
 	pauseTitleText_.Draw();
@@ -1202,6 +1314,401 @@ void MagnetPrototypeScene::DrawGameFlowUi()
 		framework_->GetSpriteCommon()->PreDraw();
 	}
 	for (SpriteText& text : pauseMenuTexts_) { text.Draw(); }
+}
+
+bool MagnetPrototypeScene::InitializeTutorialUi()
+{
+	SpriteCommon* spriteCommon = framework_ ? framework_->GetSpriteCommon() : nullptr;
+	if (!spriteCommon) { return false; }
+	ModelManager* modelManager = framework_->GetModelManager();
+	if (modelManager && pauseLabelCamera_) {
+		constexpr const char* kSpaceModelPath = "title/Space.obj";
+		modelManager->LoadModel(kSpaceModelPath);
+		Model* spaceModel = modelManager->GetModel(kSpaceModelPath);
+		if (spaceModel) {
+			spaceModel->LoadTextures();
+			tutorialTransitionKeyObject_ = std::make_unique<Object3d>();
+			tutorialTransitionKeyObject_->Initialize(framework_->GetObject3dCommon());
+			tutorialTransitionKeyObject_->SetModel(spaceModel);
+			tutorialTransitionKeyObject_->SetScale({ 0.60f, 0.60f, 0.60f });
+			tutorialTransitionKeyObject_->SetPosition({ 0.147f, -2.17f, 0.0f });
+			tutorialTransitionKeyObject_->SetRotation(
+				{ 0.0f, 3.14159265f, 0.0f });
+			tutorialTransitionKeyObject_->SetColor(kUiAccentColor);
+			tutorialTransitionKeyObject_->SetEnableLighting(false);
+			tutorialTransitionKeyObject_->SetCullMode(0);
+			tutorialTransitionKeyObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
+	}
+	for (auto& sprite : tutorialKeySprites_) {
+		sprite = std::make_unique<Sprite>();
+		if (!sprite->Initialize(spriteCommon, "Resources/human/white.png")) {
+			return false;
+		}
+		sprite->SetSize({ 54.0f, 54.0f });
+	}
+	const std::array<Vector2, 4> positions = {
+		Vector2{ 82.0f, 584.0f }, Vector2{ 28.0f, 638.0f },
+		Vector2{ 82.0f, 638.0f }, Vector2{ 136.0f, 638.0f }
+	};
+	const std::array<const char*, 4> textures = {
+		"Resources/ui/tutorial/W.png", "Resources/ui/tutorial/A.png",
+		"Resources/ui/tutorial/S.png", "Resources/ui/tutorial/D.png"
+	};
+	for (std::size_t index = 0; index < tutorialKeySprites_.size(); ++index) {
+		tutorialKeySprites_[index]->SetPosition(
+			{ positions[index].x - 3.0f, positions[index].y - 3.0f });
+		tutorialKeySprites_[index]->Update();
+		tutorialKeyImageSprites_[index] = std::make_unique<Sprite>();
+		if (!tutorialKeyImageSprites_[index]->Initialize(
+			spriteCommon, textures[index])) {
+			return false;
+		}
+		tutorialKeyImageSprites_[index]->SetPosition(positions[index]);
+		tutorialKeyImageSprites_[index]->SetSize({ 48.0f, 48.0f });
+		tutorialKeyImageSprites_[index]->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+		tutorialKeyImageSprites_[index]->Update();
+	}
+	tutorialMoveGuideSprite_ = std::make_unique<Sprite>();
+	if (!tutorialMoveGuideSprite_->Initialize(
+		spriteCommon, "Resources/ui/tutorial/GuideMove.png")) {
+		return false;
+	}
+	tutorialMoveGuideSprite_->SetPosition({ 28.0f, 545.0f });
+	// The source image has a few isolated pixels along its top edge. Crop those
+	// pixels so scaling the guide does not turn them into a visible horizontal line.
+	tutorialMoveGuideSprite_->SetTextureRect({ 0.0f, 3.0f }, { 150.0f, 13.0f });
+	tutorialMoveGuideSprite_->SetSize({ 300.0f, 26.0f });
+	tutorialMoveGuideSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	tutorialMoveGuideSprite_->Update();
+	tutorialAttractGuideSprite_ = std::make_unique<Sprite>();
+	if (!tutorialAttractGuideSprite_->Initialize(
+		spriteCommon, "Resources/ui/tutorial/attractGuide.png")) {
+		return false;
+	}
+	tutorialAttractGuideSprite_->SetPosition({ 28.0f, 545.0f });
+	tutorialAttractGuideSprite_->SetSize({ 240.0f, 32.0f });
+	tutorialAttractGuideSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	tutorialAttractGuideSprite_->Update();
+	tutorialShootGuideSprite_ = std::make_unique<Sprite>();
+	if (!tutorialShootGuideSprite_->Initialize(
+		spriteCommon, "Resources/ui/tutorial/ShootGuide.png")) {
+		return false;
+	}
+	tutorialShootGuideSprite_->SetPosition({ 28.0f, 545.0f });
+	// Crop isolated pixels at the top edge so they are not enlarged into a line.
+	tutorialShootGuideSprite_->SetTextureRect({ 0.0f, 3.0f }, { 120.0f, 13.0f });
+	tutorialShootGuideSprite_->SetSize({ 240.0f, 26.0f });
+	tutorialShootGuideSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	tutorialShootGuideSprite_->Update();
+	tutorialGimmickGuideSprite_ = std::make_unique<Sprite>();
+	if (!tutorialGimmickGuideSprite_->Initialize(
+		spriteCommon, "Resources/ui/tutorial/gimickGuide.png")) {
+		return false;
+	}
+	tutorialGimmickGuideSprite_->SetPosition({ 28.0f, 545.0f });
+	// Crop the isolated pixels on the source image's top edge so they do not
+	// become a visible line when the small guide texture is enlarged.
+	tutorialGimmickGuideSprite_->SetTextureRect(
+		{ 0.0f, 3.0f }, { 170.0f, 13.0f });
+	tutorialGimmickGuideSprite_->SetSize({ 340.0f, 26.0f });
+	tutorialGimmickGuideSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	tutorialGimmickGuideSprite_->Update();
+	tutorialSkipSprite_ = std::make_unique<Sprite>();
+	if (!tutorialSkipSprite_->Initialize(
+		spriteCommon, "Resources/ui/tutorial/Skip.png")) {
+		return false;
+	}
+	// Keep the skip controls to the left of the minimap in the upper-right area.
+	tutorialSkipSprite_->SetPosition({ 1038.0f, 24.0f });
+	tutorialSkipSprite_->SetSize({ 64.0f, 64.0f });
+	tutorialSkipSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	tutorialSkipSprite_->Update();
+	tutorialSkipEnterSprite_ = std::make_unique<Sprite>();
+	if (!tutorialSkipEnterSprite_->Initialize(
+		spriteCommon, "Resources/ui/tutorial/SkipEnter.png")) {
+		return false;
+	}
+	tutorialSkipEnterSprite_->SetPosition({ 1022.0f, 88.0f });
+	tutorialSkipEnterSprite_->SetSize({ 96.0f, 32.0f });
+	tutorialSkipEnterSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	tutorialSkipEnterSprite_->Update();
+	tutorialObstacleGuidePanel_ = std::make_unique<Sprite>();
+	if (!tutorialObstacleGuidePanel_->Initialize(
+		spriteCommon, "Resources/human/white.png")) {
+		return false;
+	}
+	tutorialObstacleGuidePanel_->SetPosition({ 30.0f, 72.0f });
+	tutorialObstacleGuidePanel_->SetSize({ 1220.0f, 570.0f });
+	tutorialObstacleGuidePanel_->SetColor({ 0.015f, 0.03f, 0.055f, 0.94f });
+	tutorialObstacleGuidePanel_->Update();
+
+	const std::array<Vector4, 7> iconColors = {
+		Vector4{ 1.0f, 1.0f, 1.0f, 1.0f },
+		Vector4{ 1.0f, 1.0f, 1.0f, 1.0f },
+		Vector4{ 1.0f, 1.0f, 1.0f, 1.0f },
+		Vector4{ 1.0f, 1.0f, 1.0f, 1.0f },
+		Vector4{ 1.0f, 1.0f, 1.0f, 1.0f },
+		Vector4{ 1.0f, 1.0f, 1.0f, 1.0f },
+		Vector4{ 1.0f, 1.0f, 1.0f, 1.0f }
+	};
+	const std::array<const char*, 7> iconTextures = {
+		"Resources/magnet/wall/wall_preview.png",
+		"Resources/magnet/chainsaw/chainsaw_preview.png",
+		"Resources/magnet/pinball/pinball_bumper_preview.png",
+		"Resources/magnet/furnace/magma_base.png",
+		"Resources/ui/tutorial/anchor_icon.png",
+		"Resources/magnet/shutter/timed_shutter_preview.png",
+		"Resources/ui/tutorial/repulsion_icon.png"
+	};
+	const std::array<const char*, 7> names = {
+		"壁", "チェーンソー", "ピンボールバンパー", "溶鉱炉",
+		"磁石アンカー", "開閉シャッター", "反発磁場"
+	};
+	const std::array<const char*, 7> descriptions = {
+		"プレイヤーと磁石の進行を止める",
+		"接続中の磁石を切断する",
+		"磁石を大きく跳ね返す",
+		"触れた磁石を消滅させる",
+		"磁石を引き寄せ固定する",
+		"一定時間で開閉する",
+		"磁石を外側へ押し出す"
+	};
+	if (!tutorialObstacleFont_.InitializeFromJson(spriteCommon,
+		"Resources/ui/font/tutorial_obstacle_japanese_font.json")) {
+		return false;
+	}
+	tutorialObstacleGuideTitle_.Initialize(spriteCommon, &tutorialObstacleFont_);
+	tutorialObstacleGuideTitle_.SetText("ギミック説明");
+	tutorialObstacleGuideTitle_.SetPosition({ 500.0f, 92.0f });
+	tutorialObstacleGuideTitle_.SetScale(0.72f);
+	tutorialObstacleGuideTitle_.SetColor(kUiAccentColor);
+	tutorialObstacleGuideTitle_.Update();
+	for (std::size_t index = 0; index < tutorialObstacleIcons_.size(); ++index) {
+		const float rowY = 154.0f + 67.0f * static_cast<float>(index);
+		tutorialObstacleIcons_[index] = std::make_unique<Sprite>();
+		if (!tutorialObstacleIcons_[index]->Initialize(
+			spriteCommon, iconTextures[index])) {
+			return false;
+		}
+		tutorialObstacleIcons_[index]->SetPosition({ 72.0f, rowY - 6.0f });
+		tutorialObstacleIcons_[index]->SetSize({ 74.0f, 42.0f });
+		tutorialObstacleIcons_[index]->SetColor(iconColors[index]);
+		tutorialObstacleIcons_[index]->Update();
+		tutorialObstacleNames_[index].Initialize(spriteCommon, &tutorialObstacleFont_);
+		tutorialObstacleNames_[index].SetText(names[index]);
+		tutorialObstacleNames_[index].SetPosition({ 174.0f, rowY });
+		tutorialObstacleNames_[index].SetScale(0.52f);
+		tutorialObstacleNames_[index].SetColor(kUiTextColor);
+		tutorialObstacleNames_[index].Update();
+		tutorialObstacleDescriptions_[index].Initialize(spriteCommon, &tutorialObstacleFont_);
+		tutorialObstacleDescriptions_[index].SetText(descriptions[index]);
+		tutorialObstacleDescriptions_[index].SetPosition({ 520.0f, rowY });
+		tutorialObstacleDescriptions_[index].SetScale(0.46f);
+		tutorialObstacleDescriptions_[index].SetColor({ 0.62f, 0.84f, 0.92f, 1.0f });
+		tutorialObstacleDescriptions_[index].Update();
+	}
+	tutorialMessageText_.Initialize(spriteCommon, &gameFlowFont_);
+	tutorialMessageText_.SetPosition({ 28.0f, 470.0f });
+	tutorialMessageText_.SetScale(1.05f);
+	tutorialMessageText_.SetColor(kUiAccentColor);
+	return true;
+}
+
+void MagnetPrototypeScene::UpdateTutorialUi()
+{
+	if (!tutorialMode_ || !tutorialUiReady_) { return; }
+	char message[96]{};
+	switch (tutorialPhase_) {
+	case TutorialPhase::Movement:
+		std::snprintf(message, sizeof(message), "MOVE WITH WASD  %d%%",
+			static_cast<int>((std::min)(100.0f, tutorialMovementDistance_ * 40.0f)));
+		break;
+	case TutorialPhase::AttachMagnets:
+		std::snprintf(message, sizeof(message), "%zu / 4",
+			(std::min)(std::size_t{ 4 }, magnetChainSystem_.GetAttachedBallCount()));
+		break;
+	case TutorialPhase::ScoreGoal:
+		std::snprintf(message, sizeof(message), "SHOOT A MAGNET INTO THE GOAL");
+		break;
+	case TutorialPhase::TryObstacles:
+		std::snprintf(message, sizeof(message),
+			"HOLD TAB: OBSTACLE GUIDE   SPACE: START GAME");
+		break;
+	}
+	tutorialMessageText_.SetText(message);
+	if (tutorialPhase_ == TutorialPhase::AttachMagnets) {
+		tutorialMessageText_.SetPosition({ 104.0f, 590.0f });
+		tutorialMessageText_.SetScale(1.6f);
+	} else {
+		tutorialMessageText_.SetPosition({ 28.0f, 470.0f });
+		tutorialMessageText_.SetScale(1.05f);
+	}
+	tutorialMessageText_.Update();
+
+	Input* input = framework_ ? framework_->GetInput() : nullptr;
+	tutorialObstacleGuideVisible_ = tutorialPhase_ == TutorialPhase::TryObstacles &&
+		input && input->PushKey(InputKey::Tab);
+	const std::array<InputKey, 4> keys = {
+		InputKey::W, InputKey::A, InputKey::S, InputKey::D
+	};
+	for (std::size_t index = 0; index < tutorialKeySprites_.size(); ++index) {
+		const bool pressed = input && input->PushKey(keys[index]);
+		tutorialKeySprites_[index]->SetColor(pressed
+			? Vector4{ 1.0f, 0.78f, 0.18f, 0.98f }
+			: Vector4{ 0.16f, 0.38f, 0.46f, 0.82f });
+		tutorialKeySprites_[index]->Update();
+	}
+}
+
+void MagnetPrototypeScene::DrawTutorialUi()
+{
+	if (!tutorialUiReady_) { return; }
+	if (tutorialPhase_ == TutorialPhase::AttachMagnets) {
+		tutorialAttractGuideSprite_->Draw();
+		tutorialMessageText_.Draw();
+		return;
+	}
+	if (tutorialPhase_ == TutorialPhase::ScoreGoal) {
+		tutorialShootGuideSprite_->Draw();
+		return;
+	}
+	if (tutorialPhase_ == TutorialPhase::TryObstacles) {
+		if (tutorialObstacleGuideVisible_) {
+			DrawTutorialObstacleGuide();
+		} else {
+			tutorialGimmickGuideSprite_->Draw();
+			if (tutorialTransitionKeyObject_) {
+				Object3dCommon* objectCommon = framework_->GetObject3dCommon();
+				objectCommon->BeginObjectPass();
+				tutorialTransitionKeyObject_->Draw();
+				objectCommon->EndObjectPass();
+				framework_->GetSpriteCommon()->PreDraw();
+			}
+		}
+		return;
+	}
+	if (tutorialPhase_ != TutorialPhase::Movement) {
+		tutorialMessageText_.Draw();
+		return;
+	}
+	tutorialMoveGuideSprite_->Draw();
+	for (auto& sprite : tutorialKeySprites_) { sprite->Draw(); }
+	for (auto& sprite : tutorialKeyImageSprites_) { sprite->Draw(); }
+}
+
+void MagnetPrototypeScene::DrawTutorialSkipUi()
+{
+	if (tutorialSkipSprite_) { tutorialSkipSprite_->Draw(); }
+	if (tutorialSkipEnterSprite_) { tutorialSkipEnterSprite_->Draw(); }
+}
+
+void MagnetPrototypeScene::DrawTutorialObstacleGuide()
+{
+	if (!tutorialObstacleGuidePanel_) { return; }
+	tutorialObstacleGuidePanel_->Draw();
+	for (auto& sprite : tutorialObstacleIcons_) { sprite->Draw(); }
+	tutorialObstacleGuideTitle_.Draw();
+	for (auto& text : tutorialObstacleNames_) { text.Draw(); }
+	for (auto& text : tutorialObstacleDescriptions_) { text.Draw(); }
+}
+
+bool MagnetPrototypeScene::StartTutorialMagnetPhase()
+{
+	const physics::SphereBody* player = magnetChainSystem_.GetPhysicsWorld().GetBody(
+		magnetChainSystem_.GetPlayerBody());
+	if (player) { (void)magnetStageSystem_.SetPlayerPosition(player->position); }
+	const std::array<Vector3, 6> balls = {
+		Vector3{ -3.0f, 0.5f, -1.0f }, Vector3{ -1.6f, 0.5f, 2.0f },
+		Vector3{ 0.0f, 0.5f, 3.2f }, Vector3{ 1.8f, 0.5f, 2.0f },
+		Vector3{ 3.2f, 0.5f, -0.5f }, Vector3{ 0.0f, 0.5f, -3.0f }
+	};
+	for (const Vector3& position : balls) {
+		if (!magnetStageSystem_.AddBall(position)) { return false; }
+	}
+	if (!magnetStageSystem_.AddBoxObject(
+		magnet::MagnetStageObjectType::Goal, { 0.0f, 1.0f, 7.0f }, { 5.0f, 2.0f, 2.0f })) {
+		return false;
+	}
+	const struct TutorialObstacle {
+		Vector3 position;
+		Vector3 size;
+		magnet::MagnetObstacleKind kind;
+	} obstacles[] = {
+		{{-6.0f, 1.0f,  1.0f}, {1.6f, 2.0f, 1.6f}, magnet::MagnetObstacleKind::PinballBumper},
+		{{ 6.0f, 1.0f,  1.0f}, {1.6f, 2.0f, 1.6f}, magnet::MagnetObstacleKind::MagneticAnchor},
+		{{-5.0f, 1.0f, -5.0f}, {2.0f, 2.0f, 2.0f}, magnet::MagnetObstacleKind::Chainsaw},
+		{{ 5.0f, 1.0f, -5.0f}, {2.0f, 2.0f, 2.0f}, magnet::MagnetObstacleKind::Furnace},
+		{{ 0.0f, 1.0f, -6.5f}, {2.0f, 2.0f, 2.0f}, magnet::MagnetObstacleKind::RepulsionField},
+		{{-3.0f, 1.0f,  5.0f}, {1.2f, 2.0f, 3.0f}, magnet::MagnetObstacleKind::TimedShutter},
+		{{ 3.0f, 1.0f,  5.0f}, {1.2f, 2.0f, 3.0f}, magnet::MagnetObstacleKind::Solid},
+	};
+	for (const auto& obstacle : obstacles) {
+		if (!magnetStageSystem_.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			obstacle.position, obstacle.size, obstacle.kind)) {
+			return false;
+		}
+	}
+	if (!magnetChainSystem_.ApplyStageLayout(magnetStageSystem_.GetStageData())) {
+		return false;
+	}
+	magnetChainSystem_.SetActiveGoalCount(0);
+	magnetChainSystem_.SetActiveObstacleCount(0);
+	magneticImpactFeedbackSystem_.Reset();
+	return true;
+}
+
+void MagnetPrototypeScene::SkipTutorialPhase()
+{
+	switch (tutorialPhase_) {
+	case TutorialPhase::Movement:
+		if (StartTutorialMagnetPhase()) {
+			tutorialPhase_ = TutorialPhase::AttachMagnets;
+			ballVisualsReady_ = UpdateBallVisuals(0.0f);
+		}
+		break;
+	case TutorialPhase::AttachMagnets:
+		tutorialPhase_ = TutorialPhase::ScoreGoal;
+		tutorialScoreAtGoalStart_ = magnetChainSystem_.GetScore();
+		magnetChainSystem_.SetActiveGoalCount(1);
+		break;
+	case TutorialPhase::ScoreGoal:
+		tutorialPhase_ = TutorialPhase::TryObstacles;
+		magnetChainSystem_.SetActiveObstacleCount(
+			magnetStageSystem_.GetStageData().obstacleCount);
+		break;
+	case TutorialPhase::TryObstacles:
+		rankingTransitionRequested_ = true;
+		SceneManager::GetInstance()->ChangeScene("MAGNET_PROTOTYPE");
+		break;
+	}
+	UpdateTutorialUi();
+}
+
+void MagnetPrototypeScene::UpdateTutorialProgress(float fixedDeltaTime)
+{
+	if (tutorialPhase_ == TutorialPhase::Movement) {
+		if (HasMovementInput(pendingCommand_.moveDirection)) {
+			tutorialMovementDistance_ += fixedDeltaTime;
+		}
+		if (tutorialMovementDistance_ >= 2.5f) {
+			if (StartTutorialMagnetPhase()) {
+				tutorialPhase_ = TutorialPhase::AttachMagnets;
+				ballVisualsReady_ = UpdateBallVisuals(0.0f);
+			}
+		}
+	} else if (tutorialPhase_ == TutorialPhase::AttachMagnets &&
+		magnetChainSystem_.GetAttachedBallCount() >= 4) {
+		tutorialPhase_ = TutorialPhase::ScoreGoal;
+		tutorialScoreAtGoalStart_ = magnetChainSystem_.GetScore();
+		magnetChainSystem_.SetActiveGoalCount(1);
+	} else if (tutorialPhase_ == TutorialPhase::ScoreGoal &&
+		magnetChainSystem_.GetScore() > tutorialScoreAtGoalStart_) {
+		tutorialPhase_ = TutorialPhase::TryObstacles;
+		magnetChainSystem_.SetActiveObstacleCount(
+			magnetStageSystem_.GetStageData().obstacleCount);
+	}
 }
 
 void MagnetPrototypeScene::CompleteTimedGame()
@@ -1233,7 +1740,8 @@ void MagnetPrototypeScene::UpdateGoalGuides()
 {
 	goalGuideCount_ = 0;
 	if (!goalGuidesReady_ || !prototypeReady_ || !camera_ ||
-		editorMode_ != magnet::MagnetEditorMode::Play) {
+		editorMode_ != magnet::MagnetEditorMode::Play ||
+		(tutorialMode_ && tutorialPhase_ < TutorialPhase::ScoreGoal)) {
 		return;
 	}
 
@@ -1456,6 +1964,10 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 	case magnet::MagnetStageEditorAction::SetArenaRadius:
 		stageChanged = magnetStageSystem_.SetArenaRadius(request.arenaRadius);
 		break;
+	case magnet::MagnetStageEditorAction::SetTimeLimit:
+		stageChanged = magnetStageSystem_.SetTimeLimitSeconds(
+			request.timeLimitSeconds);
+		break;
 	case magnet::MagnetStageEditorAction::GenerateBalanced:
 		stageChanged = magnetStageSystem_.GenerateBalanced(request.generationSettings);
 		break;
@@ -1522,12 +2034,19 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 			request.editedAnchorAttractionRadius);
 		break;
 	case magnet::MagnetStageEditorAction::SaveNamed:
-		(void)magnetStageSystem_.SaveNamed(
+		if (magnetStageSystem_.SaveNamed(
 			request.stageSaveName.data(),
-			request.allowOverwrite);
+			request.allowOverwrite)) {
+			GameFlowState::GetInstance().SetActiveStageSaveName(
+				request.stageSaveName.data());
+		}
 		break;
 	case magnet::MagnetStageEditorAction::LoadNamed:
 		stageChanged = magnetStageSystem_.LoadNamed(request.stageSaveName.data());
+		if (stageChanged) {
+			GameFlowState::GetInstance().SetActiveStageSaveName(
+				request.stageSaveName.data());
+		}
 		break;
 	case magnet::MagnetStageEditorAction::RefreshSaves:
 		(void)magnetStageSystem_.RefreshSaveEntries();
@@ -1857,7 +2376,13 @@ Vector3 MagnetPrototypeScene::CalculatePlayCameraPosition() noexcept
 void MagnetPrototypeScene::DrawStageObjects() const
 {
 	const magnet::MagnetStageData& stageData = magnetStageSystem_.GetStageData();
-	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
+	const std::size_t visibleGoalCount =
+		(tutorialMode_ && tutorialPhase_ < TutorialPhase::ScoreGoal)
+		? 0 : stageData.goalCount;
+	const std::size_t visibleObstacleCount =
+		(tutorialMode_ && tutorialPhase_ < TutorialPhase::TryObstacles)
+		? 0 : stageData.obstacleCount;
+	for (std::size_t index = 0; index < visibleGoalCount; ++index) {
 		if (!stageStructureVisualsReady_) {
 			Vector3 goalPosition = index < magnetChainSystem_.GetGoalCount()
 				? magnetChainSystem_.GetGoal(index).center
@@ -1870,7 +2395,7 @@ void MagnetPrototypeScene::DrawStageObjects() const
 				kGoalColor);
 		}
 	}
-	for (std::size_t index = 0; index < stageData.obstacleCount; ++index) {
+	for (std::size_t index = 0; index < visibleObstacleCount; ++index) {
 		const magnet::MagnetStageBoxPlacement& obstacle = stageData.obstacles[index];
 		Vector3 runtimePosition = obstacle.position;
 		float shutterOpenRatio = 0.0f;

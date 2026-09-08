@@ -440,6 +440,19 @@ bool MagnetStageSystem::SetArenaRadius(float radius)
 	return true;
 }
 
+bool MagnetStageSystem::SetTimeLimitSeconds(float seconds)
+{
+	if (!std::isfinite(seconds) || seconds < kMinimumStageTimeLimitSeconds ||
+		seconds > kMaximumStageTimeLimitSeconds) {
+		SetOperationResult(false, "制限時間は10～600秒の範囲で指定してください。");
+		return false;
+	}
+	stageData_.timeLimitSeconds = seconds;
+	dirty_ = true;
+	SetOperationResult(true, "ステージの制限時間を更新しました。");
+	return true;
+}
+
 bool MagnetStageSystem::AddBoxObject(
 	MagnetStageObjectType type,
 	const Vector3& position,
@@ -541,45 +554,55 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 	const Vector3& size,
 	float rotationYDegrees)
 {
-	MagnetStageBoxPlacement candidate{ id, position, size };
+	MagnetStageBoxPlacement* target = nullptr;
+	if (type == MagnetStageObjectType::Goal) {
+		for (std::size_t index = 0; index < stageData_.goalCount; ++index) {
+			if (stageData_.goals[index].id == id) {
+				target = &stageData_.goals[index];
+				break;
+			}
+		}
+	} else if (type == MagnetStageObjectType::Obstacle) {
+		for (std::size_t index = 0; index < stageData_.obstacleCount; ++index) {
+			if (stageData_.obstacles[index].id == id) {
+				target = &stageData_.obstacles[index];
+				break;
+			}
+		}
+	}
+	if (!target) {
+		SetOperationResult(false, "選択したステージオブジェクトが見つかりません。");
+		return false;
+	}
+
+	MagnetStageBoxPlacement candidate = *target;
+	candidate.position = position;
+	candidate.size = size;
 	if (!NormalizeRotationYDegrees(
 		rotationYDegrees, candidate.rotationYDegrees)) {
 		SetOperationResult(false, "回転角度は有限の度数で指定してください。");
 		return false;
+	}
+	if (candidate.obstacleKind == MagnetObstacleKind::MagneticAnchor) {
+		candidate.anchorAttractionRadius = (std::max)(
+			candidate.anchorAttractionRadius,
+			(std::max)(candidate.size.x, candidate.size.z) * 0.5f);
 	}
 	if (!IsValidBoxPlacement(candidate) ||
 		!IsInsideArena(position, stageData_.arenaRadius)) {
 		SetOperationResult(false, "編集した位置またはサイズがステージ範囲外です。");
 		return false;
 	}
-	const auto updateArray = [&](auto& placements, std::size_t count) {
-		for (std::size_t index = 0; index < count; ++index) {
-			if (placements[index].id == id) {
-				candidate.score = placements[index].score;
-				candidate.obstacleKind = placements[index].obstacleKind;
-				candidate.transferPairId = placements[index].transferPairId;
-				candidate.anchorAttractionRadius =
-					placements[index].anchorAttractionRadius;
-				candidate.moving = placements[index].moving;
-				candidate.movementAmplitude = placements[index].movementAmplitude;
-				candidate.movementPeriodSeconds =
-					placements[index].movementPeriodSeconds;
-				candidate.movementPhase = placements[index].movementPhase;
-				placements[index] = candidate;
-				return true;
-			}
-		}
-		return false;
-	};
-	const bool updated = type == MagnetStageObjectType::Goal
-		? updateArray(stageData_.goals, stageData_.goalCount)
-		: type == MagnetStageObjectType::Obstacle
-			? updateArray(stageData_.obstacles, stageData_.obstacleCount)
-			: false;
-	if (!updated) {
-		SetOperationResult(false, "選択したステージオブジェクトが見つかりません。");
+	if (type == MagnetStageObjectType::Goal && candidate.moving &&
+		!IsInsideArena(
+			candidate.position + candidate.movementAmplitude,
+			stageData_.arenaRadius)) {
+		SetOperationResult(
+			false,
+			"移動ゴールの到達点がステージ範囲外です。位置を内側へ戻してください。");
 		return false;
 	}
+	*target = candidate;
 	dirty_ = true;
 	SetOperationResult(true, "ステージオブジェクトの配置を更新しました。");
 	return true;
@@ -815,6 +838,7 @@ bool MagnetStageSystem::Save(const std::string& path)
 			{ "schema", kSchemaName },
 			{ "schemaVersion", MagnetStageData::kSchemaVersion },
 			{ "name", stageData_.name },
+			{ "timeLimitSeconds", stageData_.timeLimitSeconds },
 			{ "arena", { { "radius", stageData_.arenaRadius } } },
 			{ "bounds", {
 				{ "minimumX", settings.minimumX },
@@ -841,6 +865,13 @@ bool MagnetStageSystem::Save(const std::string& path)
 		}
 		if (!JsonFile::Save(path, root)) {
 			SetOperationResult(false, "ステージJSONの保存に失敗しました。");
+			return false;
+		}
+		nlohmann::json savedRoot;
+		if (!JsonFile::Load(path, savedRoot) || savedRoot != root) {
+			SetOperationResult(
+				false,
+				"保存後の検証に失敗しました。元データを保持したまま再保存してください。");
 			return false;
 		}
 		dirty_ = false;
@@ -890,6 +921,12 @@ bool MagnetStageSystem::Load(const std::string& path)
 		MagnetStageData candidate{};
 		const bool hasAuthoredArena = root.contains("arena");
 		candidate.name = root["name"].get<std::string>();
+		if (schemaVersion >= 12u) {
+			if (!ReadFiniteFloat(root, "timeLimitSeconds", candidate.timeLimitSeconds)) {
+				SetOperationResult(false, "ステージの制限時間設定が不正です。");
+				return false;
+			}
+		}
 		if (hasAuthoredArena) {
 			if (!root["arena"].is_object() ||
 				!ReadFiniteFloat(root["arena"], "radius", candidate.arenaRadius)) {
@@ -1283,6 +1320,9 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 		!std::isfinite(stageData.arenaRadius) ||
 		stageData.arenaRadius < kMinimumArenaRadius ||
 		stageData.arenaRadius > kMaximumArenaRadius ||
+		!std::isfinite(stageData.timeLimitSeconds) ||
+		stageData.timeLimitSeconds < kMinimumStageTimeLimitSeconds ||
+		stageData.timeLimitSeconds > kMaximumStageTimeLimitSeconds ||
 		stageData.ballCount > stageData.balls.size() ||
 		stageData.goalCount > stageData.goals.size() ||
 		stageData.obstacleCount > stageData.obstacles.size()) {

@@ -37,6 +37,9 @@ enum class MagnetObstacleKind : uint8_t {
 inline constexpr float kDefaultAnchorAttractionRadius = 3.0f;
 inline constexpr float kMinimumAnchorAttractionRadius = 0.75f;
 inline constexpr float kMaximumAnchorAttractionRadius = 30.0f;
+inline constexpr float kDefaultStageTimeLimitSeconds = 60.0f;
+inline constexpr float kMinimumStageTimeLimitSeconds = 10.0f;
+inline constexpr float kMaximumStageTimeLimitSeconds = 600.0f;
 
 struct MagnetStageBoxPlacement {
 	uint32_t id = 0;
@@ -65,14 +68,15 @@ struct MagnetStageGenerationSettings {
 };
 
 struct MagnetStageData {
-	static constexpr uint32_t kSchemaVersion = 11;
+	static constexpr uint32_t kSchemaVersion = 12;
 	static constexpr uint32_t kOldestSupportedSchemaVersion = 1;
 	static constexpr std::size_t kMaximumBallCount = 24;
 	static constexpr std::size_t kMaximumGoalCount = 4;
-	static constexpr std::size_t kMaximumObstacleCount = 24;
+	static constexpr std::size_t kMaximumObstacleCount = 64;
 
 	std::string name = "stage_01";
 	float arenaRadius = 10.0f;
+	float timeLimitSeconds = kDefaultStageTimeLimitSeconds;
 	MagnetStageGenerationSettings generation{};
 	Vector3 playerPosition{ 0.0f, 0.75f, 0.0f };
 	std::array<MagnetStageBallPlacement, kMaximumBallCount> balls{};
@@ -110,6 +114,7 @@ public:
 	[[nodiscard]] bool SetBallPosition(uint32_t id, const Vector3& position);
 	[[nodiscard]] bool SetPlayerPosition(const Vector3& position);
 	[[nodiscard]] bool SetArenaRadius(float radius);
+	[[nodiscard]] bool SetTimeLimitSeconds(float seconds);
 	[[nodiscard]] bool AddBoxObject(
 		MagnetStageObjectType type,
 		const Vector3& position,

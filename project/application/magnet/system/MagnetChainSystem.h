@@ -10,6 +10,7 @@
 #include "physics/PhysicsWorld.h"
 
 #include <array>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -97,6 +98,12 @@ public:
 		impactAttachmentSystem_.SetSettings(settings);
 	}
 	void ConfigureGoal(GoalSize size, const Vector3& center) noexcept;
+	void SetActiveGoalCount(std::size_t count) noexcept {
+		goalCount_ = (std::min)(count, configuredGoalCount_);
+	}
+	void SetActiveObstacleCount(std::size_t count) noexcept {
+		obstacleCount_ = (std::min)(count, configuredObstacleCount_);
+	}
 	[[nodiscard]] bool FixedUpdate(float fixedDeltaTime) noexcept;
 
 	[[nodiscard]] const physics::PhysicsWorld& GetPhysicsWorld() const noexcept {
@@ -306,9 +313,11 @@ private:
 	uint32_t respawnRandomState_ = 20260902u;
 	std::size_t stageBallCount_ = 0;
 	std::size_t obstacleCount_ = 0;
+	std::size_t configuredObstacleCount_ = 0;
 	std::size_t leftChainCount_ = 0;
 	std::size_t rightChainCount_ = 0;
 	std::size_t goalCount_ = 0;
+	std::size_t configuredGoalCount_ = 0;
 	std::size_t goalHitCount_ = 0;
 	std::size_t score_ = 0;
 	bool healthy_ = false;

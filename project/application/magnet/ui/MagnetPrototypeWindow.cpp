@@ -479,20 +479,45 @@ void MagnetPrototypeWindow::DrawViewport(
 
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
 			char scoreText[64]{};
-			std::snprintf(scoreText, sizeof(scoreText), "SCORE  %zu", viewData.score);
+			std::snprintf(scoreText, sizeof(scoreText), "%zu", viewData.score);
+			const float displayScale = displaySize.x / 1280.0f;
+			const float digitSize = 28.0f * displayScale;
 			const ImVec2 scoreMinimum = {
-				imagePosition.x + kMinimapMargin,
+				imagePosition.x + kMinimapMargin + 135.0f * displayScale,
 				imagePosition.y + kMinimapMargin,
 			};
-			const ImVec2 scoreTextSize = ImGui::CalcTextSize(scoreText);
+			const std::size_t scoreDigitCount = std::strlen(scoreText);
 			const ImVec2 scoreMaximum = {
-				scoreMinimum.x + scoreTextSize.x + 22.0f,
-				scoreMinimum.y + scoreTextSize.y + 14.0f,
+				scoreMinimum.x + digitSize * static_cast<float>(scoreDigitCount) + 14.0f,
+				scoreMinimum.y + digitSize + 14.0f,
 			};
 			drawList->AddRectFilled(scoreMinimum, scoreMaximum, IM_COL32(10, 16, 24, 205), 7.0f);
 			drawList->AddRect(scoreMinimum, scoreMaximum, IM_COL32(255, 215, 70, 235), 7.0f, 0, 2.0f);
-			drawList->AddText({ scoreMinimum.x + 11.0f, scoreMinimum.y + 7.0f },
-				IM_COL32(255, 230, 100, 255), scoreText);
+			if (viewData.scoreNumberTextureSrvIndex != UINT32_MAX) {
+				const ImTextureID numberTexture = static_cast<ImTextureID>(
+					srvManager->GetGPUDescriptorHandle(
+						viewData.scoreNumberTextureSrvIndex).ptr);
+				for (std::size_t digitIndex = 0;
+					digitIndex < scoreDigitCount; ++digitIndex) {
+					const int digit = scoreText[digitIndex] - '0';
+					// The supplied sheet is ordered 1,2,...,9,0.
+					const int atlasIndex = digit == 0 ? 9 : digit - 1;
+					const float uvLeft = static_cast<float>(atlasIndex) * 0.1f;
+					const ImVec2 digitMinimum = {
+						scoreMinimum.x + 7.0f + digitSize * static_cast<float>(digitIndex),
+						scoreMinimum.y + 7.0f,
+					};
+					drawList->AddImage(
+						numberTexture,
+						digitMinimum,
+						{ digitMinimum.x + digitSize, digitMinimum.y + digitSize },
+						{ uvLeft, 0.0f },
+						{ uvLeft + 0.1f, 1.0f });
+				}
+			} else {
+				drawList->AddText({ scoreMinimum.x + 7.0f, scoreMinimum.y + 7.0f },
+					IM_COL32(255, 230, 100, 255), scoreText);
+			}
 			if (viewData.editorMode == MagnetEditorMode::StageEdit) {
 				const char* zoomHelp =
 					"WASD: 選択物を移動  R: 回転  ホイール押込ドラッグ: 視点移動";
@@ -1069,6 +1094,24 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			stageData->arenaRadius);
 		ImGui::TextDisabled(
 			"この値が床・外周壁・手動配置の端をまとめて決めます。");
+	}
+
+	ImGui::SeparatorText("ステージの制限時間");
+	if (stageData) {
+		float timeLimitSeconds = stageData->timeLimitSeconds;
+		ImGui::SetNextItemWidth(-1.0f);
+		if (ImGui::DragFloat(
+				"制限時間（秒）##StageTimeLimit",
+				&timeLimitSeconds,
+				1.0f,
+				kMinimumStageTimeLimitSeconds,
+				kMaximumStageTimeLimitSeconds,
+				"%.0f 秒",
+				ImGuiSliderFlags_AlwaysClamp)) {
+			request.stageAction = MagnetStageEditorAction::SetTimeLimit;
+			request.timeLimitSeconds = timeLimitSeconds;
+		}
+		ImGui::TextDisabled("ステージJSONごとに保存されます（10～600秒）。");
 	}
 
 	if (ImGui::TreeNodeEx("小さい球のランダム配置###RandomBallPlacement")) {
