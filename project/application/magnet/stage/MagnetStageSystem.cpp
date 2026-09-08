@@ -42,6 +42,7 @@ constexpr float kMinimumArenaRadius = 4.0f;
 constexpr float kMaximumArenaRadius = 40.0f;
 constexpr float kMaximumRotationInputDegrees = 360000.0f;
 constexpr float kMaximumNormalizedRotationDegrees = 180.0f;
+constexpr float kLegacyAnchorAdditionalReach = 3.5f;
 constexpr std::size_t kCandidateCountPerBall = 96;
 constexpr std::size_t kMaximumStageNameLength = 64;
 constexpr std::size_t kMaximumPathLength = 260;
@@ -142,6 +143,29 @@ bool ReadPosition(const nlohmann::json& object, Vector3& output)
 		object["position"][0].get<float>(),
 		object["position"][1].get<float>(),
 		object["position"][2].get<float>(),
+	};
+	return std::isfinite(output.x) && std::isfinite(output.y) &&
+		std::isfinite(output.z);
+}
+
+bool ReadVector3(
+	const nlohmann::json& object,
+	const char* key,
+	Vector3& output)
+{
+	if (!object.contains(key) || !object[key].is_array() ||
+		object[key].size() != 3) {
+		return false;
+	}
+	for (std::size_t component = 0; component < 3; ++component) {
+		if (!object[key][component].is_number()) {
+			return false;
+		}
+	}
+	output = {
+		object[key][0].get<float>(),
+		object[key][1].get<float>(),
+		object[key][2].get<float>(),
 	};
 	return std::isfinite(output.x) && std::isfinite(output.y) &&
 		std::isfinite(output.z);
@@ -427,6 +451,13 @@ bool MagnetStageSystem::AddBoxObject(
 	placement.size = size;
 	placement.obstacleKind = obstacleKind;
 	if (type == MagnetStageObjectType::Obstacle &&
+		obstacleKind == MagnetObstacleKind::MagneticAnchor &&
+		std::isfinite(size.x) && std::isfinite(size.z)) {
+		placement.anchorAttractionRadius = (std::max)(
+			kDefaultAnchorAttractionRadius,
+			(std::max)(size.x, size.z) * 0.5f);
+	}
+	if (type == MagnetStageObjectType::Obstacle &&
 		obstacleKind == MagnetObstacleKind::TransferGate) {
 		placement.transferPairId = FindAvailableTransferPairId();
 	}
@@ -527,6 +558,13 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 				candidate.score = placements[index].score;
 				candidate.obstacleKind = placements[index].obstacleKind;
 				candidate.transferPairId = placements[index].transferPairId;
+				candidate.anchorAttractionRadius =
+					placements[index].anchorAttractionRadius;
+				candidate.moving = placements[index].moving;
+				candidate.movementAmplitude = placements[index].movementAmplitude;
+				candidate.movementPeriodSeconds =
+					placements[index].movementPeriodSeconds;
+				candidate.movementPhase = placements[index].movementPhase;
 				placements[index] = candidate;
 				return true;
 			}
@@ -573,8 +611,9 @@ bool MagnetStageSystem::SetObstacleKind(uint32_t id, MagnetObstacleKind obstacle
 	}
 	for (std::size_t index = 0; index < stageData_.obstacleCount; ++index) {
 		if (stageData_.obstacles[index].id == id) {
+			MagnetStageBoxPlacement& obstacle = stageData_.obstacles[index];
 			const MagnetObstacleKind previousKind =
-				stageData_.obstacles[index].obstacleKind;
+				obstacle.obstacleKind;
 			if (obstacleKind == MagnetObstacleKind::TransferGate &&
 				previousKind != MagnetObstacleKind::TransferGate) {
 				const uint32_t pairId = FindAvailableTransferPairId();
@@ -582,11 +621,16 @@ bool MagnetStageSystem::SetObstacleKind(uint32_t id, MagnetObstacleKind obstacle
 					SetOperationResult(false, "転送ゲートのペア番号を割り当てられません。");
 					return false;
 				}
-				stageData_.obstacles[index].transferPairId = pairId;
+				obstacle.transferPairId = pairId;
 			} else if (obstacleKind != MagnetObstacleKind::TransferGate) {
-				stageData_.obstacles[index].transferPairId = 0;
+				obstacle.transferPairId = 0;
 			}
-			stageData_.obstacles[index].obstacleKind = obstacleKind;
+			if (obstacleKind == MagnetObstacleKind::MagneticAnchor) {
+				obstacle.anchorAttractionRadius = (std::max)(
+					obstacle.anchorAttractionRadius,
+					(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f);
+			}
+			obstacle.obstacleKind = obstacleKind;
 			dirty_ = true;
 			SetOperationResult(true, "障害物の種類を更新しました。");
 			return true;
@@ -630,6 +674,39 @@ bool MagnetStageSystem::SetTransferPairId(uint32_t id, uint32_t transferPairId)
 		return true;
 	}
 	SetOperationResult(false, "選択した転送ゲートが見つかりません。");
+	return false;
+}
+
+bool MagnetStageSystem::SetAnchorAttractionRadius(uint32_t id, float radius)
+{
+	if (!std::isfinite(radius) ||
+		radius < kMinimumAnchorAttractionRadius ||
+		radius > kMaximumAnchorAttractionRadius) {
+		SetOperationResult(false, "磁石アンカーの吸引半径が範囲外です。");
+		return false;
+	}
+	for (std::size_t index = 0; index < stageData_.obstacleCount; ++index) {
+		MagnetStageBoxPlacement& obstacle = stageData_.obstacles[index];
+		if (obstacle.id != id) {
+			continue;
+		}
+		if (obstacle.obstacleKind != MagnetObstacleKind::MagneticAnchor) {
+			SetOperationResult(false, "磁石アンカー以外には吸引半径を設定できません。");
+			return false;
+		}
+		const float minimumForBody = (std::max)(
+			kMinimumAnchorAttractionRadius,
+			(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f);
+		if (radius < minimumForBody) {
+			SetOperationResult(false, "吸引半径はアンカー本体の外側まで含めてください。");
+			return false;
+		}
+		obstacle.anchorAttractionRadius = radius;
+		dirty_ = true;
+		SetOperationResult(true, "磁石アンカーの吸引半径を更新しました。");
+		return true;
+	}
+	SetOperationResult(false, "選択した磁石アンカーが見つかりません。");
 	return false;
 }
 
@@ -702,6 +779,13 @@ bool MagnetStageSystem::Save(const std::string& path)
 				};
 				if (std::strcmp(type, kGoalType) == 0) {
 					object["score"] = placement.score;
+					object["moving"] = placement.moving;
+					object["movementAmplitude"] = {
+						placement.movementAmplitude.x,
+						placement.movementAmplitude.y,
+						placement.movementAmplitude.z };
+					object["movementPeriodSeconds"] = placement.movementPeriodSeconds;
+					object["movementPhase"] = placement.movementPhase;
 				} else {
 					const char* obstacleKind = ToObstacleKindString(placement.obstacleKind);
 					if (!obstacleKind) {
@@ -711,6 +795,10 @@ bool MagnetStageSystem::Save(const std::string& path)
 					object["obstacleKind"] = obstacleKind;
 					if (placement.obstacleKind == MagnetObstacleKind::TransferGate) {
 						object["transferPairId"] = placement.transferPairId;
+					}
+					if (placement.obstacleKind == MagnetObstacleKind::MagneticAnchor) {
+						object["anchorAttractionRadius"] =
+							placement.anchorAttractionRadius;
 					}
 				}
 				objects.push_back(std::move(object));
@@ -883,9 +971,29 @@ bool MagnetStageSystem::Load(const std::string& path)
 					}
 					score = object["score"].get<uint32_t>();
 				}
+				bool moving = false;
+				Vector3 movementAmplitude{};
+				float movementPeriodSeconds = 4.0f;
+				float movementPhase = 0.0f;
+				const bool hasMovementSettings = object.contains("moving") ||
+					object.contains("movementAmplitude") ||
+					object.contains("movementPeriodSeconds") ||
+					object.contains("movementPhase");
+				if (hasMovementSettings) {
+					if (!object.contains("moving") || !object["moving"].is_boolean() ||
+						!ReadVector3(object, "movementAmplitude", movementAmplitude) ||
+						!ReadFiniteFloat(object, "movementPeriodSeconds", movementPeriodSeconds) ||
+						!ReadFiniteFloat(object, "movementPhase", movementPhase)) {
+						SetOperationResult(false, "ゴールの移動設定が不正です。");
+						return false;
+					}
+					moving = object["moving"].get<bool>();
+				}
 				candidate.goals[candidate.goalCount++] = {
 					id, position, size, score, MagnetObstacleKind::Solid, 0u,
-					rotationYDegrees };
+					rotationYDegrees, kDefaultAnchorAttractionRadius,
+					moving, movementAmplitude,
+					movementPeriodSeconds, movementPhase };
 			} else if (type == kObstacleType &&
 				candidate.obstacleCount < candidate.obstacles.size()) {
 				MagnetObstacleKind obstacleKind = MagnetObstacleKind::Solid;
@@ -902,9 +1010,27 @@ bool MagnetStageSystem::Load(const std::string& path)
 					}
 					transferPairId = object["transferPairId"].get<uint32_t>();
 				}
+				float anchorAttractionRadius = kDefaultAnchorAttractionRadius;
+				if (obstacleKind == MagnetObstacleKind::MagneticAnchor) {
+					if (object.contains("anchorAttractionRadius")) {
+						if (!ReadFiniteFloat(
+								object,
+								"anchorAttractionRadius",
+								anchorAttractionRadius) ||
+							anchorAttractionRadius < kMinimumAnchorAttractionRadius ||
+							anchorAttractionRadius > kMaximumAnchorAttractionRadius) {
+							SetOperationResult(false, "磁石アンカーの吸引半径が不正です。");
+							return false;
+						}
+					} else {
+						anchorAttractionRadius =
+							(std::max)(size.x, size.z) * 0.5f +
+							kLegacyAnchorAdditionalReach;
+					}
+				}
 				candidate.obstacles[candidate.obstacleCount++] = {
 					id, position, size, 1u, obstacleKind, transferPairId,
-					rotationYDegrees };
+					rotationYDegrees, anchorAttractionRadius };
 			} else {
 				SetOperationResult(false, "未対応のオブジェクトがあるか、配置上限を超えています。");
 				return false;
@@ -1068,7 +1194,13 @@ bool MagnetStageSystem::IsValidBoxPlacement(
 		placement.size.z >= kMinimumBoxSize && placement.size.z <= kMaximumBoxSize &&
 		std::isfinite(placement.rotationYDegrees) &&
 		std::abs(placement.rotationYDegrees) <=
-			kMaximumNormalizedRotationDegrees + 1.0e-4f;
+			kMaximumNormalizedRotationDegrees + 1.0e-4f &&
+		std::isfinite(placement.anchorAttractionRadius) &&
+		placement.anchorAttractionRadius >= kMinimumAnchorAttractionRadius &&
+		placement.anchorAttractionRadius <= kMaximumAnchorAttractionRadius &&
+		(placement.obstacleKind != MagnetObstacleKind::MagneticAnchor ||
+		 placement.anchorAttractionRadius >=
+			(std::max)(placement.size.x, placement.size.z) * 0.5f);
 }
 
 bool MagnetStageSystem::IsSafeJsonPath(const std::string& path)
@@ -1224,7 +1356,14 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 		}
 	}
 	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
-		if (stageData.goals[index].score == 0 || stageData.goals[index].score > 999) {
+		const MagnetStageBoxPlacement& goal = stageData.goals[index];
+		const Vector3 movementEnd = goal.position + goal.movementAmplitude;
+		if (goal.score == 0 || goal.score > 999 ||
+			!IsFinitePosition(goal.movementAmplitude) ||
+			!std::isfinite(goal.movementPeriodSeconds) ||
+			goal.movementPeriodSeconds < 0.25f || goal.movementPeriodSeconds > 120.0f ||
+			!std::isfinite(goal.movementPhase) ||
+			!IsInsideArena(movementEnd, stageData.arenaRadius)) {
 			return false;
 		}
 	}

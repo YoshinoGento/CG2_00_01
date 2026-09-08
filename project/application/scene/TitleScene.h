@@ -7,6 +7,7 @@
 #include <memory>
 
 class Camera;
+class Model;
 class Object3d;
 class Skybox;
 
@@ -24,6 +25,7 @@ public:
 	void Draw() override;
 
 private:
+	void RefreshTransitionPrompt(bool useGamepad);
 	void SetLine(std::size_t index, const std::string& text,
 		const Vector2& position, float scale, const Vector4& color);
 
@@ -33,11 +35,16 @@ private:
 	std::unique_ptr<Skybox> menuSkybox_;
 	std::unique_ptr<Object3d> titleObject_;
 	std::unique_ptr<Object3d> transitionKeyObject_;
+	Model* keyboardTransitionModel_ = nullptr;
+	Model* gamepadTransitionModel_ = nullptr;
 	std::unique_ptr<Object3d> guideTitleObject_;
 	std::unique_ptr<Object3d> operationGuideObject_;
 	std::unique_ptr<Object3d> rankingTitleObject_;
 	std::array<std::unique_ptr<Object3d>, 5> rankingScoreObjects_{};
 	std::array<SpriteText, 9> lines_{};
 	std::size_t lineCount_ = 0;
+	bool transitionPromptInitialized_ = false;
+	bool transitionPromptUsesGamepad_ = false;
+	bool transitionPromptModelVisible_ = false;
 	bool uiReady_ = false;
 };

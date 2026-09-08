@@ -1,0 +1,508 @@
+{
+    "arena": {
+        "radius": 32.0
+    },
+    "bounds": {
+        "maximumX": 25.0,
+        "maximumZ": 13.0,
+        "minimumX": -25.0,
+        "minimumZ": -13.0
+    },
+    "generator": {
+        "minimumSpacing": 1.7999999523162842,
+        "playerClearRadius": 3.0,
+        "seed": 20260908
+    },
+    "name": "stage_3",
+    "objects": [
+        {
+            "id": 1,
+            "position": [
+                -22.0,
+                0.75,
+                -9.0
+            ],
+            "type": "player"
+        },
+        {
+            "id": 1,
+            "position": [
+                -19.0,
+                0.5,
+                -9.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 2,
+            "position": [
+                -17.0,
+                0.5,
+                -6.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 3,
+            "position": [
+                -20.0,
+                0.5,
+                -2.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 4,
+            "position": [
+                -15.0,
+                0.5,
+                1.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 5,
+            "position": [
+                -20.0,
+                0.5,
+                7.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 6,
+            "position": [
+                -14.0,
+                0.5,
+                9.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 7,
+            "position": [
+                -10.0,
+                0.5,
+                5.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 8,
+            "position": [
+                -9.0,
+                0.5,
+                -8.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 9,
+            "position": [
+                -5.0,
+                0.5,
+                -3.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 10,
+            "position": [
+                -4.0,
+                0.5,
+                9.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 11,
+            "position": [
+                0.0,
+                0.5,
+                5.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 12,
+            "position": [
+                1.0,
+                0.5,
+                -9.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 13,
+            "position": [
+                5.0,
+                0.5,
+                -4.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 14,
+            "position": [
+                6.0,
+                0.5,
+                9.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 15,
+            "position": [
+                10.0,
+                0.5,
+                3.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 16,
+            "position": [
+                12.0,
+                0.5,
+                -8.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 17,
+            "position": [
+                16.0,
+                0.5,
+                -3.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 18,
+            "position": [
+                16.0,
+                0.5,
+                8.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 19,
+            "position": [
+                21.0,
+                0.5,
+                5.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 20,
+            "position": [
+                20.0,
+                0.5,
+                -5.0
+            ],
+            "type": "magnet_ball"
+        },
+        {
+            "id": 1,
+            "movementAmplitude": [
+                0.0,
+                0.0,
+                16.0
+            ],
+            "movementPeriodSeconds": 5.5,
+            "movementPhase": 0.0,
+            "moving": true,
+            "position": [
+                22.0,
+                1.0,
+                -8.0
+            ],
+            "rotationYDegrees": 0.0,
+            "score": 1,
+            "size": [
+                1.2000000476837158,
+                2.200000047683716,
+                3.4000000953674316
+            ],
+            "type": "goal"
+        },
+        {
+            "id": 1,
+            "obstacleKind": "solid",
+            "position": [
+                16.987178802490234,
+                1.0,
+                -14.480499267578125
+            ],
+            "rotationYDegrees": 90.0,
+            "size": [
+                11.5,
+                2.0,
+                1.2999999523162842
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 2,
+            "obstacleKind": "solid",
+            "position": [
+                9.903046607971191,
+                1.0,
+                12.973494529724121
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                19.700000762939453,
+                2.0,
+                1.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 3,
+            "obstacleKind": "solid",
+            "position": [
+                -25.0,
+                1.0,
+                0.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.0,
+                2.0,
+                26.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 4,
+            "obstacleKind": "solid",
+            "position": [
+                25.0,
+                1.0,
+                0.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.0,
+                2.0,
+                26.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 5,
+            "obstacleKind": "solid",
+            "position": [
+                -13.0,
+                1.0,
+                -3.5
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                13.0,
+                2.0,
+                1.2000000476837158
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 6,
+            "obstacleKind": "solid",
+            "position": [
+                -8.0,
+                1.0,
+                5.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.2000000476837158,
+                2.0,
+                12.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 7,
+            "obstacleKind": "solid",
+            "position": [
+                2.0,
+                1.0,
+                -5.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.2000000476837158,
+                2.0,
+                12.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 8,
+            "obstacleKind": "solid",
+            "position": [
+                10.0,
+                1.0,
+                4.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                12.0,
+                2.0,
+                1.2000000476837158
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 9,
+            "obstacleKind": "solid",
+            "position": [
+                17.0,
+                1.0,
+                -4.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.2000000476837158,
+                2.0,
+                10.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 10,
+            "obstacleKind": "chainsaw",
+            "position": [
+                -15.5,
+                0.8999999761581421,
+                5.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                1.2000000476837158,
+                2.5,
+                1.2000000476837158
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 11,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                -11.0,
+                1.0,
+                -8.5
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                2.4000000953674316,
+                2.0,
+                2.4000000953674316
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 12,
+            "obstacleKind": "pinball_bumper",
+            "position": [
+                8.0,
+                1.0,
+                -8.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                2.799999952316284,
+                2.0,
+                2.799999952316284
+            ],
+            "type": "obstacle"
+        },
+        {
+            "anchorAttractionRadius": 13.300000190734863,
+            "id": 13,
+            "obstacleKind": "magnetic_anchor",
+            "position": [
+                1.5203343629837036,
+                1.0,
+                -30.14144515991211
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                19.600000381469727,
+                1.100000023841858,
+                2.0999999046325684
+            ],
+            "type": "obstacle"
+        },
+        {
+            "anchorAttractionRadius": 4.5,
+            "id": 14,
+            "obstacleKind": "magnetic_anchor",
+            "position": [
+                -3.5,
+                1.0,
+                0.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                2.0,
+                2.0,
+                2.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 15,
+            "obstacleKind": "timed_shutter",
+            "position": [
+                14.0,
+                1.0,
+                9.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                5.5,
+                2.200000047683716,
+                1.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 18,
+            "obstacleKind": "repulsion_field",
+            "position": [
+                7.0,
+                1.0,
+                9.0
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                3.0,
+                2.0,
+                3.0
+            ],
+            "type": "obstacle"
+        },
+        {
+            "id": 19,
+            "obstacleKind": "furnace",
+            "position": [
+                0.5458070039749146,
+                0.5,
+                -27.0018253326416
+            ],
+            "rotationYDegrees": 0.0,
+            "size": [
+                28.5,
+                1.0,
+                2.4000000953674316
+            ],
+            "type": "obstacle"
+        }
+    ],
+    "schema": "magnet_stage",
+    "schemaVersion": 11
+}

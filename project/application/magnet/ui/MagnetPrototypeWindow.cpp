@@ -161,6 +161,14 @@ MagnetPrototypeWindow::MagnetPrototypeWindow()
 		"stage_new");
 }
 
+void MagnetPrototypeWindow::SetSelection(
+	MagnetStageObjectType type,
+	uint32_t id) noexcept
+{
+	selectedObjectType_ = type;
+	selectedObjectId_ = type == MagnetStageObjectType::Player ? 0u : id;
+}
+
 MagnetPrototypeUiRequest MagnetPrototypeWindow::Draw(
 	const MagnetPrototypeViewData& viewData,
 	SrvManager* srvManager,
@@ -443,6 +451,25 @@ void MagnetPrototypeWindow::DrawViewport(
 					srvManager->GetGPUDescriptorHandle(finalDisplaySrvIndex).ptr),
 				displaySize);
 			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
+				ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+				const ImVec2 mouse = ImGui::GetIO().MousePos;
+				const float normalizedX = (mouse.x - imagePosition.x) / displaySize.x;
+				const float normalizedY = (mouse.y - imagePosition.y) / displaySize.y;
+				request.editorViewportClickRequested = true;
+				request.editorViewportClickNdc = {
+					normalizedX * 2.0f - 1.0f,
+					1.0f - normalizedY * 2.0f,
+				};
+			}
+			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
+				ImGui::IsItemHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
+				const ImVec2 mouseDelta = ImGui::GetIO().MouseDelta;
+				request.editorCameraPanDragDelta = {
+					mouseDelta.x / displaySize.x,
+					mouseDelta.y / displaySize.y,
+				};
+			}
+			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
 				ImGui::IsItemHovered()) {
 				const float wheelDelta = ImGui::GetIO().MouseWheel;
 				if (std::isfinite(wheelDelta)) {
@@ -492,7 +519,8 @@ void MagnetPrototypeWindow::DrawViewport(
 					IM_COL32(255, 230, 100, 255), scoreText);
 			}
 			if (viewData.editorMode == MagnetEditorMode::StageEdit) {
-				const char* zoomHelp = "ホイール: カメラをズーム";
+				const char* zoomHelp =
+					"WASD: 選択物を移動  R: 回転  ホイール押込ドラッグ: 視点移動";
 				const ImVec2 helpSize = ImGui::CalcTextSize(zoomHelp);
 				const ImVec2 helpPosition = {
 					imagePosition.x + displaySize.x - helpSize.x - kMinimapMargin,
@@ -642,6 +670,8 @@ void MagnetPrototypeWindow::DrawInspector(
 			ImGui::TextColored(
 				ImVec4{ 0.35f, 0.90f, 0.50f, 1.0f },
 				"配置編集中 - シミュレーションは一時停止しています");
+			ImGui::TextWrapped(
+				"操作: WASD 選択物を移動 / R 15°回転 / ホイール押込ドラッグ 視点移動 / ホイール回転 ズーム");
 			DrawStageEditor(viewData, request);
 		}
 
@@ -840,6 +870,29 @@ void MagnetPrototypeWindow::DrawStageEditor(
 					static_cast<MagnetObstacleKind>(obstacleKind);
 			}
 			ImGui::TextWrapped("%s", GetObstacleKindDescription(selectedBox->obstacleKind));
+			if (selectedBox->obstacleKind == MagnetObstacleKind::MagneticAnchor) {
+				ImGui::SeparatorText("磁石アンカーの吸引範囲");
+				float attractionRadius = selectedBox->anchorAttractionRadius;
+				const float minimumAttractionRadius = (std::max)(
+					kMinimumAnchorAttractionRadius,
+					(std::max)(selectedBox->size.x, selectedBox->size.z) * 0.5f);
+				ImGui::SetNextItemWidth(-1.0f);
+				if (ImGui::DragFloat(
+						"吸引半径##AnchorAttractionRadius",
+						&attractionRadius,
+						0.10f,
+						minimumAttractionRadius,
+						kMaximumAnchorAttractionRadius,
+						"%.2f m",
+						ImGuiSliderFlags_AlwaysClamp)) {
+					request.stageAction =
+						MagnetStageEditorAction::UpdateAnchorAttractionRadius;
+					request.selectedObjectId = selectedBox->id;
+					request.editedAnchorAttractionRadius = attractionRadius;
+				}
+				ImGui::TextDisabled(
+					"本体サイズを変えずに、球を引き寄せ始める距離を調整します。");
+			}
 			if (selectedBox->obstacleKind == MagnetObstacleKind::TransferGate) {
 				uint32_t partnerId = 0;
 				const std::size_t endpointCount = stageData

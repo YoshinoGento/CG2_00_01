@@ -638,10 +638,19 @@ int main()
 			{ 0.0f, 1.0f, 6.0f },
 			{ 6.0f, 2.0f, 6.0f },
 			magnet::MagnetObstacleKind::RepulsionField) ||
+		!stageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Obstacle,
+			{ 6.0f, 0.7f, 0.0f },
+			{ 2.2f, 1.4f, 2.2f },
+			magnet::MagnetObstacleKind::MagneticAnchor) ||
+		!stageSystem.SetAnchorAttractionRadius(4u, 1.25f) ||
+		stageSystem.SetAnchorAttractionRadius(1u, 2.0f) ||
+		stageSystem.SetAnchorAttractionRadius(
+			4u, (std::numeric_limits<float>::quiet_NaN)()) ||
 		stageSystem.SetTransferPairId(2u, 0u) ||
 		!stageSystem.GenerateBalanced(generation) ||
 		stageSystem.GetStageData().goalCount != 1 ||
-		stageSystem.GetStageData().obstacleCount != 3 ||
+		stageSystem.GetStageData().obstacleCount != 4 ||
 		!ApproximatelyEqual(
 			stageSystem.GetStageData().goals[0].position,
 			editedGoalPosition) ||
@@ -660,6 +669,10 @@ int main()
 		stageSystem.GetStageData().obstacles[2].obstacleKind !=
 			magnet::MagnetObstacleKind::RepulsionField ||
 		stageSystem.GetStageData().obstacles[2].transferPairId != 0 ||
+		stageSystem.GetStageData().obstacles[3].obstacleKind !=
+			magnet::MagnetObstacleKind::MagneticAnchor ||
+		std::abs(stageSystem.GetStageData().obstacles[3].anchorAttractionRadius -
+			1.25f) > 1.0e-5f ||
 		DistanceXZ(
 			stageSystem.GetStageData().playerPosition,
 			authoredPlayerPosition) > 1.0e-5f) {
@@ -684,13 +697,15 @@ int main()
 	}
 	magnet::MagnetStageSystem defaultStageSystem;
 	if (!defaultStageSystem.Load("project/Resources/levels/magnet/stage_01.json") ||
-		defaultStageSystem.GetStageData().ballCount != 16 ||
-		defaultStageSystem.GetStageData().goalCount != 1 ||
-		defaultStageSystem.GetStageData().obstacleCount != 2 ||
-		defaultStageSystem.GetStageData().obstacles[0].obstacleKind !=
-			magnet::MagnetObstacleKind::Solid ||
-		defaultStageSystem.GetStageData().obstacles[1].obstacleKind !=
-			magnet::MagnetObstacleKind::Solid ||
+		defaultStageSystem.GetStageData().ballCount == 0 ||
+		defaultStageSystem.GetStageData().ballCount >
+			magnet::MagnetStageData::kMaximumBallCount ||
+		defaultStageSystem.GetStageData().goalCount == 0 ||
+		defaultStageSystem.GetStageData().goalCount >
+			magnet::MagnetStageData::kMaximumGoalCount ||
+		defaultStageSystem.GetStageData().obstacleCount == 0 ||
+		defaultStageSystem.GetStageData().obstacleCount >
+			magnet::MagnetStageData::kMaximumObstacleCount ||
 		DistanceXZ(defaultStageSystem.GetStageData().playerPosition, {}) > 1.0e-5f) {
 		std::cerr << "Tracked default stage JSON is invalid.\n";
 		return 7;
@@ -707,7 +722,12 @@ int main()
 		releaseStageSystem.GetStageData().name != "stage_Obstacle" ||
 		releaseStageSystem.GetStageData().ballCount != 16 ||
 		releaseStageSystem.GetStageData().goalCount != 3 ||
-		releaseStageSystem.GetStageData().obstacleCount != 10) {
+		releaseStageSystem.GetStageData().obstacleCount != 10 ||
+		!releaseStageSystem.FindBoxObject(
+			magnet::MagnetStageObjectType::Obstacle, 6u) ||
+		std::abs(releaseStageSystem.FindBoxObject(
+			magnet::MagnetStageObjectType::Obstacle, 6u)->anchorAttractionRadius -
+			4.6f) > 1.0e-4f) {
 		std::cerr << "Tracked Release startup stage JSON is invalid.\n";
 		return 216;
 	}
@@ -734,7 +754,7 @@ int main()
 	if (!loadedStageSystem.Load(roundTripPath) ||
 		loadedStageSystem.GetStageData().ballCount != generated.ballCount ||
 		loadedStageSystem.GetStageData().goalCount != 1 ||
-		loadedStageSystem.GetStageData().obstacleCount != 3 ||
+		loadedStageSystem.GetStageData().obstacleCount != 4 ||
 		DistanceXZ(
 			loadedStageSystem.GetStageData().playerPosition,
 			authoredPlayerPosition) > 1.0e-5f ||
@@ -761,7 +781,12 @@ int main()
 			loadedStageSystem.GetStageData().obstacles[1].transferPairId ||
 		loadedStageSystem.GetStageData().obstacles[2].obstacleKind !=
 			magnet::MagnetObstacleKind::RepulsionField ||
-		loadedStageSystem.GetStageData().obstacles[2].transferPairId != 0) {
+		loadedStageSystem.GetStageData().obstacles[2].transferPairId != 0 ||
+		loadedStageSystem.GetStageData().obstacles[3].obstacleKind !=
+			magnet::MagnetObstacleKind::MagneticAnchor ||
+		std::abs(
+			loadedStageSystem.GetStageData().obstacles[3].anchorAttractionRadius -
+			1.25f) > 1.0e-5f) {
 		std::cerr << "Stage JSON load failed.\n";
 		return 9;
 	}
@@ -1709,6 +1734,74 @@ int main()
 		return 220;
 	}
 	std::cout << "goal_ball_respawn_checks=passed\n";
+
+	magnet::MagnetStageData blockedRespawnStage = BuildPickupStage();
+	blockedRespawnStage.name = "blocked_respawn_test";
+	blockedRespawnStage.arenaRadius = 4.0f;
+	blockedRespawnStage.ballCount = 1;
+	blockedRespawnStage.generation.ballCount = 1;
+	blockedRespawnStage.obstacleCount = 1;
+	blockedRespawnStage.obstacles[0] = {
+		1u,
+		{ 0.0f, 0.7f, 0.0f },
+		{ 2.2f, 1.4f, 2.2f },
+		1u,
+		magnet::MagnetObstacleKind::MagneticAnchor,
+		0u,
+		0.0f,
+		magnet::kMaximumAnchorAttractionRadius,
+	};
+	magnet::MagnetChainSystem blockedRespawnSystem;
+	if (!blockedRespawnSystem.Initialize(blockedRespawnStage)) {
+		std::cerr << "Obstacle-range respawn exclusion setup failed.\n";
+		return 226;
+	}
+	for (int step = 0; step < 12 &&
+		blockedRespawnSystem.GetAttachedBallCount() == 0; ++step) {
+		blockedRespawnSystem.SetPlayerCommand({});
+		if (!blockedRespawnSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Obstacle-range respawn attachment failed.\n";
+			return 227;
+		}
+	}
+	const physics::BodyHandle blockedRespawnBall =
+		blockedRespawnSystem.GetStageBalls()[0];
+	const physics::SphereBody* blockedRespawnBody =
+		blockedRespawnSystem.GetPhysicsWorld().GetBody(blockedRespawnBall);
+	if (blockedRespawnSystem.GetAttachedBallCount() == 0 ||
+		!blockedRespawnBody || !blockedRespawnBody->active) {
+		std::cerr << "Obstacle-range respawn ball was not attached.\n";
+		return 228;
+	}
+	blockedRespawnSystem.ConfigureGoal(
+		magnet::MagnetChainSystem::GoalSize::Small,
+		blockedRespawnBody->position);
+	magnet::MagnetChainSystem::PlayerCommand blockedRespawnRelease{};
+	blockedRespawnRelease.releaseChains = true;
+	blockedRespawnSystem.SetPlayerCommand(blockedRespawnRelease);
+	if (!blockedRespawnSystem.FixedUpdate(kFixedDeltaTime) ||
+		blockedRespawnSystem.GetStageBallStates()[0] !=
+			magnet::MagnetChainSystem::StageBallState::Inactive) {
+		std::cerr << "Obstacle-range respawn ball was not queued.\n";
+		return 229;
+	}
+	for (int step = 0; step < 180; ++step) {
+		blockedRespawnSystem.SetPlayerCommand({});
+		if (!blockedRespawnSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Obstacle-range respawn retry failed.\n";
+			return 230;
+		}
+	}
+	const physics::SphereBody* blockedRespawnFinalBody =
+		blockedRespawnSystem.GetPhysicsWorld().GetBody(blockedRespawnBall);
+	if (!blockedRespawnFinalBody ||
+		blockedRespawnSystem.GetStageBallStates()[0] !=
+			magnet::MagnetChainSystem::StageBallState::Inactive ||
+		blockedRespawnFinalBody->active) {
+		std::cerr << "A ball respawned inside an obstacle effect range.\n";
+		return 231;
+	}
+	std::cout << "respawn_obstacle_exclusion_checks=passed\n";
 
 	const magnet::MagnetStageData pickupStage = BuildPickupStage();
 	magnet::MagnetChainSystem system;
