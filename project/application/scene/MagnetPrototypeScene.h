@@ -162,6 +162,9 @@ private:
 	std::unique_ptr<Object3d> volumeLabelObject_;
 	std::unique_ptr<Object3d> seVolumeLabelObject_;
 	std::unique_ptr<Object3d> scoreHudObject_;
+	std::unique_ptr<Object3d> timeHudObject_;
+	std::array<std::unique_ptr<Sprite>, 2> timerDigitSprites_{};
+	bool timerDigitsReady_ = false;
 	uint32_t scoreNumberTextureSrvIndex_ = UINT32_MAX;
 	SpriteText timerText_;
 	SpriteText pauseTitleText_;

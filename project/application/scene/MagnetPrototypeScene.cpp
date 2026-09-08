@@ -412,6 +412,9 @@ void MagnetPrototypeScene::Finalize()
 	playerVisual_.reset();
 	for (auto& visual : stageBallVisuals_) { visual.reset(); }
 	ballVisualsReady_ = false;
+	for (auto& sprite : timerDigitSprites_) { sprite.reset(); }
+	timerDigitsReady_ = false;
+	timeHudObject_.reset();
 	scoreHudObject_.reset();
 	seVolumeLabelObject_.reset();
 	volumeLabelObject_.reset();
@@ -969,6 +972,7 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 	scoreNumberTextureSrvIndex_ = scoreNumberTexture.IsValid()
 		? scoreNumberTexture.Index()
 		: UINT32_MAX;
+	timerDigitsReady_ = false;
 	pauseOverlaySprite_ = std::make_unique<Sprite>();
 	if (!pauseOverlaySprite_->Initialize(spriteCommon, "Resources/human/white.png")) {
 		pauseOverlaySprite_.reset();
@@ -1001,6 +1005,23 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 			scoreHudObject_->SetEnableLighting(false);
 			scoreHudObject_->SetCullMode(0);
 			scoreHudObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
+
+		constexpr const char* kTimeHudModelPath = "ui/time/Time.obj";
+		modelManager->LoadModel(kTimeHudModelPath);
+		Model* timeHudModel = modelManager->GetModel(kTimeHudModelPath);
+		if (timeHudModel) {
+			timeHudModel->LoadTextures();
+			timeHudObject_ = std::make_unique<Object3d>();
+			timeHudObject_->Initialize(framework_->GetObject3dCommon());
+			timeHudObject_->SetModel(timeHudModel);
+			timeHudObject_->SetScale({ 0.26f, 0.26f, 0.26f });
+			timeHudObject_->SetPosition({ -0.55f, 1.95f, 0.0f });
+			timeHudObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+			timeHudObject_->SetColor(kUiAccentColor);
+			timeHudObject_->SetEnableLighting(false);
+			timeHudObject_->SetCullMode(0);
+			timeHudObject_->Update(pauseLabelCamera_.get(), 0.0f);
 		}
 
 		constexpr const char* kPauseTitleModelPath = "pause/pause.obj";
@@ -1110,7 +1131,7 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 	for (SpriteText& text : pauseMenuTexts_) { initializeText(text); }
 	initializeText(pauseHelpText_);
 
-	timerText_.SetPosition({ 565.0f, 18.0f });
+	timerText_.SetPosition({ 600.0f, 28.0f });
 	timerText_.SetScale(1.0f);
 	timerText_.SetColor(kUiAccentColor);
 	pauseTitleText_.SetText(pauseTitleObject_ ? "" : "PAUSE");
@@ -1197,9 +1218,21 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 	char timerBuffer[32]{};
 	const int remainingSeconds = static_cast<int>(std::ceil(
 		(std::max)(0.0f, kGameDurationSeconds - gameElapsedSeconds_)));
-	std::snprintf(timerBuffer, sizeof(timerBuffer), "TIME %02d", remainingSeconds);
+	std::snprintf(timerBuffer, sizeof(timerBuffer), "%02d", remainingSeconds);
 	timerText_.SetText(timerBuffer);
 	timerText_.Update();
+	if (timerDigitsReady_) {
+		const std::array<int, 2> digits = {
+			(remainingSeconds / 10) % 10, remainingSeconds % 10
+		};
+		for (std::size_t index = 0; index < timerDigitSprites_.size(); ++index) {
+			const int atlasIndex = digits[index] == 0 ? 9 : digits[index] - 1;
+			timerDigitSprites_[index]->SetTextureRect(
+				{ 16.0f * static_cast<float>(atlasIndex), 0.0f },
+				{ 16.0f, 16.0f });
+			timerDigitSprites_[index]->Update();
+		}
+	}
 	if (!paused_) { return; }
 
 	const int volumePercent = static_cast<int>(std::lround(
@@ -1266,14 +1299,21 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 void MagnetPrototypeScene::DrawGameFlowUi()
 {
 	if (!gameFlowUiReady_) { return; }
-	if (scoreHudObject_) {
+	if (scoreHudObject_ || (!tutorialMode_ && timeHudObject_)) {
 		Object3dCommon* objectCommon = framework_->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
-		scoreHudObject_->Draw();
+		if (scoreHudObject_) { scoreHudObject_->Draw(); }
+		if (!tutorialMode_ && timeHudObject_) { timeHudObject_->Draw(); }
 		objectCommon->EndObjectPass();
 	}
 	framework_->GetSpriteCommon()->PreDraw();
-	if (!tutorialMode_) { timerText_.Draw(); }
+	if (!tutorialMode_) {
+		if (timeHudObject_ && timerDigitsReady_) {
+			for (auto& sprite : timerDigitSprites_) { sprite->Draw(); }
+		} else {
+			timerText_.Draw();
+		}
+	}
 	if (tutorialMode_) {
 		DrawTutorialUi();
 		DrawTutorialSkipUi();
