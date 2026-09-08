@@ -89,6 +89,7 @@ struct MagnetPrototypeUiRequest {
 	bool emergencyStop = false;
 	bool releaseChains = false;
 	float editorCameraZoomWheelDelta = 0.0f;
+	Vector2 editorCameraPanDragDelta{};
 	bool editorViewportClickRequested = false;
 	Vector2 editorViewportClickNdc{};
 	bool showGrid = true;

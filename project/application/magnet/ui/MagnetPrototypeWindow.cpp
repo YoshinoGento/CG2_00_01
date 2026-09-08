@@ -462,6 +462,14 @@ void MagnetPrototypeWindow::DrawViewport(
 				};
 			}
 			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
+				ImGui::IsItemHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
+				const ImVec2 mouseDelta = ImGui::GetIO().MouseDelta;
+				request.editorCameraPanDragDelta = {
+					mouseDelta.x / displaySize.x,
+					mouseDelta.y / displaySize.y,
+				};
+			}
+			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
 				ImGui::IsItemHovered()) {
 				const float wheelDelta = ImGui::GetIO().MouseWheel;
 				if (std::isfinite(wheelDelta)) {
@@ -487,7 +495,7 @@ void MagnetPrototypeWindow::DrawViewport(
 				IM_COL32(255, 230, 100, 255), scoreText);
 			if (viewData.editorMode == MagnetEditorMode::StageEdit) {
 				const char* zoomHelp =
-					"WASD: 選択物を移動  R: 回転  矢印: カメラ  ホイール: ズーム";
+					"WASD: 選択物を移動  R: 回転  ホイール押込ドラッグ: 視点移動";
 				const ImVec2 helpSize = ImGui::CalcTextSize(zoomHelp);
 				const ImVec2 helpPosition = {
 					imagePosition.x + displaySize.x - helpSize.x - kMinimapMargin,
@@ -638,7 +646,7 @@ void MagnetPrototypeWindow::DrawInspector(
 				ImVec4{ 0.35f, 0.90f, 0.50f, 1.0f },
 				"配置編集中 - シミュレーションは一時停止しています");
 			ImGui::TextWrapped(
-				"操作: WASD 選択物を移動 / R 15°回転 / 矢印キー カメラ移動 / ホイール ズーム");
+				"操作: WASD 選択物を移動 / R 15°回転 / ホイール押込ドラッグ 視点移動 / ホイール回転 ズーム");
 			DrawStageEditor(viewData, request);
 		}
 

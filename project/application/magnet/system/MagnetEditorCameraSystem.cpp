@@ -44,24 +44,16 @@ bool MagnetEditorCameraSystem::ApplyWheelDelta(float wheelDelta) noexcept
 	return true;
 }
 
-bool MagnetEditorCameraSystem::ApplyPanDirection(
-	const Vector3& direction,
-	float deltaTime) noexcept
+bool MagnetEditorCameraSystem::ApplyPanDrag(
+	const Vector2& normalizedDelta) noexcept
 {
-	if (!IsFinite(direction) || !std::isfinite(deltaTime) || deltaTime < 0.0f ||
+	if (!std::isfinite(normalizedDelta.x) || !std::isfinite(normalizedDelta.y) ||
 		!IsFinite(panOffset_)) {
 		return false;
 	}
-	Vector3 planarDirection{ direction.x, 0.0f, direction.z };
-	const float lengthSquared = planarDirection.x * planarDirection.x +
-		planarDirection.z * planarDirection.z;
-	if (lengthSquared > 1.0f) {
-		const float inverseLength = 1.0f / std::sqrt(lengthSquared);
-		planarDirection.x *= inverseLength;
-		planarDirection.z *= inverseLength;
-	}
-	panOffset_ = panOffset_ +
-		planarDirection * (kPanSpeed * zoomScale_ * deltaTime);
+	// Grab-style panning: the stage follows the dragged mouse direction.
+	panOffset_.x -= normalizedDelta.x * kPanDragScale * zoomScale_;
+	panOffset_.z += normalizedDelta.y * kPanDragScale * zoomScale_;
 	panOffset_.x = std::clamp(
 		panOffset_.x, -kMaximumPanDistance, kMaximumPanDistance);
 	panOffset_.z = std::clamp(

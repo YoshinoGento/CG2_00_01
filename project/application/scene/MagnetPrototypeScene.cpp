@@ -762,6 +762,13 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 		Logger::Log(
 			"MagnetPrototypeScene: invalid editor camera wheel input was rejected.");
 	}
+	if (editorMode_ == magnet::MagnetEditorMode::StageEdit &&
+		!magnetEditorCameraSystem_.ApplyPanDrag(
+			request.editorCameraPanDragDelta)) {
+		magnetEditorCameraSystem_.Reset();
+		Logger::Log(
+			"MagnetPrototypeScene: invalid editor camera drag input was rejected.");
+	}
 	if (editorMode_ == magnet::MagnetEditorMode::Play) {
 		resetRequested_ = resetRequested_ || request.reset;
 		pendingCommand_.emergencyStop =
@@ -1541,16 +1548,6 @@ void MagnetPrototypeScene::HandleStageEditorKeyboardInput(float deltaTime)
 	}
 	Input* input = framework_->GetInput();
 	if (!input) { return; }
-
-	Vector3 cameraDirection{};
-	if (input->PushKey(InputKey::ArrowLeft)) { cameraDirection.x -= 1.0f; }
-	if (input->PushKey(InputKey::ArrowRight)) { cameraDirection.x += 1.0f; }
-	if (input->PushKey(InputKey::ArrowUp)) { cameraDirection.z += 1.0f; }
-	if (input->PushKey(InputKey::ArrowDown)) { cameraDirection.z -= 1.0f; }
-	if (!magnetEditorCameraSystem_.ApplyPanDirection(cameraDirection, deltaTime)) {
-		magnetEditorCameraSystem_.Reset();
-		return;
-	}
 
 	Vector3 moveDirection{};
 	if (input->PushKey(InputKey::A)) { moveDirection.x -= 1.0f; }
