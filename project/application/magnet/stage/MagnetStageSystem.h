@@ -34,6 +34,10 @@ enum class MagnetObstacleKind : uint8_t {
 	Count,
 };
 
+inline constexpr float kDefaultAnchorAttractionRadius = 3.0f;
+inline constexpr float kMinimumAnchorAttractionRadius = 0.75f;
+inline constexpr float kMaximumAnchorAttractionRadius = 30.0f;
+
 struct MagnetStageBoxPlacement {
 	uint32_t id = 0;
 	Vector3 position{};
@@ -42,6 +46,7 @@ struct MagnetStageBoxPlacement {
 	MagnetObstacleKind obstacleKind = MagnetObstacleKind::Solid;
 	uint32_t transferPairId = 0;
 	float rotationYDegrees = 0.0f;
+	float anchorAttractionRadius = kDefaultAnchorAttractionRadius;
 };
 
 struct MagnetStageGenerationSettings {
@@ -56,7 +61,7 @@ struct MagnetStageGenerationSettings {
 };
 
 struct MagnetStageData {
-	static constexpr uint32_t kSchemaVersion = 9;
+	static constexpr uint32_t kSchemaVersion = 10;
 	static constexpr uint32_t kOldestSupportedSchemaVersion = 1;
 	static constexpr std::size_t kMaximumBallCount = 24;
 	static constexpr std::size_t kMaximumGoalCount = 4;
@@ -116,6 +121,7 @@ public:
 	[[nodiscard]] bool SetGoalScore(uint32_t id, uint32_t score);
 	[[nodiscard]] bool SetObstacleKind(uint32_t id, MagnetObstacleKind obstacleKind);
 	[[nodiscard]] bool SetTransferPairId(uint32_t id, uint32_t transferPairId);
+	[[nodiscard]] bool SetAnchorAttractionRadius(uint32_t id, float radius);
 	[[nodiscard]] bool Save(const std::string& path);
 	[[nodiscard]] bool Load(const std::string& path);
 	[[nodiscard]] bool RefreshSaveEntries();

@@ -266,6 +266,12 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 			!IsFinite(obstacle.size) || obstacle.size.x <= 0.0f ||
 			obstacle.size.y <= 0.0f || obstacle.size.z <= 0.0f ||
 			!std::isfinite(obstacle.rotationYDegrees) ||
+			!std::isfinite(obstacle.anchorAttractionRadius) ||
+			obstacle.anchorAttractionRadius < kMinimumAnchorAttractionRadius ||
+			obstacle.anchorAttractionRadius > kMaximumAnchorAttractionRadius ||
+			(obstacle.obstacleKind == MagnetObstacleKind::MagneticAnchor &&
+			 obstacle.anchorAttractionRadius <
+				(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f) ||
 			obstacle.obstacleKind >= MagnetObstacleKind::Count ||
 			(obstacle.obstacleKind == MagnetObstacleKind::TransferGate &&
 			 obstacle.transferPairId == 0) ||
@@ -1497,6 +1503,31 @@ bool MagnetChainSystem::IsBallRespawnPositionClear(
 		if (std::abs(localPosition.x) <= halfWidth &&
 			std::abs(localPosition.z) <= halfDepth) {
 			return false;
+		}
+		float circularEffectRadius = 0.0f;
+		switch (obstacle.obstacleKind) {
+		case MagnetObstacleKind::MagneticAnchor:
+			circularEffectRadius =
+				obstacleCollisionSystem_.GetAnchorAttractionRadius(obstacle);
+			break;
+		case MagnetObstacleKind::RepulsionField:
+			circularEffectRadius =
+				obstacleCollisionSystem_.GetRepulsionFieldRadius(obstacle);
+			break;
+		case MagnetObstacleKind::PinballBumper:
+			circularEffectRadius =
+				(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f;
+			break;
+		default:
+			break;
+		}
+		if (circularEffectRadius > 0.0f) {
+			const float clearanceRadius = circularEffectRadius +
+				kMagnetRadius + kBallRespawnObjectPadding;
+			if (LengthSquaredXZ(position - obstacle.position) <=
+				clearanceRadius * clearanceRadius) {
+				return false;
+			}
 		}
 	}
 	return true;

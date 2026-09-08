@@ -1488,6 +1488,11 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 			request.selectedObjectId,
 			request.editedTransferPairId);
 		break;
+	case magnet::MagnetStageEditorAction::UpdateAnchorAttractionRadius:
+		stageChanged = magnetStageSystem_.SetAnchorAttractionRadius(
+			request.selectedObjectId,
+			request.editedAnchorAttractionRadius);
+		break;
 	case magnet::MagnetStageEditorAction::SaveNamed:
 		(void)magnetStageSystem_.SaveNamed(
 			request.stageSaveName.data(),
@@ -1742,6 +1747,9 @@ void MagnetPrototypeScene::DrawStageObjects() const
 
 void MagnetPrototypeScene::DrawSelectionHighlight() const
 {
+	if (editorMode_ != magnet::MagnetEditorMode::StageEdit) {
+		return;
+	}
 	if (selectedObjectType_ == magnet::MagnetStageObjectType::Player) {
 		const physics::SphereBody* player = magnetChainSystem_.GetPhysicsWorld().GetBody(
 			magnetChainSystem_.GetPlayerBody());

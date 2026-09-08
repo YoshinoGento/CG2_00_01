@@ -815,6 +815,29 @@ void MagnetPrototypeWindow::DrawStageEditor(
 					static_cast<MagnetObstacleKind>(obstacleKind);
 			}
 			ImGui::TextWrapped("%s", GetObstacleKindDescription(selectedBox->obstacleKind));
+			if (selectedBox->obstacleKind == MagnetObstacleKind::MagneticAnchor) {
+				ImGui::SeparatorText("磁石アンカーの吸引範囲");
+				float attractionRadius = selectedBox->anchorAttractionRadius;
+				const float minimumAttractionRadius = (std::max)(
+					kMinimumAnchorAttractionRadius,
+					(std::max)(selectedBox->size.x, selectedBox->size.z) * 0.5f);
+				ImGui::SetNextItemWidth(-1.0f);
+				if (ImGui::DragFloat(
+						"吸引半径##AnchorAttractionRadius",
+						&attractionRadius,
+						0.10f,
+						minimumAttractionRadius,
+						kMaximumAnchorAttractionRadius,
+						"%.2f m",
+						ImGuiSliderFlags_AlwaysClamp)) {
+					request.stageAction =
+						MagnetStageEditorAction::UpdateAnchorAttractionRadius;
+					request.selectedObjectId = selectedBox->id;
+					request.editedAnchorAttractionRadius = attractionRadius;
+				}
+				ImGui::TextDisabled(
+					"本体サイズを変えずに、球を引き寄せ始める距離を調整します。");
+			}
 			if (selectedBox->obstacleKind == MagnetObstacleKind::TransferGate) {
 				uint32_t partnerId = 0;
 				const std::size_t endpointCount = stageData

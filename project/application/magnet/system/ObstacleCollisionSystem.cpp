@@ -10,7 +10,6 @@ namespace {
 constexpr float kContactOffset = 0.002f;
 constexpr float kEpsilon = 1.0e-6f;
 constexpr float kAnchorCaptureDistance = 0.16f;
-constexpr float kAnchorAdditionalReach = 3.5f;
 constexpr float kDegreesToRadians = std::numbers::pi_v<float> / 180.0f;
 
 Vector3 RotateXZ(const Vector3& value, float radians) noexcept
@@ -249,6 +248,12 @@ bool ObstacleCollisionSystem::Resolve(
 		const MagnetStageBoxPlacement& obstacle = obstacles[obstacleIndex];
 		if (!IsFinite(obstacle.position) || !IsFinite(obstacle.size) ||
 			!std::isfinite(obstacle.rotationYDegrees) ||
+			!std::isfinite(obstacle.anchorAttractionRadius) ||
+			obstacle.anchorAttractionRadius < kMinimumAnchorAttractionRadius ||
+			obstacle.anchorAttractionRadius > kMaximumAnchorAttractionRadius ||
+			(obstacle.obstacleKind == MagnetObstacleKind::MagneticAnchor &&
+			 obstacle.anchorAttractionRadius <
+				(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f) ||
 			obstacle.size.x <= 0.0f || obstacle.size.y <= 0.0f ||
 			obstacle.size.z <= 0.0f) {
 			return false;
@@ -432,11 +437,15 @@ float ObstacleCollisionSystem::GetAnchorAttractionRadius(
 	const MagnetStageBoxPlacement& obstacle) const noexcept
 {
 	if (!IsFinite(obstacle.size) || obstacle.size.x <= 0.0f ||
-		obstacle.size.z <= 0.0f) {
+		obstacle.size.z <= 0.0f ||
+		!std::isfinite(obstacle.anchorAttractionRadius) ||
+		obstacle.anchorAttractionRadius < kMinimumAnchorAttractionRadius ||
+		obstacle.anchorAttractionRadius <
+			(std::max)(obstacle.size.x, obstacle.size.z) * 0.5f ||
+		obstacle.anchorAttractionRadius > kMaximumAnchorAttractionRadius) {
 		return 0.0f;
 	}
-	return (std::max)(obstacle.size.x, obstacle.size.z) * 0.5f +
-		kAnchorAdditionalReach;
+	return obstacle.anchorAttractionRadius;
 }
 
 float ObstacleCollisionSystem::GetRepulsionFieldRadius(

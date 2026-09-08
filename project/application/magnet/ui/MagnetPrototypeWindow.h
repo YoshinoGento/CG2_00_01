@@ -61,6 +61,7 @@ enum class MagnetStageEditorAction : uint8_t {
 	UpdateGoalScore,
 	UpdateObstacleKind,
 	UpdateTransferPairId,
+	UpdateAnchorAttractionRadius,
 	SaveNamed,
 	LoadNamed,
 	RefreshSaves,
@@ -80,6 +81,7 @@ struct MagnetPrototypeUiRequest {
 	uint32_t editedGoalScore = 1;
 	MagnetObstacleKind editedObstacleKind = MagnetObstacleKind::Solid;
 	uint32_t editedTransferPairId = 1;
+	float editedAnchorAttractionRadius = kDefaultAnchorAttractionRadius;
 	bool allowOverwrite = false;
 	SpinChargeController::Settings spinChargeSettings{};
 	MagneticImpactAttachmentSystem::Settings impactAttachmentSettings{};
