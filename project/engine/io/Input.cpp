@@ -166,6 +166,7 @@ void Input::Update()
 	}
 
 	UpdateMousePosition();
+	UpdateLastActiveDevice();
 }
 
 bool Input::UpdateKeyboardState()
@@ -241,6 +242,44 @@ bool Input::UpdateGamepadState()
 	leftTrigger_ = NormalizeTrigger(state.Gamepad.bLeftTrigger);
 	rightTrigger_ = NormalizeTrigger(state.Gamepad.bRightTrigger);
 	return true;
+}
+
+void Input::UpdateLastActiveDevice() noexcept
+{
+	bool keyboardMouseActive = false;
+	for (const BYTE keyState : key) {
+		if ((keyState & 0x80u) != 0u) {
+			keyboardMouseActive = true;
+			break;
+		}
+	}
+	if (!keyboardMouseActive) {
+		for (const BYTE mouseState : mouseButton) {
+			if ((mouseState & 0x80u) != 0u) {
+				keyboardMouseActive = true;
+				break;
+			}
+		}
+	}
+	keyboardMouseActive = keyboardMouseActive || mouseWheelDelta_ != 0.0f;
+
+	if (!isGamepadConnected_) {
+		lastActiveDevice_ = InputDeviceType::KeyboardMouse;
+		return;
+	}
+
+	const bool gamepadActive = gamepadButtons_ != 0u ||
+		leftStick_.x != 0.0f || leftStick_.y != 0.0f ||
+		rightStick_.x != 0.0f || rightStick_.y != 0.0f ||
+		leftTrigger_ != 0.0f || rightTrigger_ != 0.0f;
+
+	// Simultaneous activity is ambiguous, so retain the previously selected device.
+	if (keyboardMouseActive == gamepadActive) {
+		return;
+	}
+	lastActiveDevice_ = gamepadActive
+		? InputDeviceType::Gamepad
+		: InputDeviceType::KeyboardMouse;
 }
 
 void Input::UpdateMousePosition()
@@ -399,4 +438,9 @@ float Input::GetLeftTrigger() const
 float Input::GetRightTrigger() const
 {
 	return rightTrigger_;
+}
+
+InputDeviceType Input::GetLastActiveDevice() const noexcept
+{
+	return lastActiveDevice_;
 }

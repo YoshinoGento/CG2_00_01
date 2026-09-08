@@ -3,6 +3,7 @@
 #include "GameFlowState.h"
 #include "SceneManager.h"
 #include "2d/SpriteCommon.h"
+#include "2d/TextureManager.h"
 #include "3d/Camera.h"
 #include "3d/Model.h"
 #include "3d/ModelManager.h"
@@ -20,6 +21,8 @@ constexpr Vector4 kPrimaryColor{ 0.32f, 0.95f, 1.0f, 1.0f };
 constexpr Vector4 kTextColor{ 0.88f, 0.94f, 0.98f, 1.0f };
 constexpr Vector4 kAccentColor{ 1.0f, 0.82f, 0.24f, 1.0f };
 constexpr float kCharacterSpacing = -7.0f;
+constexpr float kHalfPi = 1.57079633f;
+constexpr float kPi = 3.14159265f;
 }
 
 void TitleScene::Initialize()
@@ -55,21 +58,30 @@ void TitleScene::Initialize()
 
 	ModelManager* modelManager = framework->GetModelManager();
 	if (modelManager) {
-		constexpr const char* kSpaceModelPath = "title/Space.obj";
-		modelManager->LoadModel(kSpaceModelPath);
-		Model* spaceModel = modelManager->GetModel(kSpaceModelPath);
-		if (spaceModel) {
-			spaceModel->LoadTextures();
+		constexpr const char* kKeyboardPromptModelPath = "title/Space.obj";
+		constexpr const char* kGamepadPromptModelPath = "title/PushToB.obj";
+		modelManager->LoadModel(kKeyboardPromptModelPath);
+		modelManager->LoadModel(kGamepadPromptModelPath);
+		keyboardTransitionModel_ = modelManager->GetModel(kKeyboardPromptModelPath);
+		gamepadTransitionModel_ = modelManager->GetModel(kGamepadPromptModelPath);
+		if (keyboardTransitionModel_) {
+			keyboardTransitionModel_->LoadTextures();
+		}
+		if (gamepadTransitionModel_) {
+			gamepadTransitionModel_->LoadTextures();
+		}
+		Model* initialPromptModel = keyboardTransitionModel_
+			? keyboardTransitionModel_
+			: gamepadTransitionModel_;
+		if (initialPromptModel) {
 			transitionKeyObject_ = std::make_unique<Object3d>();
 			transitionKeyObject_->Initialize(framework->GetObject3dCommon());
-			transitionKeyObject_->SetModel(spaceModel);
-			transitionKeyObject_->SetScale({ 0.60f, 0.60f, 0.60f });
-			transitionKeyObject_->SetPosition({ 0.147f, -2.17f, 0.0f });
-			transitionKeyObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+			transitionKeyObject_->SetModel(initialPromptModel);
+			transitionKeyObject_->SetTexture(
+				TextureManager::GetInstance()->LoadTexture2D("Resources/human/white.png"));
 			transitionKeyObject_->SetColor(kAccentColor);
 			transitionKeyObject_->SetEnableLighting(false);
 			transitionKeyObject_->SetCullMode(0);
-			transitionKeyObject_->Update(titleCamera_.get(), 0.0f);
 		}
 
 		if (page_ == Page::Instructions) {
@@ -169,9 +181,6 @@ void TitleScene::Initialize()
 				titleObject_->Update(titleCamera_.get(), 0.0f);
 			}
 		}
-		if (!transitionKeyObject_) {
-			SetLine(0, "PRESS SPACE", { 500.0f, 420.0f }, 1.05f, kAccentColor);
-		}
 	} else if (page_ == Page::Instructions) {
 		if (!guideTitleObject_) {
 			SetLine(0, "遊び方", { 575.0f, 105.0f }, 0.78f, kPrimaryColor);
@@ -182,9 +191,6 @@ void TitleScene::Initialize()
 			SetLine(3, "RT または Q：磁石を発射", { 430.0f, 335.0f }, 0.55f, kTextColor);
 			SetLine(4, "磁石をゴールに入れる", { 465.0f, 395.0f }, 0.55f, kTextColor);
 			SetLine(5, "MENU または ESC：ポーズ", { 420.0f, 455.0f }, 0.55f, kTextColor);
-		}
-		if (!transitionKeyObject_) {
-			SetLine(6, "PRESS SPACE TO START", { 410.0f, 565.0f }, 0.95f, kAccentColor);
 		}
 	} else {
 		if (!rankingTitleObject_) {
@@ -203,10 +209,10 @@ void TitleScene::Initialize()
 				{ 490.0f, 190.0f + 60.0f * static_cast<float>(index) },
 				1.0f, index == 0 ? kAccentColor : kTextColor);
 		}
-		if (!transitionKeyObject_) {
-			SetLine(6, "PRESS SPACE TO CONTINUE", { 375.0f, 565.0f }, 0.95f, kAccentColor);
-		}
 	}
+	Input* input = framework->GetInput();
+	RefreshTransitionPrompt(
+		input && input->GetLastActiveDevice() == InputDeviceType::Gamepad);
 	uiReady_ = true;
 }
 
@@ -217,9 +223,14 @@ void TitleScene::Finalize()
 	operationGuideObject_.reset();
 	guideTitleObject_.reset();
 	transitionKeyObject_.reset();
+	keyboardTransitionModel_ = nullptr;
+	gamepadTransitionModel_ = nullptr;
 	titleObject_.reset();
 	menuSkybox_.reset();
 	titleCamera_.reset();
+	transitionPromptInitialized_ = false;
+	transitionPromptUsesGamepad_ = false;
+	transitionPromptModelVisible_ = false;
 	uiReady_ = false;
 }
 
@@ -228,7 +239,7 @@ void TitleScene::Update()
 	if (titleObject_ && titleCamera_) {
 		titleObject_->Update(titleCamera_.get(), 0.0f);
 	}
-	if (transitionKeyObject_ && titleCamera_) {
+	if (transitionPromptModelVisible_ && transitionKeyObject_ && titleCamera_) {
 		transitionKeyObject_->Update(titleCamera_.get(), 0.0f);
 	}
 	if (guideTitleObject_ && titleCamera_) {
@@ -249,7 +260,15 @@ void TitleScene::Update()
 		menuSkybox_->Update(titleCamera_.get());
 	}
 	Input* input = Framework::GetInstance()->GetInput();
-	if (!input || !input->TriggerKey(InputKey::Space)) { return; }
+	if (!input) { return; }
+	const bool useGamepad =
+		input->GetLastActiveDevice() == InputDeviceType::Gamepad;
+	if (!transitionPromptInitialized_ || transitionPromptUsesGamepad_ != useGamepad) {
+		RefreshTransitionPrompt(useGamepad);
+	}
+	const bool transitionRequested = input->TriggerKey(InputKey::Space) ||
+		input->TriggerGamepadButton(InputGamepadButton::B);
+	if (!transitionRequested) { return; }
 	if (page_ == Page::Title) {
 		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
 	} else if (page_ == Page::Instructions) {
@@ -268,7 +287,9 @@ void TitleScene::Draw()
 		Object3dCommon* objectCommon = Framework::GetInstance()->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
 		if (titleObject_) { titleObject_->Draw(); }
-		if (transitionKeyObject_) { transitionKeyObject_->Draw(); }
+		if (transitionPromptModelVisible_ && transitionKeyObject_) {
+			transitionKeyObject_->Draw();
+		}
 		if (guideTitleObject_) { guideTitleObject_->Draw(); }
 		if (operationGuideObject_) { operationGuideObject_->Draw(); }
 		if (rankingTitleObject_) { rankingTitleObject_->Draw(); }
@@ -281,6 +302,57 @@ void TitleScene::Draw()
 	for (std::size_t index = 0; index < lineCount_; ++index) {
 		lines_[index].Draw();
 	}
+}
+
+void TitleScene::RefreshTransitionPrompt(bool useGamepad)
+{
+	transitionPromptInitialized_ = true;
+	transitionPromptUsesGamepad_ = useGamepad;
+	Model* requestedModel = useGamepad
+		? gamepadTransitionModel_
+		: keyboardTransitionModel_;
+	transitionPromptModelVisible_ = false;
+	if (transitionKeyObject_ && requestedModel) {
+		const bool modelReady = transitionKeyObject_->GetModel() == requestedModel ||
+			transitionKeyObject_->TrySwapStaticModel(requestedModel);
+		if (modelReady) {
+			if (useGamepad) {
+				// The supplied Blender export uses YZ as its text plane and has an
+				// off-centre origin. Rotate and offset it to match the Space prompt.
+				transitionKeyObject_->SetScale({ 0.80f, 0.80f, 0.80f });
+				transitionKeyObject_->SetPosition({ -1.394f, -2.301f, -0.094f });
+				transitionKeyObject_->SetRotation({ 0.0f, -kHalfPi, 0.0f });
+			} else {
+				transitionKeyObject_->SetScale({ 0.60f, 0.60f, 0.60f });
+				transitionKeyObject_->SetPosition({ 0.147f, -2.17f, 0.0f });
+				transitionKeyObject_->SetRotation({ 0.0f, kPi, 0.0f });
+			}
+			transitionPromptModelVisible_ = true;
+			if (titleCamera_) {
+				transitionKeyObject_->Update(titleCamera_.get(), 0.0f);
+			}
+		}
+	}
+
+	std::size_t lineIndex = 0;
+	Vector2 position{ 500.0f, 420.0f };
+	float scale = 1.05f;
+	const char* fallbackText = useGamepad ? "PRESS B" : "PRESS SPACE";
+	if (page_ == Page::Instructions) {
+		lineIndex = 6;
+		position = { useGamepad ? 455.0f : 410.0f, 565.0f };
+		scale = 0.95f;
+		fallbackText = useGamepad ? "PRESS B TO START" : "PRESS SPACE TO START";
+	} else if (page_ == Page::Ranking) {
+		lineIndex = 6;
+		position = { useGamepad ? 420.0f : 375.0f, 565.0f };
+		scale = 0.95f;
+		fallbackText = useGamepad
+			? "PRESS B TO CONTINUE"
+			: "PRESS SPACE TO CONTINUE";
+	}
+	SetLine(lineIndex, transitionPromptModelVisible_ ? "" : fallbackText,
+		position, scale, kAccentColor);
 }
 
 void TitleScene::SetLine(std::size_t index, const std::string& text,
