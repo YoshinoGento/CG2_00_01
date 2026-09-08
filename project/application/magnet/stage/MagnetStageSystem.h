@@ -41,6 +41,7 @@ struct MagnetStageBoxPlacement {
 	uint32_t score = 1;
 	MagnetObstacleKind obstacleKind = MagnetObstacleKind::Solid;
 	uint32_t transferPairId = 0;
+	float rotationYDegrees = 0.0f;
 };
 
 struct MagnetStageGenerationSettings {
@@ -55,7 +56,7 @@ struct MagnetStageGenerationSettings {
 };
 
 struct MagnetStageData {
-	static constexpr uint32_t kSchemaVersion = 8;
+	static constexpr uint32_t kSchemaVersion = 9;
 	static constexpr uint32_t kOldestSupportedSchemaVersion = 1;
 	static constexpr std::size_t kMaximumBallCount = 24;
 	static constexpr std::size_t kMaximumGoalCount = 4;
@@ -110,7 +111,8 @@ public:
 		MagnetStageObjectType type,
 		uint32_t id,
 		const Vector3& position,
-		const Vector3& size);
+		const Vector3& size,
+		float rotationYDegrees);
 	[[nodiscard]] bool SetGoalScore(uint32_t id, uint32_t score);
 	[[nodiscard]] bool SetObstacleKind(uint32_t id, MagnetObstacleKind obstacleKind);
 	[[nodiscard]] bool SetTransferPairId(uint32_t id, uint32_t transferPairId);

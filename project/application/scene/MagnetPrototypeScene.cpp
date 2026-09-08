@@ -1378,7 +1378,8 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 			request.selectedObjectType,
 			request.selectedObjectId,
 			request.editedObjectPosition,
-			request.editedObjectSize);
+			request.editedObjectSize,
+			request.editedObjectRotationYDegrees);
 		break;
 	case magnet::MagnetStageEditorAction::UpdateGoalScore:
 		stageChanged = magnetStageSystem_.SetGoalScore(
@@ -1525,6 +1526,7 @@ void MagnetPrototypeScene::DrawStageObjects() const
 			DrawWireBox(
 				stageData.goals[index].position,
 				stageData.goals[index].size,
+				stageData.goals[index].rotationYDegrees,
 				kGoalColor);
 		}
 	}
@@ -1547,7 +1549,11 @@ void MagnetPrototypeScene::DrawStageObjects() const
 				obstacle.obstacleKind);
 		if ((obstacle.obstacleKind != magnet::MagnetObstacleKind::Furnace ||
 			!furnaceVisualsReady_) && !hasGimmickVisual && !hasStructureVisual) {
-			DrawWireBox(runtimePosition, obstacle.size, color);
+			DrawWireBox(
+				runtimePosition,
+				obstacle.size,
+				obstacle.rotationYDegrees,
+				color);
 		}
 		if ((obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||
 			obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) &&
@@ -1688,29 +1694,46 @@ void MagnetPrototypeScene::DrawSelectionHighlight() const
 			kSelectionBoxPadding,
 			kSelectionBoxPadding,
 		};
-		DrawWireBox(object->position, object->size + padding, kSelectionColor);
+		DrawWireBox(
+			object->position,
+			object->size + padding,
+			object->rotationYDegrees,
+			kSelectionColor);
 	}
 }
 
 void MagnetPrototypeScene::DrawWireBox(
 	const Vector3& center,
 	const Vector3& size,
+	float rotationYDegrees,
 	const Vector4& color) const
 {
 	if (!IsFiniteVector3(center) || !IsFiniteVector3(size) ||
+		!std::isfinite(rotationYDegrees) ||
 		size.x <= 0.0f || size.y <= 0.0f || size.z <= 0.0f) {
 		return;
 	}
 	const Vector3 half = size * 0.5f;
+	const float rotationYRadians = rotationYDegrees *
+		3.14159265358979323846f / 180.0f;
+	const float cosine = std::cos(rotationYRadians);
+	const float sine = std::sin(rotationYRadians);
+	const auto toWorld = [&](const Vector3& local) noexcept {
+		return Vector3{
+			center.x + local.x * cosine + local.z * sine,
+			center.y + local.y,
+			center.z - local.x * sine + local.z * cosine,
+		};
+	};
 	const Vector3 corners[8] = {
-		{ center.x - half.x, center.y - half.y, center.z - half.z },
-		{ center.x + half.x, center.y - half.y, center.z - half.z },
-		{ center.x + half.x, center.y + half.y, center.z - half.z },
-		{ center.x - half.x, center.y + half.y, center.z - half.z },
-		{ center.x - half.x, center.y - half.y, center.z + half.z },
-		{ center.x + half.x, center.y - half.y, center.z + half.z },
-		{ center.x + half.x, center.y + half.y, center.z + half.z },
-		{ center.x - half.x, center.y + half.y, center.z + half.z },
+		toWorld({ -half.x, -half.y, -half.z }),
+		toWorld({  half.x, -half.y, -half.z }),
+		toWorld({  half.x,  half.y, -half.z }),
+		toWorld({ -half.x,  half.y, -half.z }),
+		toWorld({ -half.x, -half.y,  half.z }),
+		toWorld({  half.x, -half.y,  half.z }),
+		toWorld({  half.x,  half.y,  half.z }),
+		toWorld({ -half.x,  half.y,  half.z }),
 	};
 	constexpr std::size_t kEdges[12][2] = {
 		{ 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },

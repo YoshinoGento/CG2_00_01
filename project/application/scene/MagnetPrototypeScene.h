@@ -54,6 +54,7 @@ private:
 	void DrawWireBox(
 		const Vector3& center,
 		const Vector3& size,
+		float rotationYDegrees,
 		const Vector4& color) const;
 	void DrawBody(physics::BodyHandle handle, const Vector4& color) const;
 	void DrawVelocity(physics::BodyHandle handle) const;
