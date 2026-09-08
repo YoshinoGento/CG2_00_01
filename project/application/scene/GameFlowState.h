@@ -50,17 +50,7 @@ public:
 
 	[[nodiscard]] float GetSeVolume() const noexcept { return seVolume_; }
 
-	void SubmitScore(std::size_t score) noexcept
-	{
-		if (rankingCount_ < ranking_.size()) {
-			ranking_[rankingCount_++] = score;
-		} else if (score > ranking_.back()) {
-			ranking_.back() = score;
-		} else {
-			return;
-		}
-		std::sort(ranking_.begin(), ranking_.begin() + rankingCount_, std::greater<>());
-	}
+	void SubmitScore(std::size_t score) noexcept;
 
 	[[nodiscard]] const std::array<std::size_t, kRankingCapacity>& GetRanking() const noexcept
 	{
@@ -69,7 +59,9 @@ public:
 	[[nodiscard]] std::size_t GetRankingCount() const noexcept { return rankingCount_; }
 
 private:
-	GameFlowState() = default;
+	GameFlowState() noexcept;
+	void LoadRanking() noexcept;
+	void SaveRanking() const noexcept;
 	Audio* audio_ = nullptr;
 	AudioClipHandle bgmClip_{};
 	AudioVoiceHandle bgmVoice_{};
