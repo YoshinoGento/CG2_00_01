@@ -439,29 +439,20 @@ void TitleScene::RefreshStageSelectLines()
 {
 	constexpr const char* labels[] = {
 		"TUTORIAL", "STAGE 01", "STAGE 02", "STAGE 03" };
-	constexpr const char* descriptions[] = {
-		"LEARN MAGNET CONTROL",
-		"STANDARD MAGNET FIELD",
-		"GIMMICK TRAINING ZONE",
-		"MAXIMUM HAZARD CIRCUIT" };
-	constexpr const char* difficulties[] = {
-		"DIFFICULTY  *", "DIFFICULTY  **", "DIFFICULTY  ***", "DIFFICULTY  *****" };
-	SetLine(0, "STAGE SELECT", { 430.0f, 62.0f }, 1.55f, kPrimaryColor);
-	SetLine(9, "MAGNETIC FIELD // SELECT MISSION", { 423.0f, 116.0f }, 0.55f,
-		{ 0.72f, 0.86f, 0.94f, 1.0f });
+	SetLine(0, "STAGE SELECT", { 430.0f, 82.0f }, 1.55f, kPrimaryColor);
 	for (int index = 0; index < 4; ++index) {
 		const bool selected = index == stageSelection_;
 		SetLine(
 			static_cast<std::size_t>(index + 1),
 			std::string(selected ? ">>  " : "    ") + labels[index],
-			{ 435.0f, 174.0f + 76.0f * static_cast<float>(index) },
+			{ 435.0f, 205.0f + 82.0f * static_cast<float>(index) },
 			selected ? 1.08f : 0.88f,
 			selected ? kAccentColor : kTextColor);
 	}
-	SetLine(5, descriptions[stageSelection_], { 415.0f, 505.0f }, 0.74f, kPrimaryColor);
-	SetLine(6, difficulties[stageSelection_], { 485.0f, 545.0f }, 0.68f, kAccentColor);
-	SetLine(7, "CHARGE  CONNECT  LAUNCH", { 455.0f, 580.0f }, 0.52f,
-		{ 0.74f, 0.80f, 0.90f, 1.0f });
+	SetLine(5, "", {}, 1.0f, kTextColor);
+	SetLine(6, "", {}, 1.0f, kTextColor);
+	SetLine(7, "", {}, 1.0f, kTextColor);
+	SetLine(9, "", {}, 1.0f, kTextColor);
 }
 
 void TitleScene::UpdateStageSelectVisuals(float deltaTime)
