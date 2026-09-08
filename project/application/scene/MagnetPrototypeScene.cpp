@@ -279,6 +279,14 @@ void MagnetPrototypeScene::Initialize()
 		Logger::Log(
 			"MagnetPrototypeScene: Furnace visual initialization failed; using wire fallback.");
 	}
+	stageStructureVisualsReady_ = magnetStageStructureVisualSystem_.Initialize(
+		framework_->GetObject3dCommon(),
+		framework_->GetModelManager(),
+		camera_.get());
+	if (!stageStructureVisualsReady_) {
+		Logger::Log(
+			"MagnetPrototypeScene: Goal/Wall visual initialization failed; using wire fallback.");
+	}
 	magnetGimmickVisualsReady_ = magnetGimmickVisualSystem_.Initialize(
 		framework_->GetObject3dCommon(),
 		framework_->GetModelManager(),
@@ -333,6 +341,8 @@ void MagnetPrototypeScene::Finalize()
 	gimmickEffectSystem_.Finalize();
 	magnetGimmickVisualSystem_.Finalize();
 	magnetGimmickVisualsReady_ = false;
+	magnetStageStructureVisualSystem_.Finalize();
+	stageStructureVisualsReady_ = false;
 	furnaceVisualSystem_.Finalize();
 	furnaceVisualsReady_ = false;
 	gimmickSoundSystem_.Finalize();
@@ -446,6 +456,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		chainsawProximitySoundSystem_.Reset();
 		magneticImpactSoundSystem_.Reset();
 		furnaceVisualSystem_.Reset();
+		magnetStageStructureVisualSystem_.Reset();
 		gimmickEffectSystem_.Reset();
 		gimmickSoundSystem_.Reset();
 		magnetGimmickVisualSystem_.Reset();
@@ -594,6 +605,13 @@ void MagnetPrototypeScene::Update()
 		Logger::Log(
 			"MagnetPrototypeScene: Furnace visual update failed; using wire fallback.");
 		furnaceVisualsReady_ = false;
+	}
+	if (stageStructureVisualsReady_ &&
+		!magnetStageStructureVisualSystem_.Update(
+			frameDeltaSeconds, stageData, camera_.get())) {
+		Logger::Log(
+			"MagnetPrototypeScene: Goal/Wall visual update failed; using wire fallback.");
+		stageStructureVisualsReady_ = false;
 	}
 	if (magnetGimmickVisualsReady_ && !magnetGimmickVisualSystem_.Update(
 		frameDeltaSeconds, stageData, magnetChainSystem_, camera_.get())) {
@@ -775,6 +793,9 @@ void MagnetPrototypeScene::Draw()
 	gimmickEffectSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
+	if (stageStructureVisualsReady_) {
+		magnetStageStructureVisualSystem_.Draw(magnetStageSystem_.GetStageData());
+	}
 	if (furnaceVisualsReady_) {
 		furnaceVisualSystem_.Draw(magnetStageSystem_.GetStageData());
 	}
@@ -1500,7 +1521,12 @@ void MagnetPrototypeScene::DrawStageObjects() const
 {
 	const magnet::MagnetStageData& stageData = magnetStageSystem_.GetStageData();
 	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
-		DrawWireBox(stageData.goals[index].position, stageData.goals[index].size, kGoalColor);
+		if (!stageStructureVisualsReady_) {
+			DrawWireBox(
+				stageData.goals[index].position,
+				stageData.goals[index].size,
+				kGoalColor);
+		}
 	}
 	for (std::size_t index = 0; index < stageData.obstacleCount; ++index) {
 		const magnet::MagnetStageBoxPlacement& obstacle = stageData.obstacles[index];
@@ -1516,8 +1542,11 @@ void MagnetPrototypeScene::DrawStageObjects() const
 			obstacle.obstacleKind, shutterClosed);
 		const bool hasGimmickVisual = magnetGimmickVisualsReady_ &&
 			magnet::MagnetGimmickVisualSystem::Supports(obstacle.obstacleKind);
+		const bool hasStructureVisual = stageStructureVisualsReady_ &&
+			magnet::MagnetStageStructureVisualSystem::SupportsObstacle(
+				obstacle.obstacleKind);
 		if ((obstacle.obstacleKind != magnet::MagnetObstacleKind::Furnace ||
-			!furnaceVisualsReady_) && !hasGimmickVisual) {
+			!furnaceVisualsReady_) && !hasGimmickVisual && !hasStructureVisual) {
 			DrawWireBox(runtimePosition, obstacle.size, color);
 		}
 		if ((obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||

@@ -21,6 +21,7 @@
     <ClCompile Include="application\magnet\system\MagneticImpactFeedbackSystem.cpp" />
 	<ClCompile Include="application\magnet\system\FurnaceVisualSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagnetGimmickVisualSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagnetStageStructureVisualSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagneticImpactSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagneticOneShotSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\GimmickSoundSystem.cpp" />
@@ -154,6 +155,7 @@
     <ClInclude Include="application\magnet\system\MagneticImpactFeedbackSystem.h" />
 	<ClInclude Include="application\magnet\system\FurnaceVisualSystem.h" />
 	<ClInclude Include="application\magnet\system\MagnetGimmickVisualSystem.h" />
+	<ClInclude Include="application\magnet\system\MagnetStageStructureVisualSystem.h" />
 	<ClInclude Include="application\magnet\system\MagneticImpactSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\MagneticOneShotSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\GimmickSoundSystem.h" />
@@ -635,6 +637,51 @@
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
 	<None Include="Resources\magnet\gimmick_models\create_pinball_shutter.py">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\gimmick_models\create_goal_wall.py">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\goal\goal.blend">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\goal\goal.obj">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\goal\goal.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\goal\goal_dark.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\goal\goal_cyan.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\goal\goal_orange.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\goal\goal_preview.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\wall\wall.blend">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\wall\wall.obj">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\wall\wall.mtl">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\wall\wall_metal.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\wall\wall_metal_light.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\wall\wall_seam.png">
+	  <Filter>Resource Files\Resources\magnet</Filter>
+	</None>
+	<None Include="Resources\magnet\wall\wall_preview.png">
 	  <Filter>Resource Files\Resources\magnet</Filter>
 	</None>
 	<None Include="Resources\magnet\pinball\pinball_bumper.blend">
