@@ -36,6 +36,7 @@ struct MagnetPrototypeViewData {
 	std::size_t magneticAttachmentCount = 0;
 	std::size_t goalHitCount = 0;
 	std::size_t score = 0;
+	uint32_t scoreNumberTextureSrvIndex = UINT32_MAX;
 	float goalWidth = 0.0f;
 	const MagnetStageData* stageData = nullptr;
 	const MagnetStageSaveEntry* saveEntries = nullptr;
