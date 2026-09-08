@@ -483,7 +483,9 @@ void MagnetPrototypeScene::PrepareFixedUpdate()
 		HandlePauseMenuInput(*input);
 		return;
 	}
-	if (ImGuiManager::GetInstance()->WantsCaptureKeyboard()) { return; }
+	// Tutorial navigation must remain available after holding Tab. ImGui may
+	// retain keyboard capture for a frame after its navigation key is released,
+	// so handle these scene controls before honoring UI keyboard capture.
 	if (tutorialMode_ && input->TriggerKey(InputKey::Enter)) {
 		SkipTutorialPhase();
 		return;
@@ -494,6 +496,7 @@ void MagnetPrototypeScene::PrepareFixedUpdate()
 		SceneManager::GetInstance()->ChangeScene("MAGNET_PROTOTYPE");
 		return;
 	}
+	if (ImGuiManager::GetInstance()->WantsCaptureKeyboard()) { return; }
 
 	if (input->PushKey(InputKey::W)) { pendingCommand_.moveDirection.z += 1.0f; }
 	if (input->PushKey(InputKey::S)) { pendingCommand_.moveDirection.z -= 1.0f; }
