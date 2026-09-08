@@ -458,10 +458,11 @@ void TitleScene::RefreshStageSelectLines()
 void TitleScene::InitializeStageSelectVisuals(SpriteCommon* spriteCommon)
 {
 	if (!spriteCommon) { return; }
-	const auto makePanel = [spriteCommon](const Vector2& position, const Vector2& size,
+	const auto makePanel = [spriteCommon](const char* texturePath,
+		const Vector2& position, const Vector2& size,
 		const Vector4& color) -> std::unique_ptr<Sprite> {
 		auto sprite = std::make_unique<Sprite>();
-		if (!sprite->Initialize(spriteCommon, "Resources/human/white.png")) { return nullptr; }
+		if (!sprite->Initialize(spriteCommon, texturePath)) { return nullptr; }
 		sprite->SetPosition(position);
 		sprite->SetSize(size);
 		sprite->SetColor(color);
@@ -469,16 +470,22 @@ void TitleScene::InitializeStageSelectVisuals(SpriteCommon* spriteCommon)
 		return sprite;
 	};
 
-	stageSelectBackdrop_ = makePanel({ 335.0f, 42.0f }, { 610.0f, 615.0f },
-		{ 0.015f, 0.035f, 0.075f, 0.84f });
-	stageSelectHeaderLine_ = makePanel({ 335.0f, 40.0f }, { 610.0f, 4.0f }, kPrimaryColor);
-	stageSelectFooterLine_ = makePanel({ 335.0f, 653.0f }, { 610.0f, 4.0f },
+	stageSelectBackdrop_ = makePanel(
+		"Resources/ui/stage_select/stage_select_frame.png",
+		{ 90.0f, 48.0f }, { 1100.0f, 620.0f }, { 1.0f, 1.0f, 1.0f, 0.98f });
+	stageSelectHeaderLine_ = makePanel("Resources/human/white.png",
+		{ 335.0f, 40.0f }, { 610.0f, 4.0f }, kPrimaryColor);
+	stageSelectFooterLine_ = makePanel("Resources/human/white.png",
+		{ 335.0f, 653.0f }, { 610.0f, 4.0f },
 		{ 1.0f, 0.25f, 0.62f, 1.0f });
 	for (int index = 0; index < 4; ++index) {
-		const float y = 153.0f + 76.0f * static_cast<float>(index);
-		stageSelectCards_[index] = makePanel({ 385.0f, y }, { 510.0f, 60.0f },
-			{ 0.035f, 0.10f, 0.18f, 0.68f });
-		stageSelectAccentBars_[index] = makePanel({ 385.0f, y }, { 7.0f, 60.0f },
+		const float y = 147.0f + 76.0f * static_cast<float>(index);
+		stageSelectCards_[index] = makePanel(
+			"Resources/ui/stage_select/stage_card.png",
+			{ 365.0f, y }, { 550.0f, 72.0f },
+			{ 0.68f, 0.78f, 0.84f, 0.90f });
+		stageSelectAccentBars_[index] = makePanel("Resources/human/white.png",
+			{ 365.0f, y + 7.0f }, { 7.0f, 58.0f },
 			{ 0.32f, 0.95f, 1.0f, 0.45f });
 	}
 }
@@ -490,18 +497,18 @@ void TitleScene::UpdateStageSelectVisuals(float deltaTime)
 	for (int index = 0; index < 4; ++index) {
 		const bool selected = index == stageSelection_;
 		if (stageSelectCards_[index]) {
-			stageSelectCards_[index]->SetPosition({ selected ? 374.0f : 385.0f,
-				153.0f + 76.0f * static_cast<float>(index) });
-			stageSelectCards_[index]->SetSize({ selected ? 532.0f : 510.0f, 60.0f });
+			stageSelectCards_[index]->SetPosition({ selected ? 350.0f : 365.0f,
+				147.0f + 76.0f * static_cast<float>(index) });
+			stageSelectCards_[index]->SetSize({ selected ? 580.0f : 550.0f, 72.0f });
 			stageSelectCards_[index]->SetColor(selected
-				? Vector4{ 0.04f, 0.22f + pulse * 0.05f, 0.34f, 0.94f }
-				: Vector4{ 0.025f, 0.075f, 0.14f, 0.66f });
+				? Vector4{ 0.94f + pulse * 0.06f, 0.92f + pulse * 0.08f, 1.0f, 1.0f }
+				: Vector4{ 0.58f, 0.68f, 0.76f, 0.86f });
 			stageSelectCards_[index]->Update();
 		}
 		if (stageSelectAccentBars_[index]) {
-			stageSelectAccentBars_[index]->SetPosition({ selected ? 374.0f : 385.0f,
-				153.0f + 76.0f * static_cast<float>(index) });
-			stageSelectAccentBars_[index]->SetSize({ selected ? 11.0f : 5.0f, 60.0f });
+			stageSelectAccentBars_[index]->SetPosition({ selected ? 350.0f : 365.0f,
+				154.0f + 76.0f * static_cast<float>(index) });
+			stageSelectAccentBars_[index]->SetSize({ selected ? 11.0f : 5.0f, 58.0f });
 			stageSelectAccentBars_[index]->SetColor(selected
 				? Vector4{ 1.0f, 0.68f + pulse * 0.22f, 0.18f, 1.0f }
 				: Vector4{ 0.32f, 0.95f, 1.0f, 0.35f });
