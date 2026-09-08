@@ -176,6 +176,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\magnet\system\MagneticImpactFeedbackSystem.cpp" />
 	<ClCompile Include="application\magnet\system\FurnaceVisualSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagnetGimmickVisualSystem.cpp" />
+	<ClCompile Include="application\magnet\system\MagnetStageStructureVisualSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagneticImpactSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\MagneticOneShotSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\GimmickSoundSystem.cpp" />
@@ -319,6 +320,21 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<None Include="Resources\magnet\chainsaw\chainsaw_preview.png" />
 	<None Include="Resources\magnet\chainsaw\create_chainsaw.py" />
 	<None Include="Resources\magnet\gimmick_models\create_pinball_shutter.py" />
+	<None Include="Resources\magnet\gimmick_models\create_goal_wall.py" />
+	<None Include="Resources\magnet\goal\goal.blend" />
+	<None Include="Resources\magnet\goal\goal.obj" />
+	<None Include="Resources\magnet\goal\goal.mtl" />
+	<None Include="Resources\magnet\goal\goal_dark.png" />
+	<None Include="Resources\magnet\goal\goal_cyan.png" />
+	<None Include="Resources\magnet\goal\goal_orange.png" />
+	<None Include="Resources\magnet\goal\goal_preview.png" />
+	<None Include="Resources\magnet\wall\wall.blend" />
+	<None Include="Resources\magnet\wall\wall.obj" />
+	<None Include="Resources\magnet\wall\wall.mtl" />
+	<None Include="Resources\magnet\wall\wall_metal.png" />
+	<None Include="Resources\magnet\wall\wall_metal_light.png" />
+	<None Include="Resources\magnet\wall\wall_seam.png" />
+	<None Include="Resources\magnet\wall\wall_preview.png" />
 	<None Include="Resources\magnet\pinball\pinball_bumper.blend" />
 	<None Include="Resources\magnet\pinball\pinball_bumper.obj" />
 	<None Include="Resources\magnet\pinball\pinball_bumper.mtl" />
@@ -533,6 +549,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\magnet\system\MagneticImpactFeedbackSystem.h" />
 	<ClInclude Include="application\magnet\system\FurnaceVisualSystem.h" />
 	<ClInclude Include="application\magnet\system\MagnetGimmickVisualSystem.h" />
+	<ClInclude Include="application\magnet\system\MagnetStageStructureVisualSystem.h" />
 	<ClInclude Include="application\magnet\system\MagneticImpactSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\MagneticOneShotSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\GimmickSoundSystem.h" />

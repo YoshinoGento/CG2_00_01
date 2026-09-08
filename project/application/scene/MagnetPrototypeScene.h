@@ -8,6 +8,7 @@
 #include "application/magnet/system/MagnetGimmickVisualSystem.h"
 #include "application/magnet/system/MagnetEditorCameraSystem.h"
 #include "application/magnet/system/MagnetChainSystem.h"
+#include "application/magnet/system/MagnetStageStructureVisualSystem.h"
 #include "application/magnet/system/MagneticImpactFeedbackSystem.h"
 #include "application/magnet/system/MagneticImpactSoundSystem.h"
 #include "application/magnet/system/MagneticOneShotSoundSystem.h"
@@ -87,6 +88,7 @@ private:
 	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
 	magnet::MagneticImpactSoundSystem magneticImpactSoundSystem_;
 	magnet::FurnaceVisualSystem furnaceVisualSystem_;
+	magnet::MagnetStageStructureVisualSystem magnetStageStructureVisualSystem_;
 	magnet::GimmickEffectSystem gimmickEffectSystem_;
 	magnet::GimmickSoundSystem gimmickSoundSystem_;
 	magnet::MagnetGimmickVisualSystem magnetGimmickVisualSystem_;
@@ -101,6 +103,7 @@ private:
 	bool prototypeReady_ = false;
 	bool ballVisualsReady_ = false;
 	bool furnaceVisualsReady_ = false;
+	bool stageStructureVisualsReady_ = false;
 	bool magnetGimmickVisualsReady_ = false;
 	bool showGrid_ = true;
 	bool showVelocity_ = true;
