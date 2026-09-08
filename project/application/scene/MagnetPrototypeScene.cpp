@@ -83,7 +83,7 @@ constexpr float kGoalGuideArmLength = 18.0f;
 constexpr float kGoalGuideThickness = 4.0f;
 constexpr float kGoalGuideHalfAngle = 0.70f;
 constexpr float kGameDurationSeconds = 60.0f;
-constexpr int kPauseMenuItemCount = 4;
+constexpr int kPauseMenuItemCount = 5;
 constexpr Vector4 kUiTextColor = { 0.88f, 0.94f, 0.98f, 1.0f };
 constexpr Vector4 kUiAccentColor = { 1.0f, 0.82f, 0.24f, 1.0f };
 constexpr float kComicTextMinimumImpactSpeed = 6.0f;
@@ -354,6 +354,7 @@ void MagnetPrototypeScene::Finalize()
 	playerVisual_.reset();
 	for (auto& visual : stageBallVisuals_) { visual.reset(); }
 	ballVisualsReady_ = false;
+	seVolumeLabelObject_.reset();
 	volumeLabelObject_.reset();
 	backTitleLabelObject_.reset();
 	restartLabelObject_.reset();
@@ -919,6 +920,22 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 			volumeLabelObject_->SetCullMode(0);
 			volumeLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
 		}
+
+		constexpr const char* kSeVolumeModelPath = "pause/Se.obj";
+		modelManager->LoadModel(kSeVolumeModelPath);
+		Model* seVolumeModel = modelManager->GetModel(kSeVolumeModelPath);
+		if (seVolumeModel) {
+			seVolumeModel->LoadTextures();
+			seVolumeLabelObject_ = std::make_unique<Object3d>();
+			seVolumeLabelObject_->Initialize(framework_->GetObject3dCommon());
+			seVolumeLabelObject_->SetModel(seVolumeModel);
+			seVolumeLabelObject_->SetScale({ 0.022f, 0.022f, 0.022f });
+			seVolumeLabelObject_->SetPosition({ -0.035f, -0.133f, -9.0f });
+			seVolumeLabelObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+			seVolumeLabelObject_->SetEnableLighting(false);
+			seVolumeLabelObject_->SetCullMode(0);
+			seVolumeLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+		}
 	}
 
 	const auto initializeText = [spriteCommon, this](SpriteText& text) {
@@ -947,11 +964,11 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 		pauseMenuTexts_[3].SetPosition({ 710.0f, 455.0f });
 		pauseMenuTexts_[3].SetScale(1.75f);
 	}
-	pauseHelpText_.SetText("DPAD OR STICK SELECT   B OK   MENU RESUME");
-	pauseHelpText_.SetPosition({ 350.0f, 565.0f });
-	pauseHelpText_.SetScale(0.62f);
-	pauseHelpText_.SetColor({ 0.55f, 0.68f, 0.76f, 1.0f });
-	pauseHelpText_.Update();
+	if (seVolumeLabelObject_) {
+		pauseMenuTexts_[4].SetPosition({ 660.0f, 536.0f });
+		pauseMenuTexts_[4].SetScale(1.75f);
+	}
+	pauseHelpText_.SetText("");
 	return true;
 }
 
@@ -962,16 +979,16 @@ void MagnetPrototypeScene::HandlePauseMenuInput(Input& input)
 	const bool stickDown = stick.y < -0.5f;
 	const bool stickLeft = stick.x < -0.5f;
 	const bool stickRight = stick.x > 0.5f;
-	const bool moveUp = input.TriggerKey(InputKey::ArrowUp) ||
+	const bool moveUp = input.TriggerKey(InputKey::W) ||
 		input.TriggerGamepadButton(InputGamepadButton::DPadUp) ||
 		(stickUp && !menuStickUpWasPressed_);
-	const bool moveDown = input.TriggerKey(InputKey::ArrowDown) ||
+	const bool moveDown = input.TriggerKey(InputKey::S) ||
 		input.TriggerGamepadButton(InputGamepadButton::DPadDown) ||
 		(stickDown && !menuStickDownWasPressed_);
-	const bool moveLeft = input.TriggerKey(InputKey::ArrowLeft) ||
+	const bool moveLeft = input.TriggerKey(InputKey::A) ||
 		input.TriggerGamepadButton(InputGamepadButton::DPadLeft) ||
 		(stickLeft && !menuStickLeftWasPressed_);
-	const bool moveRight = input.TriggerKey(InputKey::ArrowRight) ||
+	const bool moveRight = input.TriggerKey(InputKey::D) ||
 		input.TriggerGamepadButton(InputGamepadButton::DPadRight) ||
 		(stickRight && !menuStickRightWasPressed_);
 	menuStickUpWasPressed_ = stickUp;
@@ -990,8 +1007,13 @@ void MagnetPrototypeScene::HandlePauseMenuInput(Input& input)
 		if (moveLeft) { volume -= 0.1f; }
 		if (moveRight) { volume += 0.1f; }
 		GameFlowState::GetInstance().SetBgmVolume(volume);
+	} else if (pauseSelection_ == 4) {
+		float volume = GameFlowState::GetInstance().GetSeVolume();
+		if (moveLeft) { volume -= 0.1f; }
+		if (moveRight) { volume += 0.1f; }
+		GameFlowState::GetInstance().SetSeVolume(volume);
 	}
-	if (input.TriggerKey(InputKey::Enter) ||
+	if (input.TriggerKey(InputKey::Space) ||
 		input.TriggerGamepadButton(InputGamepadButton::B)) {
 		if (pauseSelection_ == 0) {
 			paused_ = false;
@@ -1019,6 +1041,8 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 
 	const int volumePercent = static_cast<int>(std::lround(
 		GameFlowState::GetInstance().GetBgmVolume() * 100.0f));
+	const int seVolumePercent = static_cast<int>(std::lround(
+		GameFlowState::GetInstance().GetSeVolume() * 100.0f));
 	const char* fixedLabels[] = {
 		resumeLabelObject_ ? "" : "BACK TO GAME",
 		restartLabelObject_ ? "" : "RESTART",
@@ -1032,6 +1056,13 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 			} else {
 				std::snprintf(label, sizeof(label), "%s BGM VOLUME %d%%",
 					index == pauseSelection_ ? ">" : " ", volumePercent);
+			}
+		} else if (index == 4) {
+			if (seVolumeLabelObject_) {
+				std::snprintf(label, sizeof(label), "%d%%", seVolumePercent);
+			} else {
+				std::snprintf(label, sizeof(label), "%s SE VOLUME %d%%",
+					index == pauseSelection_ ? ">" : " ", seVolumePercent);
 			}
 		} else {
 			std::snprintf(label, sizeof(label), "%s %s",
@@ -1062,6 +1093,11 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 			pauseSelection_ == 3 ? kUiAccentColor : kUiTextColor);
 		volumeLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
 	}
+	if (seVolumeLabelObject_) {
+		seVolumeLabelObject_->SetColor(
+			pauseSelection_ == 4 ? kUiAccentColor : kUiTextColor);
+		seVolumeLabelObject_->Update(pauseLabelCamera_.get(), 0.0f);
+	}
 }
 
 void MagnetPrototypeScene::DrawGameFlowUi()
@@ -1073,7 +1109,7 @@ void MagnetPrototypeScene::DrawGameFlowUi()
 	pauseOverlaySprite_->Draw();
 	pauseTitleText_.Draw();
 	if (pauseTitleObject_ || resumeLabelObject_ || restartLabelObject_ ||
-		backTitleLabelObject_ || volumeLabelObject_) {
+		backTitleLabelObject_ || volumeLabelObject_ || seVolumeLabelObject_) {
 		Object3dCommon* objectCommon = framework_->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
 		if (pauseTitleObject_) { pauseTitleObject_->Draw(); }
@@ -1081,11 +1117,11 @@ void MagnetPrototypeScene::DrawGameFlowUi()
 		if (restartLabelObject_) { restartLabelObject_->Draw(); }
 		if (backTitleLabelObject_) { backTitleLabelObject_->Draw(); }
 		if (volumeLabelObject_) { volumeLabelObject_->Draw(); }
+		if (seVolumeLabelObject_) { seVolumeLabelObject_->Draw(); }
 		objectCommon->EndObjectPass();
 		framework_->GetSpriteCommon()->PreDraw();
 	}
 	for (SpriteText& text : pauseMenuTexts_) { text.Draw(); }
-	pauseHelpText_.Draw();
 }
 
 void MagnetPrototypeScene::CompleteTimedGame()

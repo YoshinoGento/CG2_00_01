@@ -107,6 +107,48 @@ void TitleScene::Initialize()
 				operationGuideObject_->Update(titleCamera_.get(), 0.0f);
 			}
 		}
+
+		if (page_ == Page::Ranking) {
+			constexpr const char* kRankingModelPath = "title/Ranking.obj";
+			modelManager->LoadModel(kRankingModelPath);
+			Model* rankingModel = modelManager->GetModel(kRankingModelPath);
+			if (rankingModel) {
+				rankingModel->LoadTextures();
+				rankingTitleObject_ = std::make_unique<Object3d>();
+				rankingTitleObject_->Initialize(framework->GetObject3dCommon());
+				rankingTitleObject_->SetModel(rankingModel);
+				rankingTitleObject_->SetScale({ 0.53f, 0.53f, 0.53f });
+				rankingTitleObject_->SetPosition({ 0.104f, 1.665f, 0.0f });
+				rankingTitleObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+				rankingTitleObject_->SetColor(kPrimaryColor);
+				rankingTitleObject_->SetEnableLighting(false);
+				rankingTitleObject_->SetCullMode(0);
+				rankingTitleObject_->Update(titleCamera_.get(), 0.0f);
+			}
+
+			constexpr const char* kScoreModelPath = "title/Score.obj";
+			modelManager->LoadModel(kScoreModelPath);
+			Model* scoreModel = modelManager->GetModel(kScoreModelPath);
+			if (scoreModel) {
+				scoreModel->LoadTextures();
+				const std::size_t scoreCount = GameFlowState::GetInstance().GetRankingCount();
+				for (std::size_t index = 0;
+					index < scoreCount && index < rankingScoreObjects_.size(); ++index) {
+					auto& scoreObject = rankingScoreObjects_[index];
+					scoreObject = std::make_unique<Object3d>();
+					scoreObject->Initialize(framework->GetObject3dCommon());
+					scoreObject->SetModel(scoreModel);
+					scoreObject->SetScale({ 0.18f, 0.18f, 0.18f });
+					scoreObject->SetPosition(
+						{ -0.08f, 0.94f - 0.385f * static_cast<float>(index), 0.0f });
+					scoreObject->SetRotation({ 0.0f, 3.14159265f, 0.0f });
+					scoreObject->SetColor(index == 0 ? kAccentColor : kTextColor);
+					scoreObject->SetEnableLighting(false);
+					scoreObject->SetCullMode(0);
+					scoreObject->Update(titleCamera_.get(), 0.0f);
+				}
+			}
+		}
 	}
 
 	if (page_ == Page::Title) {
@@ -145,13 +187,15 @@ void TitleScene::Initialize()
 			SetLine(6, "PRESS SPACE TO START", { 410.0f, 565.0f }, 0.95f, kAccentColor);
 		}
 	} else {
-		SetLine(0, "RANKING", { 520.0f, 75.0f }, 1.65f, kPrimaryColor);
+		if (!rankingTitleObject_) {
+			SetLine(0, "RANKING", { 520.0f, 75.0f }, 1.65f, kPrimaryColor);
+		}
 		const auto& state = GameFlowState::GetInstance();
 		const auto& ranking = state.GetRanking();
 		for (std::size_t index = 0; index < GameFlowState::kRankingCapacity; ++index) {
 			char buffer[64]{};
 			if (index < state.GetRankingCount()) {
-				std::snprintf(buffer, sizeof(buffer), "%zu  SCORE %zu", index + 1, ranking[index]);
+				std::snprintf(buffer, sizeof(buffer), "%zu        %zu", index + 1, ranking[index]);
 			} else {
 				std::snprintf(buffer, sizeof(buffer), "%zu  ---", index + 1);
 			}
@@ -168,6 +212,8 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
+	for (auto& scoreObject : rankingScoreObjects_) { scoreObject.reset(); }
+	rankingTitleObject_.reset();
 	operationGuideObject_.reset();
 	guideTitleObject_.reset();
 	transitionKeyObject_.reset();
@@ -191,6 +237,14 @@ void TitleScene::Update()
 	if (operationGuideObject_ && titleCamera_) {
 		operationGuideObject_->Update(titleCamera_.get(), 0.0f);
 	}
+	if (rankingTitleObject_ && titleCamera_) {
+		rankingTitleObject_->Update(titleCamera_.get(), 0.0f);
+	}
+	for (auto& scoreObject : rankingScoreObjects_) {
+		if (scoreObject && titleCamera_) {
+			scoreObject->Update(titleCamera_.get(), 0.0f);
+		}
+	}
 	if (menuSkybox_ && titleCamera_) {
 		menuSkybox_->Update(titleCamera_.get());
 	}
@@ -210,13 +264,17 @@ void TitleScene::Draw()
 	if (!uiReady_) { return; }
 	if (menuSkybox_) { menuSkybox_->Draw(); }
 	if (titleObject_ || transitionKeyObject_ || guideTitleObject_ ||
-		operationGuideObject_) {
+		operationGuideObject_ || rankingTitleObject_ || rankingScoreObjects_[0]) {
 		Object3dCommon* objectCommon = Framework::GetInstance()->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
 		if (titleObject_) { titleObject_->Draw(); }
 		if (transitionKeyObject_) { transitionKeyObject_->Draw(); }
 		if (guideTitleObject_) { guideTitleObject_->Draw(); }
 		if (operationGuideObject_) { operationGuideObject_->Draw(); }
+		if (rankingTitleObject_) { rankingTitleObject_->Draw(); }
+		for (auto& scoreObject : rankingScoreObjects_) {
+			if (scoreObject) { scoreObject->Draw(); }
+		}
 		objectCommon->EndObjectPass();
 	}
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();

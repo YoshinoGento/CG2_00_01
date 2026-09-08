@@ -134,9 +134,10 @@ private:
 	std::unique_ptr<Object3d> restartLabelObject_;
 	std::unique_ptr<Object3d> backTitleLabelObject_;
 	std::unique_ptr<Object3d> volumeLabelObject_;
+	std::unique_ptr<Object3d> seVolumeLabelObject_;
 	SpriteText timerText_;
 	SpriteText pauseTitleText_;
-	std::array<SpriteText, 4> pauseMenuTexts_{};
+	std::array<SpriteText, 5> pauseMenuTexts_{};
 	SpriteText pauseHelpText_;
 	float gameElapsedSeconds_ = 0.0f;
 	int pauseSelection_ = 0;

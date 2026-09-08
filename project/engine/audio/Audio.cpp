@@ -308,6 +308,7 @@ AudioVoiceHandle Audio::Play(AudioClipHandle clipHandle, const PlaySettings& set
 	voice.appliedDirection = ResolveAppliedDirection(voice);
 	voice.loop = settings.loop;
 	voice.paused = settings.startPaused;
+	voice.useSoundEffectVolume = settings.useSoundEffectVolume;
 	voice.volume = ClampVolume(settings.volume);
 	voice.currentBasePlaybackRate = ClampPlaybackRate(settings.playbackRate);
 	voice.targetBasePlaybackRate = voice.currentBasePlaybackRate;
@@ -323,7 +324,10 @@ AudioVoiceHandle Audio::Play(AudioClipHandle clipHandle, const PlaySettings& set
 		return {};
 	}
 
-	result = voice.sourceVoice->SetVolume(voice.volume);
+	const float effectiveVolume = voice.useSoundEffectVolume
+		? voice.volume * soundEffectVolume_
+		: voice.volume;
+	result = voice.sourceVoice->SetVolume(effectiveVolume);
 	if (FAILED(result) || !ApplyVoiceFrequencyRatio(voice) ||
 		!ResubmitVoice(voice, clip, voice.appliedDirection, 0)) {
 		if (FAILED(result)) {
@@ -406,13 +410,31 @@ bool Audio::SetVoiceVolume(AudioVoiceHandle voiceHandle, float volume)
 		return false;
 	}
 	const float clampedVolume = ClampVolume(volume);
-	const HRESULT result = voice->sourceVoice->SetVolume(clampedVolume);
+	const float effectiveVolume = voice->useSoundEffectVolume
+		? clampedVolume * soundEffectVolume_
+		: clampedVolume;
+	const HRESULT result = voice->sourceVoice->SetVolume(effectiveVolume);
 	if (FAILED(result)) {
 		LogHResult("IXAudio2SourceVoice::SetVolume", result);
 		return false;
 	}
 	voice->volume = clampedVolume;
 	return true;
+}
+
+void Audio::SetSoundEffectVolume(float volume)
+{
+	if (!initialized_ || !IsOwnerThread("Audio::SetSoundEffectVolume") ||
+		!std::isfinite(volume)) {
+		return;
+	}
+	soundEffectVolume_ = std::clamp(volume, 0.0f, 1.0f);
+	for (auto& [id, voice] : voices_) {
+		(void)id;
+		if (voice.useSoundEffectVolume && voice.sourceVoice) {
+			(void)voice.sourceVoice->SetVolume(voice.volume * soundEffectVolume_);
+		}
+	}
 }
 
 bool Audio::SetVoicePlaybackRate(
