@@ -10,10 +10,12 @@
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
 #include "3d/Skybox.h"
+#include "base/FrameClock.h"
 #include "base/Framework.h"
 #include "io/Input.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace {
@@ -197,6 +199,7 @@ void TitleScene::Initialize()
 			SetLine(5, "MENU または ESC：ポーズ", { 420.0f, 455.0f }, 0.55f, kTextColor);
 		}
 	} else if (page_ == Page::StageSelect) {
+		InitializeStageSelectVisuals(spriteCommon);
 		RefreshStageSelectLines();
 	} else {
 		if (!rankingTitleObject_) {
@@ -229,6 +232,11 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
+	for (auto& accent : stageSelectAccentBars_) { accent.reset(); }
+	for (auto& card : stageSelectCards_) { card.reset(); }
+	stageSelectFooterLine_.reset();
+	stageSelectHeaderLine_.reset();
+	stageSelectBackdrop_.reset();
 	for (auto& scoreObject : rankingScoreObjects_) { scoreObject.reset(); }
 	rankingTitleObject_.reset();
 	operationGuideObject_.reset();
@@ -247,6 +255,12 @@ void TitleScene::Finalize()
 
 void TitleScene::Update()
 {
+	if (page_ == Page::StageSelect) {
+		Framework* framework = Framework::GetInstance();
+		const FrameClock* clock = framework ? framework->GetFrameClock() : nullptr;
+		UpdateStageSelectVisuals(
+			clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+	}
 	if (titleObject_ && titleCamera_) {
 		titleObject_->Update(titleCamera_.get(), 0.0f);
 	}
@@ -338,6 +352,15 @@ void TitleScene::Draw()
 		objectCommon->EndObjectPass();
 	}
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
+	if (stageSelectBackdrop_) { stageSelectBackdrop_->Draw(); }
+	if (stageSelectHeaderLine_) { stageSelectHeaderLine_->Draw(); }
+	if (stageSelectFooterLine_) { stageSelectFooterLine_->Draw(); }
+	for (auto& card : stageSelectCards_) {
+		if (card) { card->Draw(); }
+	}
+	for (auto& accent : stageSelectAccentBars_) {
+		if (accent) { accent->Draw(); }
+	}
 	for (std::size_t index = 0; index < lineCount_; ++index) {
 		lines_[index].Draw();
 	}
@@ -385,8 +408,8 @@ void TitleScene::RefreshTransitionPrompt(bool useGamepad)
 		scale = 0.95f;
 		fallbackText = useGamepad ? "PRESS B TO START" : "PRESS SPACE TO START";
 	} else if (page_ == Page::StageSelect) {
-		lineIndex = 6;
-		position = { 390.0f, 570.0f };
+		lineIndex = 8;
+		position = { 390.0f, 615.0f };
 		scale = 0.75f;
 		fallbackText = useGamepad
 			? "DPAD SELECT   B START"
@@ -407,15 +430,83 @@ void TitleScene::RefreshStageSelectLines()
 {
 	constexpr const char* labels[] = {
 		"TUTORIAL", "STAGE 01", "STAGE 02", "STAGE 03" };
-	SetLine(0, "STAGE SELECT", { 455.0f, 90.0f }, 1.35f, kPrimaryColor);
+	constexpr const char* descriptions[] = {
+		"LEARN MAGNET CONTROL",
+		"STANDARD MAGNET FIELD",
+		"GIMMICK TRAINING ZONE",
+		"MAXIMUM HAZARD CIRCUIT" };
+	constexpr const char* difficulties[] = {
+		"DIFFICULTY  *", "DIFFICULTY  **", "DIFFICULTY  ***", "DIFFICULTY  *****" };
+	SetLine(0, "STAGE SELECT", { 430.0f, 62.0f }, 1.55f, kPrimaryColor);
+	SetLine(9, "MAGNETIC FIELD // SELECT MISSION", { 423.0f, 116.0f }, 0.55f,
+		{ 0.72f, 0.86f, 0.94f, 1.0f });
 	for (int index = 0; index < 4; ++index) {
 		const bool selected = index == stageSelection_;
 		SetLine(
 			static_cast<std::size_t>(index + 1),
-			std::string(selected ? ">  " : "   ") + labels[index],
-			{ 505.0f, 205.0f + 72.0f * static_cast<float>(index) },
-			selected ? 1.05f : 0.88f,
+			std::string(selected ? ">>  " : "    ") + labels[index],
+			{ 435.0f, 174.0f + 76.0f * static_cast<float>(index) },
+			selected ? 1.08f : 0.88f,
 			selected ? kAccentColor : kTextColor);
+	}
+	SetLine(5, descriptions[stageSelection_], { 415.0f, 505.0f }, 0.74f, kPrimaryColor);
+	SetLine(6, difficulties[stageSelection_], { 485.0f, 545.0f }, 0.68f, kAccentColor);
+	SetLine(7, "CHARGE  CONNECT  LAUNCH", { 455.0f, 580.0f }, 0.52f,
+		{ 0.74f, 0.80f, 0.90f, 1.0f });
+}
+
+void TitleScene::InitializeStageSelectVisuals(SpriteCommon* spriteCommon)
+{
+	if (!spriteCommon) { return; }
+	const auto makePanel = [spriteCommon](const Vector2& position, const Vector2& size,
+		const Vector4& color) -> std::unique_ptr<Sprite> {
+		auto sprite = std::make_unique<Sprite>();
+		if (!sprite->Initialize(spriteCommon, "Resources/human/white.png")) { return nullptr; }
+		sprite->SetPosition(position);
+		sprite->SetSize(size);
+		sprite->SetColor(color);
+		sprite->Update();
+		return sprite;
+	};
+
+	stageSelectBackdrop_ = makePanel({ 335.0f, 42.0f }, { 610.0f, 615.0f },
+		{ 0.015f, 0.035f, 0.075f, 0.84f });
+	stageSelectHeaderLine_ = makePanel({ 335.0f, 40.0f }, { 610.0f, 4.0f }, kPrimaryColor);
+	stageSelectFooterLine_ = makePanel({ 335.0f, 653.0f }, { 610.0f, 4.0f },
+		{ 1.0f, 0.25f, 0.62f, 1.0f });
+	for (int index = 0; index < 4; ++index) {
+		const float y = 153.0f + 76.0f * static_cast<float>(index);
+		stageSelectCards_[index] = makePanel({ 385.0f, y }, { 510.0f, 60.0f },
+			{ 0.035f, 0.10f, 0.18f, 0.68f });
+		stageSelectAccentBars_[index] = makePanel({ 385.0f, y }, { 7.0f, 60.0f },
+			{ 0.32f, 0.95f, 1.0f, 0.45f });
+	}
+}
+
+void TitleScene::UpdateStageSelectVisuals(float deltaTime)
+{
+	stageSelectAnimationSeconds_ += (std::max)(0.0f, deltaTime);
+	const float pulse = 0.5f + 0.5f * std::sin(stageSelectAnimationSeconds_ * 4.5f);
+	for (int index = 0; index < 4; ++index) {
+		const bool selected = index == stageSelection_;
+		if (stageSelectCards_[index]) {
+			stageSelectCards_[index]->SetPosition({ selected ? 374.0f : 385.0f,
+				153.0f + 76.0f * static_cast<float>(index) });
+			stageSelectCards_[index]->SetSize({ selected ? 532.0f : 510.0f, 60.0f });
+			stageSelectCards_[index]->SetColor(selected
+				? Vector4{ 0.04f, 0.22f + pulse * 0.05f, 0.34f, 0.94f }
+				: Vector4{ 0.025f, 0.075f, 0.14f, 0.66f });
+			stageSelectCards_[index]->Update();
+		}
+		if (stageSelectAccentBars_[index]) {
+			stageSelectAccentBars_[index]->SetPosition({ selected ? 374.0f : 385.0f,
+				153.0f + 76.0f * static_cast<float>(index) });
+			stageSelectAccentBars_[index]->SetSize({ selected ? 11.0f : 5.0f, 60.0f });
+			stageSelectAccentBars_[index]->SetColor(selected
+				? Vector4{ 1.0f, 0.68f + pulse * 0.22f, 0.18f, 1.0f }
+				: Vector4{ 0.32f, 0.95f, 1.0f, 0.35f });
+			stageSelectAccentBars_[index]->Update();
+		}
 	}
 }
 

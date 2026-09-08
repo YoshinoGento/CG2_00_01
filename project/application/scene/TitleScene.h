@@ -1,6 +1,7 @@
 #pragma once
 #include "BaseScene.h"
 #include "2d/BitmapFont.h"
+#include "2d/Sprite.h"
 #include "2d/SpriteText.h"
 
 #include <array>
@@ -27,6 +28,8 @@ public:
 private:
 	void RefreshTransitionPrompt(bool useGamepad);
 	void RefreshStageSelectLines();
+	void InitializeStageSelectVisuals(SpriteCommon* spriteCommon);
+	void UpdateStageSelectVisuals(float deltaTime);
 	void SetLine(std::size_t index, const std::string& text,
 		const Vector2& position, float scale, const Vector4& color);
 
@@ -42,7 +45,7 @@ private:
 	std::unique_ptr<Object3d> operationGuideObject_;
 	std::unique_ptr<Object3d> rankingTitleObject_;
 	std::array<std::unique_ptr<Object3d>, 5> rankingScoreObjects_{};
-	std::array<SpriteText, 9> lines_{};
+	std::array<SpriteText, 11> lines_{};
 	std::size_t lineCount_ = 0;
 	bool transitionPromptInitialized_ = false;
 	bool transitionPromptUsesGamepad_ = false;
@@ -50,5 +53,11 @@ private:
 	int stageSelection_ = 0;
 	bool stageSelectStickUpWasPressed_ = false;
 	bool stageSelectStickDownWasPressed_ = false;
+	std::unique_ptr<Sprite> stageSelectBackdrop_;
+	std::unique_ptr<Sprite> stageSelectHeaderLine_;
+	std::unique_ptr<Sprite> stageSelectFooterLine_;
+	std::array<std::unique_ptr<Sprite>, 4> stageSelectCards_{};
+	std::array<std::unique_ptr<Sprite>, 4> stageSelectAccentBars_{};
+	float stageSelectAnimationSeconds_ = 0.0f;
 	bool uiReady_ = false;
 };
