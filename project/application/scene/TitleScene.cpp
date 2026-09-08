@@ -12,6 +12,7 @@
 #include "3d/Skybox.h"
 #include "base/FrameClock.h"
 #include "base/Framework.h"
+#include "effect/ParticleManager.h"
 #include "io/Input.h"
 
 #include <algorithm>
@@ -199,7 +200,11 @@ void TitleScene::Initialize()
 			SetLine(5, "MENU または ESC：ポーズ", { 420.0f, 455.0f }, 0.55f, kTextColor);
 		}
 	} else if (page_ == Page::StageSelect) {
-		InitializeStageSelectVisuals(spriteCommon);
+		if (ParticleManager* particles = framework->GetParticleManager()) {
+			particles->ClearAll();
+			particles->CreateParticleGroup("StageSelectGlow",
+				TextureManager::GetInstance()->LoadTexture2D("Resources/circle2.png"));
+		}
 		RefreshStageSelectLines();
 	} else {
 		if (!rankingTitleObject_) {
@@ -232,11 +237,13 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
-	for (auto& accent : stageSelectAccentBars_) { accent.reset(); }
-	for (auto& card : stageSelectCards_) { card.reset(); }
-	stageSelectFooterLine_.reset();
-	stageSelectHeaderLine_.reset();
-	stageSelectBackdrop_.reset();
+	if (page_ == Page::StageSelect) {
+		if (Framework* framework = Framework::GetInstance()) {
+			if (ParticleManager* particles = framework->GetParticleManager()) {
+				particles->ClearAll();
+			}
+		}
+	}
 	for (auto& scoreObject : rankingScoreObjects_) { scoreObject.reset(); }
 	rankingTitleObject_.reset();
 	operationGuideObject_.reset();
@@ -260,6 +267,10 @@ void TitleScene::Update()
 		const FrameClock* clock = framework ? framework->GetFrameClock() : nullptr;
 		UpdateStageSelectVisuals(
 			clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+		if (ParticleManager* particles = framework ? framework->GetParticleManager() : nullptr) {
+			particles->Update(titleCamera_.get(),
+				clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+		}
 	}
 	if (titleObject_ && titleCamera_) {
 		titleObject_->Update(titleCamera_.get(), 0.0f);
@@ -306,10 +317,12 @@ void TitleScene::Update()
 		if (moveUp) {
 			stageSelection_ = (stageSelection_ + 3) % 4;
 			RefreshStageSelectLines();
+			EmitStageSelectParticles(true);
 		}
 		if (moveDown) {
 			stageSelection_ = (stageSelection_ + 1) % 4;
 			RefreshStageSelectLines();
+			EmitStageSelectParticles(true);
 		}
 	}
 	const bool transitionRequested = input->TriggerKey(InputKey::Space) ||
@@ -351,16 +364,12 @@ void TitleScene::Draw()
 		}
 		objectCommon->EndObjectPass();
 	}
+	if (page_ == Page::StageSelect) {
+		if (ParticleManager* particles = Framework::GetInstance()->GetParticleManager()) {
+			particles->Draw(false);
+		}
+	}
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
-	if (stageSelectBackdrop_) { stageSelectBackdrop_->Draw(); }
-	if (stageSelectHeaderLine_) { stageSelectHeaderLine_->Draw(); }
-	if (stageSelectFooterLine_) { stageSelectFooterLine_->Draw(); }
-	for (auto& card : stageSelectCards_) {
-		if (card) { card->Draw(); }
-	}
-	for (auto& accent : stageSelectAccentBars_) {
-		if (accent) { accent->Draw(); }
-	}
 	for (std::size_t index = 0; index < lineCount_; ++index) {
 		lines_[index].Draw();
 	}
@@ -455,65 +464,40 @@ void TitleScene::RefreshStageSelectLines()
 		{ 0.74f, 0.80f, 0.90f, 1.0f });
 }
 
-void TitleScene::InitializeStageSelectVisuals(SpriteCommon* spriteCommon)
-{
-	if (!spriteCommon) { return; }
-	const auto makePanel = [spriteCommon](const char* texturePath,
-		const Vector2& position, const Vector2& size,
-		const Vector4& color) -> std::unique_ptr<Sprite> {
-		auto sprite = std::make_unique<Sprite>();
-		if (!sprite->Initialize(spriteCommon, texturePath)) { return nullptr; }
-		sprite->SetPosition(position);
-		sprite->SetSize(size);
-		sprite->SetColor(color);
-		sprite->Update();
-		return sprite;
-	};
-
-	stageSelectBackdrop_ = makePanel(
-		"Resources/ui/stage_select/stage_select_frame.png",
-		{ 90.0f, 48.0f }, { 1100.0f, 620.0f }, { 1.0f, 1.0f, 1.0f, 0.98f });
-	stageSelectHeaderLine_ = makePanel("Resources/human/white.png",
-		{ 335.0f, 40.0f }, { 610.0f, 4.0f }, kPrimaryColor);
-	stageSelectFooterLine_ = makePanel("Resources/human/white.png",
-		{ 335.0f, 653.0f }, { 610.0f, 4.0f },
-		{ 1.0f, 0.25f, 0.62f, 1.0f });
-	for (int index = 0; index < 4; ++index) {
-		const float y = 147.0f + 76.0f * static_cast<float>(index);
-		stageSelectCards_[index] = makePanel(
-			"Resources/ui/stage_select/stage_card.png",
-			{ 365.0f, y }, { 550.0f, 72.0f },
-			{ 0.68f, 0.78f, 0.84f, 0.90f });
-		stageSelectAccentBars_[index] = makePanel("Resources/human/white.png",
-			{ 365.0f, y + 7.0f }, { 7.0f, 58.0f },
-			{ 0.32f, 0.95f, 1.0f, 0.45f });
-	}
-}
-
 void TitleScene::UpdateStageSelectVisuals(float deltaTime)
 {
 	stageSelectAnimationSeconds_ += (std::max)(0.0f, deltaTime);
-	const float pulse = 0.5f + 0.5f * std::sin(stageSelectAnimationSeconds_ * 4.5f);
-	for (int index = 0; index < 4; ++index) {
-		const bool selected = index == stageSelection_;
-		if (stageSelectCards_[index]) {
-			stageSelectCards_[index]->SetPosition({ selected ? 350.0f : 365.0f,
-				147.0f + 76.0f * static_cast<float>(index) });
-			stageSelectCards_[index]->SetSize({ selected ? 580.0f : 550.0f, 72.0f });
-			stageSelectCards_[index]->SetColor(selected
-				? Vector4{ 0.94f + pulse * 0.06f, 0.92f + pulse * 0.08f, 1.0f, 1.0f }
-				: Vector4{ 0.58f, 0.68f, 0.76f, 0.86f });
-			stageSelectCards_[index]->Update();
-		}
-		if (stageSelectAccentBars_[index]) {
-			stageSelectAccentBars_[index]->SetPosition({ selected ? 350.0f : 365.0f,
-				154.0f + 76.0f * static_cast<float>(index) });
-			stageSelectAccentBars_[index]->SetSize({ selected ? 11.0f : 5.0f, 58.0f });
-			stageSelectAccentBars_[index]->SetColor(selected
-				? Vector4{ 1.0f, 0.68f + pulse * 0.22f, 0.18f, 1.0f }
-				: Vector4{ 0.32f, 0.95f, 1.0f, 0.35f });
-			stageSelectAccentBars_[index]->Update();
-		}
+	stageSelectParticleTimer_ += (std::max)(0.0f, deltaTime);
+	while (stageSelectParticleTimer_ >= 0.075f) {
+		stageSelectParticleTimer_ -= 0.075f;
+		EmitStageSelectParticles(false);
+	}
+}
+
+void TitleScene::EmitStageSelectParticles(bool selectionBurst)
+{
+	Framework* framework = Framework::GetInstance();
+	ParticleManager* particles = framework ? framework->GetParticleManager() : nullptr;
+	if (!particles) { return; }
+	const int count = selectionBurst ? 18 : 2;
+	const float selectedY = 1.65f - 0.78f * static_cast<float>(stageSelection_);
+	for (int index = 0; index < count; ++index) {
+		const float phase = static_cast<float>(stageSelectParticleSequence_++) * 1.6180339f;
+		const float side = (stageSelectParticleSequence_ & 1u) ? -1.0f : 1.0f;
+		Particle& particle = particles->AddParticle("StageSelectGlow",
+			{ side * (2.5f + 0.35f * std::sin(phase)),
+				selectionBurst ? selectedY + 0.35f * std::sin(phase * 2.1f)
+					: -2.6f + 5.2f * std::fmod(phase * 0.173f, 1.0f), 0.15f });
+		particle.velocity = selectionBurst
+			? Vector3{ -side * (0.07f + 0.05f * std::fabs(std::sin(phase))),
+				0.035f * std::cos(phase), 0.0f }
+			: Vector3{ -side * 0.012f, 0.018f + 0.012f * std::sin(phase), 0.0f };
+		particle.color = selectionBurst
+			? Vector4{ 1.0f, 0.72f, 0.18f, 0.95f }
+			: Vector4{ 0.22f, 0.88f, 1.0f, 0.58f };
+		particle.lifeTime = selectionBurst ? 0.42f : 1.35f;
+		particle.startSize = selectionBurst ? 0.13f : 0.055f;
+		particle.endSize = selectionBurst ? 0.015f : 0.018f;
 	}
 }
 

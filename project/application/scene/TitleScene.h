@@ -1,7 +1,6 @@
 #pragma once
 #include "BaseScene.h"
 #include "2d/BitmapFont.h"
-#include "2d/Sprite.h"
 #include "2d/SpriteText.h"
 
 #include <array>
@@ -28,8 +27,8 @@ public:
 private:
 	void RefreshTransitionPrompt(bool useGamepad);
 	void RefreshStageSelectLines();
-	void InitializeStageSelectVisuals(SpriteCommon* spriteCommon);
 	void UpdateStageSelectVisuals(float deltaTime);
+	void EmitStageSelectParticles(bool selectionBurst);
 	void SetLine(std::size_t index, const std::string& text,
 		const Vector2& position, float scale, const Vector4& color);
 
@@ -53,11 +52,8 @@ private:
 	int stageSelection_ = 0;
 	bool stageSelectStickUpWasPressed_ = false;
 	bool stageSelectStickDownWasPressed_ = false;
-	std::unique_ptr<Sprite> stageSelectBackdrop_;
-	std::unique_ptr<Sprite> stageSelectHeaderLine_;
-	std::unique_ptr<Sprite> stageSelectFooterLine_;
-	std::array<std::unique_ptr<Sprite>, 4> stageSelectCards_{};
-	std::array<std::unique_ptr<Sprite>, 4> stageSelectAccentBars_{};
 	float stageSelectAnimationSeconds_ = 0.0f;
+	float stageSelectParticleTimer_ = 0.0f;
+	uint32_t stageSelectParticleSequence_ = 0;
 	bool uiReady_ = false;
 };
