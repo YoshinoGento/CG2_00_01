@@ -17,7 +17,7 @@ class Skybox;
  */
 class TitleScene : public BaseScene {
 public:
-	enum class Page { Title, Instructions, Ranking };
+	enum class Page { Title, Instructions, StageSelect, Ranking };
 	explicit TitleScene(Page page = Page::Title) noexcept : page_(page) {}
 	void Initialize() override;
 	void Finalize() override;
@@ -26,6 +26,7 @@ public:
 
 private:
 	void RefreshTransitionPrompt(bool useGamepad);
+	void RefreshStageSelectLines();
 	void SetLine(std::size_t index, const std::string& text,
 		const Vector2& position, float scale, const Vector4& color);
 
@@ -46,5 +47,8 @@ private:
 	bool transitionPromptInitialized_ = false;
 	bool transitionPromptUsesGamepad_ = false;
 	bool transitionPromptModelVisible_ = false;
+	int stageSelection_ = 0;
+	bool stageSelectStickUpWasPressed_ = false;
+	bool stageSelectStickDownWasPressed_ = false;
 	bool uiReady_ = false;
 };

@@ -13,6 +13,8 @@ std::unique_ptr<BaseScene> SceneFactory::CreateScene(const std::string& sceneNam
 		return std::make_unique<TitleScene>();
 	} else if (sceneName == "INSTRUCTIONS") {
 		return std::make_unique<TitleScene>(TitleScene::Page::Instructions);
+	} else if (sceneName == "STAGE_SELECT") {
+		return std::make_unique<TitleScene>(TitleScene::Page::StageSelect);
 	} else if (sceneName == "RANKING") {
 		return std::make_unique<TitleScene>(TitleScene::Page::Ranking);
 	} else if (sceneName == "GAMEPLAY") {

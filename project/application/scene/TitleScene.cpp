@@ -196,6 +196,8 @@ void TitleScene::Initialize()
 			SetLine(4, "磁石をゴールに入れる", { 465.0f, 395.0f }, 0.55f, kTextColor);
 			SetLine(5, "MENU または ESC：ポーズ", { 420.0f, 455.0f }, 0.55f, kTextColor);
 		}
+	} else if (page_ == Page::StageSelect) {
+		RefreshStageSelectLines();
 	} else {
 		if (!rankingTitleObject_) {
 			SetLine(0, "RANKING", { 520.0f, 75.0f }, 1.65f, kPrimaryColor);
@@ -215,6 +217,11 @@ void TitleScene::Initialize()
 		}
 	}
 	Input* input = framework->GetInput();
+	if (page_ == Page::StageSelect && input) {
+		const Vector2 stick = input->GetLeftStick();
+		stageSelectStickUpWasPressed_ = stick.y > 0.5f;
+		stageSelectStickDownWasPressed_ = stick.y < -0.5f;
+	}
 	RefreshTransitionPrompt(
 		input && input->GetLastActiveDevice() == InputDeviceType::Gamepad);
 	uiReady_ = true;
@@ -270,15 +277,43 @@ void TitleScene::Update()
 	if (!transitionPromptInitialized_ || transitionPromptUsesGamepad_ != useGamepad) {
 		RefreshTransitionPrompt(useGamepad);
 	}
+	if (page_ == Page::StageSelect) {
+		const Vector2 stick = input->GetLeftStick();
+		const bool stickUp = stick.y > 0.5f;
+		const bool stickDown = stick.y < -0.5f;
+		const bool moveUp = input->TriggerKey(InputKey::W) ||
+			input->TriggerGamepadButton(InputGamepadButton::DPadUp) ||
+			(stickUp && !stageSelectStickUpWasPressed_);
+		const bool moveDown = input->TriggerKey(InputKey::S) ||
+			input->TriggerGamepadButton(InputGamepadButton::DPadDown) ||
+			(stickDown && !stageSelectStickDownWasPressed_);
+		stageSelectStickUpWasPressed_ = stickUp;
+		stageSelectStickDownWasPressed_ = stickDown;
+		if (moveUp) {
+			stageSelection_ = (stageSelection_ + 3) % 4;
+			RefreshStageSelectLines();
+		}
+		if (moveDown) {
+			stageSelection_ = (stageSelection_ + 1) % 4;
+			RefreshStageSelectLines();
+		}
+	}
 	const bool transitionRequested = input->TriggerKey(InputKey::Space) ||
 		input->TriggerGamepadButton(InputGamepadButton::B);
 	if (!transitionRequested) { return; }
 	if (page_ == Page::Title) {
 		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
 	} else if (page_ == Page::Instructions) {
-		SceneManager::GetInstance()->ChangeScene("TUTORIAL");
+		SceneManager::GetInstance()->ChangeScene("STAGE_SELECT");
+	} else if (page_ == Page::StageSelect) {
+		constexpr const char* stageNames[] = {
+			"stage_01", "stage_01", "stage_02", "stage_03" };
+		GameFlowState::GetInstance().SetActiveStageSaveName(
+			stageNames[stageSelection_]);
+		SceneManager::GetInstance()->ChangeScene(
+			stageSelection_ == 0 ? "TUTORIAL" : "MAGNET_PROTOTYPE");
 	} else {
-		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
+		SceneManager::GetInstance()->ChangeScene("STAGE_SELECT");
 	}
 }
 
@@ -312,7 +347,9 @@ void TitleScene::RefreshTransitionPrompt(bool useGamepad)
 {
 	transitionPromptInitialized_ = true;
 	transitionPromptUsesGamepad_ = useGamepad;
-	Model* requestedModel = useGamepad
+	Model* requestedModel = page_ == Page::StageSelect
+		? nullptr
+		: useGamepad
 		? gamepadTransitionModel_
 		: keyboardTransitionModel_;
 	transitionPromptModelVisible_ = false;
@@ -347,6 +384,13 @@ void TitleScene::RefreshTransitionPrompt(bool useGamepad)
 		position = { useGamepad ? 455.0f : 410.0f, 565.0f };
 		scale = 0.95f;
 		fallbackText = useGamepad ? "PRESS B TO START" : "PRESS SPACE TO START";
+	} else if (page_ == Page::StageSelect) {
+		lineIndex = 6;
+		position = { 390.0f, 570.0f };
+		scale = 0.75f;
+		fallbackText = useGamepad
+			? "DPAD SELECT   B START"
+			: "W/S SELECT   SPACE START";
 	} else if (page_ == Page::Ranking) {
 		lineIndex = 6;
 		position = { useGamepad ? 420.0f : 375.0f, 565.0f };
@@ -357,6 +401,22 @@ void TitleScene::RefreshTransitionPrompt(bool useGamepad)
 	}
 	SetLine(lineIndex, transitionPromptModelVisible_ ? "" : fallbackText,
 		position, scale, kAccentColor);
+}
+
+void TitleScene::RefreshStageSelectLines()
+{
+	constexpr const char* labels[] = {
+		"TUTORIAL", "STAGE 01", "STAGE 02", "STAGE 03" };
+	SetLine(0, "STAGE SELECT", { 455.0f, 90.0f }, 1.35f, kPrimaryColor);
+	for (int index = 0; index < 4; ++index) {
+		const bool selected = index == stageSelection_;
+		SetLine(
+			static_cast<std::size_t>(index + 1),
+			std::string(selected ? ">  " : "   ") + labels[index],
+			{ 505.0f, 205.0f + 72.0f * static_cast<float>(index) },
+			selected ? 1.05f : 0.88f,
+			selected ? kAccentColor : kTextColor);
+	}
 }
 
 void TitleScene::SetLine(std::size_t index, const std::string& text,
