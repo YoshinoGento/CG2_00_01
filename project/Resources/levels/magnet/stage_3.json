@@ -220,7 +220,7 @@
                 -8.0
             ],
             "rotationYDegrees": 0.0,
-            "score": 5,
+            "score": 1,
             "size": [
                 1.2000000476837158,
                 2.200000047683716,
@@ -421,6 +421,7 @@
             "type": "obstacle"
         },
         {
+            "anchorAttractionRadius": 13.300000190734863,
             "id": 13,
             "obstacleKind": "magnetic_anchor",
             "position": [
@@ -437,6 +438,7 @@
             "type": "obstacle"
         },
         {
+            "anchorAttractionRadius": 4.5,
             "id": 14,
             "obstacleKind": "magnetic_anchor",
             "position": [
