@@ -1,4 +1,5 @@
 #include "application/scene/EffectEditorScene.h"
+#include "application/scene/SceneManager.h"
 
 #include "3d/Camera.h"
 #include "3d/LineDrawer.h"
@@ -149,6 +150,12 @@ void EffectEditorScene::DrawEditorUi(const SceneEditorContext& context) {
 		{ controlsWidth, viewport->WorkSize.y },
 		ImGuiCond_FirstUseEver);
 	if (ImGui::Begin("エフェクト設定###EffectEditorControls")) {
+		if (ImGui::Button("ゲーム画面に戻る")) {
+			SceneManager::GetInstance()->ChangeScene("MAGNET_PROTOTYPE");
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("文字プリセットは保存後にゲームから使用できます");
+		ImGui::Separator();
 		ImGui::DragFloat3("Preview Origin", &previewPosition_.x, 0.05f, -50.0f, 50.0f);
 		if (ImGui::BeginTabBar("HitEffectEditorPages")) {
 			if (ImGui::BeginTabItem("Effects")) {
@@ -183,13 +190,19 @@ void EffectEditorScene::DrawEditorUi(const SceneEditorContext& context) {
 				}
 				ImGui::EndTabItem();
 			}
-			if (ImGui::BeginTabItem("Comic Text")) {
-				const bool textPreview = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
+			const ImGuiTabItemFlags comicTabFlags = selectComicTextTab_
+				? ImGuiTabItemFlags_SetSelected
+				: ImGuiTabItemFlags_None;
+			if (ImGui::BeginTabItem("Comic Text", nullptr, comicTabFlags)) {
+				const bool textPreview =
+					ImGui::IsKeyPressed(ImGuiKey_Space, false) && !ImGui::GetIO().WantTextInput;
+				ImGui::TextDisabled("Space: Preview");
 				if (comicTextEffectEditor_ && comicTextEffects_) {
 					comicTextEffectEditor_->Draw(*comicTextEffects_, previewPosition_, textPreview);
 				}
 				ImGui::EndTabItem();
 			}
+			selectComicTextTab_ = false;
 			ImGui::EndTabBar();
 		}
 	}
