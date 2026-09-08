@@ -616,6 +616,7 @@ void MagnetPrototypeScene::Update()
 	}
 	gimmickEffectSystem_.Update(frameDeltaSeconds);
 	if (comicTextEffects_ && camera_) {
+		gimmickComicTextSystem_.Update(frameDeltaSeconds);
 		comicTextEffects_->Update(
 			frameDeltaSeconds,
 			camera_->GetViewProjectionMatrix());

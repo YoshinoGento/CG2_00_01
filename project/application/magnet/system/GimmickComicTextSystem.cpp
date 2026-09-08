@@ -3,6 +3,7 @@
 #include "application/magnet/system/MagnetChainSystem.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 bool SameBody(physics::BodyHandle left, physics::BodyHandle right) noexcept {
@@ -46,6 +47,7 @@ ComicTextEffectPreset MakeFallback(
 	preset.shakeFrequency = 32.0f;
 	return preset;
 }
+
 } // namespace
 
 namespace magnet {
@@ -86,11 +88,34 @@ void GimmickComicTextSystem::Reset() noexcept {
 	anchored_.fill({});
 	shutterClosed_.fill(false);
 	repulsionOccupied_.fill(false);
+	cooldowns_.fill(0.0f);
 	snapshotReady_ = false;
 }
 
+void GimmickComicTextSystem::Update(float deltaTime) noexcept {
+	if (!std::isfinite(deltaTime)) { return; }
+	deltaTime = std::clamp(deltaTime, 0.0f, 0.1f);
+	for (float& cooldown : cooldowns_) {
+		cooldown = (std::max)(0.0f, cooldown - deltaTime);
+	}
+}
+
 void GimmickComicTextSystem::Play(Preset preset, const Vector3& position) {
-	if (effects_) { effects_->Play(presets_[static_cast<std::size_t>(preset)], position); }
+	static constexpr std::array<float, static_cast<std::size_t>(Preset::Count)>
+		kCaptionCooldownSeconds{
+			0.22f, // Chainsaw
+			0.14f, // Bumper
+			0.35f, // Furnace
+			0.35f, // Anchor
+			0.45f, // Shutter
+			0.90f, // Transfer gate: overlap can report on consecutive fixed frames.
+			0.50f, // Repulsion field
+		};
+	const std::size_t index = static_cast<std::size_t>(preset);
+	if (!effects_ || cooldowns_[index] > 0.0f) { return; }
+	if (effects_->Play(presets_[index], position)) {
+		cooldowns_[index] = kCaptionCooldownSeconds[index];
+	}
 }
 
 void GimmickComicTextSystem::CaptureEvents(

@@ -15,6 +15,7 @@ public:
 	[[nodiscard]] bool Initialize(ComicTextEffectSystem* effects);
 	void Finalize() noexcept;
 	void Reset() noexcept;
+	void Update(float deltaTime) noexcept;
 	void CaptureEvents(const MagnetChainSystem& chain, const MagnetStageData& stage);
 
 private:
@@ -32,6 +33,7 @@ private:
 	void Play(Preset preset, const Vector3& position);
 	ComicTextEffectSystem* effects_ = nullptr;
 	std::array<ComicTextEffectPreset, static_cast<std::size_t>(Preset::Count)> presets_{};
+	std::array<float, static_cast<std::size_t>(Preset::Count)> cooldowns_{};
 	std::array<physics::BodyHandle, MagnetStageData::kMaximumObstacleCount> anchored_{};
 	std::array<bool, MagnetStageData::kMaximumObstacleCount> shutterClosed_{};
 	std::array<bool, MagnetStageData::kMaximumObstacleCount> repulsionOccupied_{};
