@@ -67,8 +67,8 @@
     { "id": 13, "type": "obstacle", "position": [-1.0, 1.0, 8.5], "size": [4.2, 2.0, 3.2], "rotationYDegrees": 0.0, "obstacleKind": "furnace" },
     { "id": 14, "type": "obstacle", "position": [-3.5, 1.0, 0.0], "size": [2.0, 2.0, 2.0], "rotationYDegrees": 0.0, "obstacleKind": "magnetic_anchor" },
     { "id": 15, "type": "obstacle", "position": [14.0, 1.0, 9.0], "size": [5.5, 2.2, 1.0], "rotationYDegrees": 0.0, "obstacleKind": "timed_shutter" },
-    { "id": 16, "type": "obstacle", "position": [-19.0, 1.0, 10.0], "size": [2.5, 2.0, 2.5], "rotationYDegrees": 0.0, "obstacleKind": "transfer_gate", "transferPairId": 3 },
-    { "id": 17, "type": "obstacle", "position": [13.0, 1.0, -9.0], "size": [2.5, 2.0, 2.5], "rotationYDegrees": 0.0, "obstacleKind": "transfer_gate", "transferPairId": 3 },
+    { "id": 16, "type": "obstacle", "position": [-19.0, 1.6, 10.0], "size": [0.55, 3.2, 3.4], "rotationYDegrees": 0.0, "obstacleKind": "transfer_gate", "transferPairId": 3 },
+    { "id": 17, "type": "obstacle", "position": [13.0, 1.6, -9.0], "size": [0.55, 3.2, 3.4], "rotationYDegrees": 0.0, "obstacleKind": "transfer_gate", "transferPairId": 3 },
     { "id": 18, "type": "obstacle", "position": [7.0, 1.0, 9.0], "size": [3.0, 2.0, 3.0], "rotationYDegrees": 0.0, "obstacleKind": "repulsion_field" }
   ]
 }

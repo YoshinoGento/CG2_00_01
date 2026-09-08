@@ -28,6 +28,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <limits>
 #include <system_error>
 
 namespace {
@@ -769,6 +770,7 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 			pendingCommand_.releaseChains || request.releaseChains;
 	}
 	ProcessStageEditorRequest(request);
+	ValidateEditorSelection();
 	magnetChainSystem_.SetSpinChargeSettings(request.spinChargeSettings);
 	magnetChainSystem_.SetImpactAttachmentSettings(request.impactAttachmentSettings);
 	showGrid_ = request.showGrid;
@@ -1455,7 +1457,8 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 			request.editedObjectPosition);
 		break;
 	case magnet::MagnetStageEditorAction::AddBall:
-		stageChanged = magnetStageSystem_.AddBall(request.editedObjectPosition);
+		stageChanged = magnetStageSystem_.AddBall(
+			CalculateEditorPlacementPosition(request.editedObjectPosition.y));
 		break;
 	case magnet::MagnetStageEditorAction::RemoveBall:
 		stageChanged = magnetStageSystem_.RemoveBall(request.selectedBallId);
@@ -1468,13 +1471,13 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 	case magnet::MagnetStageEditorAction::AddGoal:
 		stageChanged = magnetStageSystem_.AddBoxObject(
 			magnet::MagnetStageObjectType::Goal,
-			request.editedObjectPosition,
+			CalculateEditorPlacementPosition(request.editedObjectPosition.y),
 			request.editedObjectSize);
 		break;
 	case magnet::MagnetStageEditorAction::AddObstacle:
 		stageChanged = magnetStageSystem_.AddBoxObject(
 			magnet::MagnetStageObjectType::Obstacle,
-			request.editedObjectPosition,
+			CalculateEditorPlacementPosition(request.editedObjectPosition.y),
 			request.editedObjectSize,
 			request.editedObstacleKind);
 		break;
@@ -1612,63 +1615,142 @@ void MagnetPrototypeScene::SelectStageObjectAtNdc(const Vector2& clickNdc)
 	if (!camera_ || !std::isfinite(clickNdc.x) || !std::isfinite(clickNdc.y)) {
 		return;
 	}
-	const Matrix4x4& viewProjection = camera_->GetViewProjectionMatrix();
+	const Matrix4x4 inverseViewProjection =
+		MatrixMath::Inverse(camera_->GetViewProjectionMatrix());
+	const Vector3 rayOrigin = MatrixMath::Transform(
+		{ clickNdc.x, clickNdc.y, 0.0f }, inverseViewProjection);
+	const Vector3 farPoint = MatrixMath::Transform(
+		{ clickNdc.x, clickNdc.y, 1.0f }, inverseViewProjection);
+	const Vector3 rayDirection = MatrixMath::Normalize(farPoint - rayOrigin);
+	if (!IsFiniteVector3(rayOrigin) || !IsFiniteVector3(rayDirection)) { return; }
+
 	magnet::MagnetStageObjectType bestType = magnet::MagnetStageObjectType::None;
 	uint32_t bestId = 0;
-	float bestScore = 1.0f;
-	const auto consider = [&](
-		const Vector3& position,
-		float worldRadius,
-		magnet::MagnetStageObjectType type,
-		uint32_t id) {
-		const float clipX = position.x * viewProjection.m[0][0] +
-			position.y * viewProjection.m[1][0] +
-			position.z * viewProjection.m[2][0] + viewProjection.m[3][0];
-		const float clipY = position.x * viewProjection.m[0][1] +
-			position.y * viewProjection.m[1][1] +
-			position.z * viewProjection.m[2][1] + viewProjection.m[3][1];
-		const float clipW = position.x * viewProjection.m[0][3] +
-			position.y * viewProjection.m[1][3] +
-			position.z * viewProjection.m[2][3] + viewProjection.m[3][3];
-		if (clipW <= 0.0001f) { return; }
-		const float ndcX = clipX / clipW;
-		const float ndcY = clipY / clipW;
-		const float radius = std::clamp(
-			std::abs(worldRadius * viewProjection.m[0][0] / clipW),
-			0.025f, 0.22f);
-		const float deltaX = clickNdc.x - ndcX;
-		const float deltaY = clickNdc.y - ndcY;
-		const float score = (deltaX * deltaX + deltaY * deltaY) /
-			(radius * radius);
-		if (score <= bestScore) {
-			bestScore = score;
+	float nearestDistance = (std::numeric_limits<float>::max)();
+	const auto acceptHit = [&](float distance,
+		magnet::MagnetStageObjectType type, uint32_t id) {
+		if (std::isfinite(distance) && distance >= 0.0f &&
+			distance < nearestDistance) {
+			nearestDistance = distance;
 			bestType = type;
 			bestId = id;
 		}
 	};
-
-	const magnet::MagnetStageData& stage = magnetStageSystem_.GetStageData();
-	consider(stage.playerPosition, 0.9f, magnet::MagnetStageObjectType::Player, 0);
-	for (std::size_t index = 0; index < stage.ballCount; ++index) {
-		consider(stage.balls[index].position, 0.65f,
-			magnet::MagnetStageObjectType::MagnetBall, stage.balls[index].id);
-	}
-	const auto considerBoxes = [&](const auto& boxes, std::size_t count,
+	const auto considerSphere = [&](const Vector3& center, float radius,
+		magnet::MagnetStageObjectType type, uint32_t id) {
+		const Vector3 offset = rayOrigin - center;
+		const float projection = MatrixMath::Dot(offset, rayDirection);
+		const float discriminant = projection * projection -
+			(MatrixMath::Dot(offset, offset) - radius * radius);
+		if (discriminant < 0.0f) { return; }
+		const float root = std::sqrt(discriminant);
+		const float nearDistance = -projection - root;
+		const float farDistance = -projection + root;
+		acceptHit(nearDistance >= 0.0f ? nearDistance : farDistance, type, id);
+	};
+	const auto considerBox = [&](const magnet::MagnetStageBoxPlacement& box,
 		magnet::MagnetStageObjectType type) {
-		for (std::size_t index = 0; index < count; ++index) {
-			const float radius = 0.5f * std::sqrt(
-				boxes[index].size.x * boxes[index].size.x +
-				boxes[index].size.z * boxes[index].size.z);
-			consider(boxes[index].position, radius, type, boxes[index].id);
+		const float radians = box.rotationYDegrees *
+			0.01745329251994329577f;
+		const float cosine = std::cos(radians);
+		const float sine = std::sin(radians);
+		const Vector3 offset = rayOrigin - box.position;
+		const Vector3 localOrigin{
+			offset.x * cosine - offset.z * sine,
+			offset.y,
+			offset.x * sine + offset.z * cosine,
+		};
+		const Vector3 localDirection{
+			rayDirection.x * cosine - rayDirection.z * sine,
+			rayDirection.y,
+			rayDirection.x * sine + rayDirection.z * cosine,
+		};
+		const Vector3 half = box.size * 0.5f;
+		float minimumDistance = 0.0f;
+		float maximumDistance = nearestDistance;
+		const auto intersectAxis = [&](float origin, float direction, float extent) {
+			if (std::abs(direction) <= 1.0e-6f) {
+				return origin >= -extent && origin <= extent;
+			}
+			float first = (-extent - origin) / direction;
+			float second = (extent - origin) / direction;
+			if (first > second) { std::swap(first, second); }
+			minimumDistance = (std::max)(minimumDistance, first);
+			maximumDistance = (std::min)(maximumDistance, second);
+			return minimumDistance <= maximumDistance;
+		};
+		if (intersectAxis(localOrigin.x, localDirection.x, half.x) &&
+			intersectAxis(localOrigin.y, localDirection.y, half.y) &&
+			intersectAxis(localOrigin.z, localDirection.z, half.z)) {
+			acceptHit(minimumDistance, type, box.id);
 		}
 	};
-	considerBoxes(stage.goals, stage.goalCount, magnet::MagnetStageObjectType::Goal);
-	considerBoxes(stage.obstacles, stage.obstacleCount,
-		magnet::MagnetStageObjectType::Obstacle);
+
+	const magnet::MagnetStageData& stage = magnetStageSystem_.GetStageData();
+	considerSphere(stage.playerPosition, 0.75f,
+		magnet::MagnetStageObjectType::Player, 0);
+	for (std::size_t index = 0; index < stage.ballCount; ++index) {
+		considerSphere(stage.balls[index].position, 0.5f,
+			magnet::MagnetStageObjectType::MagnetBall, stage.balls[index].id);
+	}
+	for (std::size_t index = 0; index < stage.goalCount; ++index) {
+		considerBox(stage.goals[index], magnet::MagnetStageObjectType::Goal);
+	}
+	for (std::size_t index = 0; index < stage.obstacleCount; ++index) {
+		considerBox(stage.obstacles[index], magnet::MagnetStageObjectType::Obstacle);
+	}
 
 	selectedObjectType_ = bestType;
 	selectedObjectId_ = bestId;
 	prototypeWindow_.SetSelection(bestType, bestId);
+}
+
+Vector3 MagnetPrototypeScene::CalculateEditorPlacementPosition(float height) const noexcept
+{
+	Vector3 fallback = ResolveEditorFocusPosition();
+	fallback.y = height;
+	if (!camera_ || !std::isfinite(height)) { return fallback; }
+	const Matrix4x4 inverseViewProjection =
+		MatrixMath::Inverse(camera_->GetViewProjectionMatrix());
+	const Vector3 nearPoint = MatrixMath::Transform(
+		{ 0.0f, -0.25f, 0.0f }, inverseViewProjection);
+	const Vector3 farPoint = MatrixMath::Transform(
+		{ 0.0f, -0.25f, 1.0f }, inverseViewProjection);
+	const Vector3 direction = MatrixMath::Normalize(farPoint - nearPoint);
+	if (!IsFiniteVector3(direction) || std::abs(direction.y) <= 0.0001f) {
+		return fallback;
+	}
+	const float distance = (height - nearPoint.y) / direction.y;
+	if (!std::isfinite(distance) || distance < 0.0f) { return fallback; }
+	Vector3 position = nearPoint + direction * distance;
+	position.y = height;
+	const float usableRadius = (std::max)(
+		magnetStageSystem_.GetStageData().arenaRadius - 0.75f, 0.0f);
+	const float radialSquared = position.x * position.x + position.z * position.z;
+	if (radialSquared > usableRadius * usableRadius && radialSquared > 1.0e-8f) {
+		const float scale = usableRadius / std::sqrt(radialSquared);
+		position.x *= scale;
+		position.z *= scale;
+	}
+	return IsFiniteVector3(position) ? position : fallback;
+}
+
+void MagnetPrototypeScene::ValidateEditorSelection() noexcept
+{
+	bool valid = selectedObjectType_ == magnet::MagnetStageObjectType::None ||
+		selectedObjectType_ == magnet::MagnetStageObjectType::Player;
+	if (selectedObjectType_ == magnet::MagnetStageObjectType::MagnetBall) {
+		valid = magnetStageSystem_.FindBall(selectedObjectId_) != nullptr;
+	} else if (selectedObjectType_ == magnet::MagnetStageObjectType::Goal ||
+		selectedObjectType_ == magnet::MagnetStageObjectType::Obstacle) {
+		valid = magnetStageSystem_.FindBoxObject(
+			selectedObjectType_, selectedObjectId_) != nullptr;
+	}
+	if (!valid) {
+		selectedObjectType_ = magnet::MagnetStageObjectType::None;
+		selectedObjectId_ = 0;
+		prototypeWindow_.SetSelection(selectedObjectType_, selectedObjectId_);
+	}
 }
 
 void MagnetPrototypeScene::SetEditorMode(magnet::MagnetEditorMode mode)
