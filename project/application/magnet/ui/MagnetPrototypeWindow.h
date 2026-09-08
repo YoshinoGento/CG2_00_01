@@ -91,6 +91,9 @@ struct MagnetPrototypeUiRequest {
 	bool emergencyStop = false;
 	bool releaseChains = false;
 	float editorCameraZoomWheelDelta = 0.0f;
+	Vector2 editorCameraPanDragDelta{};
+	bool editorViewportClickRequested = false;
+	Vector2 editorViewportClickNdc{};
 	bool showGrid = true;
 	bool showVelocity = true;
 	bool cameraFollow = true;
@@ -100,6 +103,7 @@ struct MagnetPrototypeUiRequest {
 class MagnetPrototypeWindow final {
 public:
 	MagnetPrototypeWindow();
+	void SetSelection(MagnetStageObjectType type, uint32_t id) noexcept;
 
 	[[nodiscard]] MagnetPrototypeUiRequest Draw(
 		const MagnetPrototypeViewData& viewData,

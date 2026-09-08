@@ -47,6 +47,10 @@ struct MagnetStageBoxPlacement {
 	uint32_t transferPairId = 0;
 	float rotationYDegrees = 0.0f;
 	float anchorAttractionRadius = kDefaultAnchorAttractionRadius;
+	bool moving = false;
+	Vector3 movementAmplitude{};
+	float movementPeriodSeconds = 4.0f;
+	float movementPhase = 0.0f;
 };
 
 struct MagnetStageGenerationSettings {
@@ -61,7 +65,7 @@ struct MagnetStageGenerationSettings {
 };
 
 struct MagnetStageData {
-	static constexpr uint32_t kSchemaVersion = 10;
+	static constexpr uint32_t kSchemaVersion = 11;
 	static constexpr uint32_t kOldestSupportedSchemaVersion = 1;
 	static constexpr std::size_t kMaximumBallCount = 24;
 	static constexpr std::size_t kMaximumGoalCount = 4;

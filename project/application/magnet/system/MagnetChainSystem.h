@@ -129,6 +129,9 @@ public:
 	[[nodiscard]] bool IsActiveUnattachedBallBody(
 		physics::BodyHandle body) const noexcept;
 	[[nodiscard]] const Goal& GetGoal() const noexcept { return goals_[0]; }
+	[[nodiscard]] const Goal& GetGoal(std::size_t index) const noexcept {
+		return goals_[index < goalCount_ ? index : 0];
+	}
 	[[nodiscard]] std::size_t GetGoalCount() const noexcept { return goalCount_; }
 	[[nodiscard]] std::size_t GetGoalHitCount() const noexcept { return goalHitCount_; }
 	[[nodiscard]] std::size_t GetScore() const noexcept { return score_; }
@@ -250,6 +253,7 @@ private:
 	[[nodiscard]] const MagnetStageBoxPlacement* FindObstacleById(
 		uint32_t obstacleId) const noexcept;
 	[[nodiscard]] bool CollectReleasedMagnetsInGoal() noexcept;
+	void UpdateMovingGoals(float fixedDeltaTime) noexcept;
 	void ScheduleBallRespawn(std::size_t stageBallIndex) noexcept;
 	[[nodiscard]] bool UpdateBallRespawns(float fixedDeltaTime) noexcept;
 	[[nodiscard]] bool TryFindBallRespawnPosition(
@@ -291,6 +295,9 @@ private:
 	FurnaceDissolveEvents furnaceDissolveEvents_{};
 	std::size_t furnaceDissolveEventCount_ = 0;
 	std::array<Goal, MagnetStageData::kMaximumGoalCount> goals_{};
+	std::array<MagnetStageBoxPlacement, MagnetStageData::kMaximumGoalCount>
+		goalPlacements_{};
+	float goalMovementElapsedSeconds_ = 0.0f;
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;
 	float respawnMinimumSpacing_ = 2.0f;

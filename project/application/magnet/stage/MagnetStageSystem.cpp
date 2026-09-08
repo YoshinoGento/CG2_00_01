@@ -148,6 +148,29 @@ bool ReadPosition(const nlohmann::json& object, Vector3& output)
 		std::isfinite(output.z);
 }
 
+bool ReadVector3(
+	const nlohmann::json& object,
+	const char* key,
+	Vector3& output)
+{
+	if (!object.contains(key) || !object[key].is_array() ||
+		object[key].size() != 3) {
+		return false;
+	}
+	for (std::size_t component = 0; component < 3; ++component) {
+		if (!object[key][component].is_number()) {
+			return false;
+		}
+	}
+	output = {
+		object[key][0].get<float>(),
+		object[key][1].get<float>(),
+		object[key][2].get<float>(),
+	};
+	return std::isfinite(output.x) && std::isfinite(output.y) &&
+		std::isfinite(output.z);
+}
+
 bool ReadSize(const nlohmann::json& object, Vector3& output)
 {
 	if (!object.contains("size") || !object["size"].is_array() ||
@@ -537,6 +560,11 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 				candidate.transferPairId = placements[index].transferPairId;
 				candidate.anchorAttractionRadius =
 					placements[index].anchorAttractionRadius;
+				candidate.moving = placements[index].moving;
+				candidate.movementAmplitude = placements[index].movementAmplitude;
+				candidate.movementPeriodSeconds =
+					placements[index].movementPeriodSeconds;
+				candidate.movementPhase = placements[index].movementPhase;
 				placements[index] = candidate;
 				return true;
 			}
@@ -751,6 +779,13 @@ bool MagnetStageSystem::Save(const std::string& path)
 				};
 				if (std::strcmp(type, kGoalType) == 0) {
 					object["score"] = placement.score;
+					object["moving"] = placement.moving;
+					object["movementAmplitude"] = {
+						placement.movementAmplitude.x,
+						placement.movementAmplitude.y,
+						placement.movementAmplitude.z };
+					object["movementPeriodSeconds"] = placement.movementPeriodSeconds;
+					object["movementPhase"] = placement.movementPhase;
 				} else {
 					const char* obstacleKind = ToObstacleKindString(placement.obstacleKind);
 					if (!obstacleKind) {
@@ -936,9 +971,29 @@ bool MagnetStageSystem::Load(const std::string& path)
 					}
 					score = object["score"].get<uint32_t>();
 				}
+				bool moving = false;
+				Vector3 movementAmplitude{};
+				float movementPeriodSeconds = 4.0f;
+				float movementPhase = 0.0f;
+				const bool hasMovementSettings = object.contains("moving") ||
+					object.contains("movementAmplitude") ||
+					object.contains("movementPeriodSeconds") ||
+					object.contains("movementPhase");
+				if (hasMovementSettings) {
+					if (!object.contains("moving") || !object["moving"].is_boolean() ||
+						!ReadVector3(object, "movementAmplitude", movementAmplitude) ||
+						!ReadFiniteFloat(object, "movementPeriodSeconds", movementPeriodSeconds) ||
+						!ReadFiniteFloat(object, "movementPhase", movementPhase)) {
+						SetOperationResult(false, "ゴールの移動設定が不正です。");
+						return false;
+					}
+					moving = object["moving"].get<bool>();
+				}
 				candidate.goals[candidate.goalCount++] = {
 					id, position, size, score, MagnetObstacleKind::Solid, 0u,
-					rotationYDegrees };
+					rotationYDegrees, kDefaultAnchorAttractionRadius,
+					moving, movementAmplitude,
+					movementPeriodSeconds, movementPhase };
 			} else if (type == kObstacleType &&
 				candidate.obstacleCount < candidate.obstacles.size()) {
 				MagnetObstacleKind obstacleKind = MagnetObstacleKind::Solid;
@@ -957,7 +1012,7 @@ bool MagnetStageSystem::Load(const std::string& path)
 				}
 				float anchorAttractionRadius = kDefaultAnchorAttractionRadius;
 				if (obstacleKind == MagnetObstacleKind::MagneticAnchor) {
-					if (schemaVersion >= 10u) {
+					if (object.contains("anchorAttractionRadius")) {
 						if (!ReadFiniteFloat(
 								object,
 								"anchorAttractionRadius",
@@ -1301,7 +1356,14 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 		}
 	}
 	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
-		if (stageData.goals[index].score == 0 || stageData.goals[index].score > 999) {
+		const MagnetStageBoxPlacement& goal = stageData.goals[index];
+		const Vector3 movementEnd = goal.position + goal.movementAmplitude;
+		if (goal.score == 0 || goal.score > 999 ||
+			!IsFinitePosition(goal.movementAmplitude) ||
+			!std::isfinite(goal.movementPeriodSeconds) ||
+			goal.movementPeriodSeconds < 0.25f || goal.movementPeriodSeconds > 120.0f ||
+			!std::isfinite(goal.movementPhase) ||
+			!IsInsideArena(movementEnd, stageData.arenaRadius)) {
 			return false;
 		}
 	}
