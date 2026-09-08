@@ -491,7 +491,8 @@ void MagnetPrototypeWindow::DrawViewport(
 				scoreMinimum.x + digitSize * static_cast<float>(scoreDigitCount) + 14.0f,
 				scoreMinimum.y + digitSize + 14.0f,
 			};
-			drawList->AddRectFilled(scoreMinimum, scoreMaximum, IM_COL32(10, 16, 24, 205), 7.0f);
+			drawList->AddRectFilled(
+				scoreMinimum, scoreMaximum, IM_COL32(238, 72, 82, 235), 7.0f);
 			drawList->AddRect(scoreMinimum, scoreMaximum, IM_COL32(255, 215, 70, 235), 7.0f, 0, 2.0f);
 			if (viewData.scoreNumberTextureSrvIndex != UINT32_MAX) {
 				const ImTextureID numberTexture = static_cast<ImTextureID>(
