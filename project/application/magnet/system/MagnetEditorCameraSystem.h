@@ -9,6 +9,9 @@ class MagnetEditorCameraSystem final {
 public:
 	void Reset() noexcept;
 	[[nodiscard]] bool ApplyWheelDelta(float wheelDelta) noexcept;
+	[[nodiscard]] bool ApplyPanDirection(
+		const Vector3& direction,
+		float deltaTime) noexcept;
 	[[nodiscard]] bool TryCalculatePosition(
 		const Vector3& focusPosition,
 		Vector3& outputPosition) const noexcept;
@@ -24,8 +27,11 @@ private:
 	static constexpr float kMaximumWheelStepsPerFrame = 8.0f;
 	static constexpr float kBaseHeight = 9.0f;
 	static constexpr float kBaseDepth = 13.0f;
+	static constexpr float kPanSpeed = 10.0f;
+	static constexpr float kMaximumPanDistance = 80.0f;
 
 	float zoomScale_ = kDefaultZoomScale;
+	Vector3 panOffset_{};
 };
 
 } // namespace magnet

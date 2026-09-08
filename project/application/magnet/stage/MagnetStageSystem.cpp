@@ -550,6 +550,11 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 				candidate.score = placements[index].score;
 				candidate.obstacleKind = placements[index].obstacleKind;
 				candidate.transferPairId = placements[index].transferPairId;
+				candidate.moving = placements[index].moving;
+				candidate.movementAmplitude = placements[index].movementAmplitude;
+				candidate.movementPeriodSeconds =
+					placements[index].movementPeriodSeconds;
+				candidate.movementPhase = placements[index].movementPhase;
 				placements[index] = candidate;
 				return true;
 			}

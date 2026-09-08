@@ -161,6 +161,14 @@ MagnetPrototypeWindow::MagnetPrototypeWindow()
 		"stage_new");
 }
 
+void MagnetPrototypeWindow::SetSelection(
+	MagnetStageObjectType type,
+	uint32_t id) noexcept
+{
+	selectedObjectType_ = type;
+	selectedObjectId_ = type == MagnetStageObjectType::Player ? 0u : id;
+}
+
 MagnetPrototypeUiRequest MagnetPrototypeWindow::Draw(
 	const MagnetPrototypeViewData& viewData,
 	SrvManager* srvManager,
@@ -443,6 +451,17 @@ void MagnetPrototypeWindow::DrawViewport(
 					srvManager->GetGPUDescriptorHandle(finalDisplaySrvIndex).ptr),
 				displaySize);
 			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
+				ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+				const ImVec2 mouse = ImGui::GetIO().MousePos;
+				const float normalizedX = (mouse.x - imagePosition.x) / displaySize.x;
+				const float normalizedY = (mouse.y - imagePosition.y) / displaySize.y;
+				request.editorViewportClickRequested = true;
+				request.editorViewportClickNdc = {
+					normalizedX * 2.0f - 1.0f,
+					1.0f - normalizedY * 2.0f,
+				};
+			}
+			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
 				ImGui::IsItemHovered()) {
 				const float wheelDelta = ImGui::GetIO().MouseWheel;
 				if (std::isfinite(wheelDelta)) {
@@ -467,7 +486,8 @@ void MagnetPrototypeWindow::DrawViewport(
 			drawList->AddText({ scoreMinimum.x + 11.0f, scoreMinimum.y + 7.0f },
 				IM_COL32(255, 230, 100, 255), scoreText);
 			if (viewData.editorMode == MagnetEditorMode::StageEdit) {
-				const char* zoomHelp = "ホイール: カメラをズーム";
+				const char* zoomHelp =
+					"WASD: 選択物を移動  R: 回転  矢印: カメラ  ホイール: ズーム";
 				const ImVec2 helpSize = ImGui::CalcTextSize(zoomHelp);
 				const ImVec2 helpPosition = {
 					imagePosition.x + displaySize.x - helpSize.x - kMinimapMargin,
@@ -617,6 +637,8 @@ void MagnetPrototypeWindow::DrawInspector(
 			ImGui::TextColored(
 				ImVec4{ 0.35f, 0.90f, 0.50f, 1.0f },
 				"配置編集中 - シミュレーションは一時停止しています");
+			ImGui::TextWrapped(
+				"操作: WASD 選択物を移動 / R 15°回転 / 矢印キー カメラ移動 / ホイール ズーム");
 			DrawStageEditor(viewData, request);
 		}
 

@@ -47,6 +47,8 @@ public:
 private:
 	void ProcessStageEditorRequest(
 		const magnet::MagnetPrototypeUiRequest& request);
+	void HandleStageEditorKeyboardInput(float deltaTime);
+	void SelectStageObjectAtNdc(const Vector2& clickNdc);
 	void SetEditorMode(magnet::MagnetEditorMode mode);
 	[[nodiscard]] Vector3 ResolveEditorFocusPosition() const noexcept;
 	[[nodiscard]] Vector3 CalculatePlayCameraPosition() noexcept;
