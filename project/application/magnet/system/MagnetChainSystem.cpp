@@ -260,6 +260,7 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 	}
 	obstacles_.fill({});
 	obstacleCount_ = stageData.obstacleCount;
+	configuredObstacleCount_ = obstacleCount_;
 	for (std::size_t index = 0; index < obstacleCount_; ++index) {
 		const MagnetStageBoxPlacement& obstacle = stageData.obstacles[index];
 		if (obstacle.id == 0 || !IsFinite(obstacle.position) ||
@@ -316,6 +317,7 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 			goals_[index].score = authoredGoal.score;
 		}
 	}
+	configuredGoalCount_ = goalCount_;
 	return RebuildRuntime();
 }
 

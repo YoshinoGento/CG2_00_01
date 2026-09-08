@@ -253,7 +253,7 @@ void TitleScene::Update()
 	if (page_ == Page::Title) {
 		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
 	} else if (page_ == Page::Instructions) {
-		SceneManager::GetInstance()->ChangeScene("MAGNET_PROTOTYPE");
+		SceneManager::GetInstance()->ChangeScene("TUTORIAL");
 	} else {
 		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
 	}

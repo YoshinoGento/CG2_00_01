@@ -35,6 +35,8 @@ class Skybox;
 // Isolated visual test for fixed-step magnet-chain behavior.
 class MagnetPrototypeScene final : public BaseScene {
 public:
+	explicit MagnetPrototypeScene(bool tutorialMode = false) noexcept
+		: tutorialMode_(tutorialMode) {}
 	void Initialize() override;
 	void Finalize() override;
 	void PrepareFixedUpdate() override;
@@ -73,6 +75,21 @@ private:
 	void RefreshGameFlowUi();
 	void DrawGameFlowUi();
 	void CompleteTimedGame();
+	[[nodiscard]] bool StartTutorialMagnetPhase();
+	void SkipTutorialPhase();
+	void UpdateTutorialProgress(float fixedDeltaTime);
+	[[nodiscard]] bool InitializeTutorialUi();
+	void UpdateTutorialUi();
+	void DrawTutorialUi();
+	void DrawTutorialSkipUi();
+	void DrawTutorialObstacleGuide();
+
+	enum class TutorialPhase : uint8_t {
+		Movement,
+		AttachMagnets,
+		ScoreGoal,
+		TryObstacles,
+	};
 
 	Framework* framework_ = nullptr;
 	std::unique_ptr<Camera> camera_;
@@ -140,6 +157,8 @@ private:
 	std::unique_ptr<Object3d> backTitleLabelObject_;
 	std::unique_ptr<Object3d> volumeLabelObject_;
 	std::unique_ptr<Object3d> seVolumeLabelObject_;
+	std::unique_ptr<Object3d> scoreHudObject_;
+	uint32_t scoreNumberTextureSrvIndex_ = UINT32_MAX;
 	SpriteText timerText_;
 	SpriteText pauseTitleText_;
 	std::array<SpriteText, 5> pauseMenuTexts_{};
@@ -154,4 +173,26 @@ private:
 	bool menuStickDownWasPressed_ = false;
 	bool menuStickLeftWasPressed_ = false;
 	bool menuStickRightWasPressed_ = false;
+	bool tutorialMode_ = false;
+	TutorialPhase tutorialPhase_ = TutorialPhase::Movement;
+	float tutorialMovementDistance_ = 0.0f;
+	std::size_t tutorialScoreAtGoalStart_ = 0;
+	bool tutorialUiReady_ = false;
+	std::array<std::unique_ptr<Sprite>, 4> tutorialKeySprites_{};
+	std::array<std::unique_ptr<Sprite>, 4> tutorialKeyImageSprites_{};
+	std::unique_ptr<Sprite> tutorialMoveGuideSprite_;
+	std::unique_ptr<Sprite> tutorialAttractGuideSprite_;
+	std::unique_ptr<Sprite> tutorialShootGuideSprite_;
+	std::unique_ptr<Sprite> tutorialGimmickGuideSprite_;
+	std::unique_ptr<Sprite> tutorialSkipSprite_;
+	std::unique_ptr<Sprite> tutorialSkipEnterSprite_;
+	std::unique_ptr<Object3d> tutorialTransitionKeyObject_;
+	SpriteText tutorialMessageText_;
+	std::unique_ptr<Sprite> tutorialObstacleGuidePanel_;
+	std::array<std::unique_ptr<Sprite>, 7> tutorialObstacleIcons_{};
+	BitmapFont tutorialObstacleFont_;
+	SpriteText tutorialObstacleGuideTitle_;
+	std::array<SpriteText, 7> tutorialObstacleNames_{};
+	std::array<SpriteText, 7> tutorialObstacleDescriptions_{};
+	bool tutorialObstacleGuideVisible_ = false;
 };

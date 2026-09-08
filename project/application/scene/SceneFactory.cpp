@@ -19,6 +19,8 @@ std::unique_ptr<BaseScene> SceneFactory::CreateScene(const std::string& sceneNam
 		return std::make_unique<GamePlayScene>();
 	} else if (sceneName == "MAGNET_PROTOTYPE") {
 		return std::make_unique<MagnetPrototypeScene>();
+	} else if (sceneName == "TUTORIAL") {
+		return std::make_unique<MagnetPrototypeScene>(true);
 	} else if (sceneName == "EFFECT_EDITOR") {
 		return std::make_unique<EffectEditorScene>();
 	}
