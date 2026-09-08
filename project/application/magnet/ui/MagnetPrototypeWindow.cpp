@@ -106,6 +106,27 @@ uint32_t GetNextBallId(
 	return maximumId == UINT32_MAX ? 0u : maximumId + 1u;
 }
 
+Vector3 GetSuggestedForwardPosition(
+	const MagnetStageData& stageData,
+	float forwardDistance,
+	float height,
+	float edgePadding) noexcept
+{
+	Vector3 position{
+		stageData.playerPosition.x,
+		height,
+		stageData.playerPosition.z + forwardDistance,
+	};
+	const float usableRadius = (std::max)(stageData.arenaRadius - edgePadding, 0.0f);
+	const float distanceSquared = position.x * position.x + position.z * position.z;
+	if (distanceSquared > usableRadius * usableRadius && distanceSquared > 1.0e-8f) {
+		const float scale = usableRadius / std::sqrt(distanceSquared);
+		position.x *= scale;
+		position.z *= scale;
+	}
+	return position;
+}
+
 std::size_t CountTransferGateEndpoints(
 	const MagnetStageData& stageData,
 	uint32_t pairId,
@@ -163,6 +184,7 @@ MagnetPrototypeUiRequest MagnetPrototypeWindow::Draw(
 	DrawHierarchy(viewData, request);
 	DrawViewport(
 		viewData,
+		request,
 		srvManager,
 		finalDisplaySrvIndex,
 		virtualWidth,
@@ -381,6 +403,7 @@ void MagnetPrototypeWindow::DrawHierarchy(
 
 void MagnetPrototypeWindow::DrawViewport(
 	const MagnetPrototypeViewData& viewData,
+	MagnetPrototypeUiRequest& request,
 	SrvManager* srvManager,
 	uint32_t finalDisplaySrvIndex,
 	float virtualWidth,
@@ -388,7 +411,12 @@ void MagnetPrototypeWindow::DrawViewport(
 {
 #ifdef USE_IMGUI
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
-	if (ImGui::Begin(kViewportWindowName, nullptr, ImGuiWindowFlags_NoCollapse)) {
+	if (ImGui::Begin(
+		kViewportWindowName,
+		nullptr,
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoScrollbar |
+		ImGuiWindowFlags_NoScrollWithMouse)) {
 		const bool validTexture = srvManager != nullptr &&
 			srvManager->IsAllocated(finalDisplaySrvIndex);
 		const bool validVirtualSize = std::isfinite(virtualWidth) &&
@@ -414,6 +442,13 @@ void MagnetPrototypeWindow::DrawViewport(
 				static_cast<ImTextureID>(
 					srvManager->GetGPUDescriptorHandle(finalDisplaySrvIndex).ptr),
 				displaySize);
+			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
+				ImGui::IsItemHovered()) {
+				const float wheelDelta = ImGui::GetIO().MouseWheel;
+				if (std::isfinite(wheelDelta)) {
+					request.editorCameraZoomWheelDelta = wheelDelta;
+				}
+			}
 
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
 			char scoreText[64]{};
@@ -431,6 +466,15 @@ void MagnetPrototypeWindow::DrawViewport(
 			drawList->AddRect(scoreMinimum, scoreMaximum, IM_COL32(255, 215, 70, 235), 7.0f, 0, 2.0f);
 			drawList->AddText({ scoreMinimum.x + 11.0f, scoreMinimum.y + 7.0f },
 				IM_COL32(255, 230, 100, 255), scoreText);
+			if (viewData.editorMode == MagnetEditorMode::StageEdit) {
+				const char* zoomHelp = "ホイール: カメラをズーム";
+				const ImVec2 helpSize = ImGui::CalcTextSize(zoomHelp);
+				const ImVec2 helpPosition = {
+					imagePosition.x + displaySize.x - helpSize.x - kMinimapMargin,
+					imagePosition.y + displaySize.y - helpSize.y - kMinimapMargin,
+				};
+				drawList->AddText(helpPosition, IM_COL32(235, 240, 255, 220), zoomHelp);
+			}
 		} else {
 			ImGui::SetCursorPos({ 16.0f, 16.0f });
 			ImGui::TextDisabled("ゲーム画面を表示できません。");
@@ -440,6 +484,7 @@ void MagnetPrototypeWindow::DrawViewport(
 	ImGui::PopStyleVar();
 #else
 	(void)viewData;
+	(void)request;
 	(void)srvManager;
 	(void)finalDisplaySrvIndex;
 	(void)virtualWidth;
@@ -815,11 +860,8 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			if (ImGui::Button("小さい球を追加して選択", { -1.0f, 34.0f })) {
 				Vector3 position{ 0.0f, 0.5f, 4.0f };
 				if (stageData) {
-					position.x = stageData->playerPosition.x;
-					position.z = std::clamp(
-						stageData->playerPosition.z + 4.0f,
-						stageData->generation.minimumZ,
-						stageData->generation.maximumZ);
+					position = GetSuggestedForwardPosition(
+						*stageData, 4.0f, 0.5f, 0.5f);
 					selectedObjectType_ = MagnetStageObjectType::MagnetBall;
 					selectedObjectId_ = GetNextBallId(
 						stageData->balls.data(), stageData->ballCount);
@@ -849,11 +891,8 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			if (ImGui::Button("ゴールを追加して選択", { -1.0f, 34.0f })) {
 				Vector3 position{ 0.0f, 1.0f, 8.0f };
 				if (stageData) {
-					position.x = stageData->playerPosition.x;
-					position.z = std::clamp(
-						stageData->playerPosition.z + 8.0f,
-						stageData->generation.minimumZ,
-						stageData->generation.maximumZ);
+					position = GetSuggestedForwardPosition(
+						*stageData, 8.0f, 1.0f, 0.75f);
 					selectedObjectType_ = MagnetStageObjectType::Goal;
 					selectedObjectId_ = GetNextBoxId(
 						stageData->goals.data(), stageData->goalCount);
@@ -900,11 +939,11 @@ void MagnetPrototypeWindow::DrawStageEditor(
 					obstaclePaletteKind_ == MagnetObstacleKind::Chainsaw ? 0.3f : 0.5f;
 				Vector3 position{ 0.0f, size.y * centerHeightRatio, 4.0f };
 				if (stageData) {
-					position.x = stageData->playerPosition.x;
-					position.z = std::clamp(
-						stageData->playerPosition.z + 4.0f,
-						stageData->generation.minimumZ,
-						stageData->generation.maximumZ);
+					position = GetSuggestedForwardPosition(
+						*stageData,
+						4.0f,
+						size.y * centerHeightRatio,
+						0.75f);
 					selectedObjectType_ = MagnetStageObjectType::Obstacle;
 					selectedObjectId_ = GetNextBoxId(
 						stageData->obstacles.data(), stageData->obstacleCount);
@@ -927,24 +966,28 @@ void MagnetPrototypeWindow::DrawStageEditor(
 		ImGui::EndTabBar();
 	}
 
-	ImGui::Separator();
-	if (ImGui::TreeNodeEx("ステージ全体の設定###StageWideSettings")) {
-		if (stageData) {
-			float arenaRadius = stageData->arenaRadius;
-			ImGui::SetNextItemWidth(-1.0f);
-			if (ImGui::SliderFloat(
-				"ステージ半径",
-				&arenaRadius,
-				4.0f,
-				40.0f,
-				"%.1f")) {
-				request.stageAction = MagnetStageEditorAction::SetArenaRadius;
-				request.arenaRadius = arenaRadius;
-			}
-			ImGui::TextDisabled("円形の床と外周壁の大きさを変更します。");
+	ImGui::SeparatorText("ステージの大きさ");
+	if (stageData) {
+		float arenaRadius = stageData->arenaRadius;
+		ImGui::SetNextItemWidth(-1.0f);
+		if (ImGui::SliderFloat(
+			"半径##StageArenaRadius",
+			&arenaRadius,
+			4.0f,
+			40.0f,
+			"%.1f")) {
+			request.stageAction = MagnetStageEditorAction::SetArenaRadius;
+			request.arenaRadius = arenaRadius;
 		}
+		ImGui::Text(
+			"直径 %.1f / 配置可能範囲: 中心から半径 %.1f",
+			stageData->arenaRadius * 2.0f,
+			stageData->arenaRadius);
+		ImGui::TextDisabled(
+			"この値が床・外周壁・手動配置の端をまとめて決めます。");
+	}
 
-		if (ImGui::TreeNodeEx("小さい球のランダム配置")) {
+	if (ImGui::TreeNodeEx("小さい球のランダム配置###RandomBallPlacement")) {
 			int ballCount = static_cast<int>(generationSettings_.ballCount);
 			if (ImGui::SliderInt(
 				"球の数",
@@ -991,8 +1034,6 @@ void MagnetPrototypeWindow::DrawStageEditor(
 				request.stageAction = MagnetStageEditorAction::GenerateBalanced;
 				request.generationSettings = generationSettings_;
 			}
-			ImGui::TreePop();
-		}
 		ImGui::TreePop();
 	}
 

@@ -191,6 +191,7 @@ void MagnetPrototypeScene::Initialize()
 	camera_->SetTranslate({ 0.0f, 11.0f, -16.0f });
 	camera_->SetRotate({ 0.60f, 0.0f, 0.0f });
 	camera_->Update();
+	magnetEditorCameraSystem_.Reset();
 	skybox_ = std::make_unique<Skybox>();
 	skybox_->InitializeGradient(
 		framework_->GetDxCommon(),
@@ -562,8 +563,9 @@ void MagnetPrototypeScene::Update()
 		bool shouldMoveCamera = false;
 		if (prototypeReady_ && editorMode_ == magnet::MagnetEditorMode::StageEdit) {
 			const Vector3 focus = ResolveEditorFocusPosition();
-			desiredPosition = { focus.x, focus.y + 9.0f, focus.z - 13.0f };
-			shouldMoveCamera = IsFiniteVector3(desiredPosition);
+			shouldMoveCamera = magnetEditorCameraSystem_.TryCalculatePosition(
+				focus,
+				desiredPosition);
 		} else if (prototypeReady_ && releaseOverviewActive_) {
 			desiredPosition = CalculatePlayCameraPosition();
 			shouldMoveCamera = IsFiniteVector3(desiredPosition);
@@ -675,6 +677,14 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 	}
 	selectedObjectType_ = request.selectedObjectType;
 	selectedObjectId_ = request.selectedObjectId;
+	if (editorMode_ == magnet::MagnetEditorMode::StageEdit &&
+		request.editorCameraZoomWheelDelta != 0.0f &&
+		!magnetEditorCameraSystem_.ApplyWheelDelta(
+			request.editorCameraZoomWheelDelta)) {
+		magnetEditorCameraSystem_.Reset();
+		Logger::Log(
+			"MagnetPrototypeScene: invalid editor camera wheel input was rejected.");
+	}
 	if (editorMode_ == magnet::MagnetEditorMode::Play) {
 		resetRequested_ = resetRequested_ || request.reset;
 		pendingCommand_.emergencyStop =
@@ -1399,6 +1409,9 @@ void MagnetPrototypeScene::SetEditorMode(magnet::MagnetEditorMode mode)
 		return;
 	}
 	editorMode_ = mode;
+	if (editorMode_ == magnet::MagnetEditorMode::StageEdit) {
+		magnetEditorCameraSystem_.Reset();
+	}
 	pendingCommand_ = {};
 	resetRequested_ = false;
 	releaseOverviewActive_ = false;

@@ -249,6 +249,15 @@ private:
 	[[nodiscard]] const MagnetStageBoxPlacement* FindObstacleById(
 		uint32_t obstacleId) const noexcept;
 	[[nodiscard]] bool CollectReleasedMagnetsInGoal() noexcept;
+	void ScheduleBallRespawn(std::size_t stageBallIndex) noexcept;
+	[[nodiscard]] bool UpdateBallRespawns(float fixedDeltaTime) noexcept;
+	[[nodiscard]] bool TryFindBallRespawnPosition(
+		std::size_t stageBallIndex,
+		Vector3& outputPosition) noexcept;
+	[[nodiscard]] bool IsBallRespawnPositionClear(
+		std::size_t stageBallIndex,
+		const Vector3& position) const noexcept;
+	[[nodiscard]] float NextRespawnUnit() noexcept;
 	void DeactivateDistantReleasedBalls() noexcept;
 
 	physics::PhysicsWorld physicsWorld_;
@@ -270,6 +279,7 @@ private:
 	std::array<StageBallState, kStageBallCapacity> stageBallStates_{};
 	std::array<uint32_t, kStageBallCapacity> stageBallIds_{};
 	std::array<MagnetStageBallPlacement, kStageBallCapacity> stageLayoutBalls_{};
+	std::array<float, kStageBallCapacity> ballRespawnTimers_{};
 	std::array<MagnetStageBoxPlacement, MagnetStageData::kMaximumObstacleCount> obstacles_{};
 	Vector3 stagePlayerPosition_{ 0.0f, 0.75f, 0.0f };
 	PlayerCommand command_{};
@@ -282,6 +292,10 @@ private:
 	std::array<Goal, MagnetStageData::kMaximumGoalCount> goals_{};
 	Vector3 playerVelocity_{};
 	float playerHeadingRadians_ = 0.0f;
+	float respawnMinimumSpacing_ = 2.0f;
+	float respawnPlayerClearRadius_ = 3.0f;
+	uint32_t respawnSeed_ = 20260902u;
+	uint32_t respawnRandomState_ = 20260902u;
 	std::size_t stageBallCount_ = 0;
 	std::size_t obstacleCount_ = 0;
 	std::size_t leftChainCount_ = 0;

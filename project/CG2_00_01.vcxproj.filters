@@ -29,6 +29,7 @@
     <ClCompile Include="application\magnet\system\ObstacleCollisionSystem.cpp" />
     <ClCompile Include="application\magnet\system\SpinChargeController.cpp" />
     <ClCompile Include="application\magnet\system\MagnetChainSystem.cpp" />
+    <ClCompile Include="application\magnet\system\MagnetEditorCameraSystem.cpp" />
     <ClCompile Include="application\magnet\ui\MagnetPrototypeWindow.cpp" />
 	<ClCompile Include="application\scene\MagnetPrototypeScene.cpp" />
 	<ClCompile Include="application\scene\EffectEditorScene.cpp">
@@ -161,6 +162,7 @@
     <ClInclude Include="application\magnet\system\ObstacleCollisionSystem.h" />
     <ClInclude Include="application\magnet\system\SpinChargeController.h" />
     <ClInclude Include="application\magnet\system\MagnetChainSystem.h" />
+    <ClInclude Include="application\magnet\system\MagnetEditorCameraSystem.h" />
     <ClInclude Include="application\magnet\ui\MagnetPrototypeWindow.h" />
     <ClInclude Include="application\scene\MagnetPrototypeScene.h" />
 	<ClInclude Include="engine\physics\PhysicsWorld.h" />

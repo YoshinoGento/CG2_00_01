@@ -24,6 +24,13 @@ constexpr float kDynamicBodyDamping = 0.12f;
 constexpr float kReleasedBallGravityScale = 1.0f;
 constexpr float kReleasedBallRestitution = 0.46f;
 constexpr float kReleasedBallGroundFriction = 0.28f;
+constexpr float kBallRespawnDelaySeconds = 2.0f;
+constexpr float kBallRespawnRetrySeconds = 0.25f;
+constexpr float kBallRespawnEdgePadding = 0.35f;
+constexpr float kBallRespawnObjectPadding = 0.35f;
+constexpr float kRespawnNotScheduled = -1.0f;
+constexpr std::size_t kBallRespawnCandidateCount = 96;
+constexpr uint32_t kRespawnFallbackSeed = 0xA341316Cu;
 constexpr float kReleaseLiftRatio = 0.16f;
 constexpr float kMinimumReleaseLiftSpeed = 1.05f;
 constexpr float kMaximumReleaseLiftSpeed = 2.20f;
@@ -203,7 +210,11 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 	if (stageData.ballCount > stageLayoutBalls_.size() ||
 		stageData.goalCount > stageData.goals.size() ||
 		stageData.obstacleCount > obstacles_.size() ||
-		!IsFinite(stageData.playerPosition)) {
+		!IsFinite(stageData.playerPosition) ||
+		!std::isfinite(stageData.generation.minimumSpacing) ||
+		stageData.generation.minimumSpacing <= 0.0f ||
+		!std::isfinite(stageData.generation.playerClearRadius) ||
+		stageData.generation.playerClearRadius < 0.0f) {
 		return false;
 	}
 	for (std::size_t index = 0; index < stageData.ballCount; ++index) {
@@ -219,6 +230,14 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 	}
 
 	stagePlayerPosition_ = stageData.playerPosition;
+	respawnMinimumSpacing_ = (std::max)(
+		stageData.generation.minimumSpacing,
+		kMagnetDiameter + kBallRespawnObjectPadding);
+	respawnPlayerClearRadius_ = (std::max)(
+		stageData.generation.playerClearRadius,
+		kAttachmentRadius + kMagnetRadius);
+	respawnSeed_ = stageData.generation.seed != 0u
+		? stageData.generation.seed : kRespawnFallbackSeed;
 	CircularArenaBoundary::Settings arenaSettings{};
 	arenaSettings.radius = stageData.arenaRadius;
 	arenaBoundary_.SetSettings(arenaSettings);
@@ -315,6 +334,11 @@ bool MagnetChainSystem::RebuildRuntime()
 	stageBalls_.fill({});
 	stageBallStates_.fill(StageBallState::Inactive);
 	stageBallIds_.fill(0);
+	ballRespawnTimers_.fill(kRespawnNotScheduled);
+	respawnRandomState_ = respawnSeed_ ^ 0x9E3779B9u;
+	if (respawnRandomState_ == 0u) {
+		respawnRandomState_ = kRespawnFallbackSeed;
+	}
 	leftChainCount_ = 0;
 	rightChainCount_ = 0;
 	healthy_ = false;
@@ -507,6 +531,10 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		return false;
 	}
 	DeactivateDistantReleasedBalls();
+	if (!UpdateBallRespawns(fixedDeltaTime)) {
+		healthy_ = false;
+		return false;
+	}
 	return true;
 }
 
@@ -533,6 +561,7 @@ bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
 			!physicsWorld_.SetLinearVelocity(handle, {}) ||
 			!physicsWorld_.SetActive(handle, false)) { return false; }
 		stageBallStates_[index] = StageBallState::Inactive;
+		ScheduleBallRespawn(index);
 		++goalHitCount_;
 		score_ += enteredGoal->score;
 		++goalEvent_.scoredBallCount;
@@ -1148,17 +1177,25 @@ bool MagnetChainSystem::ApplyObstacleEvent(
 	const float dissolveRadius = body->radius;
 	if (state == StageBallState::AttachedLeft ||
 		state == StageBallState::AttachedRight) {
-		return DetachChainSegment(event.body, true) &&
-			PublishFurnaceDissolveEvent(
-				event.body, dissolvePosition, dissolveRadius, event.obstacleId);
+		if (!DetachChainSegment(event.body, true) ||
+			!PublishFurnaceDissolveEvent(
+				event.body, dissolvePosition, dissolveRadius, event.obstacleId)) {
+			return false;
+		}
+		ScheduleBallRespawn(stageBallIndex);
+		return true;
 	}
 	if (!impactAttachmentSystem_.DetachBody(physicsWorld_, event.body) ||
 		!physicsWorld_.SetActive(event.body, false)) {
 		return false;
 	}
 	stageBallStates_[stageBallIndex] = StageBallState::Inactive;
-	return PublishFurnaceDissolveEvent(
-		event.body, dissolvePosition, dissolveRadius, event.obstacleId);
+	if (!PublishFurnaceDissolveEvent(
+		event.body, dissolvePosition, dissolveRadius, event.obstacleId)) {
+		return false;
+	}
+	ScheduleBallRespawn(stageBallIndex);
+	return true;
 }
 
 bool MagnetChainSystem::PublishFurnaceDissolveEvent(
@@ -1318,6 +1355,141 @@ const MagnetStageBoxPlacement* MagnetChainSystem::FindObstacleById(
 		}
 	}
 	return nullptr;
+}
+
+void MagnetChainSystem::ScheduleBallRespawn(std::size_t stageBallIndex) noexcept
+{
+	if (stageBallIndex >= stageBallCount_ ||
+		stageBallStates_[stageBallIndex] != StageBallState::Inactive) {
+		return;
+	}
+	ballRespawnTimers_[stageBallIndex] = kBallRespawnDelaySeconds;
+}
+
+bool MagnetChainSystem::UpdateBallRespawns(float fixedDeltaTime) noexcept
+{
+	for (std::size_t index = 0; index < stageBallCount_; ++index) {
+		float& remainingSeconds = ballRespawnTimers_[index];
+		if (remainingSeconds < 0.0f) {
+			continue;
+		}
+		if (stageBallStates_[index] != StageBallState::Inactive) {
+			remainingSeconds = kRespawnNotScheduled;
+			continue;
+		}
+		remainingSeconds = (std::max)(0.0f, remainingSeconds - fixedDeltaTime);
+		if (remainingSeconds > 0.0f) {
+			continue;
+		}
+
+		Vector3 respawnPosition{};
+		if (!TryFindBallRespawnPosition(index, respawnPosition)) {
+			// A crowded authored stage is not a fatal simulation error. Keep the ball
+			// inactive and retry at a bounded interval instead of forcing an overlap.
+			remainingSeconds = kBallRespawnRetrySeconds;
+			continue;
+		}
+		const physics::BodyHandle handle = stageBalls_[index];
+		const physics::SphereBody* body = physicsWorld_.GetBody(handle);
+		if (!body || body->active ||
+			!physicsWorld_.SetPosition(handle, respawnPosition) ||
+			!physicsWorld_.SetHorizontalPlaneLock(handle, true, kMagnetRadius) ||
+			!physicsWorld_.SetActive(handle, true) ||
+			!physicsWorld_.SetLinearVelocity(handle, {})) {
+			return false;
+		}
+		stageBallStates_[index] = StageBallState::Available;
+		remainingSeconds = kRespawnNotScheduled;
+	}
+	return true;
+}
+
+bool MagnetChainSystem::TryFindBallRespawnPosition(
+	std::size_t stageBallIndex,
+	Vector3& outputPosition) noexcept
+{
+	if (stageBallIndex >= stageBallCount_) {
+		return false;
+	}
+	const float usableRadius =
+		arenaBoundary_.GetRadius() - kMagnetRadius - kBallRespawnEdgePadding;
+	if (!std::isfinite(usableRadius) || usableRadius <= 0.0f) {
+		return false;
+	}
+	for (std::size_t candidateIndex = 0;
+		candidateIndex < kBallRespawnCandidateCount;
+		++candidateIndex) {
+		const float angle = NextRespawnUnit() * kTwoPi;
+		const float radius = std::sqrt(NextRespawnUnit()) * usableRadius;
+		const Vector3 candidate{
+			std::cos(angle) * radius,
+			kMagnetRadius,
+			std::sin(angle) * radius,
+		};
+		if (IsBallRespawnPositionClear(stageBallIndex, candidate)) {
+			outputPosition = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool MagnetChainSystem::IsBallRespawnPositionClear(
+	std::size_t stageBallIndex,
+	const Vector3& position) const noexcept
+{
+	if (stageBallIndex >= stageBallCount_ || !IsFinite(position)) {
+		return false;
+	}
+	const physics::SphereBody* player = physicsWorld_.GetBody(playerBody_);
+	if (!player || !player->active || !IsFinite(player->position) ||
+		LengthSquaredXZ(position - player->position) <
+			respawnPlayerClearRadius_ * respawnPlayerClearRadius_) {
+		return false;
+	}
+	for (std::size_t index = 0; index < stageBallCount_; ++index) {
+		if (index == stageBallIndex || stageBallStates_[index] == StageBallState::Inactive) {
+			continue;
+		}
+		const physics::SphereBody* body = physicsWorld_.GetBody(stageBalls_[index]);
+		if (!body || !body->active || !IsFinite(body->position) ||
+			LengthSquaredXZ(position - body->position) <
+				respawnMinimumSpacing_ * respawnMinimumSpacing_) {
+			return false;
+		}
+	}
+	for (std::size_t index = 0; index < goalCount_; ++index) {
+		const Goal& goal = goals_[index];
+		const float halfWidth = goal.width * 0.5f +
+			kMagnetRadius + kBallRespawnObjectPadding;
+		const float halfDepth = goal.depth * 0.5f +
+			kMagnetRadius + kBallRespawnObjectPadding;
+		if (std::abs(position.x - goal.center.x) <= halfWidth &&
+			std::abs(position.z - goal.center.z) <= halfDepth) {
+			return false;
+		}
+	}
+	for (std::size_t index = 0; index < obstacleCount_; ++index) {
+		const MagnetStageBoxPlacement& obstacle = obstacles_[index];
+		const float halfWidth = obstacle.size.x * 0.5f +
+			kMagnetRadius + kBallRespawnObjectPadding;
+		const float halfDepth = obstacle.size.z * 0.5f +
+			kMagnetRadius + kBallRespawnObjectPadding;
+		if (std::abs(position.x - obstacle.position.x) <= halfWidth &&
+			std::abs(position.z - obstacle.position.z) <= halfDepth) {
+			return false;
+		}
+	}
+	return true;
+}
+
+float MagnetChainSystem::NextRespawnUnit() noexcept
+{
+	respawnRandomState_ ^= respawnRandomState_ << 13u;
+	respawnRandomState_ ^= respawnRandomState_ >> 17u;
+	respawnRandomState_ ^= respawnRandomState_ << 5u;
+	return static_cast<float>(respawnRandomState_ >> 8u) *
+		(1.0f / 16777216.0f);
 }
 
 void MagnetChainSystem::DeactivateDistantReleasedBalls() noexcept

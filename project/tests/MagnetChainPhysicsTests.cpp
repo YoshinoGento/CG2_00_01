@@ -1,6 +1,7 @@
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/BallMomentumTracker.h"
 #include "application/magnet/system/MagnetChainSystem.h"
+#include "application/magnet/system/MagnetEditorCameraSystem.h"
 #include "application/magnet/system/MagneticImpactAttachmentSystem.h"
 #include "application/magnet/system/SpinChargeController.h"
 #include "io/JsonFile.h"
@@ -10,6 +11,7 @@
 #include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 
 namespace {
 
@@ -142,6 +144,60 @@ float GetMinimumPairDistance(const magnet::MagnetStageData& stage)
 
 int main()
 {
+	magnet::MagnetEditorCameraSystem editorCamera;
+	Vector3 editorCameraPosition{};
+	const Vector3 editorFocus{ 2.0f, 1.0f, -3.0f };
+	if (!editorCamera.TryCalculatePosition(editorFocus, editorCameraPosition) ||
+		!ApproximatelyEqual(editorCameraPosition, { 2.0f, 10.0f, -16.0f })) {
+		std::cerr << "Default editor camera position is invalid.\n";
+		return 181;
+	}
+	const float defaultZoomScale = editorCamera.GetZoomScale();
+	if (!editorCamera.ApplyWheelDelta(1.0f) ||
+		editorCamera.GetZoomScale() >= defaultZoomScale ||
+		!editorCamera.TryCalculatePosition(editorFocus, editorCameraPosition) ||
+		editorCameraPosition.z <= -16.0f) {
+		std::cerr << "Editor camera zoom-in direction is invalid.\n";
+		return 182;
+	}
+	if (!editorCamera.ApplyWheelDelta(-1.0f) ||
+		std::abs(editorCamera.GetZoomScale() - defaultZoomScale) > 1.0e-5f) {
+		std::cerr << "Editor camera wheel zoom is not reversible.\n";
+		return 183;
+	}
+	for (int index = 0; index < 32; ++index) {
+		if (!editorCamera.ApplyWheelDelta(8.0f)) {
+			std::cerr << "Editor camera minimum clamp update failed.\n";
+			return 184;
+		}
+	}
+	if (std::abs(editorCamera.GetZoomScale() -
+		magnet::MagnetEditorCameraSystem::kMinimumZoomScale) > 1.0e-5f) {
+		std::cerr << "Editor camera minimum zoom clamp failed.\n";
+		return 185;
+	}
+	for (int index = 0; index < 32; ++index) {
+		if (!editorCamera.ApplyWheelDelta(-8.0f)) {
+			std::cerr << "Editor camera maximum clamp update failed.\n";
+			return 186;
+		}
+	}
+	if (std::abs(editorCamera.GetZoomScale() -
+		magnet::MagnetEditorCameraSystem::kMaximumZoomScale) > 1.0e-5f) {
+		std::cerr << "Editor camera maximum zoom clamp failed.\n";
+		return 187;
+	}
+	const float validZoomScale = editorCamera.GetZoomScale();
+	if (editorCamera.ApplyWheelDelta(std::numeric_limits<float>::quiet_NaN()) ||
+		editorCamera.GetZoomScale() != validZoomScale ||
+		editorCamera.TryCalculatePosition(
+			{ std::numeric_limits<float>::infinity(), 0.0f, 0.0f },
+			editorCameraPosition)) {
+		std::cerr << "Editor camera rejected-input handling failed.\n";
+		return 188;
+	}
+	std::cout << "editor_camera_zoom_checks=passed\n";
+
 	physics::PhysicsWorld rollingWorld;
 	physics::SphereBodyDesc rollingDesc{};
 	rollingDesc.position = { 0.0f, 2.0f, 0.0f };
@@ -596,6 +652,22 @@ int main()
 		std::cerr << "Goal/Obstacle validation or generator preservation failed.\n";
 		return 107;
 	}
+	magnet::MagnetStageGenerationSettings largeGeneration = generation;
+	largeGeneration.ballCount = 4;
+	magnet::MagnetStageSystem largeStageSystem;
+	if (!largeStageSystem.GenerateBalanced(largeGeneration) ||
+		!largeStageSystem.SetArenaRadius(20.0f) ||
+		!largeStageSystem.SetPlayerPosition({ 15.0f, 0.75f, 0.0f }) ||
+		!largeStageSystem.AddBall({ -18.0f, 0.5f, 0.0f }) ||
+		!largeStageSystem.AddBoxObject(
+			magnet::MagnetStageObjectType::Goal,
+			{ 0.0f, 1.0f, 18.5f },
+			{ 2.5f, 2.0f, 1.0f }) ||
+		largeStageSystem.SetArenaRadius(12.0f) ||
+		largeStageSystem.SetBallPosition(5u, { 20.1f, 0.5f, 0.0f })) {
+		std::cerr << "Large circular stage authoring bounds are invalid.\n";
+		return 217;
+	}
 	magnet::MagnetStageSystem defaultStageSystem;
 	if (!defaultStageSystem.Load("project/Resources/levels/magnet/stage_01.json") ||
 		defaultStageSystem.GetStageData().ballCount != 16 ||
@@ -609,6 +681,13 @@ int main()
 		std::cerr << "Tracked default stage JSON is invalid.\n";
 		return 7;
 	}
+	magnet::MagnetStageSystem legacyLargeStageSystem;
+	if (!legacyLargeStageSystem.Load("project/Resources/levels/magnet/stage_2.json") ||
+		legacyLargeStageSystem.GetStageData().arenaRadius < 26.4f) {
+		std::cerr << "Legacy pre-arena stage did not migrate to a usable radius.\n";
+		return 221;
+	}
+	std::cout << "large_stage_authoring_checks=passed\n";
 	magnet::MagnetStageSystem releaseStageSystem("project/Resources/levels/magnet");
 	if (!releaseStageSystem.LoadNamed("stage_Obstacle") ||
 		releaseStageSystem.GetStageData().name != "stage_Obstacle" ||
@@ -1307,6 +1386,44 @@ int main()
 			return 215;
 		}
 	}
+	const physics::BodyHandle furnaceRespawnTarget =
+		furnaceSystem.GetFurnaceDissolveEvents()[0].body;
+	std::size_t furnaceRespawnIndex = furnaceSystem.GetStageBallCount();
+	for (std::size_t index = 0; index < furnaceSystem.GetStageBallCount(); ++index) {
+		const physics::BodyHandle candidate = furnaceSystem.GetStageBalls()[index];
+		if (candidate.index == furnaceRespawnTarget.index &&
+			candidate.generation == furnaceRespawnTarget.generation) {
+			furnaceRespawnIndex = index;
+			break;
+		}
+	}
+	bool furnaceBallRespawned = false;
+	for (int step = 0; step < 150 && !furnaceBallRespawned; ++step) {
+		furnaceSystem.SetPlayerCommand({});
+		if (!furnaceSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Furnace-consumed magnet respawn update failed.\n";
+			return 222;
+		}
+		furnaceBallRespawned = furnaceRespawnIndex < furnaceSystem.GetStageBallCount() &&
+			furnaceSystem.GetStageBallStates()[furnaceRespawnIndex] ==
+				magnet::MagnetChainSystem::StageBallState::Available;
+	}
+	const physics::SphereBody* furnaceRespawnedBody =
+		furnaceSystem.GetPhysicsWorld().GetBody(furnaceRespawnTarget);
+	if (furnaceRespawnIndex >= furnaceSystem.GetStageBallCount() ||
+		!furnaceBallRespawned || !furnaceRespawnedBody || !furnaceRespawnedBody->active ||
+		furnaceSystem.GetStageBallStates()[furnaceRespawnIndex] !=
+			magnet::MagnetChainSystem::StageBallState::Available ||
+		(std::abs(furnaceRespawnedBody->position.x -
+			furnaceStage.obstacles[0].position.x) <=
+				furnaceStage.obstacles[0].size.x * 0.5f + 0.85f &&
+		 std::abs(furnaceRespawnedBody->position.z -
+			furnaceStage.obstacles[0].position.z) <=
+				furnaceStage.obstacles[0].size.z * 0.5f + 0.85f)) {
+		std::cerr << "Furnace-consumed magnet did not respawn as an available ball.\n";
+		return 223;
+	}
+	std::cout << "furnace_ball_respawn_checks=passed\n";
 	if (!furnaceSystem.Reset() ||
 		furnaceSystem.GetFurnaceDissolveEventCount() != 0) {
 		std::cerr << "Furnace dissolve visual event survived a runtime rebuild.\n";
@@ -1487,6 +1604,52 @@ int main()
 			return 134;
 		}
 	}
+	std::size_t respawnedGoalBallIndex = goalCleanupSystem.GetStageBallCount();
+	for (std::size_t index = 0; index < goalCleanupSystem.GetStageBallCount(); ++index) {
+		const physics::BodyHandle candidate = goalCleanupSystem.GetStageBalls()[index];
+		if (candidate.index == goalTarget.index &&
+			candidate.generation == goalTarget.generation) {
+			respawnedGoalBallIndex = index;
+			break;
+		}
+	}
+	if (respawnedGoalBallIndex >= goalCleanupSystem.GetStageBallCount() ||
+		goalCleanupSystem.GetStageBallStates()[respawnedGoalBallIndex] !=
+			magnet::MagnetChainSystem::StageBallState::Inactive) {
+		std::cerr << "Goal-scored magnet was not queued from an inactive state.\n";
+		return 218;
+	}
+	bool goalBallRespawned = false;
+	for (int step = 0; step < 150 && !goalBallRespawned; ++step) {
+		goalCleanupSystem.SetPlayerCommand({});
+		if (!goalCleanupSystem.FixedUpdate(kFixedDeltaTime)) {
+			std::cerr << "Goal-scored magnet respawn update failed.\n";
+			return 219;
+		}
+		goalBallRespawned =
+			goalCleanupSystem.GetStageBallStates()[respawnedGoalBallIndex] ==
+				magnet::MagnetChainSystem::StageBallState::Available;
+	}
+	const physics::SphereBody* respawnedGoalBall =
+		goalCleanupSystem.GetPhysicsWorld().GetBody(goalTarget);
+	const physics::SphereBody* respawnPlayer =
+		goalCleanupSystem.GetPhysicsWorld().GetBody(goalCleanupSystem.GetPlayerBody());
+	const auto& respawnGoal = goalCleanupSystem.GetGoal();
+	if (!goalBallRespawned || !respawnedGoalBall || !respawnPlayer ||
+		!respawnedGoalBall->active ||
+		goalCleanupSystem.GetStageBallStates()[respawnedGoalBallIndex] !=
+			magnet::MagnetChainSystem::StageBallState::Available ||
+		DistanceXZ(respawnedGoalBall->position, respawnPlayer->position) < 2.99f ||
+		DistanceXZ({}, respawnedGoalBall->position) >
+			goalCleanupSystem.GetArenaRadius() - respawnedGoalBall->radius + 1.0e-4f ||
+		(std::abs(respawnedGoalBall->position.x - respawnGoal.center.x) <=
+			respawnGoal.width * 0.5f + 0.85f &&
+		 std::abs(respawnedGoalBall->position.z - respawnGoal.center.z) <=
+			respawnGoal.depth * 0.5f + 0.85f)) {
+		std::cerr << "Goal-scored magnet did not respawn in a safe arena position.\n";
+		return 220;
+	}
+	std::cout << "goal_ball_respawn_checks=passed\n";
 
 	const magnet::MagnetStageData pickupStage = BuildPickupStage();
 	magnet::MagnetChainSystem system;
