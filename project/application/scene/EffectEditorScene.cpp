@@ -194,7 +194,9 @@ void EffectEditorScene::DrawEditorUi(const SceneEditorContext& context) {
 				? ImGuiTabItemFlags_SetSelected
 				: ImGuiTabItemFlags_None;
 			if (ImGui::BeginTabItem("Comic Text", nullptr, comicTabFlags)) {
-				const bool textPreview = ImGui::IsMouseClicked(ImGuiMouseButton_Right, false);
+				const bool textPreview =
+					ImGui::IsKeyPressed(ImGuiKey_Space, false) && !ImGui::GetIO().WantTextInput;
+				ImGui::TextDisabled("Space: Preview");
 				if (comicTextEffectEditor_ && comicTextEffects_) {
 					comicTextEffectEditor_->Draw(*comicTextEffects_, previewPosition_, textPreview);
 				}
