@@ -665,6 +665,12 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 		Vector3 effectPosition = ResolveEditorFocusPosition();
 		effectPosition.y += 0.5f;
 		if (ImGui::Begin("エフェクトエディタ###ParticleEffectEditor")) {
+			if (ImGui::Button("文字エフェクトエディタを開く")) {
+				SceneManager::GetInstance()->ChangeScene("EFFECT_EDITOR");
+			}
+			ImGui::SameLine();
+			ImGui::TextDisabled("プリセットの作成・変更・削除");
+			ImGui::Separator();
 			const FrameClock* frameClock = framework_->GetFrameClock();
 			particleEffectEditor_->Draw(*framework_->GetParticleManager(), effectPosition,
 				frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);

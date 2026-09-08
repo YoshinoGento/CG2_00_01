@@ -40,6 +40,7 @@ private:
 	bool hitParticleEnabled_ = true;
 	bool hitLightningEnabled_ = true;
 	bool hitSlashEnabled_ = true;
+	bool selectComicTextTab_ = true;
 	std::unique_ptr<ParticleEffectEditor> particleEffectEditor_;
 	std::unique_ptr<ComicTextEffectEditor> comicTextEffectEditor_;
 	std::unique_ptr<CombatEffectEditor> combatEffectEditor_;
