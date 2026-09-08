@@ -233,7 +233,8 @@ void MagnetPrototypeScene::Initialize()
 		Logger::Log("MagnetPrototypeScene: goal guide initialization failed.");
 	}
 	gameFlowUiReady_ = InitializeGameFlowUi();
-	GameFlowState::GetInstance().EnsureBgm(framework_->GetAudio());
+	GameFlowState::GetInstance().EnsureBgm(
+		framework_->GetAudio(), GameFlowState::BgmTrack::Gameplay);
 	if (!magneticImpactSoundSystem_.Initialize(
 		framework_->GetAudio(), kMagneticImpactSoundPath)) {
 		Logger::Log(
