@@ -168,6 +168,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp" />
+	<ClCompile Include="application\scene\GameFlowState.cpp" />
 	<ClCompile Include="application\magnet\stage\MagnetStageSystem.cpp" />
     <ClCompile Include="application\magnet\system\BallMomentumTracker.cpp" />
     <ClCompile Include="application\magnet\system\BallReacquisitionCooldown.cpp" />

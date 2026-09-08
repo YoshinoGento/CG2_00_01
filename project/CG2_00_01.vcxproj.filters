@@ -299,6 +299,9 @@
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="application\scene\GameFlowState.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="application\scene\SceneFactory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
