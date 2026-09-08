@@ -19,7 +19,7 @@ class Sprite;
  */
 class TitleScene : public BaseScene {
 public:
-	enum class Page { Title, Instructions, Ranking };
+	enum class Page { Title, Instructions, StageSelect, Ranking };
 	explicit TitleScene(Page page = Page::Title) noexcept : page_(page) {}
 	void Initialize() override;
 	void Finalize() override;
@@ -30,6 +30,9 @@ private:
 	void InitializeRankingDecorations();
 	void UpdateRankingPresentation(float deltaSeconds);
 	void RefreshTransitionPrompt(bool useGamepad);
+	void RefreshStageSelectLines();
+	void UpdateStageSelectVisuals(float deltaTime);
+	void EmitStageSelectParticles(bool selectionBurst);
 	void SetLine(std::size_t index, const std::string& text,
 		const Vector2& position, float scale, const Vector4& color);
 
@@ -53,7 +56,7 @@ private:
 	std::array<std::unique_ptr<Object3d>,
 		RankingPresentationFrame::kDecorationBallCount> rankingBallObjects_{};
 	RankingPresentationSystem rankingPresentationSystem_{};
-	std::array<SpriteText, 9> lines_{};
+	std::array<SpriteText, 11> lines_{};
 	std::size_t lineCount_ = 0;
 	bool transitionPromptInitialized_ = false;
 	bool transitionPromptUsesGamepad_ = false;
@@ -61,5 +64,11 @@ private:
 	bool rankingCurrentArrowVisible_ = false;
 	bool rankingStatusReady_ = false;
 	bool rankingStatusVisible_ = false;
+	int stageSelection_ = 0;
+	bool stageSelectStickUpWasPressed_ = false;
+	bool stageSelectStickDownWasPressed_ = false;
+	float stageSelectAnimationSeconds_ = 0.0f;
+	float stageSelectParticleTimer_ = 0.0f;
+	uint32_t stageSelectParticleSequence_ = 0;
 	bool uiReady_ = false;
 };

@@ -13,9 +13,11 @@
 #include "3d/Skybox.h"
 #include "base/FrameClock.h"
 #include "base/Framework.h"
+#include "effect/ParticleManager.h"
 #include "io/Input.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace {
@@ -221,6 +223,13 @@ void TitleScene::Initialize()
 			SetLine(4, "磁石をゴールに入れる", { 465.0f, 395.0f }, 0.55f, kTextColor);
 			SetLine(5, "MENU または ESC：ポーズ", { 420.0f, 455.0f }, 0.55f, kTextColor);
 		}
+	} else if (page_ == Page::StageSelect) {
+		if (ParticleManager* particles = framework->GetParticleManager()) {
+			particles->ClearAll();
+			particles->CreateParticleGroup("StageSelectGlow",
+				TextureManager::GetInstance()->LoadTexture2D("Resources/circle2.png"));
+		}
+		RefreshStageSelectLines();
 	} else {
 		if (!rankingTitleObject_) {
 			SetLine(0, "RANKING", { 520.0f, 75.0f }, 1.65f, kPrimaryColor);
@@ -266,6 +275,11 @@ void TitleScene::Initialize()
 		UpdateRankingPresentation(0.0f);
 	}
 	Input* input = framework->GetInput();
+	if (page_ == Page::StageSelect && input) {
+		const Vector2 stick = input->GetLeftStick();
+		stageSelectStickUpWasPressed_ = stick.y > 0.5f;
+		stageSelectStickDownWasPressed_ = stick.y < -0.5f;
+	}
 	RefreshTransitionPrompt(
 		input && input->GetLastActiveDevice() == InputDeviceType::Gamepad);
 	uiReady_ = true;
@@ -276,6 +290,13 @@ void TitleScene::Finalize()
 	rankingCurrentArrowSprite_.reset();
 	for (auto& ball : rankingBallObjects_) { ball.reset(); }
 	rankingPlayerObject_.reset();
+	if (page_ == Page::StageSelect) {
+		if (Framework* framework = Framework::GetInstance()) {
+			if (ParticleManager* particles = framework->GetParticleManager()) {
+				particles->ClearAll();
+			}
+		}
+	}
 	for (auto& scoreObject : rankingScoreObjects_) { scoreObject.reset(); }
 	rankingTitleObject_.reset();
 	operationGuideObject_.reset();
@@ -297,6 +318,16 @@ void TitleScene::Finalize()
 
 void TitleScene::Update()
 {
+	if (page_ == Page::StageSelect) {
+		Framework* framework = Framework::GetInstance();
+		const FrameClock* clock = framework ? framework->GetFrameClock() : nullptr;
+		UpdateStageSelectVisuals(
+			clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+		if (ParticleManager* particles = framework ? framework->GetParticleManager() : nullptr) {
+			particles->Update(titleCamera_.get(),
+				clock ? clock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
+		}
+	}
 	if (titleObject_ && titleCamera_) {
 		titleObject_->Update(titleCamera_.get(), 0.0f);
 	}
@@ -324,15 +355,45 @@ void TitleScene::Update()
 	if (!transitionPromptInitialized_ || transitionPromptUsesGamepad_ != useGamepad) {
 		RefreshTransitionPrompt(useGamepad);
 	}
+	if (page_ == Page::StageSelect) {
+		const Vector2 stick = input->GetLeftStick();
+		const bool stickUp = stick.y > 0.5f;
+		const bool stickDown = stick.y < -0.5f;
+		const bool moveUp = input->TriggerKey(InputKey::W) ||
+			input->TriggerGamepadButton(InputGamepadButton::DPadUp) ||
+			(stickUp && !stageSelectStickUpWasPressed_);
+		const bool moveDown = input->TriggerKey(InputKey::S) ||
+			input->TriggerGamepadButton(InputGamepadButton::DPadDown) ||
+			(stickDown && !stageSelectStickDownWasPressed_);
+		stageSelectStickUpWasPressed_ = stickUp;
+		stageSelectStickDownWasPressed_ = stickDown;
+		if (moveUp) {
+			stageSelection_ = (stageSelection_ + 3) % 4;
+			RefreshStageSelectLines();
+			EmitStageSelectParticles(true);
+		}
+		if (moveDown) {
+			stageSelection_ = (stageSelection_ + 1) % 4;
+			RefreshStageSelectLines();
+			EmitStageSelectParticles(true);
+		}
+	}
 	const bool transitionRequested = input->TriggerKey(InputKey::Space) ||
 		input->TriggerGamepadButton(InputGamepadButton::B);
 	if (!transitionRequested) { return; }
 	if (page_ == Page::Title) {
 		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
 	} else if (page_ == Page::Instructions) {
-		SceneManager::GetInstance()->ChangeScene("TUTORIAL");
+		SceneManager::GetInstance()->ChangeScene("STAGE_SELECT");
+	} else if (page_ == Page::StageSelect) {
+		constexpr const char* stageNames[] = {
+			"stage_01", "stage_01", "stage_02", "stage_03" };
+		GameFlowState::GetInstance().SetActiveStageSaveName(
+			stageNames[stageSelection_]);
+		SceneManager::GetInstance()->ChangeScene(
+			stageSelection_ == 0 ? "TUTORIAL" : "MAGNET_PROTOTYPE");
 	} else {
-		SceneManager::GetInstance()->ChangeScene("INSTRUCTIONS");
+		SceneManager::GetInstance()->ChangeScene("STAGE_SELECT");
 	}
 }
 
@@ -360,6 +421,11 @@ void TitleScene::Draw()
 			if (ball) { ball->Draw(); }
 		}
 		objectCommon->EndObjectPass();
+	}
+	if (page_ == Page::StageSelect) {
+		if (ParticleManager* particles = Framework::GetInstance()->GetParticleManager()) {
+			particles->Draw(false);
+		}
 	}
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
 	for (std::size_t index = 0; index < lineCount_; ++index) {
@@ -519,7 +585,9 @@ void TitleScene::RefreshTransitionPrompt(bool useGamepad)
 {
 	transitionPromptInitialized_ = true;
 	transitionPromptUsesGamepad_ = useGamepad;
-	Model* requestedModel = useGamepad
+	Model* requestedModel = page_ == Page::StageSelect
+		? nullptr
+		: useGamepad
 		? gamepadTransitionModel_
 		: keyboardTransitionModel_;
 	transitionPromptModelVisible_ = false;
@@ -554,6 +622,13 @@ void TitleScene::RefreshTransitionPrompt(bool useGamepad)
 		position = { useGamepad ? 455.0f : 410.0f, 565.0f };
 		scale = 0.95f;
 		fallbackText = useGamepad ? "PRESS B TO START" : "PRESS SPACE TO START";
+	} else if (page_ == Page::StageSelect) {
+		lineIndex = 8;
+		position = { 390.0f, 615.0f };
+		scale = 0.75f;
+		fallbackText = useGamepad
+			? "DPAD SELECT   B START"
+			: "W/S SELECT   SPACE START";
 	} else if (page_ == Page::Ranking) {
 		lineIndex = 6;
 		position = { useGamepad ? 420.0f : 375.0f, 565.0f };
@@ -564,6 +639,63 @@ void TitleScene::RefreshTransitionPrompt(bool useGamepad)
 	}
 	SetLine(lineIndex, transitionPromptModelVisible_ ? "" : fallbackText,
 		position, scale, kAccentColor);
+}
+
+void TitleScene::RefreshStageSelectLines()
+{
+	constexpr const char* labels[] = {
+		"TUTORIAL", "STAGE 01", "STAGE 02", "STAGE 03" };
+	SetLine(0, "STAGE SELECT", { 430.0f, 82.0f }, 1.55f, kPrimaryColor);
+	for (int index = 0; index < 4; ++index) {
+		const bool selected = index == stageSelection_;
+		SetLine(
+			static_cast<std::size_t>(index + 1),
+			std::string(selected ? ">>  " : "    ") + labels[index],
+			{ 435.0f, 205.0f + 82.0f * static_cast<float>(index) },
+			selected ? 1.08f : 0.88f,
+			selected ? kAccentColor : kTextColor);
+	}
+	SetLine(5, "", {}, 1.0f, kTextColor);
+	SetLine(6, "", {}, 1.0f, kTextColor);
+	SetLine(7, "", {}, 1.0f, kTextColor);
+	SetLine(9, "", {}, 1.0f, kTextColor);
+}
+
+void TitleScene::UpdateStageSelectVisuals(float deltaTime)
+{
+	stageSelectAnimationSeconds_ += (std::max)(0.0f, deltaTime);
+	stageSelectParticleTimer_ += (std::max)(0.0f, deltaTime);
+	while (stageSelectParticleTimer_ >= 0.075f) {
+		stageSelectParticleTimer_ -= 0.075f;
+		EmitStageSelectParticles(false);
+	}
+}
+
+void TitleScene::EmitStageSelectParticles(bool selectionBurst)
+{
+	Framework* framework = Framework::GetInstance();
+	ParticleManager* particles = framework ? framework->GetParticleManager() : nullptr;
+	if (!particles) { return; }
+	const int count = selectionBurst ? 18 : 2;
+	const float selectedY = 1.65f - 0.78f * static_cast<float>(stageSelection_);
+	for (int index = 0; index < count; ++index) {
+		const float phase = static_cast<float>(stageSelectParticleSequence_++) * 1.6180339f;
+		const float side = (stageSelectParticleSequence_ & 1u) ? -1.0f : 1.0f;
+		Particle& particle = particles->AddParticle("StageSelectGlow",
+			{ side * (2.5f + 0.35f * std::sin(phase)),
+				selectionBurst ? selectedY + 0.35f * std::sin(phase * 2.1f)
+					: -2.6f + 5.2f * std::fmod(phase * 0.173f, 1.0f), 0.15f });
+		particle.velocity = selectionBurst
+			? Vector3{ -side * (0.07f + 0.05f * std::fabs(std::sin(phase))),
+				0.035f * std::cos(phase), 0.0f }
+			: Vector3{ -side * 0.012f, 0.018f + 0.012f * std::sin(phase), 0.0f };
+		particle.color = selectionBurst
+			? Vector4{ 1.0f, 0.72f, 0.18f, 0.95f }
+			: Vector4{ 0.22f, 0.88f, 1.0f, 0.58f };
+		particle.lifeTime = selectionBurst ? 0.42f : 1.35f;
+		particle.startSize = selectionBurst ? 0.13f : 0.055f;
+		particle.endSize = selectionBurst ? 0.015f : 0.018f;
+	}
 }
 
 void TitleScene::SetLine(std::size_t index, const std::string& text,
