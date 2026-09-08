@@ -10,8 +10,7 @@
 
 namespace {
 constexpr float kTwoPi = 6.28318530717958647692f;
-constexpr int kArcSegments = 4;
-constexpr int kHaloSegments = 12;
+constexpr int kArcSegments = 5;
 
 uint32_t Hash(uint32_t value) noexcept {
 	value ^= value >> 16;
@@ -62,7 +61,7 @@ void ChargedChainEffectSystem::Draw(
 			if (!body || !body->active) { continue; }
 			const Vector3 delta = body->position - previous;
 			const Vector3 horizontalSide = NormalizeOr({ -delta.z, 0.0f, delta.x }, { 1.0f, 0.0f, 0.0f });
-			const float jitter = 0.035f + charge * 0.16f;
+			const float jitter = 0.055f + charge * 0.22f;
 			std::array<Vector3, kArcSegments + 1> points{};
 			points.front() = previous;
 			points.back() = body->position;
@@ -75,38 +74,32 @@ void ChargedChainEffectSystem::Draw(
 					Vector3{ 0.0f, SignedNoise(key + 19u) * jitter * 0.65f, 0.0f };
 			}
 			for (int segment = 0; segment < kArcSegments; ++segment) {
-				const Vector4 glow{ 0.22f + charge * 0.25f, 0.35f, 1.0f, 0.45f + charge * 0.35f };
-				const Vector4 core{ 0.78f, 0.92f, 1.0f, 0.9f };
-				const Vector3 offset = horizontalSide * (0.012f + charge * 0.018f);
+				const Vector4 glow{ 0.08f, 0.38f + charge * 0.2f, 1.0f, 0.42f + charge * 0.22f };
+				const Vector4 core{ 0.86f, 0.97f, 1.0f, 1.0f };
+				const Vector3 offset = horizontalSide * (0.009f + charge * 0.01f);
 				lineDrawer.DrawLine(points[segment] + offset, points[segment + 1] + offset, glow);
-				lineDrawer.DrawLine(points[segment] - offset, points[segment + 1] - offset, glow);
 				lineDrawer.DrawLine(points[segment], points[segment + 1], core);
 			}
 
-			const float pulse = 0.5f + 0.5f * std::sin(
-				elapsedSeconds_ * (10.0f + charge * 9.0f) + static_cast<float>(link));
-			const float haloRadius = body->radius * (1.12f + charge * 0.55f + pulse * 0.12f);
-			for (int segment = 0; segment < kHaloSegments; ++segment) {
-				const float a = kTwoPi * static_cast<float>(segment) / kHaloSegments;
-				const float b = kTwoPi * static_cast<float>(segment + 1) / kHaloSegments;
-				lineDrawer.DrawLine(
-					body->position + Vector3{ std::cos(a) * haloRadius, 0.04f, std::sin(a) * haloRadius },
-					body->position + Vector3{ std::cos(b) * haloRadius, 0.04f, std::sin(b) * haloRadius },
-					{ 0.35f, 0.62f + charge * 0.28f, 1.0f, 0.45f + pulse * 0.35f });
-			}
-
-			const int sparkCount = 2 + static_cast<int>(charge * 5.0f);
-			const float sparkLength = 0.12f + charge * 0.42f;
+			// Sparse forked bolts keep the silhouette sharp instead of wrapping every
+			// ball in a continuous ring.
+			const int sparkCount = 1 + static_cast<int>(charge * 3.0f);
+			const float sparkLength = 0.18f + charge * 0.52f;
 			for (int spark = 0; spark < sparkCount; ++spark) {
 				const uint32_t key = phase * 313u + sideSeed +
 					static_cast<uint32_t>(link * 71u + spark * 17u);
+				if ((Hash(key) & 3u) == 0u) { continue; }
 				const float angle = kTwoPi * static_cast<float>(spark) / sparkCount + SignedNoise(key) * 0.3f;
 				const Vector3 direction = NormalizeOr(
-					{ std::cos(angle), 0.25f + SignedNoise(key + 5u) * 0.3f, std::sin(angle) },
+					{ std::cos(angle), 0.15f + SignedNoise(key + 5u) * 0.5f, std::sin(angle) },
 					{ 1.0f, 0.0f, 0.0f });
-				lineDrawer.DrawLine(body->position + direction * (body->radius * 0.9f),
-					body->position + direction * (body->radius + sparkLength),
-					{ 0.72f, 0.88f, 1.0f, 0.75f + charge * 0.25f });
+				const Vector3 start = body->position + direction * (body->radius * 0.86f);
+				const Vector3 end = body->position + direction * (body->radius + sparkLength);
+				const Vector3 tangent = NormalizeOr({ -direction.z, 0.0f, direction.x }, { 1.0f, 0.0f, 0.0f });
+				const Vector3 middle = start + (end - start) * 0.52f +
+					tangent * (SignedNoise(key + 29u) * sparkLength * 0.28f);
+				lineDrawer.DrawLine(start, middle, { 0.82f, 0.95f, 1.0f, 0.95f });
+				lineDrawer.DrawLine(middle, end, { 0.42f, 0.72f, 1.0f, 0.8f });
 			}
 			previous = body->position;
 		}
