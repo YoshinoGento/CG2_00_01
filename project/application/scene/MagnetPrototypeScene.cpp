@@ -291,6 +291,11 @@ void MagnetPrototypeScene::Initialize()
 	magneticImpactFeedbackSystem_.Reset();
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
+	if (!gimmickComicTextSystem_.Initialize(comicTextEffects_.get())) {
+		Logger::Log(
+			"MagnetPrototypeScene: gimmick comic text effects are unavailable; "
+			"gameplay will continue without captions.");
+	}
 	ComicTextEffectSystem::LoadPreset("HeavyImpact", heavyImpactPreset_);
 	if (!prototypeReady_) {
 		Logger::Log("MagnetPrototypeScene: magnet prototype initialization failed.");
@@ -329,6 +334,7 @@ void MagnetPrototypeScene::Finalize()
 		framework_->GetParticleManager()->ClearAll();
 		framework_->GetParticleManager()->ResetGPUParticles();
 	}
+	gimmickComicTextSystem_.Finalize();
 	comicTextEffects_.reset();
 	gimmickEffectSystem_.Finalize();
 	magnetGimmickVisualSystem_.Finalize();
@@ -447,6 +453,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		magneticImpactSoundSystem_.Reset();
 		furnaceVisualSystem_.Reset();
 		gimmickEffectSystem_.Reset();
+		gimmickComicTextSystem_.Reset();
 		gimmickSoundSystem_.Reset();
 		magnetGimmickVisualSystem_.Reset();
 		if (comicTextEffects_) { comicTextEffects_->Clear(); }
@@ -523,6 +530,8 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		gimmickSoundSystem_.Update(
 			magnetChainSystem_, magnetStageSystem_.GetStageData());
 		gimmickEffectSystem_.CaptureEvents(
+			magnetChainSystem_, magnetStageSystem_.GetStageData());
+		gimmickComicTextSystem_.CaptureEvents(
 			magnetChainSystem_, magnetStageSystem_.GetStageData());
 		magneticImpactFeedbackSystem_.Update(fixedDeltaTime);
 	}

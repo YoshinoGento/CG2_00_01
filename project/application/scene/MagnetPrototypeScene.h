@@ -4,6 +4,7 @@
 #include "application/magnet/system/ChainsawProximitySoundSystem.h"
 #include "application/magnet/system/FurnaceVisualSystem.h"
 #include "application/magnet/system/GimmickEffectSystem.h"
+#include "application/magnet/system/GimmickComicTextSystem.h"
 #include "application/magnet/system/GimmickSoundSystem.h"
 #include "application/magnet/system/MagnetGimmickVisualSystem.h"
 #include "application/magnet/system/MagnetEditorCameraSystem.h"
@@ -88,6 +89,7 @@ private:
 	magnet::MagneticImpactSoundSystem magneticImpactSoundSystem_;
 	magnet::FurnaceVisualSystem furnaceVisualSystem_;
 	magnet::GimmickEffectSystem gimmickEffectSystem_;
+	magnet::GimmickComicTextSystem gimmickComicTextSystem_;
 	magnet::GimmickSoundSystem gimmickSoundSystem_;
 	magnet::MagnetGimmickVisualSystem magnetGimmickVisualSystem_;
 	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;

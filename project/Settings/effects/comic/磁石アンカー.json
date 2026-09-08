@@ -1,0 +1,10 @@
+{
+    "type": "comicText", "text": "ガヂィン！！", "useEditableText": true,
+    "texturePath": "Resources/effects/comic/booom_impact.png", "textScale": 0.44,
+    "characterSpacing": -10.0, "textColor": [0.9, 0.62, 1.0, 1.0],
+    "extrusionColor": [0.3, 0.02, 0.68, 1.0], "extrusionOffset": [4.0, 5.0],
+    "screenOffset": [0.0, -58.0], "drift": [0.0, -18.0], "duration": 0.58,
+    "startScale": 0.14, "peakScale": 1.08, "endScale": 0.84,
+    "popFraction": 0.2, "fadeFraction": 0.38, "rotation": 0.08,
+    "shakeAmplitude": 4.5, "shakeFrequency": 32.0
+}
