@@ -14,6 +14,8 @@ class Object3dCommon;
 
 namespace magnet {
 
+class MagnetChainSystem;
+
 // Owns render-only Goal and Solid Wall presentation.
 // Stage collision and scoring remain authoritative in gameplay Systems.
 class MagnetStageStructureVisualSystem final {
@@ -33,7 +35,8 @@ public:
 	[[nodiscard]] bool Update(
 		float deltaTime,
 		const MagnetStageData& stageData,
-		Camera* camera) noexcept;
+		Camera* camera,
+		const MagnetChainSystem* chainSystem = nullptr) noexcept;
 	void Draw(const MagnetStageData& stageData) const;
 
 	[[nodiscard]] bool IsReady() const noexcept { return ready_; }
@@ -49,6 +52,8 @@ private:
 		goalVisuals_{};
 	std::array<std::unique_ptr<Object3d>, MagnetStageData::kMaximumObstacleCount>
 		wallVisuals_{};
+	std::array<MagnetStageBoxPlacement, MagnetStageData::kMaximumGoalCount>
+		runtimeGoals_{};
 	float elapsedSeconds_ = 0.0f;
 	bool ready_ = false;
 };

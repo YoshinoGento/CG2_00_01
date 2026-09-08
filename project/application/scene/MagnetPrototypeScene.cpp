@@ -654,7 +654,7 @@ void MagnetPrototypeScene::Update()
 	}
 	if (stageStructureVisualsReady_ &&
 		!magnetStageStructureVisualSystem_.Update(
-			frameDeltaSeconds, stageData, camera_.get())) {
+			frameDeltaSeconds, stageData, camera_.get(), &magnetChainSystem_)) {
 		Logger::Log(
 			"MagnetPrototypeScene: Goal/Wall visual update failed; using wire fallback.");
 		stageStructureVisualsReady_ = false;
@@ -1236,7 +1236,10 @@ void MagnetPrototypeScene::UpdateGoalGuides()
 
 	for (std::size_t index = 0;
 		index < stageData.goalCount && goalGuideCount_ < goalGuideSprites_.size(); ++index) {
-		const Vector3& position = stageData.goals[index].position;
+		Vector3 position = index < magnetChainSystem_.GetGoalCount()
+			? magnetChainSystem_.GetGoal(index).center
+			: stageData.goals[index].position;
+		position.y = stageData.goals[index].position.y;
 		const float clipX = position.x * viewProjection.m[0][0] +
 			position.y * viewProjection.m[1][0] +
 			position.z * viewProjection.m[2][0] + viewProjection.m[3][0];
@@ -1625,8 +1628,12 @@ void MagnetPrototypeScene::DrawStageObjects() const
 	const magnet::MagnetStageData& stageData = magnetStageSystem_.GetStageData();
 	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
 		if (!stageStructureVisualsReady_) {
+			Vector3 goalPosition = index < magnetChainSystem_.GetGoalCount()
+				? magnetChainSystem_.GetGoal(index).center
+				: stageData.goals[index].position;
+			goalPosition.y = stageData.goals[index].position.y;
 			DrawWireBox(
-				stageData.goals[index].position,
+				goalPosition,
 				stageData.goals[index].size,
 				stageData.goals[index].rotationYDegrees,
 				kGoalColor);

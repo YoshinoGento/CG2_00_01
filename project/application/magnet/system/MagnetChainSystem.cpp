@@ -206,6 +206,7 @@ void MagnetChainSystem::ConfigureGoal(GoalSize size, const Vector3& center) noex
 	if (size == GoalSize::Small) { widthInMagnets = 2.0f; }
 	if (size == GoalSize::Large) { widthInMagnets = 4.5f; }
 	goals_.fill({});
+	goalPlacements_.fill({});
 	goalCount_ = 1;
 	goals_[0].center = IsFinite(center) ? center : kStandardGoalCenter;
 	goals_[0].center.y = 0.0f;
@@ -213,6 +214,10 @@ void MagnetChainSystem::ConfigureGoal(GoalSize size, const Vector3& center) noex
 	goals_[0].depth = kStandardGoalDepth;
 	goals_[0].rotationYRadians = 0.0f;
 	goals_[0].size = size;
+	goalPlacements_[0].id = 1;
+	goalPlacements_[0].position = goals_[0].center;
+	goalPlacements_[0].size = {
+		goals_[0].width, 2.0f, goals_[0].depth };
 }
 
 bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
@@ -297,6 +302,7 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 	ConfigureGoal(GoalSize::Standard, kStandardGoalCenter);
 	if (stageData.goalCount > 0) {
 		goals_.fill({});
+		goalPlacements_.fill({});
 		goalCount_ = stageData.goalCount;
 		for (std::size_t index = 0; index < goalCount_; ++index) {
 			const MagnetStageBoxPlacement& authoredGoal = stageData.goals[index];
@@ -314,6 +320,7 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 				authoredGoal.rotationYDegrees * kDegreesToRadians;
 			goals_[index].size = GoalSize::Standard;
 			goals_[index].score = authoredGoal.score;
+			goalPlacements_[index] = authoredGoal;
 		}
 	}
 	return RebuildRuntime();
@@ -344,6 +351,7 @@ bool MagnetChainSystem::RebuildRuntime()
 	furnaceDissolveEvents_.fill({});
 	furnaceDissolveEventCount_ = 0;
 	goalHitCount_ = 0;
+	goalMovementElapsedSeconds_ = 0.0f;
 	score_ = 0;
 	stageBalls_.fill({});
 	stageBallStates_.fill(StageBallState::Inactive);
@@ -462,6 +470,7 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		healthy_ = false;
 		return false;
 	}
+	UpdateMovingGoals(fixedDeltaTime);
 
 	Vector3 requestedDirection = command_.moveDirection;
 	requestedDirection.y = 0.0f;
@@ -550,6 +559,25 @@ bool MagnetChainSystem::FixedUpdate(float fixedDeltaTime) noexcept
 		return false;
 	}
 	return true;
+}
+
+void MagnetChainSystem::UpdateMovingGoals(float fixedDeltaTime) noexcept
+{
+	goalMovementElapsedSeconds_ = std::remainder(
+		goalMovementElapsedSeconds_ + fixedDeltaTime, 4096.0f);
+	for (std::size_t index = 0; index < goalCount_; ++index) {
+		const MagnetStageBoxPlacement& placement = goalPlacements_[index];
+		goals_[index].center = placement.position;
+		if (placement.moving) {
+			const float phase = kTwoPi * (
+				goalMovementElapsedSeconds_ / placement.movementPeriodSeconds +
+				placement.movementPhase);
+			const float travel = 0.5f - 0.5f * std::cos(phase);
+			goals_[index].center = placement.position +
+				placement.movementAmplitude * travel;
+		}
+		goals_[index].center.y = 0.0f;
+	}
 }
 
 bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept

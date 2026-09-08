@@ -1,4 +1,5 @@
 #include "application/magnet/system/MagnetStageStructureVisualSystem.h"
+#include "application/magnet/system/MagnetChainSystem.h"
 
 #include "3d/Camera.h"
 #include "3d/LineDrawer.h"
@@ -136,7 +137,8 @@ bool MagnetStageStructureVisualSystem::SupportsObstacle(
 bool MagnetStageStructureVisualSystem::Update(
 	float deltaTime,
 	const MagnetStageData& stageData,
-	Camera* camera) noexcept
+	Camera* camera,
+	const MagnetChainSystem* chainSystem) noexcept
 {
 	if (!object3dCommon_ || !goalModel_ || !wallModel_ || !camera ||
 		stageData.goalCount > goalVisuals_.size() ||
@@ -148,7 +150,12 @@ bool MagnetStageStructureVisualSystem::Update(
 	deltaTime = (std::min)(deltaTime, FrameClock::kMaximumFrameDeltaSeconds);
 	elapsedSeconds_ = std::remainder(elapsedSeconds_ + deltaTime, 4096.0f);
 	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
-		const MagnetStageBoxPlacement& goal = stageData.goals[index];
+		runtimeGoals_[index] = stageData.goals[index];
+		if (chainSystem && index < chainSystem->GetGoalCount()) {
+			runtimeGoals_[index].position = chainSystem->GetGoal(index).center;
+			runtimeGoals_[index].position.y = stageData.goals[index].position.y;
+		}
+		const MagnetStageBoxPlacement& goal = runtimeGoals_[index];
 		if (!IsFinite(goal.position) || !IsPositiveFiniteSize(goal.size) ||
 			!std::isfinite(goal.rotationYDegrees) ||
 			!goalVisuals_[index]) {
@@ -295,7 +302,7 @@ void MagnetStageStructureVisualSystem::Draw(
 	}
 
 	for (std::size_t index = 0; index < stageData.goalCount; ++index) {
-		DrawGoalSuction(stageData.goals[index]);
+		DrawGoalSuction(runtimeGoals_[index]);
 	}
 }
 

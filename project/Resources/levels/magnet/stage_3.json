@@ -1,0 +1,74 @@
+{
+  "schema": "magnet_stage",
+  "schemaVersion": 10,
+  "name": "stage_3",
+  "arena": { "radius": 32.0 },
+  "bounds": {
+    "minimumX": -25.0,
+    "maximumX": 25.0,
+    "minimumZ": -13.0,
+    "maximumZ": 13.0
+  },
+  "generator": {
+    "seed": 20260908,
+    "minimumSpacing": 1.8,
+    "playerClearRadius": 3.0
+  },
+  "objects": [
+    { "id": 1, "type": "player", "position": [-22.0, 0.75, -9.0] },
+
+    { "id": 1, "type": "magnet_ball", "position": [-19.0, 0.5, -9.0] },
+    { "id": 2, "type": "magnet_ball", "position": [-17.0, 0.5, -6.0] },
+    { "id": 3, "type": "magnet_ball", "position": [-20.0, 0.5, -2.0] },
+    { "id": 4, "type": "magnet_ball", "position": [-15.0, 0.5, 1.0] },
+    { "id": 5, "type": "magnet_ball", "position": [-20.0, 0.5, 7.0] },
+    { "id": 6, "type": "magnet_ball", "position": [-14.0, 0.5, 9.0] },
+    { "id": 7, "type": "magnet_ball", "position": [-10.0, 0.5, 5.0] },
+    { "id": 8, "type": "magnet_ball", "position": [-9.0, 0.5, -8.0] },
+    { "id": 9, "type": "magnet_ball", "position": [-5.0, 0.5, -3.0] },
+    { "id": 10, "type": "magnet_ball", "position": [-4.0, 0.5, 9.0] },
+    { "id": 11, "type": "magnet_ball", "position": [0.0, 0.5, 5.0] },
+    { "id": 12, "type": "magnet_ball", "position": [1.0, 0.5, -9.0] },
+    { "id": 13, "type": "magnet_ball", "position": [5.0, 0.5, -4.0] },
+    { "id": 14, "type": "magnet_ball", "position": [6.0, 0.5, 9.0] },
+    { "id": 15, "type": "magnet_ball", "position": [10.0, 0.5, 3.0] },
+    { "id": 16, "type": "magnet_ball", "position": [12.0, 0.5, -8.0] },
+    { "id": 17, "type": "magnet_ball", "position": [16.0, 0.5, -3.0] },
+    { "id": 18, "type": "magnet_ball", "position": [16.0, 0.5, 8.0] },
+    { "id": 19, "type": "magnet_ball", "position": [21.0, 0.5, 5.0] },
+    { "id": 20, "type": "magnet_ball", "position": [20.0, 0.5, -5.0] },
+
+    {
+      "id": 1,
+      "type": "goal",
+      "position": [22.0, 1.0, -8.0],
+      "size": [1.2, 2.2, 3.4],
+      "score": 5,
+      "rotationYDegrees": 0.0,
+      "moving": true,
+      "movementAmplitude": [0.0, 0.0, 16.0],
+      "movementPeriodSeconds": 5.5,
+      "movementPhase": 0.0
+    },
+
+    { "id": 1, "type": "obstacle", "position": [0.0, 1.0, -13.0], "size": [50.0, 2.0, 1.0], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+    { "id": 2, "type": "obstacle", "position": [0.0, 1.0, 13.0], "size": [50.0, 2.0, 1.0], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+    { "id": 3, "type": "obstacle", "position": [-25.0, 1.0, 0.0], "size": [1.0, 2.0, 26.0], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+    { "id": 4, "type": "obstacle", "position": [25.0, 1.0, 0.0], "size": [1.0, 2.0, 26.0], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+    { "id": 5, "type": "obstacle", "position": [-13.0, 1.0, -3.5], "size": [13.0, 2.0, 1.2], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+    { "id": 6, "type": "obstacle", "position": [-8.0, 1.0, 5.0], "size": [1.2, 2.0, 12.0], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+    { "id": 7, "type": "obstacle", "position": [2.0, 1.0, -5.0], "size": [1.2, 2.0, 12.0], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+    { "id": 8, "type": "obstacle", "position": [10.0, 1.0, 4.0], "size": [12.0, 2.0, 1.2], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+    { "id": 9, "type": "obstacle", "position": [17.0, 1.0, -4.0], "size": [1.2, 2.0, 10.0], "rotationYDegrees": 0.0, "obstacleKind": "solid" },
+
+    { "id": 10, "type": "obstacle", "position": [-15.5, 0.9, 5.0], "size": [1.2, 2.5, 1.2], "rotationYDegrees": 0.0, "obstacleKind": "chainsaw" },
+    { "id": 11, "type": "obstacle", "position": [-11.0, 1.0, -8.5], "size": [2.4, 2.0, 2.4], "rotationYDegrees": 0.0, "obstacleKind": "pinball_bumper" },
+    { "id": 12, "type": "obstacle", "position": [8.0, 1.0, -8.0], "size": [2.8, 2.0, 2.8], "rotationYDegrees": 0.0, "obstacleKind": "pinball_bumper" },
+    { "id": 13, "type": "obstacle", "position": [-1.0, 1.0, 8.5], "size": [4.2, 2.0, 3.2], "rotationYDegrees": 0.0, "obstacleKind": "furnace" },
+    { "id": 14, "type": "obstacle", "position": [-3.5, 1.0, 0.0], "size": [2.0, 2.0, 2.0], "rotationYDegrees": 0.0, "obstacleKind": "magnetic_anchor" },
+    { "id": 15, "type": "obstacle", "position": [14.0, 1.0, 9.0], "size": [5.5, 2.2, 1.0], "rotationYDegrees": 0.0, "obstacleKind": "timed_shutter" },
+    { "id": 16, "type": "obstacle", "position": [-19.0, 1.0, 10.0], "size": [2.5, 2.0, 2.5], "rotationYDegrees": 0.0, "obstacleKind": "transfer_gate", "transferPairId": 3 },
+    { "id": 17, "type": "obstacle", "position": [13.0, 1.0, -9.0], "size": [2.5, 2.0, 2.5], "rotationYDegrees": 0.0, "obstacleKind": "transfer_gate", "transferPairId": 3 },
+    { "id": 18, "type": "obstacle", "position": [7.0, 1.0, 9.0], "size": [3.0, 2.0, 3.0], "rotationYDegrees": 0.0, "obstacleKind": "repulsion_field" }
+  ]
+}
