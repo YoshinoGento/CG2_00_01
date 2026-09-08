@@ -60,6 +60,7 @@ constexpr Vector4 kSelectionColor = { 1.0f, 0.12f, 0.85f, 1.0f };
 constexpr const char* kPlayerModelPath = "magnet/player/player.obj";
 constexpr const char* kSmallBallModelPath = "magnet/small_ball/SmallBall.obj";
 constexpr float kGridSpacing = 1.0f;
+constexpr float kAuthoredArenaRadius = 20.0f;
 constexpr float kVelocityDisplayScale = 0.22f;
 constexpr int kArenaWallSegments = 64;
 constexpr int kAnchorFieldSegments = 32;
@@ -599,6 +600,13 @@ void MagnetPrototypeScene::Update()
 			magnetChainSystem_.GetPlayerBody())
 		: nullptr;
 	const magnet::MagnetStageData& stageData = magnetStageSystem_.GetStageData();
+	const float arenaVisualScale = stageData.arenaRadius / kAuthoredArenaRadius;
+	if (groundVisual_) {
+		groundVisual_->SetScale({ arenaVisualScale, arenaVisualScale, arenaVisualScale });
+	}
+	if (glassWallVisual_) {
+		glassWallVisual_->SetScale({ arenaVisualScale, arenaVisualScale, arenaVisualScale });
+	}
 	chainsawProximitySoundSystem_.Update(
 		frameDeltaSeconds,
 		playerBody != nullptr,
@@ -800,19 +808,21 @@ void MagnetPrototypeScene::Draw()
 				kGridColor);
 		}
 	}
-	for (int segment = 0; segment < kArenaWallSegments; ++segment) {
-		const float firstAngle = 6.28318530717958647692f *
-			static_cast<float>(segment) / static_cast<float>(kArenaWallSegments);
-		const float secondAngle = 6.28318530717958647692f *
-			static_cast<float>(segment + 1) / static_cast<float>(kArenaWallSegments);
-		const Vector3 bottomA = { std::cos(firstAngle) * arenaRadius, 0.0f, std::sin(firstAngle) * arenaRadius };
-		const Vector3 bottomB = { std::cos(secondAngle) * arenaRadius, 0.0f, std::sin(secondAngle) * arenaRadius };
-		const Vector3 topA = bottomA + Vector3{ 0.0f, kArenaWallHeight, 0.0f };
-		const Vector3 topB = bottomB + Vector3{ 0.0f, kArenaWallHeight, 0.0f };
-		lineDrawer->DrawLine(bottomA, bottomB, kConstraintColor);
-		lineDrawer->DrawLine(topA, topB, kConstraintColor);
-		if (!glassWallVisual_ && segment % 4 == 0) {
-			lineDrawer->DrawLine(bottomA, topA, kConstraintColor);
+	if (!glassWallVisual_) {
+		for (int segment = 0; segment < kArenaWallSegments; ++segment) {
+			const float firstAngle = 6.28318530717958647692f *
+				static_cast<float>(segment) / static_cast<float>(kArenaWallSegments);
+			const float secondAngle = 6.28318530717958647692f *
+				static_cast<float>(segment + 1) / static_cast<float>(kArenaWallSegments);
+			const Vector3 bottomA = { std::cos(firstAngle) * arenaRadius, 0.0f, std::sin(firstAngle) * arenaRadius };
+			const Vector3 bottomB = { std::cos(secondAngle) * arenaRadius, 0.0f, std::sin(secondAngle) * arenaRadius };
+			const Vector3 topA = bottomA + Vector3{ 0.0f, kArenaWallHeight, 0.0f };
+			const Vector3 topB = bottomB + Vector3{ 0.0f, kArenaWallHeight, 0.0f };
+			lineDrawer->DrawLine(bottomA, bottomB, kConstraintColor);
+			lineDrawer->DrawLine(topA, topB, kConstraintColor);
+			if (segment % 4 == 0) {
+				lineDrawer->DrawLine(bottomA, topA, kConstraintColor);
+			}
 		}
 	}
 
