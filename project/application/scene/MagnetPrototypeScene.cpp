@@ -310,6 +310,14 @@ void MagnetPrototypeScene::Initialize()
 			"gameplay will continue without captions.");
 	}
 	ComicTextEffectSystem::LoadPreset("HeavyImpact", heavyImpactPreset_);
+	if (!ComicTextEffectSystem::LoadPreset("ゴール", goalTitlePreset_)) {
+		goalTitlePreset_.text = "GOAL!!";
+		goalTitlePreset_.textScale = 0.72f;
+		goalTitlePreset_.textColor = { 1.0f, 0.92f, 0.32f, 1.0f };
+		goalTitlePreset_.extrusionColor = { 0.02f, 0.42f, 0.7f, 1.0f };
+		goalTitlePreset_.screenOffset = { 0.0f, -108.0f };
+		goalTitlePreset_.duration = 0.9f;
+	}
 	if (!prototypeReady_) {
 		Logger::Log("MagnetPrototypeScene: magnet prototype initialization failed.");
 		assert(false && "Magnet prototype initialization failed.");
@@ -505,6 +513,9 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 			const auto& goalEvent = magnetChainSystem_.GetGoalEvent();
 			goalCelebrationEffectSystem_.Play(
 				goalEvent.position, goalEvent.scoredBallCount);
+			if (comicTextEffects_) {
+				comicTextEffects_->Play(goalTitlePreset_, goalEvent.position);
+			}
 		}
 		if (magnetChainSystem_.GetChainsawCutEvent().occurred) {
 			chainsawCutSoundSystem_.Play();

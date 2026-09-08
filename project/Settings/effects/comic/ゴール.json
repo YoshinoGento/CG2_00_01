@@ -1,0 +1,22 @@
+{
+    "type": "comicText",
+    "text": "GOAL!!",
+    "useEditableText": true,
+    "texturePath": "Resources/effects/comic/booom_impact.png",
+    "textScale": 0.72,
+    "characterSpacing": -8.0,
+    "textColor": [1.0, 0.92, 0.32, 1.0],
+    "extrusionColor": [0.02, 0.42, 0.7, 1.0],
+    "extrusionOffset": [6.0, 7.0],
+    "screenOffset": [0.0, -108.0],
+    "drift": [0.0, -24.0],
+    "duration": 0.9,
+    "startScale": 0.08,
+    "peakScale": 1.22,
+    "endScale": 0.92,
+    "popFraction": 0.2,
+    "fadeFraction": 0.32,
+    "rotation": -0.035,
+    "shakeAmplitude": 3.5,
+    "shakeFrequency": 27.0
+}

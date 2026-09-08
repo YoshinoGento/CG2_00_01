@@ -98,6 +98,7 @@ private:
 	magnet::MagnetGimmickVisualSystem magnetGimmickVisualSystem_;
 	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;
 	ComicTextEffectPreset heavyImpactPreset_{};
+	ComicTextEffectPreset goalTitlePreset_{};
 	magnet::MagnetPrototypeWindow prototypeWindow_;
 #ifdef USE_IMGUI
 	std::unique_ptr<ParticleEffectEditor> particleEffectEditor_;
