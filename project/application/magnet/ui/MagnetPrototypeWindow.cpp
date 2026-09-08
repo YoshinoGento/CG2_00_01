@@ -1071,6 +1071,24 @@ void MagnetPrototypeWindow::DrawStageEditor(
 			"この値が床・外周壁・手動配置の端をまとめて決めます。");
 	}
 
+	ImGui::SeparatorText("ステージの制限時間");
+	if (stageData) {
+		float timeLimitSeconds = stageData->timeLimitSeconds;
+		ImGui::SetNextItemWidth(-1.0f);
+		if (ImGui::DragFloat(
+				"制限時間（秒）##StageTimeLimit",
+				&timeLimitSeconds,
+				1.0f,
+				kMinimumStageTimeLimitSeconds,
+				kMaximumStageTimeLimitSeconds,
+				"%.0f 秒",
+				ImGuiSliderFlags_AlwaysClamp)) {
+			request.stageAction = MagnetStageEditorAction::SetTimeLimit;
+			request.timeLimitSeconds = timeLimitSeconds;
+		}
+		ImGui::TextDisabled("ステージJSONごとに保存されます（10～600秒）。");
+	}
+
 	if (ImGui::TreeNodeEx("小さい球のランダム配置###RandomBallPlacement")) {
 			int ballCount = static_cast<int>(generationSettings_.ballCount);
 			if (ImGui::SliderInt(

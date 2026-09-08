@@ -440,6 +440,19 @@ bool MagnetStageSystem::SetArenaRadius(float radius)
 	return true;
 }
 
+bool MagnetStageSystem::SetTimeLimitSeconds(float seconds)
+{
+	if (!std::isfinite(seconds) || seconds < kMinimumStageTimeLimitSeconds ||
+		seconds > kMaximumStageTimeLimitSeconds) {
+		SetOperationResult(false, "制限時間は10～600秒の範囲で指定してください。");
+		return false;
+	}
+	stageData_.timeLimitSeconds = seconds;
+	dirty_ = true;
+	SetOperationResult(true, "ステージの制限時間を更新しました。");
+	return true;
+}
+
 bool MagnetStageSystem::AddBoxObject(
 	MagnetStageObjectType type,
 	const Vector3& position,
@@ -815,6 +828,7 @@ bool MagnetStageSystem::Save(const std::string& path)
 			{ "schema", kSchemaName },
 			{ "schemaVersion", MagnetStageData::kSchemaVersion },
 			{ "name", stageData_.name },
+			{ "timeLimitSeconds", stageData_.timeLimitSeconds },
 			{ "arena", { { "radius", stageData_.arenaRadius } } },
 			{ "bounds", {
 				{ "minimumX", settings.minimumX },
@@ -841,6 +855,13 @@ bool MagnetStageSystem::Save(const std::string& path)
 		}
 		if (!JsonFile::Save(path, root)) {
 			SetOperationResult(false, "ステージJSONの保存に失敗しました。");
+			return false;
+		}
+		nlohmann::json savedRoot;
+		if (!JsonFile::Load(path, savedRoot) || savedRoot != root) {
+			SetOperationResult(
+				false,
+				"保存後の検証に失敗しました。元データを保持したまま再保存してください。");
 			return false;
 		}
 		dirty_ = false;
@@ -890,6 +911,12 @@ bool MagnetStageSystem::Load(const std::string& path)
 		MagnetStageData candidate{};
 		const bool hasAuthoredArena = root.contains("arena");
 		candidate.name = root["name"].get<std::string>();
+		if (schemaVersion >= 12u) {
+			if (!ReadFiniteFloat(root, "timeLimitSeconds", candidate.timeLimitSeconds)) {
+				SetOperationResult(false, "ステージの制限時間設定が不正です。");
+				return false;
+			}
+		}
 		if (hasAuthoredArena) {
 			if (!root["arena"].is_object() ||
 				!ReadFiniteFloat(root["arena"], "radius", candidate.arenaRadius)) {
@@ -1283,6 +1310,9 @@ bool MagnetStageSystem::ValidateStageData(const MagnetStageData& stageData) noex
 		!std::isfinite(stageData.arenaRadius) ||
 		stageData.arenaRadius < kMinimumArenaRadius ||
 		stageData.arenaRadius > kMaximumArenaRadius ||
+		!std::isfinite(stageData.timeLimitSeconds) ||
+		stageData.timeLimitSeconds < kMinimumStageTimeLimitSeconds ||
+		stageData.timeLimitSeconds > kMaximumStageTimeLimitSeconds ||
 		stageData.ballCount > stageData.balls.size() ||
 		stageData.goalCount > stageData.goals.size() ||
 		stageData.obstacleCount > stageData.obstacles.size()) {

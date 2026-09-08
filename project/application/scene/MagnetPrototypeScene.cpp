@@ -84,7 +84,6 @@ constexpr float kGoalGuideScreenMargin = 38.0f;
 constexpr float kGoalGuideArmLength = 18.0f;
 constexpr float kGoalGuideThickness = 4.0f;
 constexpr float kGoalGuideHalfAngle = 0.70f;
-constexpr float kGameDurationSeconds = 60.0f;
 constexpr int kPauseMenuItemCount = 5;
 constexpr Vector4 kUiTextColor = { 0.88f, 0.94f, 0.98f, 1.0f };
 constexpr Vector4 kUiAccentColor = { 1.0f, 0.82f, 0.24f, 1.0f };
@@ -494,7 +493,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		return;
 	}
 	gameElapsedSeconds_ += fixedDeltaTime;
-	if (gameElapsedSeconds_ >= kGameDurationSeconds) {
+	if (gameElapsedSeconds_ >= magnetStageSystem_.GetStageData().timeLimitSeconds) {
 		CompleteTimedGame();
 		pendingCommand_ = {};
 		return;
@@ -1130,7 +1129,8 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 	if (!gameFlowUiReady_) { return; }
 	char timerBuffer[32]{};
 	const int remainingSeconds = static_cast<int>(std::ceil(
-		(std::max)(0.0f, kGameDurationSeconds - gameElapsedSeconds_)));
+		(std::max)(0.0f,
+			magnetStageSystem_.GetStageData().timeLimitSeconds - gameElapsedSeconds_)));
 	std::snprintf(timerBuffer, sizeof(timerBuffer), "TIME %02d", remainingSeconds);
 	timerText_.SetText(timerBuffer);
 	timerText_.Update();
@@ -1472,6 +1472,10 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 	switch (request.stageAction) {
 	case magnet::MagnetStageEditorAction::SetArenaRadius:
 		stageChanged = magnetStageSystem_.SetArenaRadius(request.arenaRadius);
+		break;
+	case magnet::MagnetStageEditorAction::SetTimeLimit:
+		stageChanged = magnetStageSystem_.SetTimeLimitSeconds(
+			request.timeLimitSeconds);
 		break;
 	case magnet::MagnetStageEditorAction::GenerateBalanced:
 		stageChanged = magnetStageSystem_.GenerateBalanced(request.generationSettings);
