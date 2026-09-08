@@ -144,9 +144,18 @@ float SignedAngleXZ(const Vector3& from, const Vector3& to) noexcept
 	return std::atan2(crossY, DotXZ(from, to));
 }
 
+Vector3 RotateXZ(const Vector3& value, float radians) noexcept;
+
 bool SegmentIntersectsExpandedGoal(const Vector3& start, const Vector3& end,
 	const MagnetChainSystem::Goal& goal, float radius) noexcept
 {
+	if (!std::isfinite(goal.rotationYRadians)) {
+		return false;
+	}
+	const Vector3 localStart = RotateXZ(
+		start - goal.center, -goal.rotationYRadians);
+	const Vector3 localEnd = RotateXZ(
+		end - goal.center, -goal.rotationYRadians);
 	const float halfWidth = goal.width * 0.5f + radius;
 	const float halfDepth = goal.depth * 0.5f + radius;
 	float entryTime = 0.0f;
@@ -162,10 +171,10 @@ bool SegmentIntersectsExpandedGoal(const Vector3& start, const Vector3& end,
 		exitTime = (std::min)(exitTime, farTime);
 		return entryTime <= exitTime;
 	};
-	return clipAxis(start.x, end.x - start.x,
-		goal.center.x - halfWidth, goal.center.x + halfWidth) &&
-		clipAxis(start.z, end.z - start.z,
-		goal.center.z - halfDepth, goal.center.z + halfDepth);
+	return clipAxis(
+		localStart.x, localEnd.x - localStart.x, -halfWidth, halfWidth) &&
+		clipAxis(
+		localStart.z, localEnd.z - localStart.z, -halfDepth, halfDepth);
 }
 
 Vector3 RotateXZ(const Vector3& value, float radians) noexcept
@@ -202,6 +211,7 @@ void MagnetChainSystem::ConfigureGoal(GoalSize size, const Vector3& center) noex
 	goals_[0].center.y = 0.0f;
 	goals_[0].width = kMagnetDiameter * widthInMagnets;
 	goals_[0].depth = kStandardGoalDepth;
+	goals_[0].rotationYRadians = 0.0f;
 	goals_[0].size = size;
 }
 
@@ -255,6 +265,7 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 		if (obstacle.id == 0 || !IsFinite(obstacle.position) ||
 			!IsFinite(obstacle.size) || obstacle.size.x <= 0.0f ||
 			obstacle.size.y <= 0.0f || obstacle.size.z <= 0.0f ||
+			!std::isfinite(obstacle.rotationYDegrees) ||
 			obstacle.obstacleKind >= MagnetObstacleKind::Count ||
 			(obstacle.obstacleKind == MagnetObstacleKind::TransferGate &&
 			 obstacle.transferPairId == 0) ||
@@ -291,13 +302,16 @@ bool MagnetChainSystem::ApplyStageLayout(const MagnetStageData& stageData)
 			const MagnetStageBoxPlacement& authoredGoal = stageData.goals[index];
 			if (authoredGoal.id == 0 || !IsFinite(authoredGoal.position) ||
 				!IsFinite(authoredGoal.size) || authoredGoal.size.x <= 0.0f ||
-				authoredGoal.size.z <= 0.0f) {
+				authoredGoal.size.z <= 0.0f ||
+				!std::isfinite(authoredGoal.rotationYDegrees)) {
 				return false;
 			}
 			goals_[index].center = authoredGoal.position;
 			goals_[index].center.y = 0.0f;
 			goals_[index].width = authoredGoal.size.x;
 			goals_[index].depth = authoredGoal.size.z;
+			goals_[index].rotationYRadians =
+				authoredGoal.rotationYDegrees * kDegreesToRadians;
 			goals_[index].size = GoalSize::Standard;
 			goals_[index].score = authoredGoal.score;
 		}
@@ -1460,23 +1474,28 @@ bool MagnetChainSystem::IsBallRespawnPositionClear(
 	}
 	for (std::size_t index = 0; index < goalCount_; ++index) {
 		const Goal& goal = goals_[index];
+		const Vector3 localPosition = RotateXZ(
+			position - goal.center, -goal.rotationYRadians);
 		const float halfWidth = goal.width * 0.5f +
 			kMagnetRadius + kBallRespawnObjectPadding;
 		const float halfDepth = goal.depth * 0.5f +
 			kMagnetRadius + kBallRespawnObjectPadding;
-		if (std::abs(position.x - goal.center.x) <= halfWidth &&
-			std::abs(position.z - goal.center.z) <= halfDepth) {
+		if (std::abs(localPosition.x) <= halfWidth &&
+			std::abs(localPosition.z) <= halfDepth) {
 			return false;
 		}
 	}
 	for (std::size_t index = 0; index < obstacleCount_; ++index) {
 		const MagnetStageBoxPlacement& obstacle = obstacles_[index];
+		const Vector3 localPosition = RotateXZ(
+			position - obstacle.position,
+			-obstacle.rotationYDegrees * kDegreesToRadians);
 		const float halfWidth = obstacle.size.x * 0.5f +
 			kMagnetRadius + kBallRespawnObjectPadding;
 		const float halfDepth = obstacle.size.z * 0.5f +
 			kMagnetRadius + kBallRespawnObjectPadding;
-		if (std::abs(position.x - obstacle.position.x) <= halfWidth &&
-			std::abs(position.z - obstacle.position.z) <= halfDepth) {
+		if (std::abs(localPosition.x) <= halfWidth &&
+			std::abs(localPosition.z) <= halfDepth) {
 			return false;
 		}
 	}

@@ -324,6 +324,11 @@ void MagnetPrototypeScene::Initialize()
 	magneticImpactFeedbackSystem_.Reset();
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
+	if (!gimmickComicTextSystem_.Initialize(comicTextEffects_.get())) {
+		Logger::Log(
+			"MagnetPrototypeScene: gimmick comic text effects are unavailable; "
+			"gameplay will continue without captions.");
+	}
 	ComicTextEffectSystem::LoadPreset("HeavyImpact", heavyImpactPreset_);
 	if (!prototypeReady_) {
 		Logger::Log("MagnetPrototypeScene: magnet prototype initialization failed.");
@@ -362,6 +367,7 @@ void MagnetPrototypeScene::Finalize()
 		framework_->GetParticleManager()->ClearAll();
 		framework_->GetParticleManager()->ResetGPUParticles();
 	}
+	gimmickComicTextSystem_.Finalize();
 	comicTextEffects_.reset();
 	gimmickEffectSystem_.Finalize();
 	magnetGimmickVisualSystem_.Finalize();
@@ -486,6 +492,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		furnaceVisualSystem_.Reset();
 		magnetStageStructureVisualSystem_.Reset();
 		gimmickEffectSystem_.Reset();
+		gimmickComicTextSystem_.Reset();
 		gimmickSoundSystem_.Reset();
 		magnetGimmickVisualSystem_.Reset();
 		if (comicTextEffects_) { comicTextEffects_->Clear(); }
@@ -562,6 +569,8 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		gimmickSoundSystem_.Update(
 			magnetChainSystem_, magnetStageSystem_.GetStageData());
 		gimmickEffectSystem_.CaptureEvents(
+			magnetChainSystem_, magnetStageSystem_.GetStageData());
+		gimmickComicTextSystem_.CaptureEvents(
 			magnetChainSystem_, magnetStageSystem_.GetStageData());
 		magneticImpactFeedbackSystem_.Update(fixedDeltaTime);
 	}
@@ -662,6 +671,7 @@ void MagnetPrototypeScene::Update()
 	}
 	gimmickEffectSystem_.Update(frameDeltaSeconds);
 	if (comicTextEffects_ && camera_) {
+		gimmickComicTextSystem_.Update(frameDeltaSeconds);
 		comicTextEffects_->Update(
 			frameDeltaSeconds,
 			camera_->GetViewProjectionMatrix());
@@ -720,6 +730,12 @@ void MagnetPrototypeScene::DrawEditorUi(const SceneEditorContext& context)
 		Vector3 effectPosition = ResolveEditorFocusPosition();
 		effectPosition.y += 0.5f;
 		if (ImGui::Begin("エフェクトエディタ###ParticleEffectEditor")) {
+			if (ImGui::Button("文字エフェクトエディタを開く")) {
+				SceneManager::GetInstance()->ChangeScene("EFFECT_EDITOR");
+			}
+			ImGui::SameLine();
+			ImGui::TextDisabled("プリセットの作成・変更・削除");
+			ImGui::Separator();
 			const FrameClock* frameClock = framework_->GetFrameClock();
 			particleEffectEditor_->Draw(*framework_->GetParticleManager(), effectPosition,
 				frameClock ? frameClock->GetFrameDeltaSeconds() : FrameClock::kDefaultFixedDeltaSeconds);
@@ -1464,7 +1480,8 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 			request.selectedObjectType,
 			request.selectedObjectId,
 			request.editedObjectPosition,
-			request.editedObjectSize);
+			request.editedObjectSize,
+			request.editedObjectRotationYDegrees);
 		break;
 	case magnet::MagnetStageEditorAction::UpdateGoalScore:
 		stageChanged = magnetStageSystem_.SetGoalScore(
@@ -1611,6 +1628,7 @@ void MagnetPrototypeScene::DrawStageObjects() const
 			DrawWireBox(
 				stageData.goals[index].position,
 				stageData.goals[index].size,
+				stageData.goals[index].rotationYDegrees,
 				kGoalColor);
 		}
 	}
@@ -1633,7 +1651,11 @@ void MagnetPrototypeScene::DrawStageObjects() const
 				obstacle.obstacleKind);
 		if ((obstacle.obstacleKind != magnet::MagnetObstacleKind::Furnace ||
 			!furnaceVisualsReady_) && !hasGimmickVisual && !hasStructureVisual) {
-			DrawWireBox(runtimePosition, obstacle.size, color);
+			DrawWireBox(
+				runtimePosition,
+				obstacle.size,
+				obstacle.rotationYDegrees,
+				color);
 		}
 		if ((obstacle.obstacleKind == magnet::MagnetObstacleKind::PinballBumper ||
 			obstacle.obstacleKind == magnet::MagnetObstacleKind::MagneticAnchor) &&
@@ -1774,29 +1796,46 @@ void MagnetPrototypeScene::DrawSelectionHighlight() const
 			kSelectionBoxPadding,
 			kSelectionBoxPadding,
 		};
-		DrawWireBox(object->position, object->size + padding, kSelectionColor);
+		DrawWireBox(
+			object->position,
+			object->size + padding,
+			object->rotationYDegrees,
+			kSelectionColor);
 	}
 }
 
 void MagnetPrototypeScene::DrawWireBox(
 	const Vector3& center,
 	const Vector3& size,
+	float rotationYDegrees,
 	const Vector4& color) const
 {
 	if (!IsFiniteVector3(center) || !IsFiniteVector3(size) ||
+		!std::isfinite(rotationYDegrees) ||
 		size.x <= 0.0f || size.y <= 0.0f || size.z <= 0.0f) {
 		return;
 	}
 	const Vector3 half = size * 0.5f;
+	const float rotationYRadians = rotationYDegrees *
+		3.14159265358979323846f / 180.0f;
+	const float cosine = std::cos(rotationYRadians);
+	const float sine = std::sin(rotationYRadians);
+	const auto toWorld = [&](const Vector3& local) noexcept {
+		return Vector3{
+			center.x + local.x * cosine + local.z * sine,
+			center.y + local.y,
+			center.z - local.x * sine + local.z * cosine,
+		};
+	};
 	const Vector3 corners[8] = {
-		{ center.x - half.x, center.y - half.y, center.z - half.z },
-		{ center.x + half.x, center.y - half.y, center.z - half.z },
-		{ center.x + half.x, center.y + half.y, center.z - half.z },
-		{ center.x - half.x, center.y + half.y, center.z - half.z },
-		{ center.x - half.x, center.y - half.y, center.z + half.z },
-		{ center.x + half.x, center.y - half.y, center.z + half.z },
-		{ center.x + half.x, center.y + half.y, center.z + half.z },
-		{ center.x - half.x, center.y + half.y, center.z + half.z },
+		toWorld({ -half.x, -half.y, -half.z }),
+		toWorld({  half.x, -half.y, -half.z }),
+		toWorld({  half.x,  half.y, -half.z }),
+		toWorld({ -half.x,  half.y, -half.z }),
+		toWorld({ -half.x, -half.y,  half.z }),
+		toWorld({  half.x, -half.y,  half.z }),
+		toWorld({  half.x,  half.y,  half.z }),
+		toWorld({ -half.x,  half.y,  half.z }),
 	};
 	constexpr std::size_t kEdges[12][2] = {
 		{ 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },

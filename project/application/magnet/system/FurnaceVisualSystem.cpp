@@ -21,6 +21,7 @@ constexpr float kEffectDurationSeconds = 0.46f;
 constexpr float kFurnaceBaseThreshold = 0.10f;
 constexpr float kFurnaceThresholdAmplitude = 0.035f;
 constexpr float kFurnaceAnimationRate = 1.15f;
+constexpr float kDegreesToRadians = 3.14159265358979323846f / 180.0f;
 constexpr Vector2 kMagmaWorldUvScale{ 0.62f, 0.62f };
 constexpr Vector2 kMagmaFlowVelocity{ 0.065f, -0.095f };
 constexpr Vector4 kFurnaceEdgeColor{ 1.0f, 0.72f, 0.08f, 1.0f };
@@ -188,11 +189,16 @@ bool FurnaceVisualSystem::Update(
 			continue;
 		}
 		if (!furnaceVisuals_[index] || !IsFinite(obstacle.position) ||
-			!IsPositiveFiniteSize(obstacle.size)) {
+			!IsPositiveFiniteSize(obstacle.size) ||
+			!std::isfinite(obstacle.rotationYDegrees)) {
 			return false;
 		}
 		Object3d& visual = *furnaceVisuals_[index];
 		visual.SetPosition(obstacle.position);
+		visual.SetRotation({
+			0.0f,
+			obstacle.rotationYDegrees * kDegreesToRadians,
+			0.0f });
 		if (!visual.SetScale(obstacle.size)) {
 			return false;
 		}

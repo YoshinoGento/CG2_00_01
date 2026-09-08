@@ -590,8 +590,10 @@ int main()
 	const Vector3 obstacleSize{ 1.5f, 2.0f, 3.0f };
 	const Vector3 editedGoalPosition{ 1.0f, 1.5f, 7.5f };
 	const Vector3 editedGoalSize{ 3.5f, 2.5f, 1.5f };
+	constexpr float kEditedGoalRotationYDegrees = 45.0f;
 	const Vector3 editedObstaclePosition{ -2.5f, 1.25f, 2.5f };
 	const Vector3 editedObstacleSize{ 2.0f, 2.5f, 2.0f };
+	constexpr float kEditedObstacleRotationYDegrees = -30.0f;
 	if (!stageSystem.AddBoxObject(
 			magnet::MagnetStageObjectType::Goal,
 			goalPosition,
@@ -609,12 +611,20 @@ int main()
 			magnet::MagnetStageObjectType::Goal,
 			1u,
 			editedGoalPosition,
-			editedGoalSize) ||
+			editedGoalSize,
+			kEditedGoalRotationYDegrees) ||
 		!stageSystem.SetBoxObjectTransform(
 			magnet::MagnetStageObjectType::Obstacle,
 			1u,
 			editedObstaclePosition,
-			editedObstacleSize) ||
+			editedObstacleSize,
+			kEditedObstacleRotationYDegrees) ||
+		stageSystem.SetBoxObjectTransform(
+			magnet::MagnetStageObjectType::Obstacle,
+			1u,
+			editedObstaclePosition,
+			editedObstacleSize,
+			(std::numeric_limits<float>::quiet_NaN)()) ||
 		!stageSystem.SetObstacleKind(
 			1u,
 			magnet::MagnetObstacleKind::TransferGate) ||
@@ -638,6 +648,10 @@ int main()
 		!ApproximatelyEqual(
 			stageSystem.GetStageData().obstacles[0].position,
 			editedObstaclePosition) ||
+		std::abs(stageSystem.GetStageData().goals[0].rotationYDegrees -
+			kEditedGoalRotationYDegrees) > 1.0e-5f ||
+		std::abs(stageSystem.GetStageData().obstacles[0].rotationYDegrees -
+			kEditedObstacleRotationYDegrees) > 1.0e-5f ||
 		stageSystem.GetStageData().obstacles[0].obstacleKind !=
 			magnet::MagnetObstacleKind::TransferGate ||
 		stageSystem.GetStageData().obstacles[0].transferPairId == 0 ||
@@ -700,11 +714,13 @@ int main()
 	std::cout << "release_stage_checks=passed\n";
 	magnet::MagnetChainSystem authoredGoalSystem;
 	const magnet::MagnetStageBoxPlacement& authoredGoal =
-		defaultStageSystem.GetStageData().goals[0];
-	if (!authoredGoalSystem.Initialize(defaultStageSystem.GetStageData()) ||
+		stageSystem.GetStageData().goals[0];
+	if (!authoredGoalSystem.Initialize(stageSystem.GetStageData()) ||
 		DistanceXZ(authoredGoalSystem.GetGoal().center, authoredGoal.position) > 1.0e-5f ||
 		std::abs(authoredGoalSystem.GetGoal().width - authoredGoal.size.x) > 1.0e-5f ||
-		std::abs(authoredGoalSystem.GetGoal().depth - authoredGoal.size.z) > 1.0e-5f) {
+		std::abs(authoredGoalSystem.GetGoal().depth - authoredGoal.size.z) > 1.0e-5f ||
+		std::abs(authoredGoalSystem.GetGoal().rotationYRadians -
+			authoredGoal.rotationYDegrees * 0.01745329251994329577f) > 1.0e-5f) {
 		std::cerr << "Runtime Goal does not match the authored stage Goal.\n";
 		return 108;
 	}
@@ -734,6 +750,10 @@ int main()
 		!ApproximatelyEqual(
 			loadedStageSystem.GetStageData().obstacles[0].size,
 			editedObstacleSize) ||
+		std::abs(loadedStageSystem.GetStageData().goals[0].rotationYDegrees -
+			kEditedGoalRotationYDegrees) > 1.0e-5f ||
+		std::abs(loadedStageSystem.GetStageData().obstacles[0].rotationYDegrees -
+			kEditedObstacleRotationYDegrees) > 1.0e-5f ||
 		loadedStageSystem.GetStageData().obstacles[0].obstacleKind !=
 			magnet::MagnetObstacleKind::TransferGate ||
 		loadedStageSystem.GetStageData().obstacles[0].transferPairId == 0 ||
@@ -859,6 +879,37 @@ int main()
 		std::cerr << "Solid-wall impact event was not cleared after contact.\n";
 		return 174;
 	}
+
+	obstacleSystem.Reset();
+	gimmick.size = { 4.0f, 1.0f, 0.5f };
+	gimmick.rotationYDegrees = 45.0f;
+	constexpr float kRotationTestComponent = 0.70710678118654752440f;
+	const Vector3 rotatedWallNormal{
+		kRotationTestComponent, 0.0f, kRotationTestComponent };
+	if (!obstacleWorld.SetPosition(
+			obstacleBall,
+			rotatedWallNormal * 0.40f + Vector3{ 0.0f, 0.5f, 0.0f }) ||
+		!obstacleWorld.SetLinearVelocity(
+			obstacleBall,
+			rotatedWallNormal * -5.0f) ||
+		!obstacleSystem.Resolve(
+			obstacleWorld, {}, obstacleBalls.data(), obstacleBalls.size(),
+			&gimmick, 1, kFixedDeltaTime)) {
+		std::cerr << "Rotated solid-wall resolution failed.\n";
+		return 224;
+	}
+	obstacleBody = obstacleWorld.GetBody(obstacleBall);
+	if (!obstacleBody ||
+		obstacleBody->position.x * rotatedWallNormal.x +
+			obstacleBody->position.z * rotatedWallNormal.z < 0.75f ||
+		obstacleBody->linearVelocity.x * rotatedWallNormal.x +
+			obstacleBody->linearVelocity.z * rotatedWallNormal.z <= 0.0f) {
+		std::cerr << "Rotated solid wall did not use its oriented collision normal.\n";
+		return 225;
+	}
+	std::cout << "stage_rotation_collision_checks=passed\n";
+	gimmick.size = { 2.0f, 1.0f, 2.0f };
+	gimmick.rotationYDegrees = 0.0f;
 
 	physics::PhysicsWorld arenaImpactWorld;
 	physics::SphereBodyDesc arenaImpactBodyDesc{};
@@ -1089,6 +1140,7 @@ int main()
 	transferGates[1].size = { 4.0f, 2.0f, 0.5f };
 	transferGates[1].obstacleKind = magnet::MagnetObstacleKind::TransferGate;
 	transferGates[1].transferPairId = 7u;
+	transferGates[1].rotationYDegrees = 45.0f;
 	magnet::ObstacleCollisionSystem transferSystem;
 	if (!transferPlayer.IsValid() || !transferBall.IsValid() ||
 		!transferSystem.Resolve(
@@ -1125,12 +1177,19 @@ int main()
 		transferWorld.GetBody(transferPlayer);
 	const physics::SphereBody* transferredBall =
 		transferWorld.GetBody(transferBall);
+	constexpr float kInverseSquareRootTwo = 0.70710678118654752440f;
 	if (!transferredPlayer || !transferredBall ||
-		std::abs(transferredPlayer->linearVelocity.x + 1.0f) > 1.0e-5f ||
-		std::abs(transferredPlayer->linearVelocity.z - 4.0f) > 1.0e-5f ||
-		std::abs(transferredBall->linearVelocity.x - 2.0f) > 1.0e-5f ||
-		std::abs(transferredBall->linearVelocity.z - 3.0f) > 1.0e-5f ||
+		std::abs(transferredPlayer->linearVelocity.x -
+			3.0f * kInverseSquareRootTwo) > 1.0e-5f ||
+		std::abs(transferredPlayer->linearVelocity.z -
+			5.0f * kInverseSquareRootTwo) > 1.0e-5f ||
+		std::abs(transferredBall->linearVelocity.x -
+			5.0f * kInverseSquareRootTwo) > 1.0e-5f ||
+		std::abs(transferredBall->linearVelocity.z -
+			1.0f * kInverseSquareRootTwo) > 1.0e-5f ||
+		transferredPlayer->position.x <= transferGates[1].position.x ||
 		transferredPlayer->position.z <= transferGates[1].position.z ||
+		transferredBall->position.x <= transferGates[1].position.x ||
 		transferredBall->position.z <= transferGates[1].position.z) {
 		std::cerr << "Transfer gate changed speed or used the wrong exit direction.\n";
 		return 163;

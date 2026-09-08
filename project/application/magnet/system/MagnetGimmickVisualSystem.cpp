@@ -48,6 +48,7 @@ constexpr char kWhiteTexturePath[] = "Resources/human/white.png";
 constexpr char kNoiseTexturePath[] = "Resources/noise1.png";
 constexpr float kTau = std::numbers::pi_v<float> * 2.0f;
 constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
+constexpr float kDegreesToRadians = std::numbers::pi_v<float> / 180.0f;
 constexpr float kTransferSourceWidth = 3.4f;
 constexpr float kTransferSourceHeight = 3.2f;
 constexpr float kTransferSourceDepth = 0.5f;
@@ -127,12 +128,26 @@ constexpr std::array<Vector4, 6> kTransferPairColors{
 	return kTransferPairColors[(pairId - 1u) % kTransferPairColors.size()];
 }
 
+[[nodiscard]] Vector3 RotateXZ(const Vector3& value, float radians) noexcept
+{
+	const float cosine = std::cos(radians);
+	const float sine = std::sin(radians);
+	return {
+		value.x * cosine + value.z * sine,
+		value.y,
+		-value.x * sine + value.z * cosine,
+	};
+}
+
 [[nodiscard]] Vector3 GetChainsawFacing(
 	const MagnetStageBoxPlacement& obstacle) noexcept
 {
-	return obstacle.size.z > obstacle.size.x
+	const Vector3 localFacing = obstacle.size.z > obstacle.size.x
 		? Vector3{ -1.0f, 0.0f, 0.0f }
 		: Vector3{ 0.0f, 0.0f, -1.0f };
+	return RotateXZ(
+		localFacing,
+		obstacle.rotationYDegrees * kDegreesToRadians);
 }
 
 [[nodiscard]] Vector3 NormalizeHorizontalOr(
@@ -406,6 +421,8 @@ bool MagnetGimmickVisualSystem::UpdateTransferGate(
 	const float phase = static_cast<float>(obstacle.id % 29u) * 0.31f;
 	const float pulse = 0.78f + 0.22f *
 		(0.5f + 0.5f * std::sin(elapsedSeconds_ * 3.1f + phase));
+	const float authoredRotation =
+		obstacle.rotationYDegrees * kDegreesToRadians;
 
 	Object3d& frame = *slot.primary;
 	frame.SetPosition({
@@ -413,7 +430,10 @@ bool MagnetGimmickVisualSystem::UpdateTransferGate(
 		obstacle.position.y - obstacle.size.y * 0.5f,
 		obstacle.position.z,
 	});
-	frame.SetRotation({ 0.0f, normalAlongX ? kHalfPi : 0.0f, 0.0f });
+	frame.SetRotation({
+		0.0f,
+		(normalAlongX ? kHalfPi : 0.0f) + authoredRotation,
+		0.0f });
 	frame.SetColor(MultiplyRgb(pairColor, 0.38f + pulse * 0.16f));
 	if (!frame.SetScale(frameScale)) {
 		return false;
@@ -429,7 +449,7 @@ bool MagnetGimmickVisualSystem::UpdateTransferGate(
 		obstacle.position.y - obstacle.size.y * 0.5f + openingHeight * 0.5f,
 		obstacle.position.z,
 	});
-	portal.SetRotation({});
+	portal.SetRotation({ 0.0f, authoredRotation, 0.0f });
 	portal.SetColor(MultiplyRgb(pairColor, 0.82f + pulse * 0.18f));
 	const Vector3 portalScale = normalAlongX
 		? Vector3{ portalDepth, openingHeight, openingWidth }
@@ -459,7 +479,11 @@ bool MagnetGimmickVisualSystem::UpdateChainsaw(
 		obstacle.size.y * kChainsawExposedRatio / kChainsawSourceHeight,
 		authoredThickness / kChainsawSourceThickness,
 	};
-	const Vector3 rotation{ 0.0f, widthAlongZ ? -kHalfPi : 0.0f, 0.0f };
+	const Vector3 rotation{
+		0.0f,
+		(widthAlongZ ? -kHalfPi : 0.0f) +
+			obstacle.rotationYDegrees * kDegreesToRadians,
+		0.0f };
 	const Vector3 visualPosition{
 		obstacle.position.x,
 		obstacle.position.y +
@@ -596,7 +620,11 @@ bool MagnetGimmickVisualSystem::UpdateTimedShutter(
 		obstacle.position.y - obstacle.size.y * 0.5f,
 		obstacle.position.z,
 	};
-	const Vector3 rotation{ 0.0f, normalAlongX ? kHalfPi : 0.0f, 0.0f };
+	const Vector3 rotation{
+		0.0f,
+		(normalAlongX ? kHalfPi : 0.0f) +
+			obstacle.rotationYDegrees * kDegreesToRadians,
+		0.0f };
 	Object3d& frame = *slot.primary;
 	frame.SetPosition(sourceBase);
 	frame.SetRotation(rotation);
@@ -810,7 +838,8 @@ bool MagnetGimmickVisualSystem::Update(
 		if (!Supports(obstacle.obstacleKind)) {
 			continue;
 		}
-		if (!IsFinite(obstacle.position) || !IsPositiveFiniteSize(obstacle.size)) {
+		if (!IsFinite(obstacle.position) || !IsPositiveFiniteSize(obstacle.size) ||
+			!std::isfinite(obstacle.rotationYDegrees)) {
 			return false;
 		}
 		VisualSlot& slot = slots_[index];
