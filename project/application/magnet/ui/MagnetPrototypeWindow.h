@@ -87,6 +87,7 @@ struct MagnetPrototypeUiRequest {
 	bool reset = false;
 	bool emergencyStop = false;
 	bool releaseChains = false;
+	float editorCameraZoomWheelDelta = 0.0f;
 	bool showGrid = true;
 	bool showVelocity = true;
 	bool cameraFollow = true;
@@ -114,6 +115,7 @@ private:
 		MagnetPrototypeUiRequest& request);
 	void DrawViewport(
 		const MagnetPrototypeViewData& viewData,
+		MagnetPrototypeUiRequest& request,
 		SrvManager* srvManager,
 		uint32_t finalDisplaySrvIndex,
 		float virtualWidth,

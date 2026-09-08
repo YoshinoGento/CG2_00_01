@@ -6,6 +6,7 @@
 #include "application/magnet/system/GimmickEffectSystem.h"
 #include "application/magnet/system/GimmickSoundSystem.h"
 #include "application/magnet/system/MagnetGimmickVisualSystem.h"
+#include "application/magnet/system/MagnetEditorCameraSystem.h"
 #include "application/magnet/system/MagnetChainSystem.h"
 #include "application/magnet/system/MagneticImpactFeedbackSystem.h"
 #include "application/magnet/system/MagneticImpactSoundSystem.h"
@@ -77,6 +78,7 @@ private:
 		stageBallVisuals_{};
 	std::unique_ptr<Skybox> skybox_;
 	magnet::MagnetStageSystem magnetStageSystem_;
+	magnet::MagnetEditorCameraSystem magnetEditorCameraSystem_;
 	magnet::MagnetChainSystem magnetChainSystem_;
 	magnet::MagneticOneShotSoundSystem magneticAttachmentSoundSystem_;
 	magnet::MagneticOneShotSoundSystem magneticGoalSoundSystem_;

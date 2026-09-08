@@ -1,6 +1,7 @@
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/BallMomentumTracker.h"
 #include "application/magnet/system/MagnetChainSystem.h"
+#include "application/magnet/system/MagnetEditorCameraSystem.h"
 #include "application/magnet/system/MagneticImpactAttachmentSystem.h"
 #include "application/magnet/system/SpinChargeController.h"
 #include "io/JsonFile.h"
@@ -10,6 +11,7 @@
 #include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 
 namespace {
 
@@ -142,6 +144,60 @@ float GetMinimumPairDistance(const magnet::MagnetStageData& stage)
 
 int main()
 {
+	magnet::MagnetEditorCameraSystem editorCamera;
+	Vector3 editorCameraPosition{};
+	const Vector3 editorFocus{ 2.0f, 1.0f, -3.0f };
+	if (!editorCamera.TryCalculatePosition(editorFocus, editorCameraPosition) ||
+		!ApproximatelyEqual(editorCameraPosition, { 2.0f, 10.0f, -16.0f })) {
+		std::cerr << "Default editor camera position is invalid.\n";
+		return 181;
+	}
+	const float defaultZoomScale = editorCamera.GetZoomScale();
+	if (!editorCamera.ApplyWheelDelta(1.0f) ||
+		editorCamera.GetZoomScale() >= defaultZoomScale ||
+		!editorCamera.TryCalculatePosition(editorFocus, editorCameraPosition) ||
+		editorCameraPosition.z <= -16.0f) {
+		std::cerr << "Editor camera zoom-in direction is invalid.\n";
+		return 182;
+	}
+	if (!editorCamera.ApplyWheelDelta(-1.0f) ||
+		std::abs(editorCamera.GetZoomScale() - defaultZoomScale) > 1.0e-5f) {
+		std::cerr << "Editor camera wheel zoom is not reversible.\n";
+		return 183;
+	}
+	for (int index = 0; index < 32; ++index) {
+		if (!editorCamera.ApplyWheelDelta(8.0f)) {
+			std::cerr << "Editor camera minimum clamp update failed.\n";
+			return 184;
+		}
+	}
+	if (std::abs(editorCamera.GetZoomScale() -
+		magnet::MagnetEditorCameraSystem::kMinimumZoomScale) > 1.0e-5f) {
+		std::cerr << "Editor camera minimum zoom clamp failed.\n";
+		return 185;
+	}
+	for (int index = 0; index < 32; ++index) {
+		if (!editorCamera.ApplyWheelDelta(-8.0f)) {
+			std::cerr << "Editor camera maximum clamp update failed.\n";
+			return 186;
+		}
+	}
+	if (std::abs(editorCamera.GetZoomScale() -
+		magnet::MagnetEditorCameraSystem::kMaximumZoomScale) > 1.0e-5f) {
+		std::cerr << "Editor camera maximum zoom clamp failed.\n";
+		return 187;
+	}
+	const float validZoomScale = editorCamera.GetZoomScale();
+	if (editorCamera.ApplyWheelDelta(std::numeric_limits<float>::quiet_NaN()) ||
+		editorCamera.GetZoomScale() != validZoomScale ||
+		editorCamera.TryCalculatePosition(
+			{ std::numeric_limits<float>::infinity(), 0.0f, 0.0f },
+			editorCameraPosition)) {
+		std::cerr << "Editor camera rejected-input handling failed.\n";
+		return 188;
+	}
+	std::cout << "editor_camera_zoom_checks=passed\n";
+
 	physics::PhysicsWorld rollingWorld;
 	physics::SphereBodyDesc rollingDesc{};
 	rollingDesc.position = { 0.0f, 2.0f, 0.0f };

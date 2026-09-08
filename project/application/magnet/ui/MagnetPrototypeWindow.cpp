@@ -184,6 +184,7 @@ MagnetPrototypeUiRequest MagnetPrototypeWindow::Draw(
 	DrawHierarchy(viewData, request);
 	DrawViewport(
 		viewData,
+		request,
 		srvManager,
 		finalDisplaySrvIndex,
 		virtualWidth,
@@ -402,6 +403,7 @@ void MagnetPrototypeWindow::DrawHierarchy(
 
 void MagnetPrototypeWindow::DrawViewport(
 	const MagnetPrototypeViewData& viewData,
+	MagnetPrototypeUiRequest& request,
 	SrvManager* srvManager,
 	uint32_t finalDisplaySrvIndex,
 	float virtualWidth,
@@ -409,7 +411,12 @@ void MagnetPrototypeWindow::DrawViewport(
 {
 #ifdef USE_IMGUI
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
-	if (ImGui::Begin(kViewportWindowName, nullptr, ImGuiWindowFlags_NoCollapse)) {
+	if (ImGui::Begin(
+		kViewportWindowName,
+		nullptr,
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoScrollbar |
+		ImGuiWindowFlags_NoScrollWithMouse)) {
 		const bool validTexture = srvManager != nullptr &&
 			srvManager->IsAllocated(finalDisplaySrvIndex);
 		const bool validVirtualSize = std::isfinite(virtualWidth) &&
@@ -435,6 +442,13 @@ void MagnetPrototypeWindow::DrawViewport(
 				static_cast<ImTextureID>(
 					srvManager->GetGPUDescriptorHandle(finalDisplaySrvIndex).ptr),
 				displaySize);
+			if (viewData.editorMode == MagnetEditorMode::StageEdit &&
+				ImGui::IsItemHovered()) {
+				const float wheelDelta = ImGui::GetIO().MouseWheel;
+				if (std::isfinite(wheelDelta)) {
+					request.editorCameraZoomWheelDelta = wheelDelta;
+				}
+			}
 
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
 			char scoreText[64]{};
@@ -452,6 +466,15 @@ void MagnetPrototypeWindow::DrawViewport(
 			drawList->AddRect(scoreMinimum, scoreMaximum, IM_COL32(255, 215, 70, 235), 7.0f, 0, 2.0f);
 			drawList->AddText({ scoreMinimum.x + 11.0f, scoreMinimum.y + 7.0f },
 				IM_COL32(255, 230, 100, 255), scoreText);
+			if (viewData.editorMode == MagnetEditorMode::StageEdit) {
+				const char* zoomHelp = "ホイール: カメラをズーム";
+				const ImVec2 helpSize = ImGui::CalcTextSize(zoomHelp);
+				const ImVec2 helpPosition = {
+					imagePosition.x + displaySize.x - helpSize.x - kMinimapMargin,
+					imagePosition.y + displaySize.y - helpSize.y - kMinimapMargin,
+				};
+				drawList->AddText(helpPosition, IM_COL32(235, 240, 255, 220), zoomHelp);
+			}
 		} else {
 			ImGui::SetCursorPos({ 16.0f, 16.0f });
 			ImGui::TextDisabled("ゲーム画面を表示できません。");
@@ -461,6 +484,7 @@ void MagnetPrototypeWindow::DrawViewport(
 	ImGui::PopStyleVar();
 #else
 	(void)viewData;
+	(void)request;
 	(void)srvManager;
 	(void)finalDisplaySrvIndex;
 	(void)virtualWidth;
