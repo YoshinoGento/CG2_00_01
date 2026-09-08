@@ -198,6 +198,30 @@ void MagnetPrototypeScene::Initialize()
 		{ 0.22f, 0.38f, 0.62f, 1.0f },
 		{ 0.70f, 0.30f, 0.34f, 1.0f });
 	skybox_->Update(camera_.get());
+	constexpr const char* kGroundModelPath = "stage/MagnetGround.obj";
+	framework_->GetModelManager()->LoadModel(kGroundModelPath);
+	if (Model* groundModel = framework_->GetModelManager()->GetModel(kGroundModelPath)) {
+		groundModel->LoadTextures();
+		groundVisual_ = std::make_unique<Object3d>();
+		groundVisual_->Initialize(framework_->GetObject3dCommon());
+		groundVisual_->SetModel(groundModel);
+		groundVisual_->SetPosition({ 0.0f, -0.025f, 0.0f });
+		groundVisual_->SetEnableLighting(false);
+		groundVisual_->SetCullMode(0);
+		groundVisual_->Update(camera_.get(), 0.0f);
+	}
+	constexpr const char* kGlassWallModelPath = "stage/ArenaGlassWall.obj";
+	framework_->GetModelManager()->LoadModel(kGlassWallModelPath);
+	if (Model* glassModel = framework_->GetModelManager()->GetModel(kGlassWallModelPath)) {
+		glassModel->LoadTextures();
+		glassWallVisual_ = std::make_unique<Object3d>();
+		glassWallVisual_->Initialize(framework_->GetObject3dCommon());
+		glassWallVisual_->SetModel(glassModel);
+		glassWallVisual_->SetColor({ 0.70f, 0.90f, 1.0f, 0.72f });
+		glassWallVisual_->SetEnableLighting(false);
+		glassWallVisual_->SetCullMode(0);
+		glassWallVisual_->Update(camera_.get(), 0.0f);
+	}
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
 	minimapReady_ = InitializeMinimap();
 	if (!minimapReady_) {
@@ -375,6 +399,8 @@ void MagnetPrototypeScene::Finalize()
 	minimapBackgroundSprite_.reset();
 	minimapBorderSprite_.reset();
 	minimapReady_ = false;
+	glassWallVisual_.reset();
+	groundVisual_.reset();
 	skybox_.reset();
 	camera_.reset();
 	framework_ = nullptr;
@@ -595,6 +621,8 @@ void MagnetPrototypeScene::Update()
 		}
 		camera_->Update();
 		if (skybox_) { skybox_->Update(camera_.get()); }
+		if (groundVisual_) { groundVisual_->Update(camera_.get(), 0.0f); }
+		if (glassWallVisual_) { glassWallVisual_->Update(camera_.get(), 0.0f); }
 	}
 	if (ballVisualsReady_ && !UpdateBallVisuals(frameDeltaSeconds)) {
 		Logger::Log(
@@ -728,6 +756,12 @@ void MagnetPrototypeScene::Draw()
 	// The sky is the background, so render it before particles and screen-space effects.
 	// Drawing it later would overwrite effects that do not write to the depth buffer.
 	if (skybox_) { skybox_->Draw(); }
+	if (groundVisual_) {
+		Object3dCommon* objectCommon = framework_->GetObject3dCommon();
+		objectCommon->BeginObjectPass();
+		groundVisual_->Draw();
+		objectCommon->EndObjectPass();
+	}
 
 	LineDrawer* lineDrawer = LineDrawer::GetInstance();
 	const float arenaRadius = magnetChainSystem_.GetArenaRadius();
@@ -761,7 +795,7 @@ void MagnetPrototypeScene::Draw()
 		const Vector3 topB = bottomB + Vector3{ 0.0f, kArenaWallHeight, 0.0f };
 		lineDrawer->DrawLine(bottomA, bottomB, kConstraintColor);
 		lineDrawer->DrawLine(topA, topB, kConstraintColor);
-		if (segment % 4 == 0) {
+		if (!glassWallVisual_ && segment % 4 == 0) {
 			lineDrawer->DrawLine(bottomA, topA, kConstraintColor);
 		}
 	}
@@ -805,6 +839,12 @@ void MagnetPrototypeScene::Draw()
 			magnetStageSystem_.GetStageData(), magnetChainSystem_);
 	}
 	DrawBallVisuals();
+	if (glassWallVisual_) {
+		Object3dCommon* objectCommon = framework_->GetObject3dCommon();
+		objectCommon->BeginObjectPass();
+		glassWallVisual_->Draw();
+		objectCommon->EndObjectPass();
+	}
 	if (framework_ && framework_->GetParticleManager()) {
 		framework_->GetParticleManager()->Draw();
 	}
