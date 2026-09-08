@@ -21,10 +21,12 @@ public:
 	{
 		if (!audio) { return; }
 		audio_ = audio;
+		audio_->SetSoundEffectVolume(seVolume_);
 		if (!bgmClip_) { bgmClip_ = audio_->LoadAudio("Resources/bgm.wav"); }
 		if (bgmClip_ && !audio_->IsVoiceActive(bgmVoice_)) {
 			Audio::PlaySettings settings{};
 			settings.loop = true;
+			settings.useSoundEffectVolume = false;
 			settings.volume = bgmVolume_;
 			bgmVoice_ = audio_->Play(bgmClip_, settings);
 		}
@@ -39,6 +41,14 @@ public:
 	}
 
 	[[nodiscard]] float GetBgmVolume() const noexcept { return bgmVolume_; }
+
+	void SetSeVolume(float volume)
+	{
+		seVolume_ = std::clamp(volume, 0.0f, 1.0f);
+		if (audio_) { audio_->SetSoundEffectVolume(seVolume_); }
+	}
+
+	[[nodiscard]] float GetSeVolume() const noexcept { return seVolume_; }
 
 	void SubmitScore(std::size_t score) noexcept
 	{
@@ -64,6 +74,7 @@ private:
 	AudioClipHandle bgmClip_{};
 	AudioVoiceHandle bgmVoice_{};
 	float bgmVolume_ = 0.5f;
+	float seVolume_ = 0.5f;
 	std::array<std::size_t, kRankingCapacity> ranking_{};
 	std::size_t rankingCount_ = 0;
 };

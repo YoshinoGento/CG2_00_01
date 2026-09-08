@@ -43,6 +43,7 @@ public:
 	struct PlaySettings final {
 		bool loop = false;
 		bool startPaused = false;
+		bool useSoundEffectVolume = true;
 		float volume = 1.0f;
 		float playbackRate = 1.0f;
 		AudioPlaybackDirection direction = AudioPlaybackDirection::Forward;
@@ -78,6 +79,8 @@ public:
 	[[nodiscard]] bool PauseVoice(AudioVoiceHandle voiceHandle);
 	[[nodiscard]] bool ResumeVoice(AudioVoiceHandle voiceHandle);
 	[[nodiscard]] bool SetVoiceVolume(AudioVoiceHandle voiceHandle, float volume);
+	void SetSoundEffectVolume(float volume);
+	[[nodiscard]] float GetSoundEffectVolume() const noexcept { return soundEffectVolume_; }
 	[[nodiscard]] bool SetVoicePlaybackRate(
 		AudioVoiceHandle voiceHandle,
 		float playbackRate,
@@ -111,6 +114,7 @@ private:
 		AudioPlaybackDirection appliedDirection = AudioPlaybackDirection::Forward;
 		bool loop = false;
 		bool paused = false;
+		bool useSoundEffectVolume = true;
 		float volume = 1.0f;
 		float currentBasePlaybackRate = 1.0f;
 		float targetBasePlaybackRate = 1.0f;
@@ -153,6 +157,7 @@ private:
 	float temporalRateRampStart_ = 1.0f;
 	float temporalRateRampDuration_ = 0.0f;
 	float temporalRateRampElapsed_ = 0.0f;
+	float soundEffectVolume_ = 1.0f;
 	std::thread::id ownerThread_{};
 	bool mediaFoundationStarted_ = false;
 	bool initialized_ = false;
