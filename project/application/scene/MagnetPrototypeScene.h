@@ -78,6 +78,8 @@ private:
 	std::unique_ptr<Object3d> playerVisual_;
 	std::array<std::unique_ptr<Object3d>, magnet::MagnetChainSystem::kStageBallCapacity>
 		stageBallVisuals_{};
+	std::unique_ptr<Object3d> groundVisual_;
+	std::unique_ptr<Object3d> glassWallVisual_;
 	std::unique_ptr<Skybox> skybox_;
 	magnet::MagnetStageSystem magnetStageSystem_;
 	magnet::MagnetEditorCameraSystem magnetEditorCameraSystem_;
