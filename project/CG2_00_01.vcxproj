@@ -181,6 +181,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClCompile Include="application\magnet\system\MagneticOneShotSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\GimmickSoundSystem.cpp" />
 	<ClCompile Include="application\magnet\system\GimmickEffectSystem.cpp" />
+	<ClCompile Include="application\magnet\system\GoalCelebrationEffectSystem.cpp" />
 	<ClCompile Include="application\magnet\system\GimmickComicTextSystem.cpp" />
 	<ClCompile Include="application\magnet\system\ChainsawProximitySoundSystem.cpp" />
     <ClCompile Include="application\magnet\system\ObstacleCollisionSystem.cpp" />
@@ -555,6 +556,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\magnet\system\MagneticOneShotSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\GimmickSoundSystem.h" />
 	<ClInclude Include="application\magnet\system\GimmickEffectSystem.h" />
+	<ClInclude Include="application\magnet\system\GoalCelebrationEffectSystem.h" />
 	<ClInclude Include="application\magnet\system\GimmickComicTextSystem.h" />
 	<ClInclude Include="application\magnet\system\ChainsawProximitySoundSystem.h" />
     <ClInclude Include="application\magnet\system\ObstacleCollisionSystem.h" />

@@ -65,6 +65,7 @@ public:
 		bool occurred = false;
 	};
 	struct GoalEvent {
+		Vector3 position{};
 		std::size_t scoredBallCount = 0;
 		std::size_t scoreAwarded = 0;
 		bool occurred = false;

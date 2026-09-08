@@ -564,6 +564,7 @@ bool MagnetChainSystem::CollectReleasedMagnetsInGoal() noexcept
 		ScheduleBallRespawn(index);
 		++goalHitCount_;
 		score_ += enteredGoal->score;
+		goalEvent_.position = body->position;
 		++goalEvent_.scoredBallCount;
 		goalEvent_.scoreAwarded += enteredGoal->score;
 		goalEvent_.occurred = true;

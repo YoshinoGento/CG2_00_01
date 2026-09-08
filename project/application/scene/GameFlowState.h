@@ -49,6 +49,8 @@ public:
 	}
 
 	[[nodiscard]] float GetSeVolume() const noexcept { return seVolume_; }
+	void SetScreenShakeEnabled(bool enabled) noexcept { screenShakeEnabled_ = enabled; }
+	[[nodiscard]] bool IsScreenShakeEnabled() const noexcept { return screenShakeEnabled_; }
 
 	void SubmitScore(std::size_t score) noexcept
 	{
@@ -75,6 +77,7 @@ private:
 	AudioVoiceHandle bgmVoice_{};
 	float bgmVolume_ = 0.5f;
 	float seVolume_ = 0.5f;
+	bool screenShakeEnabled_ = true;
 	std::array<std::size_t, kRankingCapacity> ranking_{};
 	std::size_t rankingCount_ = 0;
 };

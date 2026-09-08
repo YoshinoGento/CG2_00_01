@@ -83,7 +83,7 @@ constexpr float kGoalGuideArmLength = 18.0f;
 constexpr float kGoalGuideThickness = 4.0f;
 constexpr float kGoalGuideHalfAngle = 0.70f;
 constexpr float kGameDurationSeconds = 60.0f;
-constexpr int kPauseMenuItemCount = 5;
+constexpr int kPauseMenuItemCount = 6;
 constexpr Vector4 kUiTextColor = { 0.88f, 0.94f, 0.98f, 1.0f };
 constexpr Vector4 kUiAccentColor = { 1.0f, 0.82f, 0.24f, 1.0f };
 constexpr float kComicTextMinimumImpactSpeed = 6.0f;
@@ -249,6 +249,11 @@ void MagnetPrototypeScene::Initialize()
 			"MagnetPrototypeScene: gimmick particle effects are unavailable; "
 			"line effects will continue to work.");
 	}
+	if (!goalCelebrationEffectSystem_.Initialize(framework_->GetParticleManager())) {
+		Logger::Log(
+			"MagnetPrototypeScene: goal particles are unavailable; "
+			"goal line effects will continue to work.");
+	}
 
 	bool stageReady = false;
 #ifdef MAGNET_STARTUP_STAGE_OBSTACLE
@@ -345,6 +350,7 @@ void MagnetPrototypeScene::Finalize()
 	gimmickComicTextSystem_.Finalize();
 	comicTextEffects_.reset();
 	gimmickEffectSystem_.Finalize();
+	goalCelebrationEffectSystem_.Finalize();
 	magnetGimmickVisualSystem_.Finalize();
 	magnetGimmickVisualsReady_ = false;
 	magnetStageStructureVisualSystem_.Finalize();
@@ -465,6 +471,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		furnaceVisualSystem_.Reset();
 		magnetStageStructureVisualSystem_.Reset();
 		gimmickEffectSystem_.Reset();
+		goalCelebrationEffectSystem_.Reset();
 		gimmickComicTextSystem_.Reset();
 		gimmickSoundSystem_.Reset();
 		magnetGimmickVisualSystem_.Reset();
@@ -495,6 +502,9 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		}
 		if (magnetChainSystem_.GetGoalEvent().occurred) {
 			magneticGoalSoundSystem_.Play();
+			const auto& goalEvent = magnetChainSystem_.GetGoalEvent();
+			goalCelebrationEffectSystem_.Play(
+				goalEvent.position, goalEvent.scoredBallCount);
 		}
 		if (magnetChainSystem_.GetChainsawCutEvent().occurred) {
 			chainsawCutSoundSystem_.Play();
@@ -598,7 +608,8 @@ void MagnetPrototypeScene::Update()
 			const Vector3 currentPosition = camera_->GetTranslate();
 			camera_->SetTranslate(
 				currentPosition + (desiredPosition - currentPosition) * kCameraBlend +
-				(editorMode_ == magnet::MagnetEditorMode::Play
+				(editorMode_ == magnet::MagnetEditorMode::Play &&
+					GameFlowState::GetInstance().IsScreenShakeEnabled()
 					? magneticImpactFeedbackSystem_.GetCameraShakeOffset()
 					: Vector3{}));
 		}
@@ -634,6 +645,7 @@ void MagnetPrototypeScene::Update()
 		framework_->GetParticleManager()->Update(camera_.get(), frameDeltaSeconds);
 	}
 	gimmickEffectSystem_.Update(frameDeltaSeconds);
+	goalCelebrationEffectSystem_.Update(frameDeltaSeconds);
 	if (comicTextEffects_ && camera_) {
 		gimmickComicTextSystem_.Update(frameDeltaSeconds);
 		comicTextEffects_->Update(
@@ -808,6 +820,7 @@ void MagnetPrototypeScene::Draw()
 	}
 	magneticImpactFeedbackSystem_.Draw(*lineDrawer);
 	gimmickEffectSystem_.Draw(*lineDrawer);
+	goalCelebrationEffectSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
 	DrawSelectionHighlight();
 	if (stageStructureVisualsReady_) {
@@ -984,6 +997,8 @@ bool MagnetPrototypeScene::InitializeGameFlowUi()
 		pauseMenuTexts_[4].SetPosition({ 660.0f, 536.0f });
 		pauseMenuTexts_[4].SetScale(1.75f);
 	}
+	pauseMenuTexts_[5].SetPosition({ 445.0f, 575.0f });
+	pauseMenuTexts_[5].SetScale(0.78f);
 	pauseHelpText_.SetText("");
 	return true;
 }
@@ -1028,6 +1043,9 @@ void MagnetPrototypeScene::HandlePauseMenuInput(Input& input)
 		if (moveLeft) { volume -= 0.1f; }
 		if (moveRight) { volume += 0.1f; }
 		GameFlowState::GetInstance().SetSeVolume(volume);
+	} else if (pauseSelection_ == 5 && (moveLeft || moveRight)) {
+		auto& state = GameFlowState::GetInstance();
+		state.SetScreenShakeEnabled(!state.IsScreenShakeEnabled());
 	}
 	if (input.TriggerKey(InputKey::Space) ||
 		input.TriggerGamepadButton(InputGamepadButton::B)) {
@@ -1039,6 +1057,9 @@ void MagnetPrototypeScene::HandlePauseMenuInput(Input& input)
 		} else if (pauseSelection_ == 2) {
 			rankingTransitionRequested_ = true;
 			SceneManager::GetInstance()->ChangeScene("TITLE");
+		} else if (pauseSelection_ == 5) {
+			auto& state = GameFlowState::GetInstance();
+			state.SetScreenShakeEnabled(!state.IsScreenShakeEnabled());
 		}
 	}
 	RefreshGameFlowUi();
@@ -1080,6 +1101,10 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 				std::snprintf(label, sizeof(label), "%s SE VOLUME %d%%",
 					index == pauseSelection_ ? ">" : " ", seVolumePercent);
 			}
+		} else if (index == 5) {
+			std::snprintf(label, sizeof(label), "%s SCREEN SHAKE %s",
+				index == pauseSelection_ ? ">" : " ",
+				GameFlowState::GetInstance().IsScreenShakeEnabled() ? "ON" : "OFF");
 		} else {
 			std::snprintf(label, sizeof(label), "%s %s",
 				index == pauseSelection_ ? ">" : " ", fixedLabels[index]);

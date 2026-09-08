@@ -6,6 +6,7 @@
 #include "application/magnet/system/GimmickEffectSystem.h"
 #include "application/magnet/system/GimmickComicTextSystem.h"
 #include "application/magnet/system/GimmickSoundSystem.h"
+#include "application/magnet/system/GoalCelebrationEffectSystem.h"
 #include "application/magnet/system/MagnetGimmickVisualSystem.h"
 #include "application/magnet/system/MagnetEditorCameraSystem.h"
 #include "application/magnet/system/MagnetChainSystem.h"
@@ -93,6 +94,7 @@ private:
 	magnet::GimmickEffectSystem gimmickEffectSystem_;
 	magnet::GimmickComicTextSystem gimmickComicTextSystem_;
 	magnet::GimmickSoundSystem gimmickSoundSystem_;
+	magnet::GoalCelebrationEffectSystem goalCelebrationEffectSystem_;
 	magnet::MagnetGimmickVisualSystem magnetGimmickVisualSystem_;
 	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;
 	ComicTextEffectPreset heavyImpactPreset_{};
@@ -139,7 +141,7 @@ private:
 	std::unique_ptr<Object3d> seVolumeLabelObject_;
 	SpriteText timerText_;
 	SpriteText pauseTitleText_;
-	std::array<SpriteText, 5> pauseMenuTexts_{};
+	std::array<SpriteText, 6> pauseMenuTexts_{};
 	SpriteText pauseHelpText_;
 	float gameElapsedSeconds_ = 0.0f;
 	int pauseSelection_ = 0;
