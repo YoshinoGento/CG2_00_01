@@ -2,6 +2,7 @@
 
 #include "application/magnet/stage/MagnetStageSystem.h"
 #include "application/magnet/system/ChainsawProximitySoundSystem.h"
+#include "application/magnet/system/ChargedChainEffectSystem.h"
 #include "application/magnet/system/FurnaceVisualSystem.h"
 #include "application/magnet/system/GimmickEffectSystem.h"
 #include "application/magnet/system/GimmickComicTextSystem.h"
@@ -88,6 +89,7 @@ private:
 	magnet::MagneticOneShotSoundSystem chainsawCutSoundSystem_;
 	magnet::ChainsawProximitySoundSystem chainsawProximitySoundSystem_;
 	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
+	magnet::ChargedChainEffectSystem chargedChainEffectSystem_;
 	magnet::MagneticImpactSoundSystem magneticImpactSoundSystem_;
 	magnet::FurnaceVisualSystem furnaceVisualSystem_;
 	magnet::MagnetStageStructureVisualSystem magnetStageStructureVisualSystem_;

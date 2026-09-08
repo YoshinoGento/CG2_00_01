@@ -170,7 +170,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp" />
 	<ClCompile Include="application\magnet\stage\MagnetStageSystem.cpp" />
     <ClCompile Include="application\magnet\system\BallMomentumTracker.cpp" />
-    <ClCompile Include="application\magnet\system\BallReacquisitionCooldown.cpp" />
+	<ClCompile Include="application\magnet\system\BallReacquisitionCooldown.cpp" />
+	<ClCompile Include="application\magnet\system\ChargedChainEffectSystem.cpp" />
     <ClCompile Include="application\magnet\system\MagneticImpactAttachmentSystem.cpp" />
     <ClCompile Include="application\magnet\system\CircularArenaBoundary.cpp" />
     <ClCompile Include="application\magnet\system\MagneticImpactFeedbackSystem.cpp" />
@@ -545,7 +546,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\scene\AbstractSceneFactory.h" />
 	<ClInclude Include="application\magnet\stage\MagnetStageSystem.h" />
     <ClInclude Include="application\magnet\system\BallMomentumTracker.h" />
-    <ClInclude Include="application\magnet\system\BallReacquisitionCooldown.h" />
+	<ClInclude Include="application\magnet\system\BallReacquisitionCooldown.h" />
+	<ClInclude Include="application\magnet\system\ChargedChainEffectSystem.h" />
     <ClInclude Include="application\magnet\system\MagneticImpactAttachmentSystem.h" />
     <ClInclude Include="application\magnet\system\CircularArenaBoundary.h" />
     <ClInclude Include="application\magnet\system\MagneticImpactFeedbackSystem.h" />

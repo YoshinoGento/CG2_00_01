@@ -302,6 +302,7 @@ void MagnetPrototypeScene::Initialize()
 			"using wire fallback.");
 	}
 	magneticImpactFeedbackSystem_.Reset();
+	chargedChainEffectSystem_.Reset();
 	comicTextEffects_ = std::make_unique<ComicTextEffectSystem>();
 	comicTextEffects_->Initialize(framework_->GetSpriteCommon());
 	if (!gimmickComicTextSystem_.Initialize(comicTextEffects_.get())) {
@@ -471,6 +472,7 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 	if (resetRequested_) {
 		prototypeReady_ = magnetChainSystem_.Reset();
 		magneticImpactFeedbackSystem_.Reset();
+		chargedChainEffectSystem_.Reset();
 		magneticGoalSoundSystem_.Reset();
 		magneticAttachmentSoundSystem_.Reset();
 		chainsawCutSoundSystem_.Reset();
@@ -657,6 +659,7 @@ void MagnetPrototypeScene::Update()
 	}
 	gimmickEffectSystem_.Update(frameDeltaSeconds);
 	goalCelebrationEffectSystem_.Update(frameDeltaSeconds);
+	chargedChainEffectSystem_.Update(frameDeltaSeconds);
 	if (comicTextEffects_ && camera_) {
 		gimmickComicTextSystem_.Update(frameDeltaSeconds);
 		comicTextEffects_->Update(
@@ -830,6 +833,7 @@ void MagnetPrototypeScene::Draw()
 		DrawVelocity(stageBalls[index]);
 	}
 	magneticImpactFeedbackSystem_.Draw(*lineDrawer);
+	chargedChainEffectSystem_.Draw(magnetChainSystem_, *lineDrawer);
 	gimmickEffectSystem_.Draw(*lineDrawer);
 	goalCelebrationEffectSystem_.Draw(*lineDrawer);
 	DrawStageObjects();
