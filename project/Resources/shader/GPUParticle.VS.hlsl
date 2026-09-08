@@ -9,6 +9,13 @@ struct Particle
     float currentTime;
     float4 color;
     uint isAlive;
+	float3 acceleration;
+	float3 startScale;
+	float3 endScale;
+	float startAlpha;
+	float endAlpha;
+	float drag;
+	uint fadeMode;
 };
 
 struct ViewData

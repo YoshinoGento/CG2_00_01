@@ -16,6 +16,10 @@ class Camera;
 class Skybox {
 public:
 	void Initialize(DirectXCommon* dxCommon, const std::string& ddsFilePath);
+	void InitializeGradient(
+		DirectXCommon* dxCommon,
+		const Vector4& upperColor,
+		const Vector4& lowerColor);
 	void Update(Camera* camera);
 	void Draw();
 
@@ -39,7 +43,10 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> constResource_;
 	TransformationMatrix* constData_ = nullptr;
 
-	struct Material { Vector4 color; };
+	struct Material {
+		Vector4 color;
+		Vector4 secondaryColor;
+	};
 	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource_;
 	Material* materialData_ = nullptr;
 
@@ -49,4 +56,5 @@ private:
 	// 描画設定
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
+	bool usesGradient_ = false;
 };

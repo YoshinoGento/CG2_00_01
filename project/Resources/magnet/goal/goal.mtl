@@ -1,0 +1,32 @@
+# Blender 4.4.1 MTL File: 'None'
+# www.blender.org
+
+newmtl GoalDarkMetal
+Ns 672.400024
+Ka 0.820000 0.820000 0.820000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd goal_dark.png
+
+newmtl GoalMagneticGuide
+Ns 705.600098
+Ka 0.340000 0.340000 0.340000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd goal_cyan.png
+map_Ke goal_cyan.png
+
+newmtl GoalScoreCore
+Ns 705.600098
+Ka 0.250000 0.250000 0.250000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd goal_orange.png
+map_Ke goal_orange.png

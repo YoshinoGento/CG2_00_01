@@ -11,6 +11,7 @@ class SpriteCommon;
 class Object3dCommon;
 class ModelManager;
 class ParticleManager;
+class ParticleEffectLibrary;
 class TextureManager;
 class LightingSystem;
 class FrameClock;
@@ -48,6 +49,7 @@ public:
 	Object3dCommon* GetObject3dCommon() const { return object3dCommon_.get(); }
 	ModelManager* GetModelManager() const { return modelManager_.get(); }
 	ParticleManager* GetParticleManager() const { return particleManager_.get(); }
+	ParticleEffectLibrary* GetParticleEffectLibrary() const { return particleEffectLibrary_.get(); }
 	LightingSystem* GetLightingSystem() const { return lightingSystem_.get(); }
 	FrameClock* GetFrameClock() const { return frameClock_.get(); }
 	DirectXCommon* GetDxCommon() const { return dxCommon_.get(); }
@@ -67,6 +69,7 @@ protected:
 	std::unique_ptr<LightingSystem> lightingSystem_;
 	std::unique_ptr<ModelManager> modelManager_;
 	std::unique_ptr<ParticleManager> particleManager_;
+	std::unique_ptr<ParticleEffectLibrary> particleEffectLibrary_;
 	std::unique_ptr<FrameClock> frameClock_;
 
 	bool endRequest_ = false;

@@ -5,7 +5,6 @@
 #include "3d/Camera.h"
 #include "3d/Skeleton.h"
 #include "2d/TextureManager.h"
-#include <cstdint>
 #include <optional>
 #include <wrl.h>
 #include <d3d12.h>
@@ -17,9 +16,19 @@
  */
 class Object3d {
 public:
-	enum class SpecularType : int32_t {
-		Phong = 0,
-		BlinnPhong = 1,
+	enum class SurfaceMappingMode : int32_t {
+		ModelUv = 0,
+		TriplanarWorld = 1,
+	};
+
+	struct DissolveSettings {
+		float threshold = 0.0f;
+		float edgeWidth = 0.08f;
+		float edgeIntensity = 1.0f;
+		bool enabled = false;
+		Vector4 edgeColor{ 1.0f, 0.55f, 0.05f, 1.0f };
+		Vector2 noiseUvScale{ 1.0f, 1.0f };
+		Vector2 noiseUvOffset{};
 	};
 
 	// シェーダーと一致させる構造体 (16バイト境界に注意)
@@ -28,6 +37,9 @@ public:
 	void Draw();
 	void DrawShadow();
 	void SetModel(Model* model);
+	// Preloaded rigid meshes only: preserves the existing Skeleton storage so
+	// render-frame swaps do not allocate or rebuild hierarchy state.
+	[[nodiscard]] bool TrySwapStaticModel(Model* model) noexcept;
 	void InitializeSkeleton();
 
 	std::optional<Skeleton>& GetSkeleton() { return skeleton_; }
@@ -40,9 +52,19 @@ public:
 	Vector3 GetScale() const { return transform_.scale; }
 
 	void SetPosition(const Vector3& position) { transform_.translate = position; }
-	void SetRotation(const Vector3& rotation) { transform_.rotate = rotation; }
+	void SetRotation(const Vector3& rotation) {
+		transform_.rotate = rotation;
+		useQuaternionRotation_ = false;
+	}
+	[[nodiscard]] bool SetRotationQuaternion(const Quaternion& rotation) noexcept;
 	bool SetScale(const Vector3& scale);
 	void SetTexture(Texture2DHandle textureHandle) { textureHandle_ = textureHandle; }
+	[[nodiscard]] bool SetSurfaceTextureTransform(
+		const Vector2& scale,
+		const Vector2& offset,
+		SurfaceMappingMode mappingMode = SurfaceMappingMode::ModelUv) noexcept;
+	void SetDissolveMask(Texture2DHandle textureHandle) { dissolveMaskHandle_ = textureHandle; }
+	[[nodiscard]] bool SetDissolveSettings(const DissolveSettings& settings) noexcept;
 	void SetColor(const Vector4& color) { materialData_->color = color; }
 	void SetEnableLighting(bool enabled) { materialData_->enableLighting = enabled ? 1 : 0; }
 	// 環境マップ用のテクスチャハンドルをセット
@@ -51,7 +73,6 @@ public:
 	void SetEnvironmentCoefficient(float coef) { materialData_->environmentCoefficient = coef; }
 	void SetCullMode(int cullMode);
 	void SetShininess(float shininess) { materialData_->shininess = shininess; }
-	void SetSpecularType(SpecularType type) { materialData_->specularType = static_cast<int32_t>(type); }
 
 
 	// 平行光源の設定
@@ -80,6 +101,7 @@ private:
 	Object3dCommon* object3dCommon_ = nullptr;
 	Model* model_ = nullptr;
 	Texture2DHandle textureHandle_{};
+	Texture2DHandle dissolveMaskHandle_{};
 	TextureCubeHandle environmentMapHandle_{};
 	int cullMode_ = 2;
 	Animation animation_;
@@ -92,16 +114,29 @@ private:
 	Matrix4x4 objectWorldMatrix_ = MatrixMath::MakeIdentity4x4();
 	bool computeSkinningPrepared_ = false;
 	bool isMirrored_ = false;
+	Quaternion rotationQuaternion_{ 0.0f, 0.0f, 0.0f, 1.0f };
+	bool useQuaternionRotation_ = false;
 
 	struct Material {
 		Vector4 color;
 		int32_t enableLighting;
 		float shininess;
 		float environmentCoefficient;
-		int32_t specularType;
+		int32_t surfaceMappingMode;
 		Matrix4x4 uvTransform;
 	};
 	static_assert(sizeof(Material) == 96);
+
+	struct DissolveMaterial {
+		float threshold;
+		float edgeWidth;
+		float edgeIntensity;
+		int32_t enabled;
+		Vector4 edgeColor;
+		Vector2 noiseUvScale;
+		Vector2 noiseUvOffset;
+	};
+	static_assert(sizeof(DissolveMaterial) == 48);
 
 	// GPUに送るための頂点スキンデータ
 	struct VertexShaderSkinning
@@ -121,6 +156,8 @@ private:
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource_;
 	Material* materialData_ = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> dissolveMaterialResource_;
+	DissolveMaterial* dissolveMaterialData_ = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> transformationMatrixResource_;
 	TransformationMatrix* transformationMatrixData_ = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> shadowTransformationMatrixResource_;

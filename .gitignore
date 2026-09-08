@@ -18,8 +18,28 @@
 # Build results
 x64/
 x86/
+# Build output directories. Git for Windows matches these rules without
+# distinguishing Debug from debug, so source directories are re-included below.
 Debug/
 Release/
+!project/application/farm/debug/
+!project/application/farm/debug/**
+!project/engine/debug/
+!project/engine/debug/**
+
+# Local unused prototype; it is not registered by CG2_00_01.vcxproj.
+project/engine/debug/AnimationDebugWindow.cpp
+project/engine/debug/AnimationDebugWindow.h
+
+# Assimp is shipped as an exact, self-contained binary dependency.
+# Ignore local variants and symbols while retaining only the libraries linked
+# by CG2_00_01.vcxproj.
+!project/externals/assimp/lib/Debug/
+/project/externals/assimp/lib/Debug/*
+!/project/externals/assimp/lib/Debug/assimp-vc143-mtd.lib
+!project/externals/assimp/lib/Release/
+/project/externals/assimp/lib/Release/*
+!/project/externals/assimp/lib/Release/assimp-vc143-mt.lib
 Releases/
 generated/
 # Visual Studio 2015/2017 cache/options directory

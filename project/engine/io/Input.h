@@ -11,6 +11,11 @@
 
 using namespace Microsoft::WRL;
 
+enum class InputDeviceType {
+	KeyboardMouse,
+	Gamepad,
+};
+
 
 //入力
 class Input {
@@ -40,8 +45,6 @@ public:
 	/// <returns>トリガーか</returns>
 	bool TriggerKey(BYTE keyNumber) const; 
 	bool TriggerKey(InputKey key) const;
-	bool ConsumeTriggerKey(BYTE keyNumber);
-	bool ConsumeTriggerKey(InputKey key);
 	bool ReleaseKey(BYTE keyNumber) const;
 	bool ReleaseKey(InputKey key) const;
 
@@ -59,11 +62,13 @@ public:
 	Vector2 GetRightStick() const;
 	float GetLeftTrigger() const;
 	float GetRightTrigger() const;
+	[[nodiscard]] InputDeviceType GetLastActiveDevice() const noexcept;
 
 private:
 	bool UpdateKeyboardState();
 	bool UpdateMouseState();
 	bool UpdateGamepadState();
+	void UpdateLastActiveDevice() noexcept;
 	void UpdateMousePosition();
 	void ClearKeyboardState();
 	void ClearMouseState();
@@ -80,7 +85,6 @@ private:
 	BYTE keyPre[256] = {};
 
 	BYTE key[256] = {};
-	bool consumedKeyTriggers_[256] = {};
 
 	static constexpr int kMouseButtonCount = 5;
 	BYTE mouseButtonPre[kMouseButtonCount] = {};
@@ -95,6 +99,7 @@ private:
 	Vector2 rightStick_ = { 0.0f, 0.0f };
 	float leftTrigger_ = 0.0f;
 	float rightTrigger_ = 0.0f;
+	InputDeviceType lastActiveDevice_ = InputDeviceType::KeyboardMouse;
 	
 	//WindowsAPI
 	WinApp* winApp_ = nullptr;

@@ -7,6 +7,13 @@ struct Particle
     float currentTime;
     float4 color;
     uint isAlive;
+	float3 acceleration;
+	float3 startScale;
+	float3 endScale;
+	float startAlpha;
+	float endAlpha;
+	float drag;
+	uint fadeMode;
 };
 
 RWStructuredBuffer<Particle> gParticles : register(u0);
@@ -43,6 +50,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particle.currentTime = 0.0f;
     particle.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
     particle.isAlive = 0;
+	particle.acceleration = float3(0.0f, 0.0f, 0.0f);
+	particle.startScale = particle.scale;
+	particle.endScale = particle.scale;
+	particle.startAlpha = 1.0f;
+	particle.endAlpha = 1.0f;
+	particle.drag = 0.0f;
+	particle.fadeMode = 0;
 
     gParticles[index] = particle;
     gFreeList[index] = index;

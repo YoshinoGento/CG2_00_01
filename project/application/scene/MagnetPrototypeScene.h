@@ -1,0 +1,205 @@
+#pragma once
+
+#include "application/magnet/stage/MagnetStageSystem.h"
+#include "application/magnet/system/ChainsawProximitySoundSystem.h"
+#include "application/magnet/system/FurnaceVisualSystem.h"
+#include "application/magnet/system/GimmickEffectSystem.h"
+#include "application/magnet/system/GimmickComicTextSystem.h"
+#include "application/magnet/system/GimmickSoundSystem.h"
+#include "application/magnet/system/MagnetGimmickVisualSystem.h"
+#include "application/magnet/system/MagnetEditorCameraSystem.h"
+#include "application/magnet/system/MagnetChainSystem.h"
+#include "application/magnet/system/MagnetStageStructureVisualSystem.h"
+#include "application/magnet/system/MagneticImpactFeedbackSystem.h"
+#include "application/magnet/system/MagneticImpactSoundSystem.h"
+#include "application/magnet/system/MagneticOneShotSoundSystem.h"
+#include "application/magnet/ui/MagnetPrototypeWindow.h"
+#include "application/scene/BaseScene.h"
+#include "2d/BitmapFont.h"
+#include "2d/Sprite.h"
+#include "2d/SpriteText.h"
+#include "effect/ComicTextEffect.h"
+#ifdef USE_IMGUI
+#include "debug/ParticleEffectEditor.h"
+#endif
+
+#include <array>
+#include <memory>
+
+class Camera;
+class Framework;
+class Input;
+class Object3d;
+class Skybox;
+
+// Isolated visual test for fixed-step magnet-chain behavior.
+class MagnetPrototypeScene final : public BaseScene {
+public:
+	explicit MagnetPrototypeScene(bool tutorialMode = false) noexcept
+		: tutorialMode_(tutorialMode) {}
+	void Initialize() override;
+	void Finalize() override;
+	void PrepareFixedUpdate() override;
+	void FixedUpdate(float fixedDeltaTime) override;
+	void Update() override;
+	void Draw() override;
+	bool UsesEditorShell() const noexcept override { return false; }
+	void DrawEditorUi(const SceneEditorContext& context) override;
+
+private:
+	void ProcessStageEditorRequest(
+		const magnet::MagnetPrototypeUiRequest& request);
+	void HandleStageEditorKeyboardInput(float deltaTime);
+	void SelectStageObjectAtNdc(const Vector2& clickNdc);
+	[[nodiscard]] Vector3 CalculateEditorPlacementPosition(float height) const noexcept;
+	void ValidateEditorSelection() noexcept;
+	void SetEditorMode(magnet::MagnetEditorMode mode);
+	[[nodiscard]] Vector3 ResolveEditorFocusPosition() const noexcept;
+	[[nodiscard]] Vector3 CalculatePlayCameraPosition() noexcept;
+	void DrawStageObjects() const;
+	void DrawSelectionHighlight() const;
+	void DrawWireBox(
+		const Vector3& center,
+		const Vector3& size,
+		float rotationYDegrees,
+		const Vector4& color) const;
+	void DrawBody(physics::BodyHandle handle, const Vector4& color) const;
+	void DrawVelocity(physics::BodyHandle handle) const;
+	[[nodiscard]] bool InitializeBallVisuals();
+	[[nodiscard]] bool UpdateBallVisuals(float deltaTime) noexcept;
+	void DrawBallVisuals() const;
+	[[nodiscard]] bool InitializeMinimap();
+	void UpdateMinimap();
+	void DrawMinimap();
+	[[nodiscard]] bool InitializeGoalGuides();
+	void UpdateGoalGuides();
+	void DrawGoalGuides();
+	[[nodiscard]] bool InitializeGameFlowUi();
+	void HandlePauseMenuInput(Input& input);
+	void RefreshGameFlowUi();
+	void DrawGameFlowUi();
+	void CompleteTimedGame();
+	[[nodiscard]] bool StartTutorialMagnetPhase();
+	void SkipTutorialPhase();
+	void UpdateTutorialProgress(float fixedDeltaTime);
+	[[nodiscard]] bool InitializeTutorialUi();
+	void UpdateTutorialUi();
+	void DrawTutorialUi();
+	void DrawTutorialSkipUi();
+	void DrawTutorialObstacleGuide();
+
+	enum class TutorialPhase : uint8_t {
+		Movement,
+		AttachMagnets,
+		ScoreGoal,
+		TryObstacles,
+	};
+
+	Framework* framework_ = nullptr;
+	std::unique_ptr<Camera> camera_;
+	std::unique_ptr<Object3d> playerVisual_;
+	std::array<std::unique_ptr<Object3d>, magnet::MagnetChainSystem::kStageBallCapacity>
+		stageBallVisuals_{};
+	std::unique_ptr<Object3d> groundVisual_;
+	std::unique_ptr<Object3d> glassWallVisual_;
+	std::unique_ptr<Skybox> skybox_;
+	magnet::MagnetStageSystem magnetStageSystem_;
+	magnet::MagnetEditorCameraSystem magnetEditorCameraSystem_;
+	magnet::MagnetChainSystem magnetChainSystem_;
+	magnet::MagneticOneShotSoundSystem magneticAttachmentSoundSystem_;
+	magnet::MagneticOneShotSoundSystem magneticGoalSoundSystem_;
+	magnet::MagneticOneShotSoundSystem chainsawCutSoundSystem_;
+	magnet::ChainsawProximitySoundSystem chainsawProximitySoundSystem_;
+	magnet::MagneticImpactFeedbackSystem magneticImpactFeedbackSystem_;
+	magnet::MagneticImpactSoundSystem magneticImpactSoundSystem_;
+	magnet::FurnaceVisualSystem furnaceVisualSystem_;
+	magnet::MagnetStageStructureVisualSystem magnetStageStructureVisualSystem_;
+	magnet::GimmickEffectSystem gimmickEffectSystem_;
+	magnet::GimmickComicTextSystem gimmickComicTextSystem_;
+	magnet::GimmickSoundSystem gimmickSoundSystem_;
+	magnet::MagnetGimmickVisualSystem magnetGimmickVisualSystem_;
+	std::unique_ptr<ComicTextEffectSystem> comicTextEffects_;
+	ComicTextEffectPreset heavyImpactPreset_{};
+	magnet::MagnetPrototypeWindow prototypeWindow_;
+#ifdef USE_IMGUI
+	std::unique_ptr<ParticleEffectEditor> particleEffectEditor_;
+#endif
+	magnet::MagnetChainSystem::PlayerCommand pendingCommand_{};
+	bool resetRequested_ = false;
+	bool prototypeReady_ = false;
+	bool ballVisualsReady_ = false;
+	bool furnaceVisualsReady_ = false;
+	bool stageStructureVisualsReady_ = false;
+	bool magnetGimmickVisualsReady_ = false;
+	bool showGrid_ = true;
+	bool showVelocity_ = true;
+	bool cameraFollow_ = true;
+	magnet::MagnetEditorMode editorMode_ = magnet::MagnetEditorMode::Play;
+	magnet::MagnetStageObjectType selectedObjectType_ =
+		magnet::MagnetStageObjectType::None;
+	uint32_t selectedObjectId_ = 0;
+	bool releaseOverviewActive_ = false;
+	std::unique_ptr<Sprite> minimapBorderSprite_;
+	std::unique_ptr<Sprite> minimapBackgroundSprite_;
+	std::unique_ptr<Sprite> minimapHorizontalGuideSprite_;
+	std::unique_ptr<Sprite> minimapVerticalGuideSprite_;
+	std::unique_ptr<Sprite> minimapPlayerSprite_;
+	std::array<std::unique_ptr<Sprite>, magnet::MagnetChainSystem::kStageBallCapacity>
+		minimapMagnetSprites_{};
+	std::size_t minimapMagnetCount_ = 0;
+	bool minimapReady_ = false;
+	std::array<std::array<std::unique_ptr<Sprite>, 2>,
+		magnet::MagnetStageData::kMaximumGoalCount> goalGuideSprites_{};
+	std::size_t goalGuideCount_ = 0;
+	bool goalGuidesReady_ = false;
+	BitmapFont gameFlowFont_;
+	std::unique_ptr<Sprite> pauseOverlaySprite_;
+	std::unique_ptr<Camera> pauseLabelCamera_;
+	std::unique_ptr<Object3d> pauseTitleObject_;
+	std::unique_ptr<Object3d> resumeLabelObject_;
+	std::unique_ptr<Object3d> restartLabelObject_;
+	std::unique_ptr<Object3d> backTitleLabelObject_;
+	std::unique_ptr<Object3d> volumeLabelObject_;
+	std::unique_ptr<Object3d> seVolumeLabelObject_;
+	std::unique_ptr<Object3d> scoreHudObject_;
+	std::unique_ptr<Object3d> timeHudObject_;
+	std::array<std::unique_ptr<Sprite>, 2> timerDigitSprites_{};
+	bool timerDigitsReady_ = false;
+	uint32_t scoreNumberTextureSrvIndex_ = UINT32_MAX;
+	SpriteText timerText_;
+	SpriteText pauseTitleText_;
+	std::array<SpriteText, 5> pauseMenuTexts_{};
+	SpriteText pauseHelpText_;
+	float gameElapsedSeconds_ = 0.0f;
+	int pauseSelection_ = 0;
+	bool paused_ = false;
+	bool gameFlowUiReady_ = false;
+	bool rankingTransitionRequested_ = false;
+	bool rightTriggerWasPressed_ = false;
+	bool menuStickUpWasPressed_ = false;
+	bool menuStickDownWasPressed_ = false;
+	bool menuStickLeftWasPressed_ = false;
+	bool menuStickRightWasPressed_ = false;
+	bool tutorialMode_ = false;
+	TutorialPhase tutorialPhase_ = TutorialPhase::Movement;
+	float tutorialMovementDistance_ = 0.0f;
+	std::size_t tutorialScoreAtGoalStart_ = 0;
+	bool tutorialUiReady_ = false;
+	std::array<std::unique_ptr<Sprite>, 4> tutorialKeySprites_{};
+	std::array<std::unique_ptr<Sprite>, 4> tutorialKeyImageSprites_{};
+	std::unique_ptr<Sprite> tutorialMoveGuideSprite_;
+	std::unique_ptr<Sprite> tutorialAttractGuideSprite_;
+	std::unique_ptr<Sprite> tutorialShootGuideSprite_;
+	std::unique_ptr<Sprite> tutorialGimmickGuideSprite_;
+	std::unique_ptr<Sprite> tutorialSkipSprite_;
+	std::unique_ptr<Sprite> tutorialSkipEnterSprite_;
+	std::unique_ptr<Object3d> tutorialTransitionKeyObject_;
+	SpriteText tutorialMessageText_;
+	std::unique_ptr<Sprite> tutorialObstacleGuidePanel_;
+	std::array<std::unique_ptr<Sprite>, 7> tutorialObstacleIcons_{};
+	BitmapFont tutorialObstacleFont_;
+	SpriteText tutorialObstacleGuideTitle_;
+	std::array<SpriteText, 7> tutorialObstacleNames_{};
+	std::array<SpriteText, 7> tutorialObstacleDescriptions_{};
+	bool tutorialObstacleGuideVisible_ = false;
+};

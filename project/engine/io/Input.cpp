@@ -150,7 +150,6 @@ void Input::Initialize(WinApp* winApp)
 
 void Input::Update()
 {
-	memset(consumedKeyTriggers_, 0, sizeof(consumedKeyTriggers_));
 	memcpy(keyPre, key, sizeof(key));
 	if (!UpdateKeyboardState()) {
 		ClearKeyboardState();
@@ -167,6 +166,7 @@ void Input::Update()
 	}
 
 	UpdateMousePosition();
+	UpdateLastActiveDevice();
 }
 
 bool Input::UpdateKeyboardState()
@@ -244,6 +244,44 @@ bool Input::UpdateGamepadState()
 	return true;
 }
 
+void Input::UpdateLastActiveDevice() noexcept
+{
+	bool keyboardMouseActive = false;
+	for (const BYTE keyState : key) {
+		if ((keyState & 0x80u) != 0u) {
+			keyboardMouseActive = true;
+			break;
+		}
+	}
+	if (!keyboardMouseActive) {
+		for (const BYTE mouseState : mouseButton) {
+			if ((mouseState & 0x80u) != 0u) {
+				keyboardMouseActive = true;
+				break;
+			}
+		}
+	}
+	keyboardMouseActive = keyboardMouseActive || mouseWheelDelta_ != 0.0f;
+
+	if (!isGamepadConnected_) {
+		lastActiveDevice_ = InputDeviceType::KeyboardMouse;
+		return;
+	}
+
+	const bool gamepadActive = gamepadButtons_ != 0u ||
+		leftStick_.x != 0.0f || leftStick_.y != 0.0f ||
+		rightStick_.x != 0.0f || rightStick_.y != 0.0f ||
+		leftTrigger_ != 0.0f || rightTrigger_ != 0.0f;
+
+	// Simultaneous activity is ambiguous, so retain the previously selected device.
+	if (keyboardMouseActive == gamepadActive) {
+		return;
+	}
+	lastActiveDevice_ = gamepadActive
+		? InputDeviceType::Gamepad
+		: InputDeviceType::KeyboardMouse;
+}
+
 void Input::UpdateMousePosition()
 {
 	POINT cursorPosition{};
@@ -298,7 +336,7 @@ bool Input::PushKey(InputKey inputKey) const
 
 bool Input::TriggerKey(BYTE keyNumber) const
 {
-	if (!consumedKeyTriggers_[keyNumber] && key[keyNumber] && !keyPre[keyNumber]) {
+	if (key[keyNumber] && !keyPre[keyNumber]) {
 		return true;
 	}
 
@@ -309,22 +347,6 @@ bool Input::TriggerKey(InputKey inputKey) const
 {
 	const int keyCode = ToDirectInputKey(inputKey);
 	return IsKeyboardKeyCodeValid(keyCode) && TriggerKey(static_cast<BYTE>(keyCode));
-}
-
-bool Input::ConsumeTriggerKey(BYTE keyNumber)
-{
-	if (!TriggerKey(keyNumber)) {
-		return false;
-	}
-	consumedKeyTriggers_[keyNumber] = true;
-	return true;
-}
-
-bool Input::ConsumeTriggerKey(InputKey inputKey)
-{
-	const int keyCode = ToDirectInputKey(inputKey);
-	return IsKeyboardKeyCodeValid(keyCode) &&
-		ConsumeTriggerKey(static_cast<BYTE>(keyCode));
 }
 
 bool Input::ReleaseKey(BYTE keyNumber) const
@@ -416,4 +438,9 @@ float Input::GetLeftTrigger() const
 float Input::GetRightTrigger() const
 {
 	return rightTrigger_;
+}
+
+InputDeviceType Input::GetLastActiveDevice() const noexcept
+{
+	return lastActiveDevice_;
 }

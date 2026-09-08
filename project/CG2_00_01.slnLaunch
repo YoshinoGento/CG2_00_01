@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "CG2 ゲーム",
+    "Projects": [
+      {
+        "Path": "CG2_00_01.vcxproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

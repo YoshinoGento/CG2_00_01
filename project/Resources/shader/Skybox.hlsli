@@ -16,6 +16,7 @@ struct TransformationMatrix
 struct Material
 {
     float4 color;
+    float4 secondaryColor;
 };
 
 // --- ここでエラーが起きていた箇所を修正 ---

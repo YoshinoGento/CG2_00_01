@@ -12,6 +12,7 @@
 
 namespace {
 	constexpr float kMinimumScaleMagnitude = 1.0e-4f;
+	constexpr float kMinimumQuaternionLengthSquared = 1.0e-10f;
 
 	float Determinant3x3(const Matrix4x4& matrix) {
 		return
@@ -32,6 +33,7 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	assert(object3dCommon);
 	object3dCommon_ = object3dCommon;
 	textureHandle_ = TextureManager::GetInstance()->GetFallback2D();
+	dissolveMaskHandle_ = TextureManager::GetInstance()->GetFallback2D();
 	environmentMapHandle_ = TextureManager::GetInstance()->GetFallbackCube();
 	DirectXCommon* dxCommon = object3dCommon_->GetDxCommon();
 
@@ -41,8 +43,21 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	materialData_->enableLighting = 1;
 	materialData_->shininess = 40.0f;
 	materialData_->environmentCoefficient = 0.0f;
-	materialData_->specularType = static_cast<int32_t>(Object3d::SpecularType::BlinnPhong);
+	materialData_->surfaceMappingMode = static_cast<int32_t>(SurfaceMappingMode::ModelUv);
 	materialData_->uvTransform = MatrixMath::MakeIdentity4x4();
+
+	constexpr size_t kConstantBufferAlignment = 256;
+	dissolveMaterialResource_ = dxCommon->CreateBufferResource(kConstantBufferAlignment);
+	dissolveMaterialResource_->Map(0, nullptr, (void**)&dissolveMaterialData_);
+	*dissolveMaterialData_ = {
+		0.0f,
+		0.08f,
+		1.0f,
+		0,
+		{ 1.0f, 0.55f, 0.05f, 1.0f },
+		{ 1.0f, 1.0f },
+		{},
+	};
 
 	transformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
 	transformationMatrixResource_->Map(0, nullptr, (void**)&transformationMatrixData_);
@@ -87,9 +102,11 @@ void Object3d::Update(Camera* camera, float deltaTime) {
 
 	// --- 1. オブジェクト自身の変形行列を作る ---
 	Matrix4x4 scaleMatrix = MatrixMath::MakeScaleMatrix(transform_.scale);
-	Matrix4x4 rotateMatrix = MatrixMath::Multiply(MatrixMath::MakeRotateXMatrix(transform_.rotate.x),
-		MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
-			MatrixMath::MakeRotateZMatrix(transform_.rotate.z)));
+	Matrix4x4 rotateMatrix = useQuaternionRotation_
+		? MatrixMath::MakeRotateMatrix(rotationQuaternion_)
+		: MatrixMath::Multiply(MatrixMath::MakeRotateXMatrix(transform_.rotate.x),
+			MatrixMath::Multiply(MatrixMath::MakeRotateYMatrix(transform_.rotate.y),
+				MatrixMath::MakeRotateZMatrix(transform_.rotate.z)));
 	Matrix4x4 translateMatrix = MatrixMath::MakeTranslateMatrix(transform_.translate);
 	// ★修正：ルートノードのローカル行列を含まない、オブジェクト自身の変換行列を保持する
 	objectWorldMatrix_ = MatrixMath::Multiply(scaleMatrix, MatrixMath::Multiply(rotateMatrix, translateMatrix));
@@ -172,6 +189,15 @@ void Object3d::Draw() {
 		commandList->SetGraphicsRootDescriptorTable(9, srvManager->GetGPUDescriptorHandle(skinCluster.paletteSrvHandle));
 	}
 
+	const UINT dissolveMaskRootIndex = useVertexShaderSkinning ? 10u : 9u;
+	const UINT dissolveMaterialRootIndex = useVertexShaderSkinning ? 11u : 10u;
+	commandList->SetGraphicsRootDescriptorTable(
+		dissolveMaskRootIndex,
+		TextureManager::GetInstance()->GetGpuHandle(dissolveMaskHandle_));
+	commandList->SetGraphicsRootConstantBufferView(
+		dissolveMaterialRootIndex,
+		dissolveMaterialResource_->GetGPUVirtualAddress());
+
 	// モデルの描画実行
 	model_->Draw(object3dCommon_->GetDxCommon());
 }
@@ -223,6 +249,85 @@ void Object3d::SetModel(Model* model) {
 	if (model_) {
 		InitializeSkeleton();
 	}
+}
+
+bool Object3d::TrySwapStaticModel(Model* model) noexcept {
+	if (!model_ || !model || model_->HasSkinCluster() || model->HasSkinCluster()) {
+		return false;
+	}
+	model_ = model;
+	return true;
+}
+
+bool Object3d::SetSurfaceTextureTransform(
+	const Vector2& scale,
+	const Vector2& offset,
+	SurfaceMappingMode mappingMode) noexcept {
+	if (!materialData_ ||
+		!std::isfinite(scale.x) || !std::isfinite(scale.y) ||
+		!std::isfinite(offset.x) || !std::isfinite(offset.y) ||
+		scale.x <= 0.0f || scale.y <= 0.0f ||
+		(mappingMode != SurfaceMappingMode::ModelUv &&
+			mappingMode != SurfaceMappingMode::TriplanarWorld)) {
+		return false;
+	}
+
+	Matrix4x4 uvTransform = MatrixMath::MakeIdentity4x4();
+	uvTransform.m[0][0] = std::clamp(scale.x, 0.001f, 256.0f);
+	uvTransform.m[1][1] = std::clamp(scale.y, 0.001f, 256.0f);
+	uvTransform.m[3][0] = offset.x;
+	uvTransform.m[3][1] = offset.y;
+	materialData_->surfaceMappingMode = static_cast<int32_t>(mappingMode);
+	materialData_->uvTransform = uvTransform;
+	return true;
+}
+
+bool Object3d::SetDissolveSettings(const DissolveSettings& settings) noexcept {
+	if (!dissolveMaterialData_ ||
+		!std::isfinite(settings.threshold) ||
+		!std::isfinite(settings.edgeWidth) ||
+		!std::isfinite(settings.edgeIntensity) ||
+		!std::isfinite(settings.edgeColor.x) ||
+		!std::isfinite(settings.edgeColor.y) ||
+		!std::isfinite(settings.edgeColor.z) ||
+		!std::isfinite(settings.edgeColor.w) ||
+		!std::isfinite(settings.noiseUvScale.x) ||
+		!std::isfinite(settings.noiseUvScale.y) ||
+		!std::isfinite(settings.noiseUvOffset.x) ||
+		!std::isfinite(settings.noiseUvOffset.y)) {
+		return false;
+	}
+
+	dissolveMaterialData_->threshold = std::clamp(settings.threshold, 0.0f, 1.0f);
+	dissolveMaterialData_->edgeWidth = std::clamp(settings.edgeWidth, 0.001f, 1.0f);
+	dissolveMaterialData_->edgeIntensity = std::clamp(settings.edgeIntensity, 0.0f, 16.0f);
+	dissolveMaterialData_->enabled = settings.enabled ? 1 : 0;
+	dissolveMaterialData_->edgeColor = settings.edgeColor;
+	dissolveMaterialData_->noiseUvScale = {
+		std::clamp(settings.noiseUvScale.x, 0.01f, 64.0f),
+		std::clamp(settings.noiseUvScale.y, 0.01f, 64.0f),
+	};
+	dissolveMaterialData_->noiseUvOffset = settings.noiseUvOffset;
+	return true;
+}
+
+bool Object3d::SetRotationQuaternion(const Quaternion& rotation) noexcept {
+	const float lengthSquared =
+		rotation.x * rotation.x + rotation.y * rotation.y +
+		rotation.z * rotation.z + rotation.w * rotation.w;
+	if (!std::isfinite(lengthSquared) ||
+		lengthSquared <= kMinimumQuaternionLengthSquared) {
+		return false;
+	}
+	const float inverseLength = 1.0f / std::sqrt(lengthSquared);
+	rotationQuaternion_ = {
+		rotation.x * inverseLength,
+		rotation.y * inverseLength,
+		rotation.z * inverseLength,
+		rotation.w * inverseLength,
+	};
+	useQuaternionRotation_ = true;
+	return true;
 }
 
 bool Object3d::SetScale(const Vector3& scale) {

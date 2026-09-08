@@ -1,0 +1,32 @@
+# Blender 4.4.1 MTL File: 'None'
+# www.blender.org
+
+newmtl WallMetalPanel
+Ns 384.399994
+Ka 0.580000 0.580000 0.580000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd wall_metal.png
+
+newmtl WallMetalPanelLight
+Ns 409.599976
+Ka 0.580000 0.580000 0.580000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd wall_metal_light.png
+
+newmtl WallNarrowJoint
+Ns 176.400024
+Ka 0.380000 0.380000 0.380000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd wall_seam.png

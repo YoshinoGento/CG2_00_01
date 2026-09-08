@@ -3,6 +3,10 @@
 #include <algorithm>
 #pragma comment(lib, "winmm.lib")
 
+namespace {
+constexpr wchar_t kWindowTitle[] = L"3046_とどけ！ 僕の重い！";
+}
+
 // ★ImGui用ウィンドウプロシージャの extern 宣言
 #ifdef USE_IMGUI
 #include "externals/imgui/imgui_impl_win32.h"
@@ -44,7 +48,7 @@ void WinApp::Initialize() {
 	RegisterClass(&wc);
 	RECT wrc = { 0, 0, WinApp::kClientWidth, WinApp::kClientHeight };
 	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
-	hwnd = CreateWindow(wc.lpszClassName, L"CG2", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, wrc.right - wrc.left, wrc.bottom - wrc.top, nullptr, nullptr, wc.hInstance, nullptr);
+	hwnd = CreateWindow(wc.lpszClassName, kWindowTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, wrc.right - wrc.left, wrc.bottom - wrc.top, nullptr, nullptr, wc.hInstance, nullptr);
 	SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 	ShowWindow(hwnd, SW_SHOW);
 }
@@ -52,18 +56,25 @@ void WinApp::Initialize() {
 void WinApp::Update() {}
 
 void WinApp::Finalize() {
-	CloseWindow(hwnd);
+	if (hwnd && IsWindow(hwnd)) {
+		DestroyWindow(hwnd);
+	}
+	hwnd = nullptr;
+	if (wc.lpszClassName && wc.hInstance) {
+		UnregisterClass(wc.lpszClassName, wc.hInstance);
+	}
+	timeEndPeriod(1);
 	CoUninitialize();
 }
 
 bool WinApp::ProcessMessage() {
 	MSG msg{};
-	if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+		if (msg.message == WM_QUIT) {
+			return true;
+		}
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
-	}
-	if (msg.message == WM_QUIT) {
-		return true;
 	}
 	return false;
 }

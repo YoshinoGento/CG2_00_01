@@ -1,0 +1,155 @@
+{
+    "document": {
+        "displayName": "収穫状態",
+        "id": "farm_1784698215194_0",
+        "savedAt": "2026-08-01 15:06:54"
+    },
+    "grid": {
+        "height": 4,
+        "selectedIndex": 6,
+        "width": 5
+    },
+    "schemaVersion": 1,
+    "tiles": [
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        },
+        {
+            "crop": "TestCrop",
+            "growth": 1.0,
+            "height": 0,
+            "moisture": 0.8239016532897949,
+            "state": "Planted"
+        }
+    ]
+}

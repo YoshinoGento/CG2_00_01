@@ -1,0 +1,155 @@
+{
+    "document": {
+        "displayName": "学校への",
+        "id": "farm_1784686700485_0",
+        "savedAt": "2026-07-22 11:18:20"
+    },
+    "grid": {
+        "height": 4,
+        "selectedIndex": 1,
+        "width": 5
+    },
+    "schemaVersion": 1,
+    "tiles": [
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        }
+    ]
+}

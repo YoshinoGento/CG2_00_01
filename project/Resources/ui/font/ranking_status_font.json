@@ -1,0 +1,7 @@
+{
+  "texture": "Resources/ui/font/ranking_status_font.png",
+  "glyphWidth": 96,
+  "glyphHeight": 96,
+  "columns": 4,
+  "characters": "ランク外"
+}

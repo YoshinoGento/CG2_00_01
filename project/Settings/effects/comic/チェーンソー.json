@@ -1,0 +1,22 @@
+{
+    "type": "comicText",
+    "text": "ズバギャァン！！",
+    "useEditableText": true,
+    "texturePath": "Resources/effects/comic/booom_impact.png",
+    "textScale": 0.44,
+    "characterSpacing": -10.0,
+    "textColor": [1.0, 0.88, 0.28, 1.0],
+    "extrusionColor": [0.72, 0.04, 0.02, 1.0],
+    "extrusionOffset": [4.0, 5.0],
+    "screenOffset": [0.0, -58.0],
+    "drift": [0.0, -18.0],
+    "duration": 0.58,
+    "startScale": 0.14,
+    "peakScale": 1.08,
+    "endScale": 0.84,
+    "popFraction": 0.2,
+    "fadeFraction": 0.38,
+    "rotation": -0.12,
+    "shakeAmplitude": 4.5,
+    "shakeFrequency": 32.0
+}

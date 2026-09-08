@@ -6,9 +6,11 @@
 #include <dxcapi.h>
 #include <wrl.h>
 #include <string>
+#include <chrono>
 #include <cstdint>
 #include "effect/RenderTexture.h"
 #include "math/Struct.h"
+#include "externals/DirectXTex/DirectXTex.h"
 
 /**
  * DirectXCommon繧ｯ繝ｩ繧ｹ
@@ -16,6 +18,9 @@
  */
 class DirectXCommon {
 public:
+    DirectXCommon() = default;
+    ~DirectXCommon();
+
     enum class FullscreenPostEffectType {
         Copy = 0,
         Grayscale,
@@ -33,7 +38,6 @@ public:
         Vignette,
         RandomNoise,
         HSVFilter,
-        GaussianFilter,
         LinearToSRGB,
         Count,
     };
@@ -63,10 +67,8 @@ public:
         float normalOutlineIntensity = 1.0f;
         float normalOutlineThickness = 1.0f;
         float normalOutlinePadding = 0.0f;
-        float gaussianSigma = 1.0f;
-        float gaussianPadding[3] = {};
     };
-    static_assert(sizeof(FullscreenPostEffectParameter) == 112);
+    static_assert(sizeof(FullscreenPostEffectParameter) == 96);
 
     struct VignetteParamForGPU {
         float scale = 16.0f;
@@ -116,6 +118,8 @@ public:
     static_assert(sizeof(HSVFilterParamForGPU) == 16);
 
     void Initialize(WinApp* winApp);
+    void WaitForGPUIdle() noexcept;
+    void Finalize() noexcept;
 
     // --- 謠冗判繝輔Ο繝ｼ邂｡逅・---
     // 1. 繧ｲ繝ｼ繝逕ｻ髱｢・医ユ繧ｯ繧ｹ繝√Ε・峨∈縺ｮ謠冗判繧帝幕蟋九☆繧・
@@ -141,7 +145,7 @@ public:
     void SetDissolveParameter(const DissolveParamForGPU& parameter);
     void SetRandomNoiseParameter(const RandomNoiseParamForGPU& parameter);
     void SetHSVFilterParameter(const HSVFilterParamForGPU& parameter);
-    void ResizeSwapChainIfNeeded();
+    [[nodiscard]] bool ResizeSwapChainIfNeeded();
     // 3. 蜈ｨ縺ｦ縺ｮ謠冗判繧堤ｵゆｺ・＠縲∫判髱｢繧定｡ｨ遉ｺ縺吶ｋ
     void PostDraw();
 
@@ -161,6 +165,9 @@ public:
     void SetSceneRenderTargetsWithNormal();
 
     // --- 蜷・ｨｮ繝倥Ν繝代・ ---
+    DirectX::ScratchImage LoadTexture(const std::string& filePath);
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
+    void UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
     Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const std::wstring& profile);
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeInBytes);
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateUAVBufferResource(size_t sizeInBytes, D3D12_RESOURCE_STATES initialState);
@@ -179,6 +186,8 @@ private:
     void InitializeFullscreenPostEffectParameter();
     void InitializeFence();
     void InitializeDXCCompiler();
+    void InitializeFixFPS();
+    void UpdateFixFPS();
     void SetFullscreenViewportAndScissor();
     void SetSwapChainViewportAndScissor();
 
@@ -229,4 +238,5 @@ private:
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
     Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
     Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;
+    std::chrono::steady_clock::time_point reference_;
 };
