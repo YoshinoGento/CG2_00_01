@@ -3,6 +3,7 @@
 #include "GameFlowState.h"
 #include "SceneManager.h"
 #include "2d/SpriteCommon.h"
+#include "2d/Sprite.h"
 #include "2d/TextureManager.h"
 #include "3d/Camera.h"
 #include "3d/Model.h"
@@ -10,6 +11,7 @@
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
 #include "3d/Skybox.h"
+#include "base/FrameClock.h"
 #include "base/Framework.h"
 #include "io/Input.h"
 
@@ -20,7 +22,16 @@ namespace {
 constexpr Vector4 kPrimaryColor{ 0.32f, 0.95f, 1.0f, 1.0f };
 constexpr Vector4 kTextColor{ 0.88f, 0.94f, 0.98f, 1.0f };
 constexpr Vector4 kAccentColor{ 1.0f, 0.82f, 0.24f, 1.0f };
+constexpr Vector4 kResultPlayerColor{ 1.0f, 0.24f, 0.28f, 1.0f };
 constexpr float kCharacterSpacing = -7.0f;
+constexpr float kRankingRowTop = 160.0f;
+constexpr float kRankingRowStep = 72.0f;
+constexpr float kRankingTextScale = 1.65f;
+constexpr float kRankingScoreModelScale = 0.28f;
+constexpr float kRankingValueX = 710.0f;
+constexpr float kRankingArrowLeftX = 795.0f;
+constexpr float kRankingArrowWidth = 112.0f;
+constexpr float kRankingArrowHeight = 56.0f;
 constexpr float kHalfPi = 1.57079633f;
 constexpr float kPi = 3.14159265f;
 }
@@ -41,6 +52,16 @@ void TitleScene::Initialize()
 	for (SpriteText& line : lines_) {
 		line.Initialize(spriteCommon, &font_);
 		line.SetCharacterSpacing(kCharacterSpacing);
+	}
+	for (SpriteText& valueText : rankingValueTexts_) {
+		valueText.Initialize(spriteCommon, &font_);
+		valueText.SetCharacterSpacing(kCharacterSpacing);
+	}
+	if (page_ == Page::Ranking && rankingStatusFont_.InitializeFromJson(
+		spriteCommon, "Resources/ui/font/ranking_status_font.json")) {
+		rankingStatusText_.Initialize(spriteCommon, &rankingStatusFont_);
+		rankingStatusText_.SetCharacterSpacing(-8.0f);
+		rankingStatusReady_ = true;
 	}
 
 	titleCamera_ = std::make_unique<Camera>();
@@ -129,7 +150,7 @@ void TitleScene::Initialize()
 				rankingTitleObject_ = std::make_unique<Object3d>();
 				rankingTitleObject_->Initialize(framework->GetObject3dCommon());
 				rankingTitleObject_->SetModel(rankingModel);
-				rankingTitleObject_->SetScale({ 0.53f, 0.53f, 0.53f });
+				rankingTitleObject_->SetScale({ 0.60f, 0.60f, 0.60f });
 				rankingTitleObject_->SetPosition({ 0.104f, 1.665f, 0.0f });
 				rankingTitleObject_->SetRotation({ 0.0f, 3.14159265f, 0.0f });
 				rankingTitleObject_->SetColor(kPrimaryColor);
@@ -150,9 +171,12 @@ void TitleScene::Initialize()
 					scoreObject = std::make_unique<Object3d>();
 					scoreObject->Initialize(framework->GetObject3dCommon());
 					scoreObject->SetModel(scoreModel);
-					scoreObject->SetScale({ 0.18f, 0.18f, 0.18f });
+					scoreObject->SetScale({
+						kRankingScoreModelScale,
+						kRankingScoreModelScale,
+						kRankingScoreModelScale });
 					scoreObject->SetPosition(
-						{ -0.08f, 0.94f - 0.385f * static_cast<float>(index), 0.0f });
+						{ -0.08f, 1.14f - 0.462f * static_cast<float>(index), 0.0f });
 					scoreObject->SetRotation({ 0.0f, 3.14159265f, 0.0f });
 					scoreObject->SetColor(index == 0 ? kAccentColor : kTextColor);
 					scoreObject->SetEnableLighting(false);
@@ -160,6 +184,7 @@ void TitleScene::Initialize()
 					scoreObject->Update(titleCamera_.get(), 0.0f);
 				}
 			}
+			InitializeRankingDecorations();
 		}
 	}
 
@@ -199,16 +224,42 @@ void TitleScene::Initialize()
 		const auto& state = GameFlowState::GetInstance();
 		const auto& ranking = state.GetRanking();
 		for (std::size_t index = 0; index < GameFlowState::kRankingCapacity; ++index) {
-			char buffer[64]{};
+			char rankBuffer[16]{};
+			char scoreBuffer[32]{};
 			if (index < state.GetRankingCount()) {
-				std::snprintf(buffer, sizeof(buffer), "%zu        %zu", index + 1, ranking[index]);
+				std::snprintf(rankBuffer, sizeof(rankBuffer), "%zu", index + 1);
+				std::snprintf(scoreBuffer, sizeof(scoreBuffer), "%zu", ranking[index]);
 			} else {
-				std::snprintf(buffer, sizeof(buffer), "%zu  ---", index + 1);
+				std::snprintf(rankBuffer, sizeof(rankBuffer), "%zu", index + 1);
+				std::snprintf(scoreBuffer, sizeof(scoreBuffer), "---");
 			}
-			SetLine(index + 1, buffer,
-				{ 490.0f, 190.0f + 60.0f * static_cast<float>(index) },
-				1.0f, index == 0 ? kAccentColor : kTextColor);
+			const float rowY = kRankingRowTop +
+				kRankingRowStep * static_cast<float>(index);
+			const Vector4 rowColor = index == 0 ? kAccentColor : kTextColor;
+			SetLine(index + 1, rankBuffer, { 490.0f, rowY },
+				kRankingTextScale, rowColor);
+			rankingValueTexts_[index].SetText(scoreBuffer);
+			rankingValueTexts_[index].SetPosition({ kRankingValueX, rowY });
+			rankingValueTexts_[index].SetScale(kRankingTextScale);
+			rankingValueTexts_[index].SetColor(rowColor);
+			rankingValueTexts_[index].Update();
 		}
+		const auto currentRank = state.GetLastSubmittedRank();
+		if (currentRank && *currentRank < state.GetRankingCount() &&
+			*currentRank < GameFlowState::kRankingCapacity) {
+			rankingCurrentArrowVisible_ = true;
+		} else if (state.GetLastSubmittedScore() && rankingStatusReady_) {
+			rankingStatusText_.SetText("ランク外");
+			rankingStatusText_.SetPosition({ 850.0f, 330.0f });
+			rankingStatusText_.SetScale(0.80f);
+			rankingStatusText_.SetColor(kAccentColor);
+			rankingStatusText_.Update();
+			rankingStatusVisible_ = true;
+		}
+	}
+	if (page_ == Page::Ranking) {
+		rankingPresentationSystem_.Reset();
+		UpdateRankingPresentation(0.0f);
 	}
 	Input* input = framework->GetInput();
 	RefreshTransitionPrompt(
@@ -218,6 +269,9 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
+	rankingCurrentArrowSprite_.reset();
+	for (auto& ball : rankingBallObjects_) { ball.reset(); }
+	rankingPlayerObject_.reset();
 	for (auto& scoreObject : rankingScoreObjects_) { scoreObject.reset(); }
 	rankingTitleObject_.reset();
 	operationGuideObject_.reset();
@@ -231,6 +285,9 @@ void TitleScene::Finalize()
 	transitionPromptInitialized_ = false;
 	transitionPromptUsesGamepad_ = false;
 	transitionPromptModelVisible_ = false;
+	rankingCurrentArrowVisible_ = false;
+	rankingStatusReady_ = false;
+	rankingStatusVisible_ = false;
 	uiReady_ = false;
 }
 
@@ -248,13 +305,10 @@ void TitleScene::Update()
 	if (operationGuideObject_ && titleCamera_) {
 		operationGuideObject_->Update(titleCamera_.get(), 0.0f);
 	}
-	if (rankingTitleObject_ && titleCamera_) {
-		rankingTitleObject_->Update(titleCamera_.get(), 0.0f);
-	}
-	for (auto& scoreObject : rankingScoreObjects_) {
-		if (scoreObject && titleCamera_) {
-			scoreObject->Update(titleCamera_.get(), 0.0f);
-		}
+	if (page_ == Page::Ranking) {
+		FrameClock* frameClock = Framework::GetInstance()->GetFrameClock();
+		UpdateRankingPresentation(
+			frameClock ? frameClock->GetRealDeltaSeconds() : 0.0f);
 	}
 	if (menuSkybox_ && titleCamera_) {
 		menuSkybox_->Update(titleCamera_.get());
@@ -283,7 +337,8 @@ void TitleScene::Draw()
 	if (!uiReady_) { return; }
 	if (menuSkybox_) { menuSkybox_->Draw(); }
 	if (titleObject_ || transitionKeyObject_ || guideTitleObject_ ||
-		operationGuideObject_ || rankingTitleObject_ || rankingScoreObjects_[0]) {
+		operationGuideObject_ || rankingTitleObject_ || rankingScoreObjects_[0] ||
+		rankingPlayerObject_) {
 		Object3dCommon* objectCommon = Framework::GetInstance()->GetObject3dCommon();
 		objectCommon->BeginObjectPass();
 		if (titleObject_) { titleObject_->Draw(); }
@@ -296,11 +351,163 @@ void TitleScene::Draw()
 		for (auto& scoreObject : rankingScoreObjects_) {
 			if (scoreObject) { scoreObject->Draw(); }
 		}
+		if (rankingPlayerObject_) { rankingPlayerObject_->Draw(); }
+		for (auto& ball : rankingBallObjects_) {
+			if (ball) { ball->Draw(); }
+		}
 		objectCommon->EndObjectPass();
 	}
 	Framework::GetInstance()->GetSpriteCommon()->PreDraw();
 	for (std::size_t index = 0; index < lineCount_; ++index) {
 		lines_[index].Draw();
+	}
+	if (page_ == Page::Ranking) {
+		for (SpriteText& valueText : rankingValueTexts_) {
+			valueText.Draw();
+		}
+		if (rankingStatusVisible_) {
+			rankingStatusText_.Draw();
+		}
+		if (rankingCurrentArrowVisible_) {
+			rankingCurrentArrowSprite_->Draw();
+		}
+	}
+}
+
+void TitleScene::InitializeRankingDecorations()
+{
+	Framework* framework = Framework::GetInstance();
+	if (!framework || !framework->GetModelManager() ||
+		!framework->GetObject3dCommon()) {
+		return;
+	}
+
+	constexpr const char* kPlayerModelPath = "magnet/player/player.obj";
+	constexpr const char* kSmallBallModelPath = "magnet/small_ball/SmallBall.obj";
+	ModelManager* modelManager = framework->GetModelManager();
+	modelManager->LoadModel(kPlayerModelPath);
+	modelManager->LoadModel(kSmallBallModelPath);
+	Model* playerModel = modelManager->GetModel(kPlayerModelPath);
+	Model* smallBallModel = modelManager->GetModel(kSmallBallModelPath);
+	if (!playerModel || !smallBallModel) {
+		return;
+	}
+
+	const Texture2DHandle whiteTexture =
+		TextureManager::GetInstance()->LoadTexture2D("Resources/human/white.png");
+	const auto createSphere = [&](Model* model, const Vector4& color) {
+		auto object = std::make_unique<Object3d>();
+		object->Initialize(framework->GetObject3dCommon());
+		object->SetModel(model);
+		object->SetTexture(whiteTexture);
+		object->SetColor(color);
+		object->SetEnableLighting(false);
+		object->SetCullMode(0);
+		return object;
+	};
+
+	rankingPlayerObject_ = createSphere(playerModel, kResultPlayerColor);
+	for (auto& ball : rankingBallObjects_) {
+		ball = createSphere(smallBallModel, kPrimaryColor);
+	}
+
+	rankingCurrentArrowSprite_ = std::make_unique<Sprite>();
+	if (!rankingCurrentArrowSprite_->Initialize(framework->GetSpriteCommon(),
+		"Resources/ui/ranking_current_arrow.png")) {
+		rankingCurrentArrowSprite_.reset();
+		rankingCurrentArrowVisible_ = false;
+	} else {
+		rankingCurrentArrowSprite_->SetColor(kAccentColor);
+	}
+}
+
+void TitleScene::UpdateRankingPresentation(float deltaSeconds)
+{
+	if (page_ != Page::Ranking || !titleCamera_) {
+		return;
+	}
+	rankingPresentationSystem_.Update(deltaSeconds);
+	const RankingPresentationFrame& frame = rankingPresentationSystem_.GetFrame();
+	if (rankingTitleObject_) {
+		rankingTitleObject_->SetScale({
+			0.60f * frame.headingScaleFactor,
+			0.60f * frame.headingScaleFactor,
+			0.60f * frame.headingScaleFactor,
+		});
+		rankingTitleObject_->Update(titleCamera_.get(), deltaSeconds);
+	}
+
+	const GameFlowState& state = GameFlowState::GetInstance();
+	const auto currentRank = state.GetLastSubmittedRank();
+	const bool hasRankedCurrentRun = currentRank &&
+		*currentRank < state.GetRankingCount() &&
+		*currentRank < GameFlowState::kRankingCapacity;
+	for (std::size_t index = 0;
+		index < GameFlowState::kRankingCapacity;
+		++index) {
+		const bool isCurrentRun = hasRankedCurrentRun && index == *currentRank;
+		const Vector4 rowColor = isCurrentRun
+			? frame.highlightedRowColor
+			: (index == 0 ? kAccentColor : kTextColor);
+		lines_[index + 1].SetScale(kRankingTextScale);
+		lines_[index + 1].SetColor(index == 0 ? kAccentColor : kTextColor);
+		lines_[index + 1].Update();
+		rankingValueTexts_[index].SetScale(kRankingTextScale *
+			(isCurrentRun ? frame.highlightedRowScale : 1.0f));
+		rankingValueTexts_[index].SetColor(rowColor);
+		rankingValueTexts_[index].Update();
+
+		if (rankingScoreObjects_[index]) {
+			const float scoreScale = kRankingScoreModelScale;
+			rankingScoreObjects_[index]->SetScale(
+				{ scoreScale, scoreScale, scoreScale });
+			rankingScoreObjects_[index]->SetColor(
+				index == 0 ? kAccentColor : kTextColor);
+			rankingScoreObjects_[index]->Update(titleCamera_.get(), deltaSeconds);
+		}
+	}
+	rankingStatusVisible_ = rankingStatusReady_ && !hasRankedCurrentRun &&
+		state.GetLastSubmittedScore().has_value();
+	if (rankingStatusVisible_) {
+		rankingStatusText_.SetScale(0.80f * frame.markerScale);
+		rankingStatusText_.SetColor(frame.highlightedRowColor);
+		rankingStatusText_.Update();
+	}
+
+	rankingCurrentArrowVisible_ = hasRankedCurrentRun &&
+		rankingCurrentArrowSprite_;
+	if (rankingCurrentArrowVisible_) {
+		const float pulseScale = frame.highlightedRowScale;
+		const float rowCenterY = kRankingRowTop +
+			kRankingRowStep * static_cast<float>(*currentRank) +
+			16.0f * kRankingTextScale;
+		rankingCurrentArrowSprite_->SetPosition(
+			{ kRankingArrowLeftX,
+			  rowCenterY - 0.5f * kRankingArrowHeight * pulseScale });
+		rankingCurrentArrowSprite_->SetSize(
+			{ kRankingArrowWidth * pulseScale,
+			  kRankingArrowHeight * pulseScale });
+		rankingCurrentArrowSprite_->SetRotation(0.0f);
+		rankingCurrentArrowSprite_->SetColor(frame.highlightedRowColor);
+		rankingCurrentArrowSprite_->Update();
+	}
+
+	if (rankingPlayerObject_) {
+		rankingPlayerObject_->SetPosition(frame.playerPosition);
+		rankingPlayerObject_->SetScale({
+			frame.playerScale, frame.playerScale, frame.playerScale });
+		rankingPlayerObject_->Update(titleCamera_.get(), deltaSeconds);
+	}
+	for (std::size_t index = 0; index < rankingBallObjects_.size(); ++index) {
+		if (!rankingBallObjects_[index]) {
+			continue;
+		}
+		const RankingDecorationTransform& ball = frame.balls[index];
+		rankingBallObjects_[index]->SetPosition(ball.position);
+		rankingBallObjects_[index]->SetScale(
+			{ ball.scale, ball.scale, ball.scale });
+		rankingBallObjects_[index]->SetColor(ball.color);
+		rankingBallObjects_[index]->Update(titleCamera_.get(), deltaSeconds);
 	}
 }
 

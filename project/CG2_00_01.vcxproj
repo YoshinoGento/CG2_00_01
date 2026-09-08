@@ -169,6 +169,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   <ItemGroup>
     <ClCompile Include="application\scene\AbstractSceneFactory.cpp" />
 	<ClCompile Include="application\scene\GameFlowState.cpp" />
+	<ClCompile Include="application\scene\RankingPresentationSystem.cpp" />
 	<ClCompile Include="application\magnet\stage\MagnetStageSystem.cpp" />
     <ClCompile Include="application\magnet\system\BallMomentumTracker.cpp" />
     <ClCompile Include="application\magnet\system\BallReacquisitionCooldown.cpp" />
@@ -292,6 +293,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<None Include="Resources\effects\comic\booom_impact.png" />
 	<None Include="Resources\ui\font\comic_katakana_font.json" />
 	<None Include="Resources\ui\font\comic_katakana_font.png" />
+	<None Include="Resources\ui\font\ranking_status_font.json" />
+	<None Include="Resources\ui\font\ranking_status_font.png" />
+	<None Include="Resources\ui\ranking_current_arrow.png" />
 	<None Include="Resources\audio\magnet\kaveHannsya.mp3" />
 	<None Include="Resources\audio\magnet\kuttuku.wav" />
 	<None Include="Resources\audio\magnet\goal.wav" />
@@ -593,6 +597,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\audio\Audio.h" />
     <ClInclude Include="application\scene\BaseScene.h" />
     <ClInclude Include="application\scene\GameFlowState.h" />
+	<ClInclude Include="application\scene\RankingPresentationSystem.h" />
     <ClInclude Include="engine\3d\Camera.h" />
     <ClInclude Include="engine\base\DirectXCommon.h" />
     <ClInclude Include="engine\math\Matrix.h" />

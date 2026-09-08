@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <optional>
 
 class GameFlowState final {
 public:
@@ -57,6 +58,12 @@ public:
 		return ranking_;
 	}
 	[[nodiscard]] std::size_t GetRankingCount() const noexcept { return rankingCount_; }
+	[[nodiscard]] std::optional<std::size_t> GetLastSubmittedRank() const noexcept {
+		return lastSubmittedRank_;
+	}
+	[[nodiscard]] std::optional<std::size_t> GetLastSubmittedScore() const noexcept {
+		return lastSubmittedScore_;
+	}
 
 private:
 	GameFlowState() noexcept;
@@ -69,4 +76,6 @@ private:
 	float seVolume_ = 0.5f;
 	std::array<std::size_t, kRankingCapacity> ranking_{};
 	std::size_t rankingCount_ = 0;
+	std::optional<std::size_t> lastSubmittedRank_{};
+	std::optional<std::size_t> lastSubmittedScore_{};
 };
