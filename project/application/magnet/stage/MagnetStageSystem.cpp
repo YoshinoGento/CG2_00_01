@@ -554,45 +554,55 @@ bool MagnetStageSystem::SetBoxObjectTransform(
 	const Vector3& size,
 	float rotationYDegrees)
 {
-	MagnetStageBoxPlacement candidate{ id, position, size };
+	MagnetStageBoxPlacement* target = nullptr;
+	if (type == MagnetStageObjectType::Goal) {
+		for (std::size_t index = 0; index < stageData_.goalCount; ++index) {
+			if (stageData_.goals[index].id == id) {
+				target = &stageData_.goals[index];
+				break;
+			}
+		}
+	} else if (type == MagnetStageObjectType::Obstacle) {
+		for (std::size_t index = 0; index < stageData_.obstacleCount; ++index) {
+			if (stageData_.obstacles[index].id == id) {
+				target = &stageData_.obstacles[index];
+				break;
+			}
+		}
+	}
+	if (!target) {
+		SetOperationResult(false, "選択したステージオブジェクトが見つかりません。");
+		return false;
+	}
+
+	MagnetStageBoxPlacement candidate = *target;
+	candidate.position = position;
+	candidate.size = size;
 	if (!NormalizeRotationYDegrees(
 		rotationYDegrees, candidate.rotationYDegrees)) {
 		SetOperationResult(false, "回転角度は有限の度数で指定してください。");
 		return false;
+	}
+	if (candidate.obstacleKind == MagnetObstacleKind::MagneticAnchor) {
+		candidate.anchorAttractionRadius = (std::max)(
+			candidate.anchorAttractionRadius,
+			(std::max)(candidate.size.x, candidate.size.z) * 0.5f);
 	}
 	if (!IsValidBoxPlacement(candidate) ||
 		!IsInsideArena(position, stageData_.arenaRadius)) {
 		SetOperationResult(false, "編集した位置またはサイズがステージ範囲外です。");
 		return false;
 	}
-	const auto updateArray = [&](auto& placements, std::size_t count) {
-		for (std::size_t index = 0; index < count; ++index) {
-			if (placements[index].id == id) {
-				candidate.score = placements[index].score;
-				candidate.obstacleKind = placements[index].obstacleKind;
-				candidate.transferPairId = placements[index].transferPairId;
-				candidate.anchorAttractionRadius =
-					placements[index].anchorAttractionRadius;
-				candidate.moving = placements[index].moving;
-				candidate.movementAmplitude = placements[index].movementAmplitude;
-				candidate.movementPeriodSeconds =
-					placements[index].movementPeriodSeconds;
-				candidate.movementPhase = placements[index].movementPhase;
-				placements[index] = candidate;
-				return true;
-			}
-		}
-		return false;
-	};
-	const bool updated = type == MagnetStageObjectType::Goal
-		? updateArray(stageData_.goals, stageData_.goalCount)
-		: type == MagnetStageObjectType::Obstacle
-			? updateArray(stageData_.obstacles, stageData_.obstacleCount)
-			: false;
-	if (!updated) {
-		SetOperationResult(false, "選択したステージオブジェクトが見つかりません。");
+	if (type == MagnetStageObjectType::Goal && candidate.moving &&
+		!IsInsideArena(
+			candidate.position + candidate.movementAmplitude,
+			stageData_.arenaRadius)) {
+		SetOperationResult(
+			false,
+			"移動ゴールの到達点がステージ範囲外です。位置を内側へ戻してください。");
 		return false;
 	}
+	*target = candidate;
 	dirty_ = true;
 	SetOperationResult(true, "ステージオブジェクトの配置を更新しました。");
 	return true;
