@@ -84,7 +84,6 @@ constexpr float kGoalGuideScreenMargin = 38.0f;
 constexpr float kGoalGuideArmLength = 18.0f;
 constexpr float kGoalGuideThickness = 4.0f;
 constexpr float kGoalGuideHalfAngle = 0.70f;
-constexpr float kGameDurationSeconds = 60.0f;
 constexpr int kPauseMenuItemCount = 5;
 constexpr Vector4 kUiTextColor = { 0.88f, 0.94f, 0.98f, 1.0f };
 constexpr Vector4 kUiAccentColor = { 1.0f, 0.82f, 0.24f, 1.0f };
@@ -235,7 +234,8 @@ void MagnetPrototypeScene::Initialize()
 	}
 	gameFlowUiReady_ = InitializeGameFlowUi();
 	tutorialUiReady_ = !tutorialMode_ || InitializeTutorialUi();
-	GameFlowState::GetInstance().EnsureBgm(framework_->GetAudio());
+	GameFlowState::GetInstance().EnsureBgm(
+		framework_->GetAudio(), GameFlowState::BgmTrack::Gameplay);
 	if (!magneticImpactSoundSystem_.Initialize(
 		framework_->GetAudio(), kMagneticImpactSoundPath)) {
 		Logger::Log(
@@ -278,11 +278,28 @@ void MagnetPrototypeScene::Initialize()
 	}
 
 	bool stageReady = false;
+	GameFlowState& gameFlowState = GameFlowState::GetInstance();
+	const std::string& activeStageSaveName =
+		gameFlowState.GetActiveStageSaveName();
+	if (!activeStageSaveName.empty()) {
+		stageReady = magnetStageSystem_.LoadNamed(activeStageSaveName);
+		if (!stageReady) {
+			Logger::Log(
+				"MagnetPrototypeScene: active stage reload failed; falling back to startup stage: " +
+				magnetStageSystem_.GetLastOperationMessage());
+		}
+	}
+	if (!stageReady) {
 #ifdef MAGNET_STARTUP_STAGE_OBSTACLE
-	stageReady = magnetStageSystem_.LoadNamed(kReleaseStageSaveName);
+		stageReady = magnetStageSystem_.LoadNamed(kReleaseStageSaveName);
 #else
-	stageReady = magnetStageSystem_.Initialize();
+		stageReady = magnetStageSystem_.Initialize();
 #endif
+	}
+	if (stageReady) {
+		gameFlowState.SetActiveStageSaveName(
+			magnetStageSystem_.GetStageData().name);
+	}
 	if (!stageReady) {
 		Logger::Log(
 			"MagnetPrototypeScene: startup stage initialization failed: " +
@@ -530,7 +547,8 @@ void MagnetPrototypeScene::FixedUpdate(float fixedDeltaTime)
 		return;
 	}
 	if (!tutorialMode_) { gameElapsedSeconds_ += fixedDeltaTime; }
-	if (!tutorialMode_ && gameElapsedSeconds_ >= kGameDurationSeconds) {
+	if (!tutorialMode_ &&
+		gameElapsedSeconds_ >= magnetStageSystem_.GetStageData().timeLimitSeconds) {
 		CompleteTimedGame();
 		pendingCommand_ = {};
 		return;
@@ -1196,7 +1214,8 @@ void MagnetPrototypeScene::RefreshGameFlowUi()
 	if (!gameFlowUiReady_) { return; }
 	char timerBuffer[32]{};
 	const int remainingSeconds = static_cast<int>(std::ceil(
-		(std::max)(0.0f, kGameDurationSeconds - gameElapsedSeconds_)));
+		(std::max)(0.0f,
+			magnetStageSystem_.GetStageData().timeLimitSeconds - gameElapsedSeconds_)));
 	std::snprintf(timerBuffer, sizeof(timerBuffer), "TIME %02d", remainingSeconds);
 	timerText_.SetText(timerBuffer);
 	timerText_.Update();
@@ -1945,6 +1964,10 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 	case magnet::MagnetStageEditorAction::SetArenaRadius:
 		stageChanged = magnetStageSystem_.SetArenaRadius(request.arenaRadius);
 		break;
+	case magnet::MagnetStageEditorAction::SetTimeLimit:
+		stageChanged = magnetStageSystem_.SetTimeLimitSeconds(
+			request.timeLimitSeconds);
+		break;
 	case magnet::MagnetStageEditorAction::GenerateBalanced:
 		stageChanged = magnetStageSystem_.GenerateBalanced(request.generationSettings);
 		break;
@@ -2011,12 +2034,19 @@ void MagnetPrototypeScene::ProcessStageEditorRequest(
 			request.editedAnchorAttractionRadius);
 		break;
 	case magnet::MagnetStageEditorAction::SaveNamed:
-		(void)magnetStageSystem_.SaveNamed(
+		if (magnetStageSystem_.SaveNamed(
 			request.stageSaveName.data(),
-			request.allowOverwrite);
+			request.allowOverwrite)) {
+			GameFlowState::GetInstance().SetActiveStageSaveName(
+				request.stageSaveName.data());
+		}
 		break;
 	case magnet::MagnetStageEditorAction::LoadNamed:
 		stageChanged = magnetStageSystem_.LoadNamed(request.stageSaveName.data());
+		if (stageChanged) {
+			GameFlowState::GetInstance().SetActiveStageSaveName(
+				request.stageSaveName.data());
+		}
 		break;
 	case magnet::MagnetStageEditorAction::RefreshSaves:
 		(void)magnetStageSystem_.RefreshSaveEntries();

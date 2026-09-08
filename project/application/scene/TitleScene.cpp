@@ -29,7 +29,11 @@ void TitleScene::Initialize()
 {
 	Framework* framework = Framework::GetInstance();
 	SpriteCommon* spriteCommon = framework ? framework->GetSpriteCommon() : nullptr;
-	GameFlowState::GetInstance().EnsureBgm(framework ? framework->GetAudio() : nullptr);
+	GameFlowState::GetInstance().EnsureBgm(
+		framework ? framework->GetAudio() : nullptr,
+		page_ == Page::Ranking
+			? GameFlowState::BgmTrack::Result
+			: GameFlowState::BgmTrack::Title);
 	const char* fontPath = page_ == Page::Instructions
 		? "Resources/ui/font/japanese_instruction_font.json"
 		: "Resources/ui/font/ascii_bitmap_font.json";
