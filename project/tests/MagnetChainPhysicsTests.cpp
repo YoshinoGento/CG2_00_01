@@ -1272,7 +1272,18 @@ int main()
 		return 100;
 	}
 	const Vector3 savedFirstPosition = saveBrowserSystem.GetStageData().balls[0].position;
-	if (!saveBrowserSystem.SaveNamed("alpha", false) ||
+	const Vector3 savedObstaclePosition{
+		obstaclePosition.x + 0.5f,
+		obstaclePosition.y,
+		obstaclePosition.z };
+	if (!saveBrowserSystem.SetBoxObjectTransform(
+			magnet::MagnetStageObjectType::Obstacle,
+			1u,
+			savedObstaclePosition,
+			obstacleSize,
+			30.0f) ||
+		!saveBrowserSystem.SetTimeLimitSeconds(135.0f) ||
+		!saveBrowserSystem.SaveNamed("alpha", false) ||
 		saveBrowserSystem.IsDirty() ||
 		saveBrowserSystem.GetSaveEntryCount() != 1 ||
 		saveBrowserSystem.GetSaveEntries()[0].name != "alpha") {
@@ -1288,14 +1299,27 @@ int main()
 	Vector3 editedFirstPosition = savedFirstPosition;
 	editedFirstPosition.x += savedFirstPosition.x >= 0.0f ? -0.5f : 0.5f;
 	if (!saveBrowserSystem.SetBallPosition(1u, editedFirstPosition) ||
+		!saveBrowserSystem.SetBoxObjectTransform(
+			magnet::MagnetStageObjectType::Obstacle,
+			1u,
+			obstaclePosition,
+			obstacleSize,
+			0.0f) ||
 		!saveBrowserSystem.IsDirty() ||
 		!saveBrowserSystem.LoadNamed("alpha") ||
 		saveBrowserSystem.IsDirty() ||
 		saveBrowserSystem.GetStageData().goalCount != 1 ||
 		saveBrowserSystem.GetStageData().obstacleCount != 1 ||
+		std::abs(saveBrowserSystem.GetStageData().timeLimitSeconds - 135.0f) > 1.0e-5f ||
 		DistanceXZ(
 			saveBrowserSystem.GetStageData().balls[0].position,
-			savedFirstPosition) > 1.0e-5f) {
+			savedFirstPosition) > 1.0e-5f ||
+		DistanceXZ(
+			saveBrowserSystem.GetStageData().obstacles[0].position,
+			savedObstaclePosition) > 1.0e-5f ||
+		std::abs(
+			saveBrowserSystem.GetStageData().obstacles[0].rotationYDegrees - 30.0f) >
+			1.0e-5f) {
 		std::cerr << "Named-stage dirty/load transition failed.\n";
 		return 103;
 	}

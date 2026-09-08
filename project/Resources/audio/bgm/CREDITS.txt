@@ -1,0 +1,5 @@
+Title BGM: Cyber 34 (loop version)
+Result BGM: Game Jingle 02
+Composer: Koichi Morita
+Source: MaouDamashii (https://maou.audio/)
+License/rules: https://maou.audio/rule/
