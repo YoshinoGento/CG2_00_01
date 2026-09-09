@@ -89,6 +89,8 @@ public:
     [[nodiscard]] Texture2DHandle CreateSolidColorTexture2D(
         const std::string& assetName,
         const std::array<uint8_t, 4>& color);
+    // Owner-thread, before frame draw recording. Fixed-size single-mip RGBA UI images only.
+    [[nodiscard]] Texture2DHandle UpdateUiTexture(const std::string& assetName, DirectX::ScratchImage& image);
 
     [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(Texture2DHandle handle) const;
     [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(TextureCubeHandle handle) const;
@@ -138,7 +140,8 @@ private:
     [[nodiscard]] Microsoft::WRL::ComPtr<ID3D12Resource> CreateUploadBuffer(uint64_t sizeInBytes) const;
     [[nodiscard]] bool UploadTexture(
         ID3D12Resource* texture,
-        const DirectX::ScratchImage& image);
+        const DirectX::ScratchImage& image,
+        bool previouslySampled = false);
     [[nodiscard]] const TextureRecord* FindRecord(
 		uint32_t descriptorIndex,
 		uint32_t generation,

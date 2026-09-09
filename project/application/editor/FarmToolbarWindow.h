@@ -15,6 +15,7 @@ struct FarmDocumentRenameAction {
 struct FarmToolbarActions {
 	std::optional<bool> gameMode;
 	bool newDocument = false;
+    bool layoutLibrary = false;
 	bool saveDocument = false;
 	std::optional<std::string> loadDocumentId;
 	std::optional<std::string> saveAsName;

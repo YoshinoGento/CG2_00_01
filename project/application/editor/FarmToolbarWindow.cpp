@@ -131,6 +131,10 @@ FarmToolbarActions FarmToolbarWindow::Draw(
 	ImGui::EndDisabled();
 	ImGui::SameLine();
 	if (ImGui::Button(text("Save As..."))) { RequestSaveAsDialog(viewModel.farmDocumentName); }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(viewModel.irrigationPreviewActive);
+    if (ImGui::Button(language == EditorLanguage::Japanese ? "配置ライブラリ..." : "Layout Library...")) { actions.layoutLibrary = true; }
+    ImGui::EndDisabled();
 
 	const char* documentState = viewModel.farmDocumentHasError ? text("ERROR")
 		: viewModel.farmDocumentDirty ? text("UNSAVED") : text("SAVED");

@@ -22,6 +22,7 @@
 #include "farm/system/FarmGrowthSystem.h"
 #include "farm/system/FarmGrowthComparisonSystem.h"
 #include "farm/system/FarmInputSystem.h"
+#include "farm/system/FarmRuntimeController.h"
 #include "farm/system/FarmIrrigationPreviewSystem.h"
 #include "farm/system/FarmIrrigationSystem.h"
 #include "farm/system/FarmProgressionSystem.h"
@@ -49,6 +50,7 @@ struct LevelData;
 class GamePlayScene : public BaseScene {
 	friend class Game;
 	friend class editor::GamePlayEditorBridge;
+	friend class FarmRuntimeController;
 public:
 	enum class GPUParticleDebugMode {
 		Off,
@@ -86,6 +88,7 @@ public:
 	void SetFieldInputEnabled(bool enabled);
 	void SetCameraInputEnabled(bool enabled);
 	bool SetFarmGameMode(bool enabled);
+    void RequestFarmLayoutLibrary() noexcept { layoutLibraryRequested_ = true; }
 	[[nodiscard]] bool IsFarmGameMode() const noexcept { return farmGameMode_; }
 	void SetDemoCameraPreset();
 	// Cylinderメッシュの再生成（パラメータ変更時に呼ぶ）
@@ -263,6 +266,8 @@ private:
 	farm::FarmGrid farmGrid_;
 	FarmDateSystem farmDateSystem_;
 	FarmDocumentSystem farmDocumentSystem_;
+    bool layoutLibraryRequested_ = false;
+    bool layoutLibraryFrame_ = false;
 	FarmEconomySystem farmEconomySystem_;
 	FarmCropSelectionSystem farmCropSelectionSystem_;
 	FarmFeedbackSystem farmFeedbackSystem_;
@@ -278,6 +283,7 @@ private:
 	farm::FarmRenderer farmRenderer_;
 	editor::GamePlayEditorBridge gamePlayEditorBridge_;
 	FarmHUD farmHud_;
+	FarmRuntimeController farmRuntimeController_;
 	bool farmHudInitialized_ = false;
 	StageClearHUD stageClearHud_;
 	bool stageClearHudInitialized_ = false;

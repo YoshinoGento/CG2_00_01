@@ -245,6 +245,27 @@ Texture2DHandle TextureManager::CreateSolidColorTexture2D(
     return handle;
 }
 
+Texture2DHandle TextureManager::UpdateUiTexture(const std::string& assetName, DirectX::ScratchImage& image) {
+    const auto& metadata = image.GetMetadata();
+    if (!initialized_ || !IsOwnerThread() || assetName.empty() || assetName.size() > 96 ||
+        metadata.dimension != DirectX::TEX_DIMENSION_TEXTURE2D || metadata.arraySize != 1 ||
+        metadata.mipLevels != 1 || metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM ||
+        metadata.width == 0 || metadata.height == 0 || metadata.width > 2048 || metadata.height > 256) return {};
+    const std::wstring key = L"dynamic-ui://" + std::wstring(assetName.begin(), assetName.end());
+    if (const auto found = texture2DCache_.find(key); found != texture2DCache_.end()) {
+        auto* record = FindRecord(found->second.Index(), found->second.Generation(), TextureKind::Texture2D);
+        if (!record || record->desc.Width != metadata.width || record->desc.Height != metadata.height) return {};
+        // Same DIRECT queue orders prior draws before this copy; UploadTexture waits its fence.
+        // No descriptor/resource replacement, so cached Sprite handles remain valid.
+        return UploadTexture(record->resource.Get(), image, true) ? found->second : Texture2DHandle{};
+    }
+    uint32_t index = SrvManager::kInvalidIndex;
+    if (!RegisterTexture(image, {}, TextureKind::Texture2D, Lifetime::Scene, index)) return {};
+    const Texture2DHandle handle(index, records_.at(index).generation);
+    texture2DCache_.emplace(key, handle);
+    return handle;
+}
+
 D3D12_GPU_DESCRIPTOR_HANDLE TextureManager::GetGpuHandle(Texture2DHandle handle) const {
     uint32_t descriptorIndex = handle.Index();
 	uint32_t generation = handle.Generation();
@@ -565,7 +586,7 @@ ComPtr<ID3D12Resource> TextureManager::CreateUploadBuffer(uint64_t sizeInBytes) 
     return resource;
 }
 
-bool TextureManager::UploadTexture(ID3D12Resource* texture, const DirectX::ScratchImage& image) {
+bool TextureManager::UploadTexture(ID3D12Resource* texture, const DirectX::ScratchImage& image, bool previouslySampled) {
     if (texture == nullptr) {
         return false;
     }
@@ -602,6 +623,15 @@ bool TextureManager::UploadTexture(ID3D12Resource* texture, const DirectX::Scrat
         return false;
     }
 
+    if (previouslySampled) {
+        D3D12_RESOURCE_BARRIER before{};
+        before.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        before.Transition.pResource = texture;
+        before.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        before.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+        before.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        uploadCommandList_->ResourceBarrier(1, &before);
+    }
     UpdateSubresources(
         uploadCommandList_.Get(),
         texture,

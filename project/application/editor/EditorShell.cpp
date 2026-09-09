@@ -397,6 +397,7 @@ void EditorShell::DrawFarmToolbar(GamePlayScene& playScene) {
 	const FarmToolbarActions actions = farmToolbarWindow_.Draw(
 		gamePlayEditorViewModel_,
 		editorSettings_.GetLanguage(), playScene.IsFarmGameMode());
+    if (actions.layoutLibrary) playScene.RequestFarmLayoutLibrary();
 	bool changed = false;
 	if (actions.gameMode.has_value()) {
 		changed |= playScene.SetFarmGameMode(*actions.gameMode);

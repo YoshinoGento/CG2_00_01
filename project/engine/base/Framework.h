@@ -44,6 +44,7 @@ public:
 	// --- ゲッター（部品を貸し出す窓口） ---
 	Audio* GetAudio() const { return audio_.get(); }
 	Input* GetInput() const { return input_.get(); }
+	const WinApp* GetWinApp() const { return winApp_.get(); }
 	SpriteCommon* GetSpriteCommon() const { return spriteCommon_.get(); }
 	Object3dCommon* GetObject3dCommon() const { return object3dCommon_.get(); }
 	ModelManager* GetModelManager() const { return modelManager_.get(); }

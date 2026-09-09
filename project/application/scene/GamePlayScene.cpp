@@ -591,6 +591,11 @@ void GamePlayScene::Initialize() {
 
 	InitializeFarmHUD();
 	InitializeStageClearHUD();
+#ifndef USE_IMGUI
+	if (!farmRuntimeController_.Initialize(framework_->GetSpriteCommon())) {
+		AddLog("Farm runtime menu initialization failed.");
+	}
+#endif
 
 }
 
@@ -647,20 +652,7 @@ void GamePlayScene::EmitCylinderEffect(const Vector3& position) {
 
 void GamePlayScene::Update() {
 	UpdateSceneDeltaTime();
-
-#ifndef USE_IMGUI
-	// A production build receives mouse coordinates from the game window because no editor viewport exists.
-	viewportHovered_ = true;
-	viewportFocused_ = true;
-	viewportImageTopLeft_ = { 0.0f, 0.0f };
-	viewportImageSize_ = {
-		static_cast<float>(WinApp::kClientWidth),
-		static_cast<float>(WinApp::kClientHeight)
-	};
-	if (framework_ && framework_->GetInput()) {
-		viewportMousePosition_ = framework_->GetInput()->GetMousePosition();
-	}
-#endif
+    if (layoutLibraryFrame_) return;
 
 	// Collect frame requests before scheduling Scene systems.
 	Input* frameInput = framework_ ? framework_->GetInput() : nullptr;
@@ -672,6 +664,9 @@ void GamePlayScene::Update() {
 		levelReloadRequested = false;
 		cameraModeToggleRequested = false;
 	}
+#ifndef USE_IMGUI
+	if (farmRuntimeController_.ConsumesInput()) levelReloadRequested = false;
+#endif
 	if (levelReloadRequested && farmProgressionSystem_.IsCleared()) {
 		ResetFarmSession();
 	}
@@ -685,7 +680,10 @@ void GamePlayScene::Update() {
 	// Farm input has priority; editor-camera input uses unpaused real time.
 	const bool farmGridInputConsumed = HandleFarmInput();
 	farmIrrigationSystem_.Rebuild(farmGrid_);
-	HandleCameraInput(realDeltaTime_, farmGridInputConsumed);
+#ifndef USE_IMGUI
+	if (!farmRuntimeController_.ConsumesInput())
+#endif
+		HandleCameraInput(realDeltaTime_, farmGridInputConsumed);
 	ClampCameraPitch();
 	if (!farmGameMode_ && !farmGridInputConsumed) {
 		HandleKeyboardMovement();
@@ -694,7 +692,8 @@ void GamePlayScene::Update() {
 	UpdatePlayerCamera();
 
 #ifndef USE_IMGUI
-	HandleFarmHistoryInput();
+	if (!farmRuntimeController_.ConsumesInput()) HandleFarmHistoryInput();
+	farmRuntimeController_.Refresh(*this);
 #endif
 	if (!farmGameMode_ && viewportFocused_ && !ImGuiManager::GetInstance()->WantsTextInput()) {
 		HandleFarmDateDebugInput();
@@ -815,6 +814,10 @@ void GamePlayScene::Update() {
 }
 
 void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
+    if (layoutLibraryFrame_) return;
+#ifndef USE_IMGUI
+	if (farmRuntimeController_.BlocksSimulation()) return;
+#endif
 	// Deterministic gameplay mutation stays in fixed-step Systems.
 	if (timelineScrubbing_) {
 		const bool stepped = timelineForwardHeld_
@@ -1066,10 +1069,28 @@ void GamePlayScene::CreateLevelObjectsFromLevel() {
 
 void GamePlayScene::PrepareFixedUpdate()
 {
+    layoutLibraryFrame_ = layoutLibraryRequested_;
+    if (layoutLibraryRequested_) {
+        layoutLibraryRequested_ = false;
+        pendingPlayerCommand_ = {};
+        farmRuntimeController_.OpenLayoutLibrary(*this);
+        return;
+    }
 	pendingPlayerCommand_.moveDirection = {};
 	pendingPlayerCommand_.sneakHeld = false;
 	Input* input = framework_ ? framework_->GetInput() : nullptr;
-	const bool keyboardCaptured = ImGuiManager::GetInstance()->WantsCaptureKeyboard();
+	bool keyboardCaptured = ImGuiManager::GetInstance()->WantsCaptureKeyboard();
+#ifndef USE_IMGUI
+	const WinApp* runtimeWindow = framework_ ? framework_->GetWinApp() : nullptr;
+	viewportHovered_ = viewportFocused_ = runtimeWindow && GetForegroundWindow() == runtimeWindow->GetHwnd();
+	viewportImageTopLeft_ = {0, 0};
+	// Mouse coordinates must use the actual client size after F11 or a window resize.
+	viewportImageSize_ = runtimeWindow ? Vector2{static_cast<float>(runtimeWindow->GetClientWidth()), static_cast<float>(runtimeWindow->GetClientHeight())} : Vector2{};
+	if (input) {
+		viewportMousePosition_ = input->GetMousePosition();
+		keyboardCaptured = farmRuntimeController_.Update(*this, *input) || keyboardCaptured;
+	}
+#endif
 	const bool controlHeld = input && (input->PushKey(DIK_LCONTROL) || input->PushKey(DIK_RCONTROL));
 	const bool rewindKeyHeld = input && !keyboardCaptured && !controlHeld && input->PushKey(DIK_R);
 	const bool shiftHeld = input && (input->PushKey(DIK_LSHIFT) || input->PushKey(DIK_RSHIFT));
@@ -1706,12 +1727,19 @@ void GamePlayScene::Draw() {
 	// HUD is the final Scene overlay and does not mutate gameplay state.
 	if (farmHudInitialized_ || stageClearHudInitialized_) {
 		spriteCommon->PreDraw();
+#ifndef USE_IMGUI
+		if (!farmRuntimeController_.IsOpen()) {
+#endif
 		if (farmHudInitialized_) {
 			farmHud_.Draw();
 		}
 		if (stageClearHudInitialized_) {
 			stageClearHud_.Draw();
 		}
+#ifndef USE_IMGUI
+		}
+		farmRuntimeController_.Draw();
+#endif
 	}
 }
 
@@ -1818,6 +1846,9 @@ void GamePlayScene::HandleFarmDateDebugInput() {
 }
 
 bool GamePlayScene::HandleFarmInput() {
+#ifndef USE_IMGUI
+	if (farmRuntimeController_.ConsumesInput()) return true;
+#endif
 	if (!framework_) {
 		return false;
 	}
