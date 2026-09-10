@@ -146,6 +146,14 @@ void Input::Initialize(WinApp* winApp)
 
 	result = mouse->SetCooperativeLevel(winApp->GetHwnd(), DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
 	assert(SUCCEEDED(result));
+	DIPROPDWORD buffer{};
+	buffer.diph.dwSize = sizeof(buffer);
+	buffer.diph.dwHeaderSize = sizeof(buffer.diph);
+	buffer.diph.dwHow = DIPH_DEVICE;
+	buffer.dwData = kMouseEventCapacity;
+	mouseBuffered_ = SUCCEEDED(mouse->SetProperty(DIPROP_BUFFERSIZE, &buffer.diph));
+	if (!mouseBuffered_) OutputDebugStringA("Mouse event buffer unavailable; immediate input fallback.\n");
+	ClearMouseState();
 }
 
 void Input::Update()
@@ -156,7 +164,6 @@ void Input::Update()
 		ClearKeyboardState();
 	}
 
-	memcpy(mouseButtonPre, mouseButton, sizeof(mouseButton));
 	if (!UpdateMouseState()) {
 		ClearMouseState();
 	}
@@ -192,15 +199,19 @@ bool Input::UpdateMouseState()
 	if (!mouse) {
 		return false;
 	}
+	if (!winApp_ || GetForegroundWindow() != winApp_->GetHwnd()) {
+		mouse->Unacquire();
+		return false;
+	}
 
+	mouseEdges_.BeginFrame();
 	mouseDelta_ = { 0.0f, 0.0f };
 	mouseWheelDelta_ = 0.0f;
 
 	DIMOUSESTATE2 mouseState{};
-	TryAcquireDevice(mouse.Get());
-
 	HRESULT result = mouse->GetDeviceState(sizeof(mouseState), &mouseState);
 	if (FAILED(result) && IsRecoverableInputError(result)) {
+		mouseSynchronized_ = false;
 		if (TryAcquireDevice(mouse.Get())) {
 			result = mouse->GetDeviceState(sizeof(mouseState), &mouseState);
 		}
@@ -210,14 +221,45 @@ bool Input::UpdateMouseState()
 		return false;
 	}
 
-	for (int i = 0; i < kMouseButtonCount; ++i) {
-		mouseButton[i] = mouseState.rgbButtons[i];
+	if (!mouseSynchronized_) return ResynchronizeMouse();
+	if (mouseBuffered_) {
+		std::array<DIDEVICEOBJECTDATA, kMouseEventCapacity> events{};
+		DWORD count = kMouseEventCapacity;
+		result = mouse->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), events.data(), &count, 0);
+		if (FAILED(result)) return false;
+		// Missing events cannot safely be reconstructed as gameplay actions.
+		if (result == DI_BUFFEROVERFLOW || count > events.size()) return ResynchronizeMouse();
+		for (DWORD i = 0; i < count; ++i) {
+			const auto& event = events[i];
+			if (event.dwOfs >= DIMOFS_BUTTON0 && event.dwOfs <= DIMOFS_BUTTON4)
+				mouseEdges_.Apply(static_cast<int>(event.dwOfs - DIMOFS_BUTTON0), (event.dwData & 0x80) != 0);
+		}
+	} else {
+		for (int i = 0; i < kMouseButtonCount; ++i) mouseEdges_.Apply(i, (mouseState.rgbButtons[i] & 0x80) != 0);
 	}
 	mouseDelta_ = {
 		static_cast<float>(mouseState.lX),
 		static_cast<float>(mouseState.lY)
 	};
 	mouseWheelDelta_ = static_cast<float>(mouseState.lZ);
+	return true;
+}
+
+bool Input::ResynchronizeMouse()
+{
+	mouseSynchronized_ = false;
+	mouseEdges_.Reset();
+	if (mouseBuffered_) {
+		DWORD count = INFINITE;
+		if (FAILED(mouse->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), nullptr, &count, 0))) return false;
+	}
+	DIMOUSESTATE2 state{};
+	if (FAILED(mouse->GetDeviceState(sizeof(state), &state))) return false;
+	std::array<bool, kMouseButtonCount> held{};
+	for (int i = 0; i < kMouseButtonCount; ++i) held[i] = (state.rgbButtons[i] & 0x80) != 0;
+	// Focus restoration never synthesizes a click or a camera-motion jump.
+	mouseEdges_.Synchronize(held);
+	mouseSynchronized_ = true;
 	return true;
 }
 
@@ -264,8 +306,8 @@ void Input::ClearKeyboardState()
 
 void Input::ClearMouseState()
 {
-	memset(mouseButtonPre, 0, sizeof(mouseButtonPre));
-	memset(mouseButton, 0, sizeof(mouseButton));
+	mouseEdges_.Reset();
+	mouseSynchronized_ = false;
 	mouseDelta_ = { 0.0f, 0.0f };
 	mouseWheelDelta_ = 0.0f;
 }
@@ -345,19 +387,19 @@ bool Input::ReleaseKey(InputKey inputKey) const
 bool Input::PushMouseButton(InputMouseButton button) const
 {
 	const int index = GetMouseButtonIndex(button);
-	return index >= 0 && index < kMouseButtonCount && mouseButton[index] != 0;
+	return mouseEdges_.Held(index);
 }
 
 bool Input::TriggerMouseButton(InputMouseButton button) const
 {
 	const int index = GetMouseButtonIndex(button);
-	return index >= 0 && index < kMouseButtonCount && mouseButton[index] != 0 && mouseButtonPre[index] == 0;
+	return mouseEdges_.Pressed(index);
 }
 
 bool Input::ReleaseMouseButton(InputMouseButton button) const
 {
 	const int index = GetMouseButtonIndex(button);
-	return index >= 0 && index < kMouseButtonCount && mouseButton[index] == 0 && mouseButtonPre[index] != 0;
+	return mouseEdges_.Released(index);
 }
 
 Vector2 Input::GetMousePosition() const

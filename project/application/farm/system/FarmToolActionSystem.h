@@ -65,6 +65,7 @@ public:
 		farm::FarmGrid& grid, FarmTool tool, farm::CropType selectedCrop,
 		FarmEconomySystem& economySystem);
 	bool RaiseSelectedTile(farm::FarmGrid& grid);
+	bool CompostSelectedTile(farm::FarmGrid& grid);
 	bool LowerSelectedTile(farm::FarmGrid& grid);
 	[[nodiscard]] bool CanToggleCanal(
 		const farm::FarmGrid& grid, int tileIndex) const noexcept;

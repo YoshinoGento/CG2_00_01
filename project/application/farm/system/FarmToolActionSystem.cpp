@@ -1,4 +1,5 @@
 #include "farm/system/FarmToolActionSystem.h"
+#include "farm/system/FarmSoilSystem.h"
 
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmEconomySystem.h"
@@ -24,7 +25,15 @@ bool TilesEqual(const farm::FarmTile& left, const farm::FarmTile& right)
 		left.state == right.state &&
 		left.crop == right.crop &&
 		left.moisture == right.moisture &&
-		left.growth == right.growth && left.waterAmount == right.waterAmount;
+		left.growth == right.growth && left.waterAmount == right.waterAmount &&
+		left.careHistory.drySeconds == right.careHistory.drySeconds &&
+		left.careHistory.lowSeconds == right.careHistory.lowSeconds &&
+		left.careHistory.goodSeconds == right.careHistory.goodSeconds &&
+		left.careHistory.excessSeconds == right.careHistory.excessSeconds &&
+		left.careHistory.efficiencySeconds == right.careHistory.efficiencySeconds &&
+		left.careHistory.nutrientGrowth == right.careHistory.nutrientGrowth &&
+		left.careHistory.nutrientSupply == right.careHistory.nutrientSupply &&
+		left.soilNutrients == right.soilNutrients;
 }
 
 class FarmTileEditCommand final : public IUndoableCommand {
@@ -317,6 +326,7 @@ FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(
 		after.state = farm::FarmTileState::Planted;
 		after.crop = selectedCrop;
 		after.growth = kInitialGrowth;
+		after.careHistory = {};
 		commandName = "Plant Seed";
 		break;
 	case FarmTool::Harvest:
@@ -324,6 +334,7 @@ FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(
 		after.crop = farm::CropType::None;
 		after.growth = kInitialGrowth;
 		after.moisture = (std::max)(0.0f, before.moisture - kHarvestMoistureCost);
+		after.careHistory = {};
 		commandName = "Harvest Crop";
 		break;
 	case FarmTool::BugNet:
@@ -357,6 +368,15 @@ FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(
 		result.status = FarmToolActionStatus::Applied;
 	}
 	return result;
+}
+
+bool FarmToolActionSystem::CompostSelectedTile(farm::FarmGrid& grid)
+{
+	const auto* tile = grid.GetSelectedTile();
+	if (!tile) return false;
+	auto after = *tile;
+	if (!FarmSoilSystem::ApplyCompost(after)) return false;
+	return CommitTileChange(grid, grid.GetSelectedIndex(), *tile, after, "Apply Compost");
 }
 
 bool FarmToolActionSystem::RaiseSelectedTile(farm::FarmGrid& grid)

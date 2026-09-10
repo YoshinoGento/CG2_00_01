@@ -16,7 +16,15 @@ bool TilesEqual(const FarmTile& left, const FarmTile& right) noexcept
 		left.state == right.state &&
 		left.crop == right.crop &&
 		left.moisture == right.moisture &&
-		left.growth == right.growth && left.waterAmount == right.waterAmount;
+		left.growth == right.growth && left.waterAmount == right.waterAmount &&
+		left.soilNutrients == right.soilNutrients &&
+		left.careHistory.drySeconds == right.careHistory.drySeconds &&
+		left.careHistory.lowSeconds == right.careHistory.lowSeconds &&
+		left.careHistory.goodSeconds == right.careHistory.goodSeconds &&
+		left.careHistory.excessSeconds == right.careHistory.excessSeconds &&
+		left.careHistory.efficiencySeconds == right.careHistory.efficiencySeconds &&
+		left.careHistory.nutrientGrowth == right.careHistory.nutrientGrowth &&
+		left.careHistory.nutrientSupply == right.careHistory.nutrientSupply;
 }
 
 bool IsUnusedTile(const FarmTile& tile) noexcept

@@ -475,6 +475,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmCropSelectionSystem.h" />
 	<ClInclude Include="application\farm\system\FarmCropQualitySystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthSystem.h" />
+    <ClInclude Include="application\farm\system\FarmSoilSystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthComparisonSystem.h" />
     <ClInclude Include="application\farm\system\FarmInputSystem.h" />
 	<ClInclude Include="application\farm\system\FarmIrrigationSystem.h" />
@@ -493,6 +494,15 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\farm\system\FarmToolSystem.h" />
     <ClInclude Include="application\farm\ui\FarmHUD.h" />
     <ClInclude Include="application\farm\ui\FarmRuntimeUI.h" />
+    <ClInclude Include="application\farm\ui\FarmQualityView.h" />
+    <ClInclude Include="application\farm\ui\FarmTerrainView.h" />
+    <ClInclude Include="application\farm\ui\FarmObservationView.h" />
+    <ClInclude Include="application\farm\ui\FarmPlayFlowView.h" />
+    <ClInclude Include="application\farm\ui\FarmFieldActionView.h" />
+    <ClInclude Include="application\farm\ui\FarmCameraView.h" />
+    <ClInclude Include="application\farm\system\FarmOverviewCamera.h" />
+    <ClInclude Include="engine\io\MouseButtonEdges.h" />
+    <ClInclude Include="application\farm\system\FarmPlayFlow.h" />
     <ClInclude Include="application\farm\ui\FarmRuntimeLabels.h" />
     <ClInclude Include="application\farm\system\FarmRuntimeController.h" />
     <ClInclude Include="application\farm\system\FarmLayoutSystem.h" />

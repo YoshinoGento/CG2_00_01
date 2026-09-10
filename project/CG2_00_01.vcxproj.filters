@@ -359,6 +359,9 @@
     <ClInclude Include="application\farm\system\FarmGrowthSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
+    <ClInclude Include="application\farm\system\FarmSoilSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
     <ClInclude Include="application\farm\system\FarmGrowthComparisonSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
@@ -675,6 +678,15 @@
     <ClCompile Include="application\farm\system\FarmLayoutSystem.cpp" />
     <ClCompile Include="application\farm\ui\FarmRecordDialog.cpp" />
     <ClInclude Include="application\farm\ui\FarmRuntimeUI.h" />
+    <ClInclude Include="application\farm\ui\FarmQualityView.h" />
+    <ClInclude Include="application\farm\ui\FarmTerrainView.h" />
+    <ClInclude Include="application\farm\ui\FarmObservationView.h" />
+    <ClInclude Include="application\farm\ui\FarmPlayFlowView.h" />
+    <ClInclude Include="application\farm\ui\FarmFieldActionView.h" />
+    <ClInclude Include="application\farm\ui\FarmCameraView.h" />
+    <ClInclude Include="application\farm\system\FarmOverviewCamera.h" />
+    <ClInclude Include="engine\io\MouseButtonEdges.h" />
+    <ClInclude Include="application\farm\system\FarmPlayFlow.h" />
     <ClInclude Include="application\farm\ui\FarmRuntimeLabels.h" />
     <ClInclude Include="application\farm\system\FarmRuntimeController.h" />
     <ClInclude Include="application\farm\system\FarmLayoutSystem.h" />

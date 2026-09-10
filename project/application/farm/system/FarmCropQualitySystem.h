@@ -10,6 +10,8 @@ struct FarmCropQualityResult {
 	float maturity = 0.0f;
 	float waterBalance = 0.0f;
 	float terrainFit = 0.0f;
+	float nutrientBalance = 1.0f;
+	bool nutrientKnown = false;
 	int score = 0;
 	int basePrice = 0;
 	int salePrice = 0;
@@ -19,11 +21,19 @@ struct FarmCropQualityResult {
 	}
 };
 
+enum class FarmQualityFocus { None, Maturity, Water, Terrain, Nutrients, Balanced, Unknown };
+struct FarmQualityAdvice {
+	FarmQualityFocus focus = FarmQualityFocus::None;
+	int lowestPercent = -1;
+	bool partial = false;
+};
+
 class FarmCropQualitySystem final {
 public:
 	void Initialize(const farm::FarmRules& rules = {}) noexcept;
 	[[nodiscard]] FarmCropQualityResult Evaluate(
 		const farm::FarmTile& tile) const noexcept;
+	[[nodiscard]] static FarmQualityAdvice Analyze(const FarmCropQualityResult& quality) noexcept;
 
 private:
 	std::array<int, farm::kFarmCropTypeCount> basePrices_{ 120, 170 };
@@ -32,6 +42,7 @@ private:
 	float maturityWeight_ = 0.25f;
 	float waterBalanceWeight_ = 0.50f;
 	float terrainFitWeight_ = 0.25f;
+	float nutrientWeight_ = 0.25f;
 	float heightTolerance_ = 2.0f;
 	float minimumPriceMultiplier_ = 0.50f;
 	float maximumPriceMultiplier_ = 1.50f;

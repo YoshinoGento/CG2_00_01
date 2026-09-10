@@ -38,8 +38,13 @@ struct FarmTileEditorViewData {
 	farm::FarmCropGrowthStage growthStage = farm::FarmCropGrowthStage::None;
 	float moisture = 0.0f;
 	float growth = 0.0f;
+	farm::FarmCropCareHistory careHistory{};
+	float soilNutrients = 0.0f;
+	float nutrientTarget = 0.0f;
+	bool canCompost = false;
 	FarmGrowthForecast growthForecast{};
 	FarmCropQualityResult quality{};
+	FarmQualityAdvice qualityAdvice{};
 	bool canHoe = false;
 	bool canWater = false;
 	bool canSeed = false;
@@ -210,6 +215,7 @@ struct FarmPlaytestEditorViewData {
 	FarmFeedbackStats feedbackStats{};
 	std::uint32_t restartCount = 0;
 	FarmCropQualityResult lastHarvestQuality{};
+	FarmQualityAdvice lastHarvestAdvice{};
 };
 
 struct FarmDocumentEditorViewData {
@@ -286,6 +292,7 @@ enum class GamePlayEditorCommandType {
 	ApplyCurrentFarmTool,
 	ApplyFarmTool,
 	RaiseFarmTile,
+	CompostFarmTile,
 	LowerFarmTile,
 	ToggleFarmCanal,
 	ToggleFarmWaterSource,

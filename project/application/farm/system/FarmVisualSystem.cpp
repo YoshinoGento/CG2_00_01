@@ -436,7 +436,7 @@ void FarmVisualSystem::Draw(
 				irrigationPreviewChangedTiles->begin(),
 				irrigationPreviewChangedTiles->end(),
 				index) != irrigationPreviewChangedTiles->end();
-		if (irrigationPreviewChanged || index == grid.GetSelectedIndex()) {
+		if (irrigationPreviewChanged || (debugGuides && index == grid.GetSelectedIndex())) {
 			const Vector4 selectionColor = irrigationPreviewChanged
 				? Vector4{ 1.0f, 0.72f, 0.12f, 1.0f }
 				: selectedAction.Succeeded()

@@ -59,6 +59,7 @@ struct FarmRules {
 	float qualityMaturityWeight = 0.25f;
 	float qualityWaterBalanceWeight = 0.50f;
 	float qualityTerrainFitWeight = 0.25f;
+	float qualityNutrientWeight = 0.25f;
 	float qualityHeightTolerance = 2.0f;
 	float minimumQualityPriceMultiplier = 0.50f;
 	float maximumQualityPriceMultiplier = 1.50f;

@@ -1,4 +1,5 @@
 #include "farm/system/FarmCropQualitySystem.h"
+#include "farm/system/FarmSoilSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -18,6 +19,32 @@ float SanitizePositive(float value, float fallback) noexcept
 }
 }
 
+FarmQualityAdvice FarmCropQualitySystem::Analyze(const FarmCropQualityResult& quality) noexcept
+{
+	FarmQualityAdvice advice;
+	if (!quality.IsValid()) return advice;
+	const std::array<float, 4> values{quality.maturity, quality.waterBalance, quality.terrainFit, quality.nutrientBalance};
+	constexpr std::array<FarmQualityFocus, 4> axes{FarmQualityFocus::Maturity, FarmQualityFocus::Water,
+		FarmQualityFocus::Terrain, FarmQualityFocus::Nutrients};
+	int minimum = 100;
+	advice.focus = FarmQualityFocus::Balanced;
+	for (std::size_t i = 0; i < values.size(); ++i) {
+		if ((i == 3 && !quality.nutrientKnown) || !std::isfinite(values[i]) || values[i] < 0 || values[i] > 1) {
+			advice.partial = true;
+			continue;
+		}
+		// Match rounded radar numbers; ties keep axis order, not an implied price priority.
+		const int percent = static_cast<int>(std::lround(values[i] * 100));
+		if (percent < minimum) {
+			minimum = percent;
+			advice.focus = axes[i];
+			advice.lowestPercent = percent;
+		}
+	}
+	if (advice.focus == FarmQualityFocus::Balanced && advice.partial) advice.focus = FarmQualityFocus::Unknown;
+	return advice;
+}
+
 void FarmCropQualitySystem::Initialize(const farm::FarmRules& rules) noexcept
 {
 	basePrices_ = {
@@ -35,6 +62,7 @@ void FarmCropQualitySystem::Initialize(const farm::FarmRules& rules) noexcept
 	maturityWeight_ = SanitizePositive(rules.qualityMaturityWeight, 0.25f);
 	waterBalanceWeight_ = SanitizePositive(rules.qualityWaterBalanceWeight, 0.50f);
 	terrainFitWeight_ = SanitizePositive(rules.qualityTerrainFitWeight, 0.25f);
+	nutrientWeight_ = SanitizePositive(rules.qualityNutrientWeight, 0.25f);
 	heightTolerance_ = SanitizePositive(rules.qualityHeightTolerance, 2.0f);
 	minimumPriceMultiplier_ = SanitizePositive(
 		rules.minimumQualityPriceMultiplier, 0.50f);
@@ -52,6 +80,7 @@ FarmCropQualityResult FarmCropQualitySystem::Evaluate(
 	result.crop = tile.crop;
 	const int slot = farm::ToCropSlot(tile.crop);
 	if (slot < 0 || !std::isfinite(tile.growth) || !std::isfinite(tile.moisture) ||
+		!tile.careHistory.IsValid() || !FarmSoilSystem::Valid(tile.soilNutrients) ||
 		basePrices_[slot] <= 0) {
 		return result;
 	}
@@ -61,10 +90,13 @@ FarmCropQualityResult FarmCropQualitySystem::Evaluate(
 	const float idealMoisture = idealMoisture_[slot];
 	const float moistureRange = (std::max)(
 		(std::max)(idealMoisture, 1.0f - idealMoisture), kMinimumPositiveValue);
-	result.waterBalance = std::clamp(
+	const float currentWaterBalance = std::clamp(
 		1.0f - std::abs(moisture - idealMoisture) / moistureRange,
 		0.0f,
 		1.0f);
+	result.waterBalance = tile.careHistory.GetObservedSeconds() > 0.0
+		? tile.careHistory.GetAverageEfficiency()
+		: currentWaterBalance;
 	result.terrainFit = std::clamp(
 		1.0f - std::abs(static_cast<float>(tile.heightLevel - idealHeight_[slot])) /
 			heightTolerance_,
@@ -72,14 +104,18 @@ FarmCropQualityResult FarmCropQualitySystem::Evaluate(
 		1.0f);
 
 	const float totalWeight =
-		maturityWeight_ + waterBalanceWeight_ + terrainFitWeight_;
+		maturityWeight_ + waterBalanceWeight_ + terrainFitWeight_ + nutrientWeight_;
+	result.nutrientBalance = tile.careHistory.nutrientGrowth > 0.0f
+		? std::clamp(tile.careHistory.nutrientSupply / tile.careHistory.nutrientGrowth, 0.0f, 1.0f)
+		: FarmSoilSystem::Satisfaction(tile.soilNutrients, tile.crop);
+	result.nutrientKnown = true;
 	if (!std::isfinite(totalWeight) || totalWeight <= kMinimumPositiveValue) {
 		return {};
 	}
 	const float normalizedScore = std::clamp(
 		(result.maturity * maturityWeight_ +
 			result.waterBalance * waterBalanceWeight_ +
-			result.terrainFit * terrainFitWeight_) /
+			result.terrainFit * terrainFitWeight_ + result.nutrientBalance * nutrientWeight_) /
 			totalWeight,
 		0.0f,
 		1.0f);

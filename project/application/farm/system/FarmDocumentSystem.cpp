@@ -22,7 +22,7 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 5;
+constexpr int kSchemaVersion = 7;
 constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
@@ -104,6 +104,8 @@ bool ValidateTile(const farm::FarmTile& tile, std::string& error) {
 		return false;
 	}
 	if (!std::isfinite(tile.moisture) || !std::isfinite(tile.growth) ||
+		!tile.careHistory.IsValid() || !std::isfinite(tile.soilNutrients) ||
+		tile.soilNutrients < 0.0f || tile.soilNutrients > 1.0f ||
 		tile.moisture < kMinimumNormalizedValue || tile.moisture > kMaximumNormalizedValue ||
 		tile.growth < kMinimumNormalizedValue || tile.growth > kMaximumNormalizedValue) {
 		error = "Tile moisture or growth is invalid.";
@@ -114,7 +116,8 @@ bool ValidateTile(const farm::FarmTile& tile, std::string& error) {
 			error = "A planted tile must contain a crop.";
 			return false;
 		}
-	} else if (tile.crop != farm::CropType::None || tile.growth != 0.0f) {
+	} else if (tile.crop != farm::CropType::None || tile.growth != 0.0f ||
+		!tile.careHistory.IsEmpty()) {
 		error = "Only planted tiles may contain crop growth data.";
 		return false;
 	}
@@ -295,6 +298,16 @@ nlohmann::json BuildJson(
 			{ "moisture", tile.moisture },
 			{ "growth", tile.growth },
 			{ "waterAmount", tile.waterAmount },
+			{ "soilNutrients", tile.soilNutrients },
+			{ "careHistory", {
+				{ "drySeconds", tile.careHistory.drySeconds },
+				{ "lowSeconds", tile.careHistory.lowSeconds },
+				{ "goodSeconds", tile.careHistory.goodSeconds },
+				{ "excessSeconds", tile.careHistory.excessSeconds },
+				{ "efficiencySeconds", tile.careHistory.efficiencySeconds },
+				{ "nutrientGrowth", tile.careHistory.nutrientGrowth },
+				{ "nutrientSupply", tile.careHistory.nutrientSupply },
+			} },
 		});
 	}
 	document["economy"] = {
@@ -312,6 +325,8 @@ nlohmann::json BuildJson(
 			{ "maturity", quality.maturity },
 			{ "waterBalance", quality.waterBalance },
 			{ "terrainFit", quality.terrainFit },
+			{ "nutrientBalance", quality.nutrientBalance },
+			{ "nutrientKnown", quality.nutrientKnown },
 			{ "score", quality.score },
 			{ "basePrice", quality.basePrice },
 			{ "salePrice", quality.salePrice },
@@ -421,6 +436,38 @@ bool ParseSnapshot(
 					return false;
 				}
 				tile.waterAmount = tileJson["waterAmount"].get<float>();
+			}
+			if (schemaVersion >= 6) {
+				if (!tileJson.contains("careHistory") ||
+					!tileJson["careHistory"].is_object()) {
+					error = "Farm tile has missing or invalid crop-care history.";
+					return false;
+				}
+				const nlohmann::json& historyJson = tileJson["careHistory"];
+				if (!historyJson.contains("drySeconds") || !historyJson["drySeconds"].is_number() ||
+					!historyJson.contains("lowSeconds") || !historyJson["lowSeconds"].is_number() ||
+					!historyJson.contains("goodSeconds") || !historyJson["goodSeconds"].is_number() ||
+					!historyJson.contains("excessSeconds") || !historyJson["excessSeconds"].is_number() ||
+					!historyJson.contains("efficiencySeconds") || !historyJson["efficiencySeconds"].is_number()) {
+					error = "Farm crop-care history has missing fields or invalid types.";
+					return false;
+				}
+				tile.careHistory.drySeconds = historyJson["drySeconds"].get<float>();
+				tile.careHistory.lowSeconds = historyJson["lowSeconds"].get<float>();
+				tile.careHistory.goodSeconds = historyJson["goodSeconds"].get<float>();
+				tile.careHistory.excessSeconds = historyJson["excessSeconds"].get<float>();
+				tile.careHistory.efficiencySeconds = historyJson["efficiencySeconds"].get<float>();
+			}
+			if (schemaVersion >= 7) {
+				if (!tileJson.contains("soilNutrients") || !tileJson["soilNutrients"].is_number() ||
+					!tileJson["careHistory"].contains("nutrientGrowth") || !tileJson["careHistory"]["nutrientGrowth"].is_number() ||
+					!tileJson["careHistory"].contains("nutrientSupply") || !tileJson["careHistory"]["nutrientSupply"].is_number()) {
+					error = "Missing or invalid soil nutrient data.";
+					return false;
+				}
+				tile.soilNutrients = tileJson["soilNutrients"].get<float>();
+				tile.careHistory.nutrientGrowth = tileJson["careHistory"]["nutrientGrowth"].get<float>();
+				tile.careHistory.nutrientSupply = tileJson["careHistory"]["nutrientSupply"].get<float>();
 			}
 			if (!TryParseState(tileJson["state"].get<std::string>(), tile.state) ||
 				!TryParseCrop(tileJson["crop"].get<std::string>(), tile.crop)) {
@@ -540,11 +587,21 @@ bool ParsePersistentState(
 			quality.maturity = qualityJson["maturity"].get<float>();
 			quality.waterBalance = qualityJson["waterBalance"].get<float>();
 			quality.terrainFit = qualityJson["terrainFit"].get<float>();
+			if (schemaVersion >= 7) {
+				if (!qualityJson.contains("nutrientBalance") || !qualityJson["nutrientBalance"].is_number() ||
+					!qualityJson.contains("nutrientKnown") || !qualityJson["nutrientKnown"].is_boolean()) {
+					error = "Missing or invalid nutrient quality.";
+					return false;
+				}
+				quality.nutrientBalance = qualityJson["nutrientBalance"].get<float>();
+				quality.nutrientKnown = qualityJson["nutrientKnown"].get<bool>();
+			}
 			quality.score = qualityJson["score"].get<int>();
 			quality.basePrice = qualityJson["basePrice"].get<int>();
 			quality.salePrice = qualityJson["salePrice"].get<int>();
 			if (!TryParseCrop(qualityJson["crop"].get<std::string>(), quality.crop) ||
 				!quality.IsValid() || !std::isfinite(quality.maturity) ||
+				!std::isfinite(quality.nutrientBalance) || quality.nutrientBalance < 0.0f || quality.nutrientBalance > 1.0f ||
 				!std::isfinite(quality.waterBalance) || !std::isfinite(quality.terrainFit) ||
 				quality.maturity < 0.0f || quality.maturity > 1.0f ||
 				quality.waterBalance < 0.0f || quality.waterBalance > 1.0f ||

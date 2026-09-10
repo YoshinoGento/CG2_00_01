@@ -10,6 +10,7 @@ struct FarmControllerActions {
 	bool applyCurrentTool = false;
 	bool beginRaiseTerrainPreview = false;
 	bool beginLowerTerrainPreview = false;
+	bool compost = false;
 	bool toggleCanal = false;
 	bool toggleWaterSource = false;
 	bool beginCanalPreview = false;

@@ -1,4 +1,5 @@
 #include "editor/GamePlayEditorBridge.h"
+#include "farm/system/FarmSoilSystem.h"
 
 #include "3d/Object3d.h"
 #include "base/FrameClock.h"
@@ -218,6 +219,12 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 			destination.crop = tile->crop;
 			destination.growthStage = farm::GetCropGrowthStage(*tile);
 			destination.moisture = tile->moisture;
+			destination.careHistory = tile->careHistory;
+			destination.soilNutrients = tile->soilNutrients;
+			const auto soilCrop = farm::IsPlantableCrop(tile->crop) ? tile->crop : scene_->farmCropSelectionSystem_.GetSelectedCrop();
+			const auto* soilProfile = FarmSoilSystem::Profile(soilCrop);
+			destination.nutrientTarget = soilProfile ? soilProfile->target : 0.0f;
+			destination.canCompost = FarmSoilSystem::CanCompost(*tile);
 			destination.storedWater = tile->waterAmount;
 			destination.waterStatus = displayedIrrigation->GetWaterStatus(*displayedGrid, index);
 			if (output.irrigationLastStep.valid && static_cast<std::size_t>(index) < irrigationFlows.size()) {
@@ -240,6 +247,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 				scene_->farmDateSystem_.GetTimeScale(),
 				displayedIrrigation->GetAvailableIrrigationStrength(*displayedGrid, index));
 			destination.quality = farmToolActionSystem_->EvaluateHarvestQuality(*tile);
+			destination.qualityAdvice = FarmCropQualitySystem::Analyze(destination.quality);
 			destination.canHoe = farmToolActionSystem_->EvaluateTool(
 				*farmGrid_, index, FarmTool::Hoe, selectedCrop).Succeeded();
 			destination.canWater = farmToolActionSystem_->EvaluateTool(
@@ -322,6 +330,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.farmPlaytest.restartCount = scene_->farmRestartCount_;
 	output.farmPlaytest.lastHarvestQuality =
 		scene_->farmEconomySystem_.GetLastHarvestQuality();
+	output.farmPlaytest.lastHarvestAdvice = FarmCropQualitySystem::Analyze(output.farmPlaytest.lastHarvestQuality);
 
 	output.visibility.selectedTarget = scene_->selectedTarget_;
 	output.visibility.showTerrain = scene_->showTerrain_;
@@ -503,6 +512,12 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 			return true;
 		}
 		return false;
+	case GamePlayEditorCommandType::CompostFarmTile:
+		if (scene_->farmProgressionSystem_.IsCleared() || scene_->farmIrrigationPreviewSystem_.IsActive() ||
+			!SelectCommandTarget(command)) return false;
+		if (!farmToolActionSystem_->CompostSelectedTile(*farmGrid_)) return false;
+		farmDocumentSystem_->MarkDirty();
+		return true;
 	case GamePlayEditorCommandType::RaiseFarmTile:
 		if (SelectCommandTarget(command) && farmToolActionSystem_->RaiseSelectedTile(*farmGrid_)) {
 			scene_->farmIrrigationPreviewSystem_.Cancel();

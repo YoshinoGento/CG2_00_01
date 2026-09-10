@@ -1,0 +1,126 @@
+#include "io/MouseButtonEdges.h"
+#include "farm/render/FarmMeshLayout.h"
+#include "3d/LineDrawer.h"
+#include <cassert>
+#include <cstdlib>
+#include <iostream>
+#include <limits>
+
+// GPU debug drawing is outside this CPU test. Abort if a tested path accidentally uses it.
+void LineDrawer::DrawLine(const Vector3&, const Vector3&, const Vector4&) { std::abort(); }
+void LineDrawer::DrawWireCube(const Vector3&, float, const Vector4&) { std::abort(); }
+void LineDrawer::DrawWireSphere(const Vector3&, float, const Vector4&, uint32_t) { std::abort(); }
+
+int main() {
+    MouseButtonEdges edges;
+    for (int button = 0; button < MouseButtonEdges::kCount; ++button) {
+        edges.Reset();
+        edges.Apply(button, true); edges.Apply(button, false);
+        assert(edges.Pressed(button) && edges.Released(button) && !edges.Held(button));
+        edges.BeginFrame();
+        assert(!edges.Pressed(button) && !edges.Released(button) && !edges.Held(button));
+        edges.Apply(button, true);
+        edges.BeginFrame(); edges.Apply(button, true);
+        assert(edges.Held(button) && !edges.Pressed(button));
+        edges.Apply(button, false);
+        assert(edges.Released(button) && !edges.Held(button));
+        edges.BeginFrame();
+        for (int i = 0; i < 100; ++i) { edges.Apply(button, true); edges.Apply(button, false); }
+        assert(edges.Pressed(button) && edges.Released(button) && !edges.Held(button));
+        edges.Reset(); // Lost focus discards both held state and pending edges.
+        assert(!edges.Pressed(button) && !edges.Released(button) && !edges.Held(button));
+        std::array<bool, MouseButtonEdges::kCount> restored{}; restored[button] = true;
+        edges.Synchronize(restored);
+        assert(!edges.Held(button) && !edges.Pressed(button) && !edges.Released(button));
+        edges.Apply(button, true);
+        assert(!edges.Pressed(button) && !edges.Held(button));
+        edges.Apply(button, false);
+        assert(!edges.Released(button));
+        edges.BeginFrame(); edges.Apply(button, true);
+        assert(edges.Pressed(button));
+    }
+    for (int invalid : {-1, MouseButtonEdges::kCount, (std::numeric_limits<int>::max)()}) {
+        edges.Apply(invalid, true);
+        assert(!edges.Held(invalid) && !edges.Pressed(invalid) && !edges.Released(invalid));
+    }
+    std::cout << "PASS: short pulse, held/repeat, per-frame reset, focus resync, invalid button\n";
+
+    farm::FarmGrid grid;
+    assert(grid.Initialize(5,4));
+    farm::FarmVisualSystem visual;
+    visual.Initialize({});
+    std::size_t total = 0;
+    for (int i=0; i<grid.GetTileCount(); ++i) {
+        const auto parts = farm::BuildFarmTileMeshParts(grid,i,visual);
+        assert(parts.count == 6); total += parts.count;
+    }
+    assert(total == 120); // 40 existing soil parts + 80 no-shadow markers for the default field.
+    assert(farm::BuildFarmTileMeshParts(grid,-1,visual).count == 0);
+    assert(farm::BuildFarmTileMeshParts(grid,20,visual).count == 0);
+    for (int invalid : {-1, 20, (std::numeric_limits<int>::max)()})
+        assert(farm::BuildFarmSelectionMeshParts(grid,invalid,visual).count == 0 &&
+            farm::BuildFarmHoverMeshParts(grid,invalid,visual).count == 0);
+    assert(grid.Initialize(3,3));
+    for (int pattern=0; pattern<243; ++pattern) {
+        int levels = pattern;
+        for (int i=0; i<9; ++i) {
+            auto* tile = grid.GetMutableTile(i);
+            tile->heightLevel = levels%3; levels = levels/3 + (i%2);
+        }
+        for (int index=0; index<9; ++index) {
+            const auto center = visual.GetTileCenter(grid,index);
+            const auto parts = farm::BuildFarmTileMeshParts(grid,index,visual);
+            assert(parts.count > 0 && parts.count <= 30);
+            int borders = 0;
+            for (std::size_t i=0; i<parts.count; ++i) {
+                const auto& part = parts.parts[i];
+                assert(std::isfinite(part.position.y) && std::isfinite(part.slope.x) && std::isfinite(part.slope.y));
+                if (part.surface != farm::FarmMeshSurface::SoilBoundary) continue;
+                ++borders;
+                assert(!part.water && part.shape == farm::FarmMeshShape::Box);
+                assert(part.slope.x == 0 && part.slope.y == 0 && part.position.y > center.y);
+                const float plateau = visual.GetLayout().tileSize*0.5f*0.86f;
+                assert(std::abs(part.position.x-center.x)+part.scale.x <= plateau+0.00001f);
+                assert(std::abs(part.position.z-center.z)+part.scale.z <= plateau+0.00001f);
+            }
+            assert(borders == 4);
+            const auto marker = farm::BuildFarmSelectionMeshParts(grid,index,visual);
+            const auto hover = farm::BuildFarmHoverMeshParts(grid,index,visual);
+            assert(marker.count == 8 && marker.count == marker.parts.size());
+            assert(hover.count == 8 && hover.count == hover.parts.size());
+            for (const auto& part : marker.parts) {
+                assert(part.surface == farm::FarmMeshSurface::Selection && !part.water);
+                assert(part.scale.x > 0 && part.scale.y > 0 && part.scale.z > 0);
+                assert(std::isfinite(part.position.y) && part.position.y-part.scale.y > center.y+0.024f);
+                const float plateau = visual.GetLayout().tileSize*0.5f*0.86f;
+                assert(std::abs(part.position.x-center.x)+part.scale.x < plateau);
+                assert(std::abs(part.position.z-center.z)+part.scale.z < plateau);
+            }
+            for (std::size_t i=0; i<hover.count; ++i) {
+                const auto& part = hover.parts[i];
+                assert(part.surface == farm::FarmMeshSurface::Hover && !part.water);
+                assert(part.scale.x > 0 && part.scale.y > 0 && part.scale.z > 0);
+                assert(std::isfinite(part.position.y) && part.position.y > marker.parts[i].position.y);
+                assert(part.color.x < marker.parts[i].color.x && part.color.z > marker.parts[i].color.z);
+            }
+            int picked = -1;
+            assert(visual.TryPickTile(grid,{center.x,10,center.z},{0,-1,0},picked) && picked == index);
+        }
+    }
+    for (const auto feature : {farm::FarmTileFeature::None, farm::FarmTileFeature::Canal, farm::FarmTileFeature::WaterSource}) {
+        auto* tile = grid.GetMutableTile(4);
+        tile->feature = feature; tile->state = farm::FarmTileState::Tilled;
+        const auto parts = farm::BuildFarmTileMeshParts(grid,4,visual);
+        for (std::size_t i=0; i<parts.count; ++i) assert(parts.parts[i].surface != farm::FarmMeshSurface::SoilBoundary);
+        const auto marker = farm::BuildFarmSelectionMeshParts(grid,4,visual);
+        const auto hover = farm::BuildFarmHoverMeshParts(grid,4,visual);
+        assert(marker.count == 8 && hover.count == 8 && tile->feature == feature && tile->state == farm::FarmTileState::Tilled);
+        if (feature != farm::FarmTileFeature::None) {
+            const auto& layout = visual.GetLayout();
+            const float rim = visual.GetTileCenter(grid,4).y + layout.waterBottomOffset + layout.waterMaxDepth + 0.045f;
+            for (const auto& part : marker.parts) assert(part.position.y-part.scale.y > rim);
+            for (const auto& part : hover.parts) assert(part.position.y-part.scale.y > rim);
+        }
+    }
+    std::cout << "PASS: mesh bounds/capacity, boundaries, selection/hover corners, canal clearance, tile picking\n";
+}

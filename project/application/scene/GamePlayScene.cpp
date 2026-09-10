@@ -1571,7 +1571,8 @@ void GamePlayScene::Draw() {
 	const bool irrigationPreviewActive = previewGrid != nullptr && previewIrrigation != nullptr;
 	const farm::FarmGrid& displayedFarmGrid = irrigationPreviewActive ? *previewGrid : farmGrid_;
 	const farm::FarmIrrigationSystem& displayedIrrigation = irrigationPreviewActive ? *previewIrrigation : farmIrrigationSystem_;
-	farmRenderer_.Prepare(displayedFarmGrid, farmVisualSystem_, camera_.get());
+	farmRenderer_.Prepare(displayedFarmGrid, farmVisualSystem_, camera_.get(),
+		farmRuntimeController_.ResolveHoveredTile(*this));
 
 	auto DrawLevelObjects = [&]() {
 		if (!showLevelObjects_) {
@@ -1728,12 +1729,16 @@ void GamePlayScene::Draw() {
 	if (farmHudInitialized_ || stageClearHudInitialized_) {
 		spriteCommon->PreDraw();
 #ifndef USE_IMGUI
-		if (!farmRuntimeController_.IsOpen()) {
+        if (!farmRuntimeController_.HidesFarmHUD()) {
 #endif
 		if (farmHudInitialized_) {
 			farmHud_.Draw();
 		}
 		if (stageClearHudInitialized_) {
+#ifndef USE_IMGUI
+            // The native result/review UI already owns the farm-clear presentation.
+            if (!farmRuntimeController_.PresentsFarmResult())
+#endif
 			stageClearHud_.Draw();
 		}
 #ifndef USE_IMGUI

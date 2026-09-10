@@ -262,6 +262,18 @@ const char* GetQualityGrade(int score) noexcept
 	return "D";
 }
 
+const char* GetQualityHint(FarmQualityFocus focus, bool harvested) noexcept
+{
+	switch (focus) {
+	case FarmQualityFocus::Maturity: return harvested ? "Next crop: wait for full maturity before harvesting." : "Maturity: wait for 100% growth before harvesting.";
+	case FarmQualityFocus::Water: return "Water: avoid both shortage and excess while growing.";
+	case FarmQualityFocus::Terrain: return "Next crop: prepare a suitable height before planting.";
+	case FarmQualityFocus::Nutrients: return "Next crop: mix compost before planting.";
+	case FarmQualityFocus::Balanced: return "All recorded axes are in good condition.";
+	default: return "Some axes are unknown; treat this evaluation as partial.";
+	}
+}
+
 void DrawQualityRadar(
 	const FarmCropQualityResult& quality,
 	EditorLanguage language)
@@ -271,29 +283,30 @@ void DrawQualityRadar(
 		return;
 	}
 
-	const float availableWidth = (std::max)(ImGui::GetContentRegionAvail().x, 180.0f);
+	const float availableWidth = (std::max)(ImGui::GetContentRegionAvail().x, 1.0f);
 	const float canvasWidth = (std::min)(availableWidth, 260.0f);
-	constexpr float canvasHeight = 178.0f;
-	constexpr float radius = 62.0f;
+	constexpr float canvasHeight = 154.0f;
+	const float radius = (std::min)(62.0f, canvasWidth * 0.45f);
 	const ImVec2 origin = ImGui::GetCursorScreenPos();
 	const ImVec2 center = { origin.x + canvasWidth * 0.5f, origin.y + 76.0f };
-	const std::array<ImVec2, 3> axes = {{
+	const std::array<ImVec2, 4> axes = {{
 		{ 0.0f, -1.0f },
-		{ 0.8660254f, 0.5f },
-		{ -0.8660254f, 0.5f },
+		{ 1.0f, 0.0f },
+		{ 0.0f, 1.0f },
+		{ -1.0f, 0.0f },
 	}};
 	ImDrawList* drawList = ImGui::GetWindowDrawList();
 	const ImU32 gridColor = ImGui::GetColorU32(ImVec4(0.46f, 0.49f, 0.54f, 0.72f));
 	for (int ring = 1; ring <= 4; ++ring) {
 		const float ringRadius = radius * static_cast<float>(ring) / 4.0f;
-		std::array<ImVec2, 4> points{};
+		std::array<ImVec2, 5> points{};
 		for (std::size_t axis = 0; axis < axes.size(); ++axis) {
 			points[axis] = {
 				center.x + axes[axis].x * ringRadius,
 				center.y + axes[axis].y * ringRadius,
 			};
 		}
-		points[3] = points[0];
+		points[4] = points[0];
 		drawList->AddPolyline(
 			points.data(), static_cast<int>(points.size()), gridColor, ImDrawFlags_None, 1.0f);
 	}
@@ -305,12 +318,13 @@ void DrawQualityRadar(
 			1.0f);
 	}
 
-	const std::array<float, 3> values = {{
+	const std::array<float, 4> values = {{
 		std::clamp(quality.maturity, 0.0f, 1.0f),
 		std::clamp(quality.waterBalance, 0.0f, 1.0f),
 		std::clamp(quality.terrainFit, 0.0f, 1.0f),
+		quality.nutrientKnown ? std::clamp(quality.nutrientBalance, 0.0f, 1.0f) : 0.0f,
 	}};
-	std::array<ImVec2, 3> valuePoints{};
+	std::array<ImVec2, 4> valuePoints{};
 	for (std::size_t axis = 0; axis < axes.size(); ++axis) {
 		valuePoints[axis] = {
 			center.x + axes[axis].x * radius * values[axis],
@@ -319,26 +333,25 @@ void DrawQualityRadar(
 	}
 	const ImU32 fillColor = ImGui::GetColorU32(ImVec4(0.96f, 0.67f, 0.12f, 0.28f));
 	const ImU32 outlineColor = ImGui::GetColorU32(ImVec4(1.0f, 0.76f, 0.16f, 1.0f));
-	drawList->AddConvexPolyFilled(valuePoints.data(), 3, fillColor);
-	drawList->AddPolyline(valuePoints.data(), 3, outlineColor, ImDrawFlags_Closed, 2.0f);
+	for (std::size_t i = 0; i < valuePoints.size(); ++i)
+		drawList->AddTriangleFilled(center, valuePoints[i], valuePoints[(i + 1) % valuePoints.size()], fillColor);
+	drawList->AddPolyline(valuePoints.data(), 4, outlineColor, ImDrawFlags_Closed, 2.0f);
 	for (const ImVec2& point : valuePoints) {
 		drawList->AddCircleFilled(point, 3.5f, outlineColor);
 	}
 
-	const char* maturityLabel = editor::Localize(language, "Maturity");
-	const char* waterLabel = editor::Localize(language, "Water Balance");
-	const char* terrainLabel = editor::Localize(language, "Terrain Fit");
-	drawList->AddText(
-		{ center.x - ImGui::CalcTextSize(maturityLabel).x * 0.5f, origin.y },
-		ImGui::GetColorU32(ImGuiCol_Text), maturityLabel);
-	drawList->AddText(
-		{ center.x + radius * 0.55f, center.y + radius * 0.50f },
-		ImGui::GetColorU32(ImGuiCol_Text), waterLabel);
-	drawList->AddText(
-		{ center.x - radius - ImGui::CalcTextSize(terrainLabel).x * 0.75f,
-			center.y + radius * 0.50f },
-		ImGui::GetColorU32(ImGuiCol_Text), terrainLabel);
+	constexpr const char* axisNames[] = { "1", "2", "3", "4" };
+	for (std::size_t i = 0; i < axes.size(); ++i) {
+		const ImVec2 point{center.x + axes[i].x * (radius + 8), center.y + axes[i].y * (radius + 8)};
+		drawList->AddText({point.x - 4, point.y - 7}, ImGui::GetColorU32(ImGuiCol_Text), axisNames[i]);
+	}
 	ImGui::Dummy({ canvasWidth, canvasHeight });
+	constexpr const char* axisLabels[] = { "Maturity", "Water Balance", "Terrain Fit", "Nutrient Balance" };
+	for (std::size_t i = 0; i < values.size(); ++i) {
+		if (i == 3 && !quality.nutrientKnown)
+			ImGui::TextWrapped("%zu. %s: --", i + 1, editor::Localize(language, axisLabels[i]));
+		else ImGui::TextWrapped("%zu. %s: %.0f / 100", i + 1, editor::Localize(language, axisLabels[i]), values[i] * 100);
+	}
 
 	ImGui::Text(
 		editor::Localize(language, "Score: %d / 100  Grade %s"),
@@ -866,6 +879,40 @@ FarmControllerActions FarmControllerWindow::Draw(
 		} else {
 			ImGui::TextDisabled("%s", text("No active growth forecast"));
 		}
+		if (tile->feature == farm::FarmTileFeature::None) {
+			ImGui::SeparatorText(text("Soil Care"));
+			ImGui::TextWrapped(text("Nutrients: %.0f / 100 (crop target %.0f)"), tile->soilNutrients * 100, tile->nutrientTarget * 100);
+			ImGui::ProgressBar(tile->soilNutrients, {-1, 0}, text("Soil Nutrients"));
+			ImGui::TextWrapped("%s", text("Compost before planting. Nutrients are consumed as crops grow; shortage lowers quality."));
+			ImGui::BeginDisabled(!tile->canCompost || viewModel.irrigationPreviewActive);
+			if (ImGui::Button(text("Add Compost (Free)"), {-1, 0})) actions.compost = true;
+			ImGui::EndDisabled();
+		}
+		const double observedSeconds = tile->careHistory.GetObservedSeconds();
+		if (observedSeconds > 0.0 && tile->careHistory.IsValid()) {
+			const auto percent = [observedSeconds](float seconds) {
+				return static_cast<float>(
+					static_cast<double>(seconds) / observedSeconds * 100.0);
+			};
+			ImGui::SeparatorText(text("Crop Care History"));
+			ImGui::Text(text("Observed growing time: %.1f sec"), observedSeconds);
+			ImGui::Text(
+				text("Dry %.0f%% / Low %.0f%%"),
+				percent(tile->careHistory.drySeconds),
+				percent(tile->careHistory.lowSeconds));
+			ImGui::Text(
+				text("Good %.0f%% / Excess %.0f%%"),
+				percent(tile->careHistory.goodSeconds),
+				percent(tile->careHistory.excessSeconds));
+			ImGui::Text(
+				text("Average growth efficiency: %.0f%%"),
+				tile->careHistory.GetAverageEfficiency() * 100.0f);
+			ImGui::TextWrapped(
+				"%s",
+				text("Water Balance uses this full-period average, not only the current moisture."));
+		} else if (tile->state == farm::FarmTileState::Planted) {
+			ImGui::TextDisabled("%s", text("Care history starts when growth time advances."));
+		}
 		ImGui::TextDisabled("%s", GetNextActionLabel(*tile, language));
 	} else {
 		ImGui::TextDisabled("%s", text("None"));
@@ -873,15 +920,27 @@ FarmControllerActions FarmControllerWindow::Draw(
 
 	ImGui::SeparatorText(text("Crop Quality"));
 	const FarmCropQualityResult* quality = nullptr;
+	const FarmQualityAdvice* qualityAdvice = nullptr;
+	bool harvestedQuality = false;
 	if (tile != nullptr && tile->quality.IsValid()) {
 		quality = &tile->quality;
+		qualityAdvice = &tile->qualityAdvice;
 		ImGui::TextDisabled("%s", text("Selected Tile Preview"));
 	} else if (playtest.lastHarvestQuality.IsValid()) {
 		quality = &playtest.lastHarvestQuality;
+		qualityAdvice = &playtest.lastHarvestAdvice;
+		harvestedQuality = true;
 		ImGui::TextDisabled("%s", text("Last Harvest Result"));
 	}
 	if (quality != nullptr) {
 		DrawQualityRadar(*quality, language);
+		if (qualityAdvice != nullptr) {
+			ImGui::TextWrapped("%s", text(GetQualityHint(qualityAdvice->focus, harvestedQuality)));
+			if (qualityAdvice->lowestPercent >= 0)
+				ImGui::TextWrapped(text("Lowest known axis: %d / 100"), qualityAdvice->lowestPercent);
+			if (qualityAdvice->partial)
+				ImGui::TextWrapped("%s", text("Unknown axes are excluded from the hint."));
+		}
 	} else {
 		ImGui::TextDisabled("%s", text("No quality data"));
 	}

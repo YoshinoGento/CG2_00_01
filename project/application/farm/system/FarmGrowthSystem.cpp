@@ -1,9 +1,11 @@
 #include "farm/system/FarmGrowthSystem.h"
 
 #include "farm/core/FarmGrid.h"
+#include "farm/system/FarmSoilSystem.h"
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace {
 constexpr float kNormalizedMinimum = 0.0f;
@@ -37,6 +39,51 @@ bool IsCultivated(const farm::FarmTile& tile) noexcept
 {
 	return tile.feature == farm::FarmTileFeature::None &&
 		tile.state != farm::FarmTileState::Empty;
+}
+
+bool CareHistoriesEqual(
+	const farm::FarmCropCareHistory& left,
+	const farm::FarmCropCareHistory& right) noexcept
+{
+	return left.drySeconds == right.drySeconds &&
+		left.lowSeconds == right.lowSeconds &&
+		left.goodSeconds == right.goodSeconds &&
+		left.excessSeconds == right.excessSeconds &&
+		left.efficiencySeconds == right.efficiencySeconds &&
+		left.nutrientGrowth == right.nutrientGrowth && left.nutrientSupply == right.nutrientSupply;
+}
+
+float SaturatingAdd(float value, float increment) noexcept
+{
+	const double sum = static_cast<double>(value) + static_cast<double>(increment);
+	return sum < static_cast<double>((std::numeric_limits<float>::max)())
+		? static_cast<float>(sum)
+		: (std::numeric_limits<float>::max)();
+}
+
+void AccumulateCareHistory(
+	farm::FarmCropCareHistory& history,
+	FarmMoistureStatus status,
+	float seconds,
+	float efficiency) noexcept
+{
+	if (!std::isfinite(seconds) || seconds <= 0.0f ||
+		!std::isfinite(efficiency)) {
+		return;
+	}
+	float* duration = nullptr;
+	switch (status) {
+	case FarmMoistureStatus::Dry: duration = &history.drySeconds; break;
+	case FarmMoistureStatus::Low: duration = &history.lowSeconds; break;
+	case FarmMoistureStatus::Good: duration = &history.goodSeconds; break;
+	case FarmMoistureStatus::Excess: duration = &history.excessSeconds; break;
+	case FarmMoistureStatus::Invalid:
+	default: return;
+	}
+	*duration = SaturatingAdd(*duration, seconds);
+	history.efficiencySeconds = SaturatingAdd(
+		history.efficiencySeconds,
+		seconds * std::clamp(efficiency, 0.0f, 1.0f));
 }
 
 farm::FarmCropGrowthProfile SanitizeProfile(
@@ -150,9 +197,17 @@ bool FarmGrowthSystem::Update(
 
 		const float previousMoisture = tile->moisture;
 		const float previousGrowth = tile->growth;
+		const farm::FarmCropCareHistory previousCareHistory = tile->careHistory;
 		tile->moisture = SanitizeTileValue(tile->moisture);
 		tile->growth = SanitizeTileValue(tile->growth);
-		changed |= previousMoisture != tile->moisture || previousGrowth != tile->growth;
+		if (!tile->careHistory.IsValid() ||
+			(tile->state != farm::FarmTileState::Planted &&
+			 !tile->careHistory.IsEmpty())) {
+			tile->careHistory = {};
+		}
+		changed |= previousMoisture != tile->moisture ||
+			previousGrowth != tile->growth ||
+			!CareHistoriesEqual(previousCareHistory, tile->careHistory);
 		if (!IsCultivated(*tile) || tile->state != farm::FarmTileState::Planted ||
 			tile->crop == farm::CropType::None || farm::IsHarvestReady(*tile)) {
 			continue;
@@ -163,16 +218,25 @@ bool FarmGrowthSystem::Update(
 			continue;
 		}
 
-		const float growthPerSecond = EvaluateMoisture(*profile, tile->moisture).rate;
+		const MoistureResponse response = EvaluateMoisture(*profile, tile->moisture);
+		const float growthPerSecond = response.rate;
+		const float efficiency = profile->growthPerSecondWet > 0.0f
+			? growthPerSecond / profile->growthPerSecondWet
+			: 0.0f;
+		AccumulateCareHistory(
+			tile->careHistory, response.status, scaledDeltaTime, efficiency);
 		tile->growth = std::clamp(
 			tile->growth + growthPerSecond * scaledDeltaTime,
 			kNormalizedMinimum,
 			kNormalizedMaximum);
+		FarmSoilSystem::Grow(*tile, tile->growth - previousGrowth);
 		tile->moisture = std::clamp(
 			tile->moisture - profile->moistureDecayPerSecond * scaledDeltaTime,
 			kNormalizedMinimum,
 			kNormalizedMaximum);
-		changed |= previousMoisture != tile->moisture || previousGrowth != tile->growth;
+		changed |= previousMoisture != tile->moisture ||
+			previousGrowth != tile->growth ||
+			!CareHistoriesEqual(previousCareHistory, tile->careHistory);
 	}
 	return changed;
 }

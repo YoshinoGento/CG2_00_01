@@ -8,12 +8,15 @@ constexpr float kInitialGrowthTolerance = 0.0001f;
 bool Valid(const farm::FarmTile& tile) noexcept {
 	return std::isfinite(tile.moisture) && tile.moisture >= 0.0f && tile.moisture <= 1.0f &&
 		std::isfinite(tile.growth) && tile.growth >= 0.0f && tile.growth <= 1.0f &&
-		std::isfinite(tile.waterAmount) && tile.waterAmount == 0.0f;
+		std::isfinite(tile.waterAmount) && tile.waterAmount == 0.0f && tile.careHistory.IsValid() &&
+		std::isfinite(tile.soilNutrients) && tile.soilNutrients >= 0.0f && tile.soilNutrients <= 1.0f;
 }
 bool Same(const farm::FarmTile& a, const farm::FarmTile& b) noexcept {
 	return a.state == b.state && a.crop == b.crop && a.feature == b.feature &&
 		a.heightLevel == b.heightLevel && a.moisture == b.moisture &&
-		a.growth == b.growth && a.waterAmount == b.waterAmount;
+		a.growth == b.growth && a.waterAmount == b.waterAmount && a.soilNutrients == b.soilNutrients &&
+		a.careHistory.nutrientGrowth == b.careHistory.nutrientGrowth &&
+		a.careHistory.nutrientSupply == b.careHistory.nutrientSupply;
 }
 }
 

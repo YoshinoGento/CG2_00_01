@@ -8,7 +8,7 @@
 
 namespace farm {
 enum class FarmMeshShape { Box, TriangleLower, TriangleUpper };
-enum class FarmMeshSurface { None, CanalBed, CanalBank };
+enum class FarmMeshSurface { None, CanalBed, CanalBank, SoilBoundary, Selection, Hover };
 struct FarmMeshPart {
 	Vector3 position{};
 	Vector3 scale{1.0f, 1.0f, 1.0f}; // Unit box spans [-1,1]; scale is half-size.
@@ -19,10 +19,53 @@ struct FarmMeshPart {
 	FarmMeshSurface surface = FarmMeshSurface::None;
 };
 struct FarmTileMeshParts {
-	// Soil: five planar + eight triangular patches, earth/cap each, plus three ridges.
+	// Soil: at most 26 patches plus either three ridges or four boundary strips.
 	std::array<FarmMeshPart, 32> parts{};
 	std::size_t count = 0;
 };
+
+struct FarmSelectionMeshParts {
+	std::array<FarmMeshPart, 8> parts{};
+	std::size_t count = 0;
+};
+
+// Target markers are transient presentation, not part of terrain/save or its per-tile budget.
+inline FarmSelectionMeshParts BuildFarmTargetMeshParts(
+	const FarmGrid& grid, int index, const FarmVisualSystem& visualSystem,
+	bool hover) noexcept {
+	FarmSelectionMeshParts result;
+	const auto tile = visualSystem.GetTileVisualData(grid, index);
+	if (!tile.valid) { return result; }
+	const auto& layout = visualSystem.GetLayout();
+	const float edge = tile.halfExtent * (hover ? 0.69f : 0.76f);
+	const float arm = tile.halfExtent * (hover ? 0.20f : 0.28f);
+	const float width = tile.halfExtent * (hover ? 0.022f : 0.035f);
+	const float halfThickness = hover ? 0.006f : 0.01f;
+	const float lift = tile.feature == FarmTileFeature::None ? 0.045f :
+		layout.waterBottomOffset + layout.waterMaxDepth + 0.065f;
+	const float y = tile.center.y + lift + (hover ? 0.014f : 0.0f);
+	if (!std::isfinite(tile.center.x) || !std::isfinite(y) || !std::isfinite(tile.center.z) ||
+		!std::isfinite(edge) || width < 0.0001f) { return result; }
+	const Vector4 color = hover ? Vector4{0.32f, 0.92f, 1.0f, 1.0f} : Vector4{1.0f, 0.86f, 0.18f, 1.0f};
+	const auto surface = hover ? FarmMeshSurface::Hover : FarmMeshSurface::Selection;
+	for (int x : {-1, 1}) for (int z : {-1, 1}) {
+		result.parts[result.count++] = {{tile.center.x+x*(edge-arm*0.5f), y, tile.center.z+z*edge},
+			{arm*0.5f+width, halfThickness, width}, color, false, {}, FarmMeshShape::Box, surface};
+		result.parts[result.count++] = {{tile.center.x+x*edge, y, tile.center.z+z*(edge-arm*0.5f-width)},
+			{width, halfThickness, arm*0.5f-width}, color, false, {}, FarmMeshShape::Box, surface};
+	}
+	return result;
+}
+
+inline FarmSelectionMeshParts BuildFarmSelectionMeshParts(
+	const FarmGrid& grid, int index, const FarmVisualSystem& visualSystem) noexcept {
+	return BuildFarmTargetMeshParts(grid, index, visualSystem, false);
+}
+
+inline FarmSelectionMeshParts BuildFarmHoverMeshParts(
+	const FarmGrid& grid, int index, const FarmVisualSystem& visualSystem) noexcept {
+	return BuildFarmTargetMeshParts(grid, index, visualSystem, true);
+}
 
 // Pure presentation conversion, usable by CPU tests without allocating GPU resources.
 inline FarmTileMeshParts BuildFarmTileMeshParts(
@@ -86,7 +129,19 @@ inline FarmTileMeshParts BuildFarmTileMeshParts(
 				}
 			}
 		}
-		if (tile->state != FarmTileState::Empty) {
+		if (tile->state == FarmTileState::Empty) {
+			// Inset within the shared flat plateau: ramps and water connections remain untouched.
+			const float edge = half * 0.80f;
+			const float width = half * 0.032f;
+			constexpr float lift = 0.002f;
+			const Vector4 boundary{0.12f, 0.28f, 0.08f, 1.0f};
+			for (int side : {-1, 1}) {
+				add({visual.center.x + side*edge, visual.center.y+lift, visual.center.z},
+					{width, lift, edge+width}, boundary, false, {}, FarmMeshShape::Box, FarmMeshSurface::SoilBoundary);
+				add({visual.center.x, visual.center.y+lift, visual.center.z + side*edge},
+					{edge-width, lift, width}, boundary, false, {}, FarmMeshShape::Box, FarmMeshSurface::SoilBoundary);
+			}
+		} else {
 			for (int ridge = -1; ridge <= 1; ++ridge) {
 				add({visual.center.x + ridge * half * 0.52f, visual.center.y + 0.012f, visual.center.z},
 					{half * 0.12f, 0.012f, half * 0.83f}, soil);

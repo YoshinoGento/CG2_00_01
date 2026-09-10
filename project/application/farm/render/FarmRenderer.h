@@ -24,7 +24,8 @@ public:
 	bool Initialize(Object3dCommon* common, ModelManager* models, Texture2DHandle whiteTexture);
 	void SetVisible(bool visible) { visible_ = visible; }
 	bool IsVisible() const { return visible_; }
-	void Prepare(const FarmGrid& grid, const FarmVisualSystem& visual, Camera* camera);
+	void Prepare(const FarmGrid& grid, const FarmVisualSystem& visual, Camera* camera,
+		int hoveredTileIndex = -1);
 	void Draw();
 	void DrawShadow();
 	int GetLastDrawTileCount() const { return lastDrawTileCount_; }
@@ -36,6 +37,7 @@ private:
 	bool visible_ = true;
 	int lastDrawTileCount_ = 0;
 	static constexpr std::size_t kMaximumParts = 640;
+	static constexpr std::size_t kMaximumTargetParts = 16;
 	Object3dCommon* common_ = nullptr; // Framework-owned, outlives scene.
 	Model* model_ = nullptr; // ModelManager-owned immutable static mesh.
 	Model* triangleLower_ = nullptr; // Same ModelManager lifetime as the box.

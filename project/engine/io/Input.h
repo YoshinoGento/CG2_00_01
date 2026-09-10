@@ -7,6 +7,7 @@
 #include "io/InputGamepadButton.h"
 #include "io/InputKey.h"
 #include "io/InputMouseButton.h"
+#include "io/MouseButtonEdges.h"
 #include "math/Struct.h"
 
 using namespace Microsoft::WRL;
@@ -63,6 +64,7 @@ public:
 private:
 	bool UpdateKeyboardState();
 	bool UpdateMouseState();
+	bool ResynchronizeMouse();
 	bool UpdateGamepadState();
 	void UpdateMousePosition();
 	void ClearKeyboardState();
@@ -82,9 +84,11 @@ private:
 	BYTE key[256] = {};
 	bool consumedKeyTriggers_[256] = {};
 
-	static constexpr int kMouseButtonCount = 5;
-	BYTE mouseButtonPre[kMouseButtonCount] = {};
-	BYTE mouseButton[kMouseButtonCount] = {};
+	static constexpr int kMouseButtonCount = MouseButtonEdges::kCount;
+	static constexpr DWORD kMouseEventCapacity = 256;
+	MouseButtonEdges mouseEdges_;
+	bool mouseBuffered_ = false;
+	bool mouseSynchronized_ = false;
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 	Vector2 mouseDelta_ = { 0.0f, 0.0f };
 	float mouseWheelDelta_ = 0.0f;

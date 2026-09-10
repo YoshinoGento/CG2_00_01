@@ -106,7 +106,9 @@ FarmTile* FarmGrid::GetMutableTile(int index)
 bool FarmGrid::SetTile(int index, const FarmTile& tile)
 {
 	FarmTile* destination = GetMutableTile(index);
-	if (destination == nullptr || !std::isfinite(tile.moisture) || !std::isfinite(tile.growth)) {
+	if (destination == nullptr || !std::isfinite(tile.moisture) ||
+		!std::isfinite(tile.growth) || !tile.careHistory.IsValid() ||
+		!std::isfinite(tile.soilNutrients) || tile.soilNutrients < 0.0f || tile.soilNutrients > 1.0f) {
 		return false;
 	}
 	if (tile.heightLevel < 0 || tile.heightLevel > 2) {
@@ -117,9 +119,13 @@ bool FarmGrid::SetTile(int index, const FarmTile& tile)
 		(tile.feature == FarmTileFeature::None && tile.waterAmount != 0.0f)) {
 		return false;
 	}
+	if (tile.state != FarmTileState::Planted && !tile.careHistory.IsEmpty()) {
+		return false;
+	}
 	if (tile.feature != FarmTileFeature::None &&
 		(tile.state != FarmTileState::Empty || tile.crop != CropType::None ||
-		 tile.moisture != 0.0f || tile.growth != 0.0f)) {
+		 tile.moisture != 0.0f || tile.growth != 0.0f ||
+		 !tile.careHistory.IsEmpty())) {
 		return false;
 	}
 
@@ -149,12 +155,18 @@ bool FarmGrid::RestoreSnapshot(const Snapshot& snapshot)
 			!std::isfinite(tile.waterAmount) || tile.waterAmount < 0.0f ||
 			tile.waterAmount > 1.0f ||
 			(tile.feature == FarmTileFeature::None && tile.waterAmount != 0.0f) ||
-			!std::isfinite(tile.moisture) || !std::isfinite(tile.growth)) {
+			!std::isfinite(tile.moisture) || !std::isfinite(tile.growth) ||
+			!tile.careHistory.IsValid() || !std::isfinite(tile.soilNutrients) ||
+			tile.soilNutrients < 0.0f || tile.soilNutrients > 1.0f) {
+			return false;
+		}
+		if (tile.state != FarmTileState::Planted && !tile.careHistory.IsEmpty()) {
 			return false;
 		}
 		if (tile.feature != FarmTileFeature::None &&
 			(tile.state != FarmTileState::Empty || tile.crop != CropType::None ||
-			 tile.moisture != 0.0f || tile.growth != 0.0f)) {
+			 tile.moisture != 0.0f || tile.growth != 0.0f ||
+			 !tile.careHistory.IsEmpty())) {
 			return false;
 		}
 	}

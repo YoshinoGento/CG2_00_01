@@ -9,6 +9,7 @@ bool RuntimeUI::Initialize(SpriteCommon* common) {
     for (auto& sprite : panels_) if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
     for (auto& sprite : labels_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
     for (auto& sprite : digits_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
+    for (auto& sprite : radarLines_) if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
     if (!names_.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
     ready_ = true;
     return true;
@@ -82,10 +83,10 @@ void RuntimeUI::LabelQuad(Label label, Rect r, Vector4 color) {
     sprite.SetSize({uv.width * scale, uv.height * scale});
     sprite.SetColor(color); sprite.Update(); sprite.Draw();
 }
-void RuntimeUI::ValueText(const std::string& value, Vector2 position) {
+void RuntimeUI::ValueText(const std::string& value, Vector2 position, float right) {
     // Numeric/status identifiers only; Japanese labels use whole-line atlas regions.
     for (const unsigned char c : value) {
-        if (digitCount_ >= digits_.size() || position.x > 1100) break;
+        if (digitCount_ >= digits_.size() || position.x + 24 > right) break;
         const int glyph = (c >= 32 && c <= 126 ? c : '?') - 32;
         auto& sprite = digits_[digitCount_++];
         sprite.SetTextureRect({static_cast<float>((glyph % 40) * 32), kAsciiY + (glyph / 40) * 40.0f}, {24, 36});
@@ -94,6 +95,34 @@ void RuntimeUI::ValueText(const std::string& value, Vector2 position) {
         position.x += 14;
     }
 }
+void RuntimeUI::DrawRadar(const QualityRadar& radar) {
+    std::size_t count = 0;
+    const auto line = [&](Vector2 a, Vector2 b, float thickness, Vector4 color) {
+        const float dx = b.x-a.x, dy = b.y-a.y;
+        const float length = std::hypot(dx,dy);
+        if (!std::isfinite(length) || length < 0.01f || count >= radarLines_.size()) return;
+        auto& sprite = radarLines_[count++];
+        sprite.SetAnchorPoint({0,0.5f}); sprite.SetPosition(a);
+        sprite.SetRotation(std::atan2(dy,dx)); sprite.SetSize({length,thickness});
+        sprite.SetColor(color); sprite.Update(); sprite.Draw();
+    };
+    const Vector4 grid{0.35f,0.43f,0.46f,1}, gold{1,0.81f,0.25f,1};
+    for (int ring=1; ring<=4; ++ring) for (std::size_t i=0; i<4; ++i)
+        line(QualityRadar::Point(i,ring*0.25f), QualityRadar::Point((i+1)%4,ring*0.25f), 1.5f, grid);
+    for (std::size_t i=0; i<4; ++i) {
+        line(QualityRadar::center, QualityRadar::Point(i,1), 1.5f, grid);
+        const auto next = (i+1)%4;
+        // Unknown values leave a gap instead of inventing a zero-valued measurement.
+        if (radar.known[i] && radar.known[next])
+            line(QualityRadar::Point(i,radar.values[i]), QualityRadar::Point(next,radar.values[next]), 4, gold);
+        if (radar.known[i]) {
+            const auto point = QualityRadar::Point(i,radar.values[i]);
+            line({point.x-4,point.y}, {point.x+4,point.y}, 8, gold);
+        }
+    }
+    constexpr std::array<Vector2,4> numbers{{{356,192},{490,322},{356,454},{220,322}}};
+    for (std::size_t i=0; i<4; ++i) ValueText(std::to_string(i+1), numbers[i], numbers[i].x+28);
+}
 void RuntimeUI::Draw(const View& view, Vector2 pointer) {
     if (!ready_) return;
     panelCount_ = labelCount_ = digitCount_ = 0;
@@ -101,6 +130,16 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
         Panel({0, 0, 1280, 720}, {0.01f, 0.015f, 0.02f, 0.75f});
         Panel({130, 32, 1020, 656}, {0.055f, 0.075f, 0.072f, 0.99f});
     }
+    if (view.observation) {
+        Panel(View::kObservationTop, {0.035f, 0.055f, 0.06f, 0.96f});
+        Panel(View::kObservationBottom, {0.035f, 0.055f, 0.06f, 0.96f});
+    }
+    if (view.terrain) {
+        Panel(View::kTerrainTop, {0.035f, 0.055f, 0.06f, 0.96f});
+        Panel(View::kTerrainBottom, {0.035f, 0.055f, 0.06f, 0.96f});
+    }
+    if (view.fieldActions) Panel(View::kFieldActionsPanel, {0.035f, 0.055f, 0.06f, 0.96f});
+    if (view.radar.visible) DrawRadar(view.radar);
     for (std::size_t i = 0; i < (std::min)(view.count, view.items.size()); ++i) {
         const auto& item = view.items[i];
         const bool button = item.request.action != Action::None;
@@ -111,9 +150,9 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
             Panel(item.rect, color);
         }
         Rect labelRect = item.rect;
-        if (!item.value.empty()) labelRect.width = 530;
+        if (!item.value.empty()) labelRect.width = item.valueOffset - 10;
         LabelQuad(item.label, labelRect, item.enabled ? Vector4{0.96f, 0.98f, 0.96f, 1} : Vector4{0.42f, 0.46f, 0.45f, 1});
-        if (!item.value.empty()) ValueText(item.value, {item.rect.x + 540, item.rect.y + 1});
+        if (!item.value.empty()) ValueText(item.value, {item.rect.x + item.valueOffset, item.rect.y + 1}, item.rect.x + item.rect.width);
     }
     if (!view.recordNames[0].empty() && namesReady_) { names_.Update(); names_.Draw(); }
 }

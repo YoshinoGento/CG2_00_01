@@ -29,12 +29,13 @@ bool FarmRenderer::Initialize(Object3dCommon* common, ModelManager* models, Text
 	triangleLower_ = lower;
 	triangleUpper_ = upper;
 	whiteTexture_ = whiteTexture;
-	parts_.reserve(kMaximumParts);
-	objects_.reserve(kMaximumParts);
+	parts_.reserve(kMaximumParts + kMaximumTargetParts);
+	objects_.reserve(kMaximumParts + kMaximumTargetParts);
 	return true;
 }
 
-void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual, Camera* camera) {
+void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual, Camera* camera,
+	int hoveredTileIndex) {
 	parts_.clear();
 	lastDrawTileCount_ = 0;
 	limitExceeded_ = false;
@@ -47,6 +48,13 @@ void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual,
 		}
 		parts_.insert(parts_.end(), tileParts.parts.begin(), tileParts.parts.begin() + tileParts.count);
 		lastDrawTileCount_ += tileParts.count > 0 ? 1 : 0;
+	}
+	const auto selection = BuildFarmSelectionMeshParts(grid, grid.GetSelectedIndex(), visual);
+	static_assert(selection.parts.size() * 2 == kMaximumTargetParts);
+	parts_.insert(parts_.end(), selection.parts.begin(), selection.parts.begin() + selection.count);
+	if (hoveredTileIndex != grid.GetSelectedIndex()) {
+		const auto hover = BuildFarmHoverMeshParts(grid, hoveredTileIndex, visual);
+		parts_.insert(parts_.end(), hover.parts.begin(), hover.parts.begin() + hover.count);
 	}
 	// Retain unused objects until scene destruction; previous-frame GPU work is fenced by PostDraw.
 	while (objects_.size() < parts_.size()) {
@@ -66,7 +74,8 @@ void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual,
 		if (!object.SetShearY(part.slope)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		if (!object.SetScale(part.scale)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		object.SetColor(part.color);
-		object.SetEnableLighting(!part.water);
+		object.SetEnableLighting(!part.water && part.surface != FarmMeshSurface::Selection &&
+			part.surface != FarmMeshSurface::Hover);
 		object.Update(camera, 0.0f);
 	}
 }
@@ -79,7 +88,9 @@ void FarmRenderer::Draw() {
 void FarmRenderer::DrawShadow() {
 	if (!visible_ || !IsReady()) { return; }
 	for (std::size_t index = 0; index < parts_.size(); ++index) {
-		if (!parts_[index].water) { objects_[index]->DrawShadow(); }
+		if (!parts_[index].water && parts_[index].surface != FarmMeshSurface::SoilBoundary &&
+			parts_[index].surface != FarmMeshSurface::Selection &&
+			parts_[index].surface != FarmMeshSurface::Hover) { objects_[index]->DrawShadow(); }
 	}
 }
 

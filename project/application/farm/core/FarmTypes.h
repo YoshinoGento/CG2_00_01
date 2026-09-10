@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -54,6 +55,52 @@ inline constexpr float kFarmGrowthStageAlmostReadyMinimum = 0.70f;
 
 inline constexpr int kFarmCropTypeCount = 2;
 
+struct FarmCropCareHistory {
+	float drySeconds = 0.0f;
+	float lowSeconds = 0.0f;
+	float goodSeconds = 0.0f;
+	float excessSeconds = 0.0f;
+	float efficiencySeconds = 0.0f;
+	float nutrientGrowth = 0.0f;
+	float nutrientSupply = 0.0f;
+
+	[[nodiscard]] double GetObservedSeconds() const noexcept {
+		return static_cast<double>(drySeconds) + static_cast<double>(lowSeconds) +
+			static_cast<double>(goodSeconds) + static_cast<double>(excessSeconds);
+	}
+
+	[[nodiscard]] bool IsEmpty() const noexcept {
+		return drySeconds == 0.0f && lowSeconds == 0.0f &&
+			goodSeconds == 0.0f && excessSeconds == 0.0f &&
+			efficiencySeconds == 0.0f && nutrientGrowth == 0.0f && nutrientSupply == 0.0f;
+	}
+
+	[[nodiscard]] bool IsValid() const noexcept {
+		if (!std::isfinite(nutrientGrowth) || !std::isfinite(nutrientSupply) ||
+			nutrientGrowth < 0.0f || nutrientGrowth > 1.0f ||
+			nutrientSupply < 0.0f || nutrientSupply > nutrientGrowth + 0.0001f) return false;
+		if (!std::isfinite(drySeconds) || !std::isfinite(lowSeconds) ||
+			!std::isfinite(goodSeconds) || !std::isfinite(excessSeconds) ||
+			!std::isfinite(efficiencySeconds) || drySeconds < 0.0f ||
+			lowSeconds < 0.0f || goodSeconds < 0.0f || excessSeconds < 0.0f ||
+			efficiencySeconds < 0.0f) {
+			return false;
+		}
+		const double observedSeconds = GetObservedSeconds();
+		const double tolerance = (std::max)(0.001, observedSeconds * 0.0001);
+		return static_cast<double>(efficiencySeconds) <= observedSeconds + tolerance;
+	}
+
+	[[nodiscard]] float GetAverageEfficiency() const noexcept {
+		const double observedSeconds = GetObservedSeconds();
+		if (!IsValid() || observedSeconds <= 0.0) {
+			return 0.0f;
+		}
+		return static_cast<float>(std::clamp(
+			static_cast<double>(efficiencySeconds) / observedSeconds, 0.0, 1.0));
+	}
+};
+
 inline int ToCropSlot(CropType crop) noexcept
 {
 	switch (crop) {
@@ -93,6 +140,8 @@ struct FarmTile {
 	float growth = 0.0f;
 	// Reservoir capacity is one; soil moisture is stored separately.
 	float waterAmount = 0.0f;
+	float soilNutrients = 0.60f;
+	FarmCropCareHistory careHistory{};
 };
 
 inline bool IsValidFarmTileFeature(FarmTileFeature feature) noexcept
