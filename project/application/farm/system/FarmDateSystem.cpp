@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace {
 	constexpr int kInitialDay = 1;
@@ -35,18 +36,28 @@ void FarmDateSystem::Initialize()
 	timeScale_ = kDefaultTimeScale;
 }
 
-void FarmDateSystem::Update(float deltaTime)
+void FarmDateSystem::Update(float deltaTime, int stopAtDay)
 {
 	if (!std::isfinite(deltaTime) || deltaTime <= 0.0f) {
 		return;
 	}
 
-	elapsedSecondsInDay_ += deltaTime * timeScale_;
-
-	while (elapsedSecondsInDay_ >= dayLengthSeconds_) {
-		elapsedSecondsInDay_ -= dayLengthSeconds_;
-		day_ = (std::max)(day_ + 1, kInitialDay);
+	const double elapsed = elapsedSecondsInDay_ + static_cast<double>(deltaTime) * timeScale_;
+	// Drop overshoot when an event boundary is reached; resume starts on that day.
+	if (stopAtDay > day_ && elapsed >= static_cast<double>(stopAtDay - day_) * dayLengthSeconds_) {
+		day_ = stopAtDay;
+		elapsedSecondsInDay_ = 0.0f;
+		return;
 	}
+	const double days = std::floor(elapsed / dayLengthSeconds_);
+	const int remainingDays = (std::numeric_limits<int>::max)() - day_;
+	if (days >= remainingDays) {
+		day_ = (std::numeric_limits<int>::max)(); elapsedSecondsInDay_ = 0.0f;
+		return;
+	}
+	day_ += static_cast<int>(days);
+	elapsedSecondsInDay_ = (std::min)(static_cast<float>(std::fmod(elapsed, dayLengthSeconds_)),
+		std::nextafter(dayLengthSeconds_, 0.0f));
 }
 
 void FarmDateSystem::SetTimeScale(float timeScale)
@@ -75,7 +86,7 @@ void FarmDateSystem::CycleTimeScale()
 
 void FarmDateSystem::AdvanceOneDay()
 {
-	day_ = (std::max)(day_ + 1, kInitialDay);
+	if (day_ < (std::numeric_limits<int>::max)()) ++day_;
 	elapsedSecondsInDay_ = 0.0f;
 }
 

@@ -3,18 +3,34 @@
 #include <algorithm>
 #include <limits>
 
-void FarmProgressionSystem::Initialize(const farm::FarmRules& rules) noexcept
+void FarmProgressionSystem::Initialize(const farm::FarmRules& rules, FarmProgressionMode mode) noexcept
 {
 	targetMoney_ = (std::max)(1, rules.clearMoneyTarget);
 	cleared_ = false;
+	mode_ = ValidMode(mode) ? mode : FarmProgressionMode::Trial;
 }
 
 bool FarmProgressionSystem::EvaluateClear(int currentMoney) noexcept
 {
-	if (cleared_ || currentMoney < targetMoney_) {
+	if (IsContestSeason() || cleared_ || currentMoney < targetMoney_) {
 		return false;
 	}
 	cleared_ = true;
+	return true;
+}
+
+bool FarmProgressionSystem::EvaluateSeason(const FarmContestSeasonSummary& summary) noexcept {
+	if (!IsContestSeason() || cleared_ || !summary.valid || !summary.finalized) return false;
+	cleared_ = true;
+	return true;
+}
+
+bool FarmProgressionSystem::SetMode(FarmProgressionMode mode, int money, const FarmContestSeasonSummary& summary) noexcept {
+	if (!ValidMode(mode) || money < 0 || !summary.valid) return false;
+	mode_ = mode;
+	cleared_ = false;
+	static_cast<void>(EvaluateClear(money));
+	static_cast<void>(EvaluateSeason(summary));
 	return true;
 }
 
@@ -43,8 +59,13 @@ int FarmProgressionSystem::GetRequiredCropCount(
 		: -1;
 }
 
-float FarmProgressionSystem::GetProgress(int currentMoney) const noexcept
+float FarmProgressionSystem::GetProgress(int currentMoney, int day) const noexcept
 {
+	if (IsContestSeason()) {
+		if (cleared_) return 1.0f;
+		return std::clamp(static_cast<float>((std::max)(1, day) - 1) /
+			FarmContestEntrySystem::kContestDays.back(), 0.0f, 1.0f);
+	}
 	const int safeMoney = (std::max)(0, currentMoney);
 	return std::clamp(
 		static_cast<float>(safeMoney) / static_cast<float>(targetMoney_),
@@ -54,15 +75,16 @@ float FarmProgressionSystem::GetProgress(int currentMoney) const noexcept
 
 FarmProgressionSystem::Snapshot FarmProgressionSystem::CaptureSnapshot() const noexcept
 {
-	return { targetMoney_, cleared_ };
+	return { targetMoney_, cleared_, mode_ };
 }
 
 bool FarmProgressionSystem::RestoreSnapshot(const Snapshot& snapshot) noexcept
 {
-	if (snapshot.targetMoney <= 0) {
+	if (snapshot.targetMoney <= 0 || !ValidMode(snapshot.mode)) {
 		return false;
 	}
 	targetMoney_ = snapshot.targetMoney;
 	cleared_ = snapshot.cleared;
+	mode_ = snapshot.mode;
 	return true;
 }

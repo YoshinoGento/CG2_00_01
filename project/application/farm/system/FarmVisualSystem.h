@@ -31,6 +31,7 @@ struct FarmTileVisualData {
 	CropType crop = CropType::None;
 	FarmCropGrowthStage cropStage = FarmCropGrowthStage::None;
 	Vector3 cropAnchor{};
+	float cropScale = 1.0f;
 	float waterFill = 0.0f;
 	bool showWaterSurface = false;
 	Vector3 waterSurfaceCenter{};
@@ -40,10 +41,11 @@ struct FarmTileVisualData {
 // Read-only world representation shared by rendering and viewport picking.
 class FarmVisualSystem final {
 public:
-	void Initialize(const FarmVisualLayout& layout) noexcept;
+	void Initialize(const FarmVisualLayout& layout, const FarmRules& rules = {}) noexcept;
 
 	[[nodiscard]] Vector3 GetTileCenter(const FarmGrid& grid, int tileIndex) const noexcept;
 	[[nodiscard]] FarmTileVisualData GetTileVisualData(const FarmGrid& grid, int tileIndex) const noexcept;
+	[[nodiscard]] float GetCropRenderScale(const FarmTile& tile) const noexcept;
 	[[nodiscard]] bool TryPickTile(
 		const FarmGrid& grid,
 		const Vector3& rayOrigin,
@@ -56,13 +58,14 @@ public:
 		const FarmToolActionResult& selectedAction,
 		LineDrawer& lineDrawer,
 		const std::vector<int>* irrigationPreviewChangedTiles = nullptr,
-		bool debugGuides = true) const;
+		bool debugGuides = true, bool wireCrops = true) const;
 
 	[[nodiscard]] const FarmVisualLayout& GetLayout() const noexcept { return layout_; }
 	[[nodiscard]] bool TryGetSoilHeight(const FarmGrid& grid, const Vector3& position, float& height) const noexcept;
 
 private:
 	FarmVisualLayout layout_{};
+	FarmCropSizeSystem cropSizeSystem_{};
 };
 
 } // namespace farm

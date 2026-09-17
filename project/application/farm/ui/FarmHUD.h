@@ -62,6 +62,7 @@ struct FarmHUDViewData {
 	farm::CropType selectedSeedCrop = farm::CropType::TestCrop;
 	int cropsNeeded = 0;
 	int goalMoney = 1;
+	bool contestSeason = false;
 	int currentToolIndex = -1;
 	float goalProgress = 0.0f;
 	float timeScale = 1.0f;

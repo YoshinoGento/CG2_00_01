@@ -86,13 +86,123 @@ labels.extend([
     ["HintPartialRecord", "収穫記録：一部の項目は不明です"],
     ["HintPartialEstimate", "品質予測：一部の項目は不明です"],
 ])
-ascii_y = ((len(labels) + 1) // 2) * cell_h
+labels.extend([
+    ["PathNonStraight", "縦・横に延長。曲がり角で止める"],
+    ["PathBlocked", "追加できないマス"],
+    ["ConfirmCandidates", "表示中の候補を確定"],
+    ["PreviewStale", "畑が変わりました。取消して再配置"],
+    ["RaiseBrush", "上げる：左ドラッグでマスを追加"],
+    ["LowerBrush", "下げる：左ドラッグでマスを追加"],
+    ["SizeForecast", "サイズ予測（基準比）"],
+    ["SizeRecorded", "収穫サイズ（基準比）"],
+])
+labels.extend([
+    ["HarvestInventory", "収穫物の保管庫"],
+    ["HarvestColumns", "個数 ／ サイズ ／ 品質点 ／ 単価"],
+    ["HarvestEmpty", "保管中の収穫記録はありません"],
+    ["HarvestUnknown", "詳細不明の収穫物"],
+    ["HarvestSaleNotice", "売った収穫物は保管庫からなくなります"],
+    ["HarvestPrevious", "前のページ"], ["HarvestNext", "次のページ"],
+    ["HarvestCount", "収穫記録数 ／ 上限"],
+    ["HarvestFull", "保管庫が満杯"],
+    ["HarvestLegacyNotice", "旧記録の個別品質・サイズは不明です"],
+    ["HarvestPageNumber", "ページ"],
+])
+columns = 3
+labels.extend([
+    ["HarvestProtection", "売却保護"],
+    ["HarvestProtect", "保護する"],
+    ["HarvestProtected", "保護中"],
+    ["ProtectedCropCount", "保護中の個数"],
+    ["HarvestProtectionNotice", "保護中は売却対象外。再度選ぶと解除"],
+    ["ProtectionCommitted", "保護を変更しました。操作履歴を確定"],
+])
+labels.extend([
+    ["ContestReserve", "この１個を出品予約"],
+    ["ContestCancel", "出品予約中・取消"],
+    ["ContestEligibility", "出品予約の対象外"],
+    ["HarvestDay", "収穫日"],
+    ["HarvestDayUnknown", "収穫日不明"],
+    ["ContestTurnip", "出品予約：カブ"],
+    ["ContestCarrot", "出品予約：ニンジン"],
+    ["ContestNone", "出品予約：なし"],
+    ["ContestNotice", "予約は１個。取消後も保護は続きます"],
+    ["ContestPreview", "予約した野菜の審査プレビュー"],
+    ["ContestPreviewTitle", "審査プレビュー（仮ルール）"],
+    ["ContestRecordedQuality", "記録済みの品質点"],
+    ["ContestQualityPoints", "品質による得点"],
+    ["ContestSizePoints", "大きさによる得点"],
+    ["ContestTotal", "合計点（試算）"],
+    ["ContestSizeRange", "大きさの採点範囲：０点～満点"],
+    ["ContestRounding", "各得点を四捨五入して合計。範囲外は上下限を適用"],
+    ["ContestPreviewNotice", "試算のみ：提出・消費・所持金の変更はしません"],
+    ["ContestNotReserved", "保管庫で１個を保護し、出品予約してください"],
+    ["ContestInvalid", "記録または採点設定が不正なため試算できません"],
+    ["ContestChanged", "出品予約を変更。操作履歴を確定"],
+])
+labels.extend([
+    ["ContestPeriod", "大会の対象期間"], ["EntryBackToScore", "採点の試算へ"],
+    ["EntryContestDay", "対象の大会日"],
+    ["EntryPeriodRange", "対象となる収穫日（両端を含む）"],
+    ["EntryDaysRemaining", "大会までの日数（０は当日）"],
+    ["EntryEligible", "対象期間内です（仮判定・提出前）"],
+    ["EntryInvalidDay", "農場の日付が不正なため判定できません"],
+    ["EntrySeasonEnded", "３０日を過ぎたため対象の大会はありません"],
+    ["EntryUnknownDay", "収穫日不明：新しく収穫した野菜を予約"],
+    ["EntryFutureDay", "収穫日が未来のため対象外です"],
+    ["EntryOutsidePeriod", "対象期間外：この期間の野菜に予約を変更"],
+    ["EntryPeriodRule", "仮ルール：１０日ごとの収穫物が対象"],
+])
+labels.extend([
+    ["SubmitContest", "予約した１個を提出"],
+    ["ContestSubmitted", "この大会は提出済み"],
+    ["ContestDayOnly", "提出は大会当日のみ"],
+    ["ContestCannotSubmit", "予約品を確認してください"],
+    ["ContestResults", "大会の提出結果"],
+    ["ContestSubmissionNotice", "提出で１個消費。結果は通常セーブに保存"],
+    ["ContestSubmitConfirm", "１個を提出します。消費後は元に戻せません"],
+    ["ContestSubmitAccept", "１個を提出する"],
+    ["ContestResultColumns", "大会日 ／ 品質点 ／ 大きさ点 ／ 合計"],
+    ["ContestNotSubmitted", "未提出"],
+    ["ContestResultHarvest", "収穫日 ／ 収穫サイズ"],
+    ["ContestResultNotice", "記録済みの得点です。順位・賞金は未実装"],
+    ["ContestUpcoming", "開催前"],
+    ["ContestOpen", "受付中"],
+    ["ContestEntered", "提出済み"],
+    ["ContestUnknown", "確認不可"],
+    ["ContestMissed", "未出場"],
+    ["ContestSeasonFinal", "３０日間の大会結果"],
+    ["ContestAggregate", "提出数 ／ 未出場数 ／ 総得点"],
+    ["SeasonMode", "３０日間の大会モード"],
+    ["TrialMode", "５４０Ｇの体験版モード"],
+    ["SeasonGoal", "土地と水を整え、育てた野菜を大会に提出"],
+    ["SeasonPrepare", "１０・２０・３０日目に予約した１個を提出"],
+    ["SeasonEndRule", "３０日目の提出か期限終了で結果を確認"],
+    ["ModeConfirm", "進行ルールを切替。農場は維持、操作履歴は確定"],
+    ["ModeAccept", "このモードに切り替える"],
+    ["SeasonReview", "終了した農場を見る"],
+    ["SeasonEnded", "大会終了"],
+    ["SeasonRating", "大会評価（仮）"],
+    ["SeasonUnrated", "大会評価：出場なし"],
+    ["SeasonNextRating", "次の評価まで"],
+    ["SeasonRatingRules", "３大会合計の評価基準"],
+])
+labels.extend([
+    ["ContestDayTitle", "今日は野菜の大会です"],
+    ["ContestDayStopped", "時間を止めました。予約した１個を提出できます"],
+    ["ContestDayDeadline", "当日を過ぎると提出できません。自動提出はしません"],
+    ["ContestDayReview", "出品画面へ（停止を維持）"],
+    ["ContestDayPrepare", "畑で準備（停止を維持）"],
+    ["ContestDayResume", "案内を閉じて時間を進める"],
+])
+ascii_y = ((len(labels) + columns - 1) // columns) * cell_h
 height = ascii_y + 128
-atlas = Image.new("RGBA", (1280, height))
+assert height <= 4096, "Split the label atlas before adding more rows"
+atlas = Image.new("RGBA", (cell_w * columns, height))
 draw = ImageDraw.Draw(atlas)
 rects = []
 for i, (name, text) in enumerate(labels):
-    x, y = (i % 2) * cell_w, (i // 2) * cell_h
+    x, y = (i % columns) * cell_w, (i // columns) * cell_h
     width = int(draw.textlength(text, font=font)) + 4
     assert width <= cell_w, (name, width)
     draw.text((x + 2, y + 4), text, fill="white", font=font, anchor="lt")
@@ -110,6 +220,7 @@ header += "".join("    " + name + ",\n" for name, _ in labels) + "};\n"
 header += "struct AtlasRect { float x, y, width, height; };\n"
 header += f"inline constexpr std::array<AtlasRect, {len(rects)}> kLabels = {{{{\n"
 header += "".join("    {" + ", ".join(str(v) + ".0f" for v in r) + "},\n" for r in rects) + "}};\n"
+header += f"inline constexpr float kAtlasWidth = {atlas.width}.0f;\n"
 header += f"inline constexpr float kAsciiY = {ascii_y}.0f;\n}}\n"
 (ROOT / "project/application/farm/ui/FarmRuntimeLabels.h").write_text(header, encoding="utf-8")
 print(asset, atlas.size, len(labels))

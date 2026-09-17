@@ -1,6 +1,7 @@
 #include "farm/render/FarmRenderer.h"
 
 #include "farm/core/FarmGrid.h"
+#include "farm/system/FarmHarvestVisualSystem.h"
 #include "3d/Object3d.h"
 #include "3d/ModelManager.h"
 #include <filesystem>
@@ -29,25 +30,48 @@ bool FarmRenderer::Initialize(Object3dCommon* common, ModelManager* models, Text
 	triangleLower_ = lower;
 	triangleUpper_ = upper;
 	whiteTexture_ = whiteTexture;
-	parts_.reserve(kMaximumParts + kMaximumTargetParts);
-	objects_.reserve(kMaximumParts + kMaximumTargetParts);
+	constexpr std::array<const char*,3> cropPaths{"farm/crop_turnip.obj", "farm/crop_carrot.obj", "farm/crop_leaves.obj"};
+	bool cropFilesPresent = true;
+	for (const auto* path : cropPaths) cropFilesPresent &= std::filesystem::is_regular_file(std::filesystem::path("Resources") / path, error);
+	if (cropFilesPresent) {
+		for (std::size_t i=0; i<cropPaths.size(); ++i) {
+			models->LoadModel(cropPaths[i]);
+			cropModels_[i] = models->GetModel(cropPaths[i]);
+			if (cropModels_[i] && cropModels_[i]->HasSkinCluster()) cropModels_[i] = nullptr;
+		}
+	}
+	parts_.reserve(kMaximumParts + kMaximumTargetParts + kMaximumCropParts + kMaximumHarvestParts);
+	objects_.reserve(kMaximumParts + kMaximumTargetParts + kMaximumCropParts + kMaximumHarvestParts);
 	return true;
 }
 
 void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual, Camera* camera,
-	int hoveredTileIndex) {
+	int hoveredTileIndex, const FarmHarvestVisualSystem* harvest) {
 	parts_.clear();
 	lastDrawTileCount_ = 0;
 	limitExceeded_ = false;
 	if (!IsReady() || !visible_ || !camera) { return; }
 	if (grid.GetTileCount() > static_cast<int>(kMaximumParts)) { limitExceeded_ = true; return; }
+	std::size_t terrainCount = 0;
 	for (int index = 0; index < grid.GetTileCount(); ++index) {
 		const auto tileParts = BuildFarmTileMeshParts(grid, index, visual);
-		if (parts_.size() + tileParts.count > kMaximumParts) {
+		if (terrainCount + tileParts.count > kMaximumParts) {
 			parts_.clear(); lastDrawTileCount_ = 0; limitExceeded_ = true; return;
 		}
 		parts_.insert(parts_.end(), tileParts.parts.begin(), tileParts.parts.begin() + tileParts.count);
+		terrainCount += tileParts.count;
+		if (HasCropMeshes()) {
+			const auto crops = BuildFarmCropMeshParts(grid, index, visual);
+			parts_.insert(parts_.end(), crops.parts.begin(), crops.parts.begin() + crops.count);
+		}
 		lastDrawTileCount_ += tileParts.count > 0 ? 1 : 0;
+	}
+	static_assert(kMaximumHarvestParts == FarmHarvestVisualSystem::kCapacity * 2);
+	if (harvest && HasCropMeshes()) {
+		for (std::size_t i = 0; i < FarmHarvestVisualSystem::kCapacity; ++i) {
+			const auto effect = harvest->GetParts(grid, i);
+			parts_.insert(parts_.end(), effect.parts.begin(), effect.parts.begin() + effect.count);
+		}
 	}
 	const auto selection = BuildFarmSelectionMeshParts(grid, grid.GetSelectedIndex(), visual);
 	static_assert(selection.parts.size() * 2 == kMaximumTargetParts);
@@ -69,6 +93,9 @@ void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual,
 		auto& object = *objects_[index];
 		Model* desired = part.shape == FarmMeshShape::TriangleLower ? triangleLower_ :
 			(part.shape == FarmMeshShape::TriangleUpper ? triangleUpper_ : model_);
+		if (part.shape == FarmMeshShape::Turnip) desired = cropModels_[0];
+		if (part.shape == FarmMeshShape::Carrot) desired = cropModels_[1];
+		if (part.shape == FarmMeshShape::Leaves) desired = cropModels_[2];
 		if (object.GetModel() != desired) { object.SetModel(desired); }
 		object.SetPosition(part.position);
 		if (!object.SetShearY(part.slope)) { parts_.clear(); lastDrawTileCount_ = 0; return; }

@@ -321,7 +321,7 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.farmPlaytest.requiredCropCount = scene_->farmProgressionSystem_.GetRequiredCropCount(
 		output.farmPlaytest.money, output.farmPlaytest.cropSellPrice);
 	output.farmPlaytest.progress = scene_->farmProgressionSystem_.GetProgress(
-		output.farmPlaytest.money);
+		output.farmPlaytest.money, scene_->farmDateSystem_.GetDay());
 	output.farmPlaytest.cleared = scene_->farmProgressionSystem_.IsCleared();
 	output.farmPlaytest.inputLocked = output.farmPlaytest.cleared;
 	output.farmPlaytest.feedbackMessage = scene_->farmFeedbackSystem_.GetCurrentMessage();
@@ -331,6 +331,28 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 	output.farmPlaytest.lastHarvestQuality =
 		scene_->farmEconomySystem_.GetLastHarvestQuality();
 	output.farmPlaytest.lastHarvestAdvice = FarmCropQualitySystem::Analyze(output.farmPlaytest.lastHarvestQuality);
+	output.farmPlaytest.harvestRecordCount = scene_->farmEconomySystem_.GetHarvestRecordCount();
+	output.farmPlaytest.unrecordedCropCount = scene_->farmEconomySystem_.GetUnrecordedCropCount();
+	output.farmPlaytest.protectedCropCount = scene_->farmEconomySystem_.GetProtectedCropCount();
+	output.farmPlaytest.inventoryGeneration = scene_->farmEconomySystem_.GetInventoryGeneration();
+	output.farmPlaytest.canChangeHarvestProtection =
+		!scene_->timelineScrubbing_ && !scene_->farmIrrigationPreviewSystem_.IsActive();
+	output.farmPlaytest.contestReservationId = scene_->farmEconomySystem_.GetContestReservationId();
+	output.farmPlaytest.activeHarvestVisuals = scene_->farmHarvestVisualSystem_.GetActiveCount(*farmGrid_);
+	output.farmPlaytest.contestJudge = FarmContestJudgeSystem::Evaluate(scene_->farmEconomySystem_.GetContestReservation());
+	output.farmPlaytest.contestResults = scene_->farmEconomySystem_.GetContestResults();
+	output.farmPlaytest.progressionMode = scene_->farmProgressionSystem_.GetMode();
+	output.farmPlaytest.contestSeason = FarmContestSeasonSystem::Evaluate(scene_->farmDateSystem_.GetDay(),
+		output.farmPlaytest.contestResults);
+	output.farmPlaytest.contestSubmissionStatus = FarmContestSubmissionSystem::Evaluate(scene_->farmEconomySystem_,scene_->farmDateSystem_.GetDay());
+	output.farmPlaytest.contestNoticeDay = scene_->farmContestDaySystem_.PendingDay();
+	output.farmPlaytest.contestEntry = FarmContestEntrySystem::Evaluate(scene_->farmDateSystem_.GetDay(),
+		scene_->farmEconomySystem_.GetContestReservation());
+	for (std::size_t i = 0; i < output.farmPlaytest.harvestRecordCount; ++i) {
+		output.farmPlaytest.harvestRecords[i] = *scene_->farmEconomySystem_.GetHarvestRecord(i);
+		output.farmPlaytest.contestEligible[i] =
+			FarmEconomySystem::CanReserveForContest(output.farmPlaytest.harvestRecords[i]);
+	}
 
 	output.visibility.selectedTarget = scene_->selectedTarget_;
 	output.visibility.showTerrain = scene_->showTerrain_;
@@ -456,8 +478,30 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 	if (!IsBound() || command.farmGeneration != farmGrid_->GetGeneration()) {
 		return false;
 	}
+	if (scene_->farmProgressionSystem_.IsCleared()) {
+		switch (command.type) {
+		case GamePlayEditorCommandType::SetFarmProgressionMode:
+		case GamePlayEditorCommandType::RestartFarmSession:
+		case GamePlayEditorCommandType::SelectFarmTile:
+		case GamePlayEditorCommandType::SelectFarmTileAtViewport:
+		case GamePlayEditorCommandType::StopFarmComparison:
+		case GamePlayEditorCommandType::ResetFarmComparison:
+		case GamePlayEditorCommandType::CancelFarmIrrigationPreview: break;
+		default: return false;
+		}
+	}
 
 	switch (command.type) {
+	case GamePlayEditorCommandType::SetFarmProgressionMode:
+		if (scene_->timelineScrubbing_ || scene_->farmIrrigationPreviewSystem_.IsActive()) return false;
+		if (!scene_->farmProgressionSystem_.SetMode(command.progressionMode, scene_->farmEconomySystem_.GetMoney(),
+			FarmContestSeasonSystem::Evaluate(scene_->farmDateSystem_.GetDay(), scene_->farmEconomySystem_.GetContestResults()))) return false;
+		farmToolActionSystem_->ClearHistory();
+		scene_->farmGrowthComparisonSystem_.Stop();
+		scene_->farmContestDaySystem_.Reset();
+		scene_->InitializeTimeline();
+		farmDocumentSystem_->MarkDirty();
+		return true;
 	case GamePlayEditorCommandType::PinFarmComparisonA:
 	case GamePlayEditorCommandType::PinFarmComparisonB:
 		if (scene_->farmGameMode_ || scene_->timelineScrubbing_ || scene_->farmIrrigationPreviewSystem_.IsActive()) return false;
@@ -485,37 +529,72 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		}
 		scene_->farmToolSystem_.SetTool(command.farmTool);
 		return true;
-	case GamePlayEditorCommandType::ApplyCurrentFarmTool:
+	case GamePlayEditorCommandType::ApplyCurrentFarmTool: {
 		if (!SelectCommandTarget(command)) {
 			return false;
 		}
-		if (farmToolActionSystem_->ApplyToolDetailed(
+		const auto result = farmToolActionSystem_->ApplyToolDetailed(
 			*farmGrid_, scene_->farmToolSystem_.GetCurrentTool(),
 			scene_->farmCropSelectionSystem_.GetSelectedCrop(),
-			scene_->farmEconomySystem_).Succeeded()) {
+			scene_->farmEconomySystem_, scene_->farmDateSystem_.GetDay());
+		scene_->RouteFarmToolFeedback(result);
+		if (result.Succeeded()) {
 			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
 		return false;
-	case GamePlayEditorCommandType::ApplyFarmTool:
+	}
+	case GamePlayEditorCommandType::ApplyFarmTool: {
 		if (!SelectCommandTarget(command)) {
 			return false;
 		}
 		scene_->farmToolSystem_.SetTool(command.farmTool);
-		if (farmToolActionSystem_->ApplyToolDetailed(
+		const auto result = farmToolActionSystem_->ApplyToolDetailed(
 			*farmGrid_, command.farmTool,
 			scene_->farmCropSelectionSystem_.GetSelectedCrop(),
-			scene_->farmEconomySystem_).Succeeded()) {
+			scene_->farmEconomySystem_, scene_->farmDateSystem_.GetDay());
+		scene_->RouteFarmToolFeedback(result);
+		if (result.Succeeded()) {
 			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmDocumentSystem_->MarkDirty();
 			return true;
 		}
 		return false;
+	}
 	case GamePlayEditorCommandType::CompostFarmTile:
 		if (scene_->farmProgressionSystem_.IsCleared() || scene_->farmIrrigationPreviewSystem_.IsActive() ||
 			!SelectCommandTarget(command)) return false;
 		if (!farmToolActionSystem_->CompostSelectedTile(*farmGrid_)) return false;
+		farmDocumentSystem_->MarkDirty();
+		return true;
+	case GamePlayEditorCommandType::SubmitContestHarvest:
+		if (scene_->timelineScrubbing_ || scene_->farmIrrigationPreviewSystem_.IsActive() ||
+			command.contestDay != scene_->farmDateSystem_.GetDay()) return false;
+		if (!farmToolActionSystem_->CommitContestSubmission(scene_->farmEconomySystem_, command.contestDay,
+			command.harvestRecordId, command.inventoryGeneration)) return false;
+		// Submission is a commit boundary for both edit undo and timeline rewind.
+		static_cast<void>(scene_->farmProgressionSystem_.EvaluateSeason(FarmContestSeasonSystem::Evaluate(
+			scene_->farmDateSystem_.GetDay(), scene_->farmEconomySystem_.GetContestResults())));
+		scene_->InitializeTimeline();
+		scene_->farmContestDaySystem_.Observe(scene_->farmDateSystem_.GetDay(), scene_->farmEconomySystem_.GetContestResults());
+		farmDocumentSystem_->MarkDirty();
+		return true;
+	case GamePlayEditorCommandType::AcknowledgeContestDay:
+		if (command.contestDay != scene_->farmDateSystem_.GetDay()) return false;
+		return scene_->farmContestDaySystem_.Acknowledge(command.contestDay);
+	case GamePlayEditorCommandType::SetHarvestProtection:
+		if (scene_->timelineScrubbing_ || scene_->farmIrrigationPreviewSystem_.IsActive()) return false;
+		if (!farmToolActionSystem_->CommitHarvestProtection(scene_->farmEconomySystem_,
+			command.harvestRecordId, command.harvestProtected, command.inventoryGeneration)) return false;
+		farmDocumentSystem_->MarkDirty();
+		return true;
+	case GamePlayEditorCommandType::ReserveContestHarvest:
+	case GamePlayEditorCommandType::CancelContestReservation:
+		if (scene_->timelineScrubbing_ || scene_->farmIrrigationPreviewSystem_.IsActive()) return false;
+		if (!farmToolActionSystem_->CommitContestReservation(scene_->farmEconomySystem_,
+			command.harvestRecordId, command.type == GamePlayEditorCommandType::ReserveContestHarvest,
+			command.inventoryGeneration)) return false;
 		farmDocumentSystem_->MarkDirty();
 		return true;
 	case GamePlayEditorCommandType::RaiseFarmTile:
@@ -536,6 +615,7 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		return false;
 	case GamePlayEditorCommandType::UndoFarmEdit:
 		if (farmToolActionSystem_->Undo()) {
+			scene_->farmHarvestVisualSystem_.Clear();
 			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
@@ -544,6 +624,7 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		return false;
 	case GamePlayEditorCommandType::RedoFarmEdit:
 		if (farmToolActionSystem_->Redo()) {
+			scene_->farmHarvestVisualSystem_.Clear();
 			scene_->farmIrrigationPreviewSystem_.Cancel();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
 			farmDocumentSystem_->MarkDirty();
@@ -598,6 +679,11 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 	case GamePlayEditorCommandType::AppendFarmCanalPathPreview:
 		return scene_->farmIrrigationPreviewSystem_.VisitCanalPathTile(
 			*farmGrid_, command.farmTileIndex);
+	case GamePlayEditorCommandType::AppendFarmTerrainPreview:
+		return scene_->farmIrrigationPreviewSystem_.VisitTerrainTile(*farmGrid_, command.farmTileIndex);
+	case GamePlayEditorCommandType::EndFarmTerrainStroke:
+		scene_->farmIrrigationPreviewSystem_.EndTerrainStroke();
+		return true;
 	case GamePlayEditorCommandType::BeginFarmCanalRemovalPathPreview:
 		return SelectCommandTarget(command) &&
 			scene_->farmIrrigationPreviewSystem_.Begin(
@@ -617,9 +703,11 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		} else if (operation == farm::FarmIrrigationPreviewOperation::ToggleWaterSource) {
 			changed = farmToolActionSystem_->ToggleSelectedWaterSource(*farmGrid_);
 		} else if (operation == farm::FarmIrrigationPreviewOperation::RaiseTerrain) {
-			changed = farmToolActionSystem_->RaiseSelectedTile(*farmGrid_);
+			changed = farmToolActionSystem_->ChangeTerrainBatch(*farmGrid_,
+				scene_->farmIrrigationPreviewSystem_.GetChangedTileIndices(), 1);
 		} else if (operation == farm::FarmIrrigationPreviewOperation::LowerTerrain) {
-			changed = farmToolActionSystem_->LowerSelectedTile(*farmGrid_);
+			changed = farmToolActionSystem_->ChangeTerrainBatch(*farmGrid_,
+				scene_->farmIrrigationPreviewSystem_.GetChangedTileIndices(), -1);
 		} else if (operation == farm::FarmIrrigationPreviewOperation::PlaceCanalPath) {
 			changed = farmToolActionSystem_->PlaceCanalPath(
 				*farmGrid_, scene_->farmIrrigationPreviewSystem_.GetChangedTileIndices());
@@ -688,10 +776,9 @@ bool GamePlayEditorBridge::Execute(const FarmDocumentCommand& command) {
 		farmToolActionSystem_->ClearHistory();
 		if (command.type == FarmDocumentCommandType::NewDocument ||
 			command.type == FarmDocumentCommandType::Load) {
+			scene_->farmContestDaySystem_.Reset();
 			farmIrrigationSystem_->Rebuild(*farmGrid_);
-			scene_->farmProgressionSystem_.Initialize();
-			static_cast<void>(scene_->farmProgressionSystem_.EvaluateClear(
-				scene_->farmEconomySystem_.GetMoney()));
+			scene_->InitializeTimeline();
 			scene_->farmFeedbackSystem_.Clear();
 		}
 	}

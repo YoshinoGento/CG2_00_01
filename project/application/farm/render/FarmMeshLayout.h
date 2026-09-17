@@ -7,11 +7,11 @@
 #include <cmath>
 
 namespace farm {
-enum class FarmMeshShape { Box, TriangleLower, TriangleUpper };
-enum class FarmMeshSurface { None, CanalBed, CanalBank, SoilBoundary, Selection, Hover };
+enum class FarmMeshShape { Box, TriangleLower, TriangleUpper, Turnip, Carrot, Leaves };
+enum class FarmMeshSurface { None, CanalBed, CanalBank, SoilBoundary, Selection, Hover, Crop };
 struct FarmMeshPart {
 	Vector3 position{};
-	Vector3 scale{1.0f, 1.0f, 1.0f}; // Unit box spans [-1,1]; scale is half-size.
+	Vector3 scale{1.0f, 1.0f, 1.0f}; // Box: half-size. Crop: radius/height in its base-anchored OBJ space.
 	Vector4 color{1.0f, 1.0f, 1.0f, 1.0f};
 	bool water = false;
 	Vector2 slope{}; // dY/dX and dY/dZ before rotation, applied after scale.
@@ -28,6 +28,53 @@ struct FarmSelectionMeshParts {
 	std::array<FarmMeshPart, 8> parts{};
 	std::size_t count = 0;
 };
+
+struct FarmCropMeshParts {
+	std::array<FarmMeshPart, 2> parts{};
+	std::size_t count = 0;
+};
+
+// Crop OBJ space: root/leaf base at y=0, top at y=1, horizontal extent <=1.
+inline FarmCropMeshParts BuildFarmCropMeshParts(
+	const FarmTileVisualData& visual, float cropGrowth) noexcept {
+	FarmCropMeshParts result;
+	if (!visual.valid || visual.feature != FarmTileFeature::None ||
+		visual.cropStage == FarmCropGrowthStage::None || !IsPlantableCrop(visual.crop) ||
+		!std::isfinite(cropGrowth) || !std::isfinite(visual.cropScale) || visual.cropScale <= 0) return result;
+	const float growth = std::clamp(cropGrowth, 0.0f, 1.0f);
+	const float scale = visual.cropScale;
+	const bool carrot = visual.crop == CropType::Carrot;
+	const bool bodyVisible = visual.cropStage == FarmCropGrowthStage::AlmostReady ||
+		visual.cropStage == FarmCropGrowthStage::Ready;
+	const float bodyHeight = bodyVisible ? (carrot ? 0.55f : 0.40f) * growth * scale : 0;
+	// These fractions refer to the full y=0..1 root OBJ, not its bounding-box center.
+	constexpr float kCarrotBuriedFraction = 0.84f;
+	constexpr float kTurnipBuriedFraction = 0.50f;
+	constexpr float kLeafAttachmentFraction = 0.96f;
+	const float buriedFraction = carrot ? kCarrotBuriedFraction : kTurnipBuriedFraction;
+	const Vector3 rootBase{visual.center.x, visual.center.y - bodyHeight * buriedFraction, visual.center.z};
+	if (bodyVisible) {
+		const float radius = (carrot ? 0.18f : 0.28f) * growth * scale;
+		result.parts[result.count++] = {rootBase, {radius, bodyHeight, radius},
+			carrot ? Vector4{1.0f,0.34f,0.035f,1} : Vector4{0.94f,0.75f,0.88f,1},
+			false, {}, carrot ? FarmMeshShape::Carrot : FarmMeshShape::Turnip, FarmMeshSurface::Crop};
+	}
+	const float leafWidth = (0.10f + growth * 0.22f) * scale;
+	// Sprouts emerge at the soil anchor; mature leaves attach inside the exposed root shoulder.
+	const Vector3 leafBase = bodyVisible
+		? Vector3{rootBase.x, rootBase.y + bodyHeight * kLeafAttachmentFraction, rootBase.z}
+		: visual.cropAnchor;
+	result.parts[result.count++] = {leafBase, {leafWidth, (0.12f + growth*0.25f)*scale, leafWidth},
+		carrot ? Vector4{0.12f,0.64f,0.08f,1} : Vector4{0.24f,0.76f,0.10f,1},
+		false, {}, FarmMeshShape::Leaves, FarmMeshSurface::Crop};
+	return result;
+}
+
+inline FarmCropMeshParts BuildFarmCropMeshParts(
+	const FarmGrid& grid, int index, const FarmVisualSystem& system) noexcept {
+	const auto* tile = grid.GetTile(index);
+	return tile ? BuildFarmCropMeshParts(system.GetTileVisualData(grid, index), tile->growth) : FarmCropMeshParts{};
+}
 
 // Target markers are transient presentation, not part of terrain/save or its per-tile budget.
 inline FarmSelectionMeshParts BuildFarmTargetMeshParts(

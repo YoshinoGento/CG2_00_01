@@ -2,6 +2,7 @@
 
 #include "farm/core/FarmTypes.h"
 #include "farm/data/FarmRules.h"
+#include "farm/system/FarmCropSizeSystem.h"
 
 #include <array>
 
@@ -15,9 +16,10 @@ struct FarmCropQualityResult {
 	int score = 0;
 	int basePrice = 0;
 	int salePrice = 0;
+	FarmCropSizeResult harvestSize{};
 
 	[[nodiscard]] bool IsValid() const noexcept {
-		return farm::IsPlantableCrop(crop) && basePrice > 0 && salePrice > 0;
+		return farm::IsPlantableCrop(crop) && basePrice > 0 && salePrice > 0 && harvestSize.IsConsistent();
 	}
 };
 
@@ -36,6 +38,7 @@ public:
 	[[nodiscard]] static FarmQualityAdvice Analyze(const FarmCropQualityResult& quality) noexcept;
 
 private:
+	FarmCropSizeSystem sizeSystem_{};
 	std::array<int, farm::kFarmCropTypeCount> basePrices_{ 120, 170 };
 	std::array<float, farm::kFarmCropTypeCount> idealMoisture_{ 0.55f, 0.65f };
 	std::array<int, farm::kFarmCropTypeCount> idealHeight_{ 0, 1 };

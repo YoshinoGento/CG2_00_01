@@ -20,6 +20,11 @@ struct FarmControllerActions {
 	bool restartFarm = false;
 	bool movePlayerToSelectedTile = false;
 	std::optional<editor::GamePlayEditorCommandType> comparisonCommand;
+	std::optional<editor::GamePlayEditorCommand> harvestProtectionCommand;
+	std::optional<editor::GamePlayEditorCommand> contestReservationCommand;
+	std::optional<editor::GamePlayEditorCommand> contestSubmissionCommand;
+	std::optional<editor::GamePlayEditorCommand> contestDayCommand;
+	std::optional<editor::GamePlayEditorCommand> progressionModeCommand;
 };
 
 // Compact viewport companion. It reports actions and never mutates Farm state directly.
@@ -34,4 +39,6 @@ public:
 
 private:
 	bool open_ = true;
+	std::optional<editor::GamePlayEditorCommand> pendingContestSubmission_;
+	std::optional<editor::GamePlayEditorCommand> pendingProgressionMode_;
 };

@@ -10,6 +10,8 @@ struct FarmMapActions {
 	std::optional<int> selectedTileIndex;
 	std::optional<int> beginCanalPathTileIndex;
 	std::optional<int> appendCanalPathTileIndex;
+	std::optional<int> appendTerrainTileIndex;
+	bool endTerrainStroke = false;
 	bool removeCanalPath = false;
 };
 
@@ -29,6 +31,7 @@ private:
 	bool waterView_ = false;
 	bool canalBrushEnabled_ = false;
 	bool canalDragActive_ = false;
+	bool terrainDragActive_ = false;
 	bool canalEraseMode_ = false;
 	int lastDragTileIndex_ = -1;
 };

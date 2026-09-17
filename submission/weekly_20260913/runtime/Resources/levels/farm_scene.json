@@ -1,0 +1,93 @@
+{
+  "name": "scene",
+  "objects": [
+    {
+      "type": "MESH",
+      "name": "Cube",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          1.1736654043197632
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scaling": [
+          1,
+          1,
+          1
+        ]
+      },
+      "file_name": "tl1/Cube.obj",
+      "gameplay_role": "PLAYER"
+    },
+    {
+      "type": "LIGHT",
+      "name": "Light",
+      "transform": {
+        "translation": [
+          4.076245307922363,
+          1.0054539442062378,
+          5.903861999511719
+        ],
+        "rotation": [
+          37.261048582966964,
+          3.163709045717233,
+          106.93632398554938
+        ],
+        "scaling": [
+          1,
+          0.9999999403953552,
+          1
+        ]
+      }
+    },
+    {
+      "type": "CAMERA",
+      "name": "Camera",
+      "transform": {
+        "translation": [
+          7.358891487121582,
+          -6.925790786743164,
+          4.958309173583984
+        ],
+        "rotation": [
+          63.5592952084158,
+          2.298323772810433e-7,
+          46.691944977583375
+        ],
+        "scaling": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "type": "MESH",
+      "name": "平面",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scaling": [
+          37.08103561401367,
+          37.08103561401367,
+          37.08103561401367
+        ]
+      },
+      "file_name": "tl1/ground.obj",
+      "gameplay_role": "GROUND"
+    }
+  ]
+}

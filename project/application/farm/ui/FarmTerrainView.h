@@ -1,5 +1,6 @@
 #pragma once
 #include "farm/ui/FarmRuntimeUI.h"
+#include "farm/system/FarmIrrigationPreviewSystem.h"
 
 namespace farmui {
 struct TerrainViewState {
@@ -10,12 +11,23 @@ struct TerrainViewState {
     Label status = Label::Terrain;
     std::string tileValues;
     std::size_t changeCount = 0;
+    farm::FarmCanalPathIssue pathIssue = farm::FarmCanalPathIssue::None;
+    int blockedTileIndex = -1;
 };
 
 // Availability comes from Systems; the view emits requests and never edits tiles.
 inline void BuildTerrainView(View& view, const TerrainViewState& state) {
     view.terrain = true;
-    view.Add(state.status, {26, 24, 610, 38});
+    const bool rejectedExtension = state.preview &&
+        state.pathIssue != farm::FarmCanalPathIssue::None;
+    if (state.preview && !state.canConfirm) {
+        view.Add(Label::PreviewStale, {26, 24, 610, 38});
+    } else if (state.preview && state.pathIssue == farm::FarmCanalPathIssue::BlockedTile) {
+        view.Metric(Label::PathBlocked, {26, 24, 610, 38}, 400,
+            state.blockedTileIndex >= 0 ? "#" + std::to_string(state.blockedTileIndex) : "--");
+    } else {
+        view.Add(rejectedExtension ? Label::PathNonStraight : state.status, {26, 24, 610, 38});
+    }
     view.Add(Label::Paused, {658, 24, 250, 38});
     view.Add(Label::Resume, {950, 24, 298, 40}, {Action::TerrainExit});
     view.Metric(Label::Tile, {26, 68, 910, 36}, 510, state.tileValues);
@@ -34,14 +46,16 @@ inline void BuildTerrainView(View& view, const TerrainViewState& state) {
     button(Label::RemovePath, Action::RemovePath, !state.preview && state.canPath);
     button(Label::Undo, Action::Undo, !state.preview && state.canUndo);
     button(Label::Redo, Action::Redo, !state.preview && state.canRedo);
-    button(Label::Confirm, Action::Confirm, state.preview && state.canConfirm, state.preview);
+    button(rejectedExtension && state.canConfirm ? Label::ConfirmCandidates : Label::Confirm,
+        Action::Confirm, state.preview && state.canConfirm, state.preview);
     button(Label::Cancel, Action::Cancel, state.preview);
     button(Label::Compost, Action::Compost, !state.preview && state.canCompost);
     button(Label::Overview, Action::Overview, true);
 }
 
-inline void BuildPlayQuickView(View& view, bool paused, bool canEdit) {
+inline void BuildPlayQuickView(View& view, bool paused, bool canEdit, bool canControlTime = true) {
     view.Add(Label::Terrain, {350, 24, 246, 44}, {Action::TerrainField}, canEdit);
-    view.Add(paused ? Label::Play : Label::Pause, {612, 24, 246, 44}, {Action::Pause});
+    view.Add(!canControlTime ? Label::Paused : paused ? Label::Play : Label::Pause,
+        {612, 24, 246, 44}, {Action::Pause}, canControlTime);
 }
 }

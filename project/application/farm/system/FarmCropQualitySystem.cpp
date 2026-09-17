@@ -47,6 +47,7 @@ FarmQualityAdvice FarmCropQualitySystem::Analyze(const FarmCropQualityResult& qu
 
 void FarmCropQualitySystem::Initialize(const farm::FarmRules& rules) noexcept
 {
+	sizeSystem_.Initialize(rules);
 	basePrices_ = {
 		rules.normalHarvestPrice > 0 ? rules.normalHarvestPrice : 120,
 		rules.carrotHarvestPrice > 0 ? rules.carrotHarvestPrice : 170,
@@ -130,5 +131,6 @@ FarmCropQualityResult FarmCropQualitySystem::Evaluate(
 		return {};
 	}
 	result.salePrice = static_cast<int>(std::lround(price));
+	result.harvestSize = sizeSystem_.Evaluate(tile);
 	return result;
 }

@@ -282,6 +282,60 @@ bool FarmIrrigationPreviewSystem::ExtendCanalPathTo(const FarmGrid& sourceGrid, 
 	return true;
 }
 
+bool FarmIrrigationPreviewSystem::VisitTerrainTile(const FarmGrid& sourceGrid, int tileIndex)
+{
+	if ((operation_ != FarmIrrigationPreviewOperation::RaiseTerrain &&
+		operation_ != FarmIrrigationPreviewOperation::LowerTerrain) ||
+		!CanConfirm(sourceGrid) || sourceGrid.GetTile(tileIndex) == nullptr) {
+		EndTerrainStroke();
+		return false;
+	}
+	if (lastTerrainTileIndex_ == tileIndex) return pathIssue_ == FarmCanalPathIssue::None;
+	const int from = lastTerrainTileIndex_ >= 0 ? lastTerrainTileIndex_ : tileIndex;
+	lastTerrainTileIndex_ = tileIndex;
+	const int width = sourceGrid.GetWidth();
+	int x = from % width, y = from / width;
+	const int targetX = tileIndex % width, targetY = tileIndex / width;
+	const int dx = std::abs(targetX - x), dy = -std::abs(targetY - y);
+	const int sx = x < targetX ? 1 : -1, sy = y < targetY ? 1 : -1;
+	int error = dx + dy;
+	std::vector<int> additions;
+	additions.reserve(static_cast<std::size_t>((std::max)(dx, -dy)) + 1);
+	// Rasterize sampled movement; validate the whole segment before changing candidates.
+	for (;;) {
+		const int index = y * width + x;
+		if (!IsTileChanged(index)) {
+			FarmTile candidate{};
+			const auto* source = sourceGrid.GetTile(index);
+			if (!source || !TryBuildCandidateTile(*source, operation_, candidate)) {
+				pathIssue_ = FarmCanalPathIssue::BlockedTile;
+				blockedTileIndex_ = index;
+				return false;
+			}
+			additions.push_back(index);
+		}
+		if (x == targetX && y == targetY) break;
+		const int twiceError = 2 * error;
+		if (twiceError >= dy) { error += dy; x += sx; }
+		if (twiceError <= dx) { error += dx; y += sy; }
+	}
+	changedTileIndices_.reserve(changedTileIndices_.size() + additions.size());
+	for (const int index : additions) {
+		FarmTile candidate{};
+		if (!TryBuildCandidateTile(*sourceGrid.GetTile(index), operation_, candidate) ||
+			!previewGrid_.SetTile(index, candidate)) {
+			Cancel();
+			return false;
+		}
+		changedTileIndices_.push_back(index);
+	}
+	static_cast<void>(previewGrid_.SetSelectedIndex(tileIndex));
+	if (!additions.empty()) previewIrrigation_.Rebuild(previewGrid_);
+	pathIssue_ = FarmCanalPathIssue::None;
+	blockedTileIndex_ = -1;
+	return true;
+}
+
 void FarmIrrigationPreviewSystem::Cancel() noexcept
 {
 	previewGrid_ = {};
@@ -297,6 +351,7 @@ void FarmIrrigationPreviewSystem::Cancel() noexcept
 	active_ = false;
 	pathIssue_ = FarmCanalPathIssue::None;
 	blockedTileIndex_ = -1;
+	EndTerrainStroke();
 }
 
 bool FarmIrrigationPreviewSystem::IsTileChanged(int tileIndex) const noexcept

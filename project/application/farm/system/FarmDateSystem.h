@@ -10,7 +10,7 @@ public:
 
 	void Initialize();
 
-	void Update(float deltaTime);
+	void Update(float deltaTime, int stopAtDay = 0);
 
 	void SetTimeScale(float timeScale);
 	void CycleTimeScale();

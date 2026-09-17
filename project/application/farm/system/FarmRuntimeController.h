@@ -12,12 +12,12 @@ public:
     bool Initialize(SpriteCommon* common) { ready_ = ui_.Initialize(common); return ready_; }
     bool Update(GamePlayScene& scene, const Input& input);
     void Draw() { ui_.Draw(view_, pointer_); }
-    bool BlocksSimulation() const noexcept { return open_ || paused_ || terrain_ || frameCaptured_ || (ready_ && flow_.BlocksSimulation()); }
-    bool ConsumesInput() const noexcept { return open_ || paused_ || terrain_ || observation_ || frameCaptured_ || (ready_ && flow_.BlocksSimulation()); }
+    bool BlocksSimulation() const noexcept { return contestNotice_ || open_ || paused_ || terrain_ || frameCaptured_ || (ready_ && flow_.BlocksSimulation()); }
+    bool ConsumesInput() const noexcept { return contestNotice_ || open_ || paused_ || terrain_ || observation_ || frameCaptured_ || (ready_ && flow_.BlocksSimulation()); }
     bool IsOpen() const noexcept { return open_; }
     bool PresentsFarmResult() const noexcept { return ready_ &&
         (flow_.GetPhase() == FarmPlayFlow::Phase::Result || flow_.GetPhase() == FarmPlayFlow::Phase::Review); }
-    bool HidesFarmHUD() const noexcept { return open_ || observation_ || terrain_ || (ready_ && flow_.BlocksSimulation()); }
+    bool HidesFarmHUD() const noexcept { return contestNotice_ || open_ || observation_ || terrain_ || (ready_ && flow_.BlocksSimulation()); }
     [[nodiscard]] int ResolveHoveredTile(const GamePlayScene& scene) const;
     void Refresh(GamePlayScene& scene) { BuildView(scene); }
     void OpenLayoutLibrary(GamePlayScene& scene);
@@ -35,16 +35,21 @@ private:
     farmui::View view_;
     Vector2 pointer_{-1, -1};
     farmui::Action pending_ = farmui::Action::None;
+    farmui::Request pendingSubmission_{};
+    int pendingContestDay_ = 0;
+    int pendingPlayMode_ = 0;
     farmui::Label status_ = farmui::Label::Ready;
     std::string pendingDocumentId_;
     int page_ = 0;
     int documentIndex_ = 0;
+    int harvestPage_ = 0;
     int brush_ = 0;
     int focusedItem_ = -1;
     bool open_ = false;
     bool paused_ = false;
     bool ready_ = false;
     bool frameCaptured_ = false;
+    bool contestNotice_ = false;
     bool observation_ = false;
     bool terrain_ = false;
     bool pauseBeforeObservation_ = false;

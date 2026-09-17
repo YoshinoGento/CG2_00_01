@@ -172,6 +172,16 @@ FarmMapActions FarmMapWindow::Draw(
 			text("Irrigation Preview"));
 	}
 	const bool brushBlocked = viewModel.irrigationPreviewActive && !canalPathPreviewActive;
+	const bool terrainPreviewActive = viewModel.irrigationPreviewActive &&
+		(viewModel.irrigationPreviewOperation == farm::FarmIrrigationPreviewOperation::RaiseTerrain ||
+		 viewModel.irrigationPreviewOperation == farm::FarmIrrigationPreviewOperation::LowerTerrain);
+	if (terrainPreviewActive) ImGui::TextWrapped("%s", text("Drag to add height candidates; each tile changes once before confirmation."));
+	if ((!terrainPreviewActive || !ImGui::IsMouseDown(ImGuiMouseButton_Left)) && terrainDragActive_) {
+		actions.endTerrainStroke = true;
+		terrainDragActive_ = false;
+	}
+	// Leaving the map breaks interpolation, without disturbing a native-view stroke.
+	if (terrainDragActive_) actions.endTerrainStroke = true;
 	ImGui::BeginDisabled(brushBlocked);
 	if (ImGui::Checkbox(text("Canal Brush"), &canalBrushEnabled_) && !canalBrushEnabled_) {
 		canalDragActive_ = false;
@@ -260,10 +270,16 @@ FarmMapActions FarmMapWindow::Draw(
 					tile.heightLevel);
 			}
 			const bool tilePressed = ImGui::Button(label, { -1.0f, tileHeight });
-			const bool tileHovered = ImGui::IsItemHovered(canalDragActive_
+			const bool tileHovered = ImGui::IsItemHovered((canalDragActive_ || terrainDragActive_)
 				? ImGuiHoveredFlags_AllowWhenBlockedByActiveItem : ImGuiHoveredFlags_None);
 			const bool tileActivated = ImGui::IsItemActivated();
-			if (canalBrushEnabled_ && !brushBlocked) {
+			if (terrainPreviewActive) {
+				if (tileActivated) terrainDragActive_ = true;
+				if (terrainDragActive_ && tileHovered && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+					actions.endTerrainStroke = tileActivated;
+					actions.appendTerrainTileIndex = tile.index;
+				}
+			} else if (canalBrushEnabled_ && !brushBlocked) {
 				if (tileActivated) {
 					canalDragActive_ = true;
 					lastDragTileIndex_ = -1;

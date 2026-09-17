@@ -474,6 +474,13 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmFeedbackSystem.h" />
 	<ClInclude Include="application\farm\system\FarmCropSelectionSystem.h" />
 	<ClInclude Include="application\farm\system\FarmCropQualitySystem.h" />
+	<ClInclude Include="application\farm\system\FarmCropSizeSystem.h" />
+	<ClInclude Include="application\farm\system\FarmContestJudgeSystem.h" />
+	<ClInclude Include="application\farm\system\FarmContestEntrySystem.h" />
+	<ClInclude Include="application\farm\system\FarmContestSubmissionSystem.h" />
+	<ClInclude Include="application\farm\system\FarmContestDaySystem.h" />
+	<ClInclude Include="application\farm\system\FarmContestSeasonSystem.h" />
+	<ClInclude Include="application\farm\system\FarmHarvestVisualSystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthSystem.h" />
     <ClInclude Include="application\farm\system\FarmSoilSystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthComparisonSystem.h" />

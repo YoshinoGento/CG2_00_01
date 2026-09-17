@@ -673,6 +673,11 @@ void EditorShell::DrawFarmController(GamePlayScene& playScene) {
 		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
 		changed |= bridge.Execute(command);
 	}
+	if (actions.harvestProtectionCommand) changed |= bridge.Execute(*actions.harvestProtectionCommand);
+	if (actions.contestReservationCommand) changed |= bridge.Execute(*actions.contestReservationCommand);
+	if (actions.contestSubmissionCommand) changed |= bridge.Execute(*actions.contestSubmissionCommand);
+	if (actions.contestDayCommand) changed |= bridge.Execute(*actions.contestDayCommand);
+	if (actions.progressionModeCommand) changed |= bridge.Execute(*actions.progressionModeCommand);
 	if (changed) {
 		bridge.BuildViewModel(gamePlayEditorViewModel_);
 	}
@@ -688,6 +693,12 @@ void EditorShell::DrawFarmMap(GamePlayScene& playScene) {
 		gamePlayEditorViewModel_,
 		selectionSystem_.GetSelection(),
 		editorSettings_.GetLanguage());
+	if (actions.endTerrainStroke) {
+		editor::GamePlayEditorCommand endStroke;
+		endStroke.type = editor::GamePlayEditorCommandType::EndFarmTerrainStroke;
+		endStroke.farmGeneration = gamePlayEditorViewModel_.farmGeneration;
+		static_cast<void>(bridge.Execute(endStroke));
+	}
 	editor::GamePlayEditorCommandType commandType =
 		editor::GamePlayEditorCommandType::SelectFarmTile;
 	std::optional<int> commandTileIndex;
@@ -698,6 +709,9 @@ void EditorShell::DrawFarmMap(GamePlayScene& playScene) {
 			: editor::GamePlayEditorCommandType::BeginFarmCanalPathPreview;
 		commandTileIndex = actions.beginCanalPathTileIndex;
 		synchronizeSelection = true;
+	} else if (actions.appendTerrainTileIndex.has_value()) {
+		commandType = editor::GamePlayEditorCommandType::AppendFarmTerrainPreview;
+		commandTileIndex = actions.appendTerrainTileIndex;
 	} else if (actions.appendCanalPathTileIndex.has_value()) {
 		commandType = editor::GamePlayEditorCommandType::AppendFarmCanalPathPreview;
 		commandTileIndex = actions.appendCanalPathTileIndex;

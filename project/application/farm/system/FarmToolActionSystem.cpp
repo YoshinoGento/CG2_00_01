@@ -1,4 +1,5 @@
 #include "farm/system/FarmToolActionSystem.h"
+#include "farm/system/FarmContestSubmissionSystem.h"
 #include "farm/system/FarmSoilSystem.h"
 
 #include "farm/core/FarmGrid.h"
@@ -43,12 +44,12 @@ public:
 		const farm::FarmTile& after, const char* name,
 		FarmEconomySystem* economySystem,
 		const FarmCropQualityResult& harvestedQuality,
-		int harvestedQuantity, farm::CropType plantedCrop, int plantedQuantity)
+		int harvestedQuantity, farm::CropType plantedCrop, int plantedQuantity, int harvestedDay)
 		: grid_(&grid), gridGeneration_(grid.GetGeneration()), tileIndex_(tileIndex),
 		before_(before), after_(after), name_(name ? name : "Farm Tile Edit"),
 		economySystem_(economySystem), harvestedQuality_(harvestedQuality),
 		harvestedQuantity_(harvestedQuantity), plantedCrop_(plantedCrop),
-		plantedQuantity_(plantedQuantity),
+		plantedQuantity_(plantedQuantity), harvestedDay_(harvestedDay),
 		previousLastHarvestQuality_(economySystem != nullptr
 			? economySystem->GetLastHarvestQuality() : FarmCropQualityResult{}) {}
 
@@ -68,7 +69,7 @@ private:
 			plantedCrop_ != farm::CropType::None && plantedQuantity_ > 0;
 		if (updatesHarvest) {
 			const bool harvestChanged = addHarvest
-				? economySystem_->AddHarvest(harvestedQuality_, harvestedQuantity_)
+				? economySystem_->AddHarvest(harvestedQuality_, harvestedQuantity_, harvestedDay_)
 				: economySystem_->RemoveHarvest(
 					harvestedQuality_, harvestedQuantity_, previousLastHarvestQuality_);
 			if (!harvestChanged) {
@@ -87,7 +88,7 @@ private:
 							previousLastHarvestQuality_));
 					} else {
 						static_cast<void>(economySystem_->AddHarvest(
-							harvestedQuality_, harvestedQuantity_));
+							harvestedQuality_, harvestedQuantity_, harvestedDay_));
 					}
 				}
 				return false;
@@ -112,7 +113,7 @@ private:
 					previousLastHarvestQuality_));
 			} else {
 				static_cast<void>(economySystem_->AddHarvest(
-					harvestedQuality_, harvestedQuantity_));
+					harvestedQuality_, harvestedQuantity_, harvestedDay_));
 			}
 		}
 		return false;
@@ -130,6 +131,7 @@ private:
 	int harvestedQuantity_ = 0;
 	farm::CropType plantedCrop_ = farm::CropType::None;
 	int plantedQuantity_ = 0;
+	int harvestedDay_ = 0; // Redo retains the original harvest date, not the current clock.
 	FarmCropQualityResult previousLastHarvestQuality_{};
 };
 
@@ -195,6 +197,28 @@ void FarmToolActionSystem::Initialize(const farm::FarmRules& rules) noexcept
 		rules.wateringMoistureIncrement <= kFullMoisture
 		? rules.wateringMoistureIncrement : farm::FarmRules{}.wateringMoistureIncrement;
 	history_.Clear();
+}
+
+bool FarmToolActionSystem::CommitHarvestProtection(FarmEconomySystem& economy,
+	int recordId, bool protect, uint64_t inventoryGeneration) {
+	if (!economy.SetHarvestProtection(recordId, protect, inventoryGeneration)) return false;
+	// Earlier tile commands must not remove a harvest committed to retention.
+	ClearHistory();
+	return true;
+}
+
+bool FarmToolActionSystem::CommitContestReservation(FarmEconomySystem& economy,
+	int recordId, bool reserve, uint64_t inventoryGeneration) {
+	if (!economy.SetContestReservation(recordId, reserve, inventoryGeneration)) return false;
+	ClearHistory();
+	return true;
+}
+
+bool FarmToolActionSystem::CommitContestSubmission(FarmEconomySystem& economy,
+	int day, int recordId, uint64_t inventoryGeneration) {
+	if (!FarmContestSubmissionSystem::Submit(economy, day, recordId, inventoryGeneration)) return false;
+	ClearHistory();
+	return true;
 }
 
 FarmCropQualityResult FarmToolActionSystem::EvaluateHarvestQuality(
@@ -275,6 +299,8 @@ FarmToolActionResult FarmToolActionSystem::EvaluateTool(
 			result.status = FarmToolActionStatus::InvalidState;
 		} else if (tile->growth < kHarvestReadyGrowth) {
 			result.status = FarmToolActionStatus::NotReady;
+		} else if (economySystem && economySystem->GetHarvestRecordCount() >= FarmEconomySystem::kMaxHarvestRecords) {
+			result.status = FarmToolActionStatus::InventoryFull;
 		} else {
 			result.status = FarmToolActionStatus::Harvested;
 			result.harvestQuality = cropQualitySystem_.Evaluate(*tile);
@@ -295,7 +321,7 @@ FarmToolActionResult FarmToolActionSystem::EvaluateTool(
 
 FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(
 	farm::FarmGrid& grid, FarmTool tool, farm::CropType selectedCrop,
-	FarmEconomySystem& economySystem)
+	FarmEconomySystem& economySystem, int harvestedDay)
 {
 	FarmToolActionResult result = EvaluateTool(
 		grid, tool, selectedCrop, &economySystem);
@@ -356,7 +382,7 @@ FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(
 	if (!CommitTileChange(
 		grid, tileIndex, before, after, commandName,
 		&economySystem, harvestedQuality, harvestedQuantity,
-		plantedCrop, plantedQuantity)) {
+		plantedCrop, plantedQuantity, harvestedDay)) {
 		result.status = FarmToolActionStatus::InvalidState;
 		return result;
 	}
@@ -364,6 +390,7 @@ FarmToolActionResult FarmToolActionSystem::ApplyToolDetailed(
 		result.status = FarmToolActionStatus::Harvested;
 		result.harvestQuality = harvestedQuality;
 		result.reward = harvestedQuality.salePrice;
+		result.harvestedTile = before;
 	} else {
 		result.status = FarmToolActionStatus::Applied;
 	}
@@ -493,6 +520,28 @@ bool FarmToolActionSystem::CommitCanalPath(
 		grid, std::move(entries), remove ? "Remove Canal Path" : "Place Canal Path"));
 }
 
+bool FarmToolActionSystem::ChangeTerrainBatch(
+	farm::FarmGrid& grid, const std::vector<int>& tileIndices, int delta)
+{
+	if ((delta != 1 && delta != -1) || tileIndices.empty() ||
+		tileIndices.size() > static_cast<std::size_t>(grid.GetTileCount())) return false;
+	std::vector<FarmTileBatchEntry> entries;
+	entries.reserve(tileIndices.size());
+	for (std::size_t i = 0; i < tileIndices.size(); ++i) {
+		const int index = tileIndices[i];
+		const auto* tile = grid.GetTile(index);
+		if (!tile || tile->heightLevel < kMinimumHeightLevel || tile->heightLevel > kMaximumHeightLevel ||
+			(delta > 0 && tile->heightLevel == kMaximumHeightLevel) ||
+			(delta < 0 && tile->heightLevel == kMinimumHeightLevel) ||
+			std::find(tileIndices.begin(), tileIndices.begin() + i, index) != tileIndices.begin() + i) return false;
+		FarmTileBatchEntry entry{index, *tile, *tile};
+		entry.after.heightLevel += delta;
+		entries.push_back(entry);
+	}
+	return history_.Execute(std::make_unique<FarmTileBatchEditCommand>(
+		grid, std::move(entries), delta > 0 ? "Raise Terrain Batch" : "Lower Terrain Batch"));
+}
+
 bool FarmToolActionSystem::CanToggleCanal(
 	const farm::FarmGrid& grid, int tileIndex) const noexcept
 {
@@ -555,7 +604,7 @@ bool FarmToolActionSystem::CommitTileChange(
 	const farm::FarmTile& after, const char* commandName,
 	FarmEconomySystem* economySystem,
 	const FarmCropQualityResult& harvestedQuality,
-	int harvestedQuantity, farm::CropType plantedCrop, int plantedQuantity)
+	int harvestedQuantity, farm::CropType plantedCrop, int plantedQuantity, int harvestedDay)
 {
 	if (TilesEqual(before, after)) {
 		return false;
@@ -563,5 +612,5 @@ bool FarmToolActionSystem::CommitTileChange(
 	return history_.Execute(std::make_unique<FarmTileEditCommand>(
 		grid, tileIndex, before, after, commandName,
 		economySystem, harvestedQuality, harvestedQuantity,
-		plantedCrop, plantedQuantity));
+		plantedCrop, plantedQuantity, harvestedDay));
 }

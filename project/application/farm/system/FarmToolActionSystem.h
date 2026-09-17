@@ -7,6 +7,8 @@
 #include "command/CommandHistory.h"
 
 #include <vector>
+#include <cstdint>
+#include <optional>
 
 namespace farm {
 class FarmGrid;
@@ -23,6 +25,7 @@ enum class FarmToolActionStatus {
 	InvalidState,
 	AlreadyWatered,
 	NoSeed,
+	InventoryFull,
 	NotReady,
 	UnsupportedTool,
 };
@@ -35,6 +38,7 @@ struct FarmToolActionResult {
 	FarmCropQualityResult harvestQuality{};
 	float moistureBefore = 0.0f;
 	float moistureAfter = 0.0f;
+	std::optional<farm::FarmTile> harvestedTile; // Present only after the harvest command commits.
 
 	[[nodiscard]] bool Succeeded() const noexcept {
 		return status == FarmToolActionStatus::Applied ||
@@ -48,6 +52,11 @@ public:
 	static constexpr int kMaximumHeightLevel = 2;
 
 	void Initialize(const farm::FarmRules& rules = {}) noexcept;
+	bool CommitHarvestProtection(FarmEconomySystem& economy, int recordId,
+		bool protect, uint64_t inventoryGeneration);
+	bool CommitContestReservation(FarmEconomySystem& economy, int recordId,
+		bool reserve, uint64_t inventoryGeneration);
+	bool CommitContestSubmission(FarmEconomySystem& economy, int day, int recordId, uint64_t inventoryGeneration);
 	[[nodiscard]] FarmCropQualityResult EvaluateHarvestQuality(
 		const farm::FarmTile& tile) const noexcept;
 
@@ -63,10 +72,11 @@ public:
 		FarmEconomySystem& economySystem);
 	[[nodiscard]] FarmToolActionResult ApplyToolDetailed(
 		farm::FarmGrid& grid, FarmTool tool, farm::CropType selectedCrop,
-		FarmEconomySystem& economySystem);
+		FarmEconomySystem& economySystem, int harvestedDay = 0);
 	bool RaiseSelectedTile(farm::FarmGrid& grid);
 	bool CompostSelectedTile(farm::FarmGrid& grid);
 	bool LowerSelectedTile(farm::FarmGrid& grid);
+	bool ChangeTerrainBatch(farm::FarmGrid& grid, const std::vector<int>& tileIndices, int delta);
 	[[nodiscard]] bool CanToggleCanal(
 		const farm::FarmGrid& grid, int tileIndex) const noexcept;
 	bool ToggleSelectedCanal(farm::FarmGrid& grid);
@@ -89,7 +99,7 @@ private:
 		const FarmCropQualityResult& harvestedQuality = {},
 		int harvestedQuantity = 0,
 		farm::CropType plantedCrop = farm::CropType::None,
-		int plantedQuantity = 0);
+		int plantedQuantity = 0, int harvestedDay = 0);
 	CommandHistory history_{ 128 };
 	FarmCropQualitySystem cropQualitySystem_{};
 	float wateringMoistureIncrement_ = farm::FarmRules{}.wateringMoistureIncrement;

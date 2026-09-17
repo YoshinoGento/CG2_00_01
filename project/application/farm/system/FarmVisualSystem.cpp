@@ -165,7 +165,8 @@ void DrawCropSilhouette(
 
 	const Vector3& center = visual.center;
 	const float growth = SanitizeStrength(tile.growth);
-	const float stemHeight = 0.16f + growth * 0.68f;
+	const float scale = visual.cropScale;
+	const float stemHeight = (0.16f + growth * 0.68f) * scale;
 	const Vector3 stemBase = visual.cropAnchor;
 	const Vector3 stemTop = { center.x, stemBase.y + stemHeight, center.z };
 	const Vector4 stemColor = tile.crop == CropType::Carrot
@@ -174,28 +175,28 @@ void DrawCropSilhouette(
 	lineDrawer.DrawLine(stemBase, stemTop, stemColor);
 
 	if (HasDevelopedLeaves(stage)) {
-		const float leafWidth = 0.10f + growth * 0.22f;
+		const float leafWidth = (0.10f + growth * 0.22f) * scale;
 		const float leafY = stemBase.y + stemHeight * 0.58f;
 		lineDrawer.DrawLine(
 			{ center.x, leafY, center.z },
-			{ center.x - leafWidth, leafY + 0.08f, center.z },
+			{ center.x - leafWidth, leafY + 0.08f * scale, center.z },
 			stemColor);
 		lineDrawer.DrawLine(
-			{ center.x, leafY + 0.05f, center.z },
-			{ center.x + leafWidth, leafY + 0.13f, center.z },
+			{ center.x, leafY + 0.05f * scale, center.z },
+			{ center.x + leafWidth, leafY + 0.13f * scale, center.z },
 			stemColor);
 		lineDrawer.DrawLine(
-			{ center.x, leafY + 0.02f, center.z },
-			{ center.x, leafY + 0.10f, center.z + leafWidth },
+			{ center.x, leafY + 0.02f * scale, center.z },
+			{ center.x, leafY + 0.10f * scale, center.z + leafWidth },
 			stemColor);
 	}
 
 	if (HasVisibleCropBody(stage)) {
 		if (tile.crop == CropType::Carrot) {
 			const Vector4 rootColor = { 1.0f, 0.40f, 0.08f, 1.0f };
-			const float shoulderWidth = 0.10f + growth * 0.06f;
-			const float shoulderY = center.y + 0.17f;
-			const Vector3 rootTip = { center.x, center.y + 0.03f, center.z };
+			const float shoulderWidth = (0.10f + growth * 0.06f) * scale;
+			const float shoulderY = stemBase.y + 0.14f * scale;
+			const Vector3 rootTip = stemBase;
 			lineDrawer.DrawLine(
 				{ center.x - shoulderWidth, shoulderY, center.z }, rootTip, rootColor);
 			lineDrawer.DrawLine(
@@ -205,7 +206,7 @@ void DrawCropSilhouette(
 			lineDrawer.DrawLine(
 				{ center.x, shoulderY, center.z + shoulderWidth }, rootTip, rootColor);
 		} else {
-			const float bulbRadius = 0.10f + growth * 0.07f;
+			const float bulbRadius = (0.10f + growth * 0.07f) * scale;
 			lineDrawer.DrawWireSphere(
 				{ center.x, center.y + bulbRadius, center.z },
 				bulbRadius,
@@ -223,8 +224,9 @@ void DrawCropSilhouette(
 }
 } // namespace
 
-void FarmVisualSystem::Initialize(const FarmVisualLayout& layout) noexcept
+void FarmVisualSystem::Initialize(const FarmVisualLayout& layout, const FarmRules& rules) noexcept
 {
+	cropSizeSystem_.Initialize(rules);
 	layout_ = layout;
 	const FarmVisualLayout defaults;
 	if (!IsFinite(layout_.center)) { layout_.center = defaults.center; }
@@ -255,6 +257,17 @@ Vector3 FarmVisualSystem::GetTileCenter(const FarmGrid& grid, int tileIndex) con
 	};
 }
 
+float FarmVisualSystem::GetCropRenderScale(const FarmTile& tile) const noexcept
+{
+	const auto size = cropSizeSystem_.Evaluate(tile);
+	const float growth = SanitizeStrength(tile.growth);
+	const float forecast = size.known ? size.multiplier : 1.0f;
+	const float scale = 1.0f + (forecast - 1.0f) * growth;
+	constexpr float kCropFootprintFraction = 0.90f;
+	const float leafWidth = 0.10f + growth * 0.22f;
+	return (std::min)(scale, layout_.tileSize * 0.5f * kCropFootprintFraction / leafWidth);
+}
+
 FarmTileVisualData FarmVisualSystem::GetTileVisualData(const FarmGrid& grid, int tileIndex) const noexcept
 {
 	const auto* tile = grid.GetTile(tileIndex);
@@ -269,6 +282,10 @@ FarmTileVisualData FarmVisualSystem::GetTileVisualData(const FarmGrid& grid, int
 		data.soilWetness = SanitizeStrength(tile->moisture);
 		data.crop = tile->crop;
 		data.cropStage = GetCropGrowthStage(*tile);
+		if (data.cropStage != FarmCropGrowthStage::None) {
+			// Render-only footprint cap; never change the harvest record to fit the tile.
+			data.cropScale = GetCropRenderScale(*tile);
+		}
 	} else {
 		data.waterFill = SanitizeStrength(tile->waterAmount);
 		data.showWaterSurface = data.waterFill > 0.0f;
@@ -331,7 +348,7 @@ void FarmVisualSystem::Draw(
 	const FarmToolActionResult& selectedAction,
 	LineDrawer& lineDrawer,
 	const std::vector<int>* irrigationPreviewChangedTiles,
-	bool debugGuides) const
+	bool debugGuides, bool wireCrops) const
 {
 	const float halfExtent = layout_.tileSize * 0.5f;
 	for (int index = 0; index < grid.GetTileCount(); ++index) {
@@ -426,7 +443,7 @@ void FarmVisualSystem::Draw(
 		}
 
 		}
-		if (tile->feature == FarmTileFeature::None) {
+		if (wireCrops && tile->feature == FarmTileFeature::None) {
 			DrawCropSilhouette(lineDrawer, *tile, visual);
 		}
 

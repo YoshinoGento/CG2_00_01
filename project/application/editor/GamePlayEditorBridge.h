@@ -2,6 +2,10 @@
 
 #include "farm/core/FarmTypes.h"
 #include "farm/system/FarmDocumentSystem.h"
+#include "farm/system/FarmContestJudgeSystem.h"
+#include "farm/system/FarmContestEntrySystem.h"
+#include "farm/system/FarmContestSubmissionSystem.h"
+#include "farm/system/FarmContestSeasonSystem.h"
 #include "farm/system/FarmFeedbackSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
 #include "farm/system/FarmGrowthComparisonSystem.h"
@@ -215,6 +219,22 @@ struct FarmPlaytestEditorViewData {
 	FarmFeedbackStats feedbackStats{};
 	std::uint32_t restartCount = 0;
 	FarmCropQualityResult lastHarvestQuality{};
+	FarmEconomySystem::HarvestRecords harvestRecords{};
+	std::size_t harvestRecordCount = 0;
+	int unrecordedCropCount = 0;
+	int protectedCropCount = 0;
+	uint64_t inventoryGeneration = 0;
+	bool canChangeHarvestProtection = false;
+	int contestReservationId = 0;
+	std::size_t activeHarvestVisuals = 0;
+	FarmContestJudgeResult contestJudge{};
+	FarmContestEntryResult contestEntry{};
+	FarmEconomySystem::ContestResults contestResults{};
+	FarmContestSeasonSummary contestSeason{};
+	FarmProgressionMode progressionMode = FarmProgressionMode::Trial;
+	FarmContestSubmissionStatus contestSubmissionStatus = FarmContestSubmissionStatus::NotContestDay;
+	int contestNoticeDay = 0;
+	std::array<bool, FarmEconomySystem::kMaxHarvestRecords> contestEligible{};
 	FarmQualityAdvice lastHarvestAdvice{};
 };
 
@@ -293,6 +313,12 @@ enum class GamePlayEditorCommandType {
 	ApplyFarmTool,
 	RaiseFarmTile,
 	CompostFarmTile,
+	SetHarvestProtection,
+	ReserveContestHarvest,
+	CancelContestReservation,
+	SubmitContestHarvest,
+	AcknowledgeContestDay,
+	SetFarmProgressionMode,
 	LowerFarmTile,
 	ToggleFarmCanal,
 	ToggleFarmWaterSource,
@@ -303,6 +329,8 @@ enum class GamePlayEditorCommandType {
 	BeginFarmCanalPathPreview,
 	BeginFarmCanalRemovalPathPreview,
 	AppendFarmCanalPathPreview,
+	AppendFarmTerrainPreview,
+	EndFarmTerrainStroke,
 	ConfirmFarmIrrigationPreview,
 	CancelFarmIrrigationPreview,
 	UndoFarmEdit,
@@ -321,6 +349,11 @@ struct GamePlayEditorCommand {
 	int farmTileIndex = -1;
 	uint64_t farmGeneration = 0;
 	FarmTool farmTool = FarmTool::Hoe;
+	int harvestRecordId = 0;
+	int contestDay = 0;
+	FarmProgressionMode progressionMode = FarmProgressionMode::Trial;
+	uint64_t inventoryGeneration = 0;
+	bool harvestProtected = false;
 };
 
 enum class FarmDocumentCommandType {

@@ -15,6 +15,20 @@ struct ToolButtonData {
 	const char* label;
 };
 
+const char* GetContestEntryText(FarmContestEntryIssue issue) noexcept {
+	switch (issue) {
+	case FarmContestEntryIssue::Eligible: return "Within harvest period (preview only).";
+	case FarmContestEntryIssue::InvalidDay: return "Invalid farm day.";
+	case FarmContestEntryIssue::SeasonEnded: return "No contest after day 30.";
+	case FarmContestEntryIssue::NoReservation: return "Reserve a crop in inventory first.";
+	case FarmContestEntryIssue::InvalidRecord: return "Invalid harvest record or judge rules.";
+	case FarmContestEntryIssue::UnknownHarvestDay: return "Harvest day unknown: reserve a newly harvested crop.";
+	case FarmContestEntryIssue::FutureHarvestDay: return "Harvest day is later than farm day.";
+	case FarmContestEntryIssue::OutsidePeriod: return "Outside this harvest period: replace the reservation.";
+	default: return "Invalid harvest record or judge rules.";
+	}
+}
+
 constexpr std::array<ToolButtonData, 4> kToolButtons = {{
 	{ FarmTool::Hoe, "1  Hoe" },
 	{ FarmTool::Water, "2  Water" },
@@ -38,6 +52,9 @@ const char* GetActionStatusLabel(FarmToolActionStatus status, EditorLanguage lan
 		break;
 	case FarmToolActionStatus::NotReady:
 		label = "Crop is not ready";
+		break;
+	case FarmToolActionStatus::InventoryFull:
+		label = "Harvest inventory full";
 		break;
 	case FarmToolActionStatus::InvalidTarget:
 		label = "No valid tile";
@@ -478,6 +495,26 @@ FarmControllerActions FarmControllerWindow::Draw(
 		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", text("Pause, plant matching crops, adjust water, pin A/B, start, then resume. Do not edit during measurement."));
 	}
 	ImGui::SeparatorText(text("Playtest"));
+	const bool seasonMode = playtest.progressionMode == FarmProgressionMode::ContestSeason;
+	ImGui::TextWrapped("%s", text(seasonMode ? "30-day contest mode" : "540G trial mode"));
+	if (ImGui::Button(text(seasonMode ? "Switch to trial mode" : "Switch to contest mode"))) {
+		editor::GamePlayEditorCommand command;
+		command.type = editor::GamePlayEditorCommandType::SetFarmProgressionMode;
+		command.farmGeneration = viewModel.farmGeneration;
+		command.progressionMode = seasonMode ? FarmProgressionMode::Trial : FarmProgressionMode::ContestSeason;
+		pendingProgressionMode_ = command;
+		ImGui::OpenPopup("ConfirmFarmMode");
+	}
+	if (ImGui::BeginPopupModal("ConfirmFarmMode", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+		ImGui::TextWrapped("%s", text("Switch rules, keep the farm, commit edit history."));
+		if (ImGui::Button(text("Confirm"))) {
+			actions.progressionModeCommand = pendingProgressionMode_;
+			pendingProgressionMode_.reset(); ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button(text("Cancel"))) { pendingProgressionMode_.reset(); ImGui::CloseCurrentPopup(); }
+		ImGui::EndPopup();
+	}
 	if (ImGui::TreeNode(text("Player Grounding"))) {
 		ImGui::BeginDisabled(tile == nullptr || !playtest.canPlacePlayer);
 		if (ImGui::Button(text("Move Player To Selected Tile"), ImVec2(-1.0f, 0.0f))) {
@@ -503,6 +540,17 @@ FarmControllerActions FarmControllerWindow::Draw(
 		}
 		ImGui::TreePop();
 	}
+	if (playtest.contestNoticeDay > 0) {
+		ImGui::Text(text("Contest day %d: simulation stopped"), playtest.contestNoticeDay);
+		ImGui::TextWrapped("%s", text("Submit in inventory while stopped, or dismiss to resume. No late submissions."));
+		if (ImGui::Button(text("Dismiss contest notice and resume"))) {
+			editor::GamePlayEditorCommand command;
+			command.type = editor::GamePlayEditorCommandType::AcknowledgeContestDay;
+			command.farmGeneration = viewModel.farmGeneration;
+			command.contestDay = playtest.contestNoticeDay;
+			actions.contestDayCommand = command;
+		}
+	}
 	const ImVec4 stateColor = playtest.cleared
 		? ImVec4(0.30f, 0.86f, 0.38f, 1.0f)
 		: ImVec4(0.94f, 0.72f, 0.18f, 1.0f);
@@ -525,6 +573,7 @@ FarmControllerActions FarmControllerWindow::Draw(
 		"%d / %d G",
 		playtest.money,
 		playtest.targetMoney);
+	if (seasonMode) std::snprintf(progressOverlay.data(), progressOverlay.size(), "Day %d / %d", playtest.contestEntry.currentDay, FarmContestEntrySystem::kContestDays.back());
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram, stateColor);
 	ImGui::ProgressBar(
 		std::clamp(playtest.progress, 0.0f, 1.0f),
@@ -567,7 +616,155 @@ FarmControllerActions FarmControllerWindow::Draw(
 		ImGui::EndTable();
 	}
 	ImGui::TextDisabled("%s", text("F: Sell all / V: Sell selected crop"));
-	if (!playtest.cleared) {
+	if (ImGui::CollapsingHeader(text("Unsold harvest records"))) {
+		ImGui::Text(text("Records: %zu / %zu"), playtest.harvestRecordCount, FarmEconomySystem::kMaxHarvestRecords);
+		ImGui::Text(text("Unknown harvest details: %d crop(s)"), playtest.unrecordedCropCount);
+		ImGui::Text(text("Protected crops: %d"), playtest.protectedCropCount);
+		ImGui::Text(text("Active harvest animations: %zu"), playtest.activeHarvestVisuals);
+		ImGui::Text(text("Contest reservation ID: %d (0: none)"), playtest.contestReservationId);
+		ImGui::TextWrapped("%s", text("Reserve one protected crop with known size. Cancel before unprotecting."));
+		if (ImGui::TreeNode(text("Contest judging preview (provisional)"))) {
+			const auto& judge = playtest.contestJudge;
+			if (judge.IsValid()) {
+				ImGui::Text(text("Quality: %d / 100 -> %d / %d points"), judge.recordedQuality, judge.qualityPoints, judge.rules.qualityPoints);
+				ImGui::Text(text("Size: %.2fx -> %d / %d points"), judge.recordedSize, judge.sizePoints, judge.rules.sizePoints);
+				ImGui::Text(text("Size range: %.2fx - %.2fx"), judge.rules.sizeMinimum, judge.rules.sizeMaximum);
+				ImGui::Text(text("Preview total: %d / 100"), judge.totalPoints);
+				if (judge.partialQuality) ImGui::TextWrapped("%s", text("Recorded nutrient history is incomplete; stored quality is used."));
+			} else {
+				ImGui::TextWrapped("%s", text(judge.issue == FarmContestJudgeIssue::NoReservation ?
+					"Reserve a crop in inventory first." : "Invalid harvest record or judge rules."));
+			}
+			ImGui::TextWrapped("%s", text("Preview only. Round each contribution, then sum. No submission, reward or crop consumption."));
+			ImGui::TreePop();
+		}
+		ImGui::TextWrapped("%s", text("Sold crops leave inventory; the last harvest result is only history."));
+		if (ImGui::TreeNode(text("Contest harvest period (provisional)"))) {
+			const auto& entry = playtest.contestEntry;
+			ImGui::Text(text("Current farm day: %d"), entry.currentDay);
+			if (entry.HasContest()) {
+				ImGui::Text(text("Contest day: %d / days remaining: %d"), entry.contestDay, entry.daysRemaining);
+				ImGui::Text(text("Harvest period: %d - %d (inclusive)"), entry.firstHarvestDay, entry.contestDay);
+			}
+			ImGui::Text(text("Reserved harvest day: %d (0: unknown)"), entry.harvestedDay);
+			ImGui::TextWrapped("%s", text(GetContestEntryText(entry.issue)));
+			ImGui::TextWrapped("%s", text("Period preview only. Reservation and inventory are unchanged."));
+			ImGui::TreePop();
+		}
+		ImGui::TextWrapped("%s", text("Protection excludes sales; changing it commits earlier edit history."));
+		ImGui::BeginDisabled(!playtest.canChangeHarvestProtection ||
+			playtest.contestSubmissionStatus != FarmContestSubmissionStatus::Ready);
+		if (ImGui::Button(text("Submit reserved crop"))) {
+			editor::GamePlayEditorCommand command;
+			command.type = editor::GamePlayEditorCommandType::SubmitContestHarvest;
+			command.farmGeneration = viewModel.farmGeneration;
+			command.harvestRecordId = playtest.contestReservationId;
+			command.inventoryGeneration = playtest.inventoryGeneration;
+			command.contestDay = playtest.contestEntry.currentDay;
+			pendingContestSubmission_ = command;
+			ImGui::OpenPopup("ConfirmContestSubmission");
+		}
+		ImGui::EndDisabled();
+		ImGui::TextWrapped("%s", text("Submit on day 10, 20 or 30. One crop is consumed; save results with the farm."));
+		if (ImGui::BeginPopupModal("ConfirmContestSubmission", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+			ImGui::TextWrapped("%s", text("Consume one reserved crop? Submission cannot be undone."));
+			if (ImGui::Button(text("Confirm submission")) && pendingContestSubmission_) {
+				actions.contestSubmissionCommand = *pendingContestSubmission_;
+				pendingContestSubmission_.reset();
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(text("Cancel"))) {
+				pendingContestSubmission_.reset();
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+		}
+		if (ImGui::TreeNode(text("Contest submission results"))) {
+			const auto& season = playtest.contestSeason;
+			ImGui::TextUnformatted(text(!season.valid ? "Invalid contest summary" :
+				season.finalized ? "Final contest summary" : "Contest season in progress"));
+			if (season.valid) ImGui::Text(text("Submitted %d / missed %d / total %d points"),
+				season.submitted, season.missed, season.totalPoints);
+			ImGui::Text(text("Provisional contest rating: %s"), FarmContestRatingText(season.rating));
+			if (season.nextRating != FarmContestRating::Unrated)
+				ImGui::Text(text("Next rating %s: %d points needed"), FarmContestRatingText(season.nextRating), season.pointsToNextRating);
+			ImGui::TextWrapped("%s", text("Rating uses final submitted results only; no entry or unfinished season is unrated. No prize payout."));
+			for (const auto& threshold : kFarmContestRatingV1)
+				ImGui::Text("%s >= %d / 300", FarmContestRatingText(threshold.rating), threshold.points);
+			for (std::size_t i = 0; i < playtest.contestResults.size(); ++i) {
+				const auto& result = playtest.contestResults[i];
+				if (!season.valid || season.events[i] != FarmContestEventStatus::Submitted) {
+					const char* status = "Invalid contest summary";
+					switch (season.events[i]) {
+					case FarmContestEventStatus::Upcoming: status = "Contest upcoming"; break;
+					case FarmContestEventStatus::Open: status = "Contest accepting entries"; break;
+					case FarmContestEventStatus::Missed: status = "Contest missed"; break;
+					default: break;
+					}
+					ImGui::Text("%d: %s", FarmContestEntrySystem::kContestDays[i], text(status));
+				}
+				else ImGui::Text(text("Day %d: quality %d + size %d = %d points"), result.contestDay,
+					result.qualityPoints, result.sizePoints, result.qualityPoints + result.sizePoints);
+			}
+			ImGui::TreePop();
+		}
+		if (ImGui::BeginTable("HarvestRecords", 8, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg |
+			ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX | ImGuiTableFlags_SizingFixedFit, ImVec2(0, 180))) {
+			for (const char* heading : {"Crop", "Harvested", "Recorded size", "Quality score", "Unit price", "Sale protection", "Contest reservation", "Harvest day"})
+				ImGui::TableSetupColumn(text(heading));
+			ImGui::TableSetupScrollFreeze(0, 1);
+			ImGui::TableHeadersRow();
+			ImGuiListClipper clipper;
+			clipper.Begin(static_cast<int>((std::min)(playtest.harvestRecordCount, playtest.harvestRecords.size())));
+			while (clipper.Step()) for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+				const auto& record = playtest.harvestRecords[i];
+				ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0);
+				ImGui::TextUnformatted(text(farm::ToString(record.quality.crop)));
+				ImGui::TableSetColumnIndex(1); ImGui::Text("%d", record.quantity);
+				ImGui::TableSetColumnIndex(2);
+				if (record.quality.harvestSize.known) ImGui::Text("%.2fx", record.quality.harvestSize.multiplier);
+				else ImGui::TextUnformatted("--");
+				ImGui::TableSetColumnIndex(3); ImGui::Text("%d", record.quality.score);
+				ImGui::TableSetColumnIndex(4); ImGui::Text("%dG", record.quality.salePrice);
+				ImGui::TableSetColumnIndex(5);
+				ImGui::PushID(record.id);
+				bool protect = record.saleProtected;
+				const bool reserved = record.id == playtest.contestReservationId;
+				ImGui::BeginDisabled(!playtest.canChangeHarvestProtection || reserved);
+				if (ImGui::Checkbox("##Protected", &protect)) {
+					editor::GamePlayEditorCommand command;
+					command.type = editor::GamePlayEditorCommandType::SetHarvestProtection;
+					command.farmGeneration = viewModel.farmGeneration;
+					command.harvestRecordId = record.id; command.inventoryGeneration = playtest.inventoryGeneration;
+					command.harvestProtected = protect;
+					actions.harvestProtectionCommand = command;
+				}
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("ID %d | %s", record.id,
+					text("Protection excludes sales; changing it commits earlier edit history."));
+				ImGui::EndDisabled();
+				ImGui::TableSetColumnIndex(6);
+				ImGui::BeginDisabled(!playtest.canChangeHarvestProtection || (!reserved && !playtest.contestEligible[i]));
+				bool selected = reserved;
+				if (ImGui::Checkbox("##ContestReservation", &selected)) {
+					editor::GamePlayEditorCommand command;
+					command.type = selected ? editor::GamePlayEditorCommandType::ReserveContestHarvest
+						: editor::GamePlayEditorCommandType::CancelContestReservation;
+					command.farmGeneration = viewModel.farmGeneration;
+					command.harvestRecordId = record.id; command.inventoryGeneration = playtest.inventoryGeneration;
+					actions.contestReservationCommand = command;
+				}
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("ID %d", record.id);
+				ImGui::EndDisabled();
+				ImGui::TableSetColumnIndex(7);
+				if (record.harvestedDay > 0) ImGui::Text("%d", record.harvestedDay);
+				else ImGui::TextUnformatted(text("Harvest day unknown"));
+				ImGui::PopID();
+			}
+			ImGui::EndTable();
+		}
+	}
+	if (!playtest.cleared && !seasonMode) {
 		if (playtest.requiredCropCount >= 0) {
 			ImGui::Text(text("Goal: %dG left / %d crop(s) needed"),
 				playtest.remainingMoney, playtest.requiredCropCount);
@@ -653,6 +850,10 @@ FarmControllerActions FarmControllerWindow::Draw(
 			viewModel.irrigationPreviewOperation ==
 				farm::FarmIrrigationPreviewOperation::LowerTerrain;
 		if (canalPathPreview) {
+			if (viewModel.irrigationPreviewCanConfirm &&
+				viewModel.irrigationPathIssue != farm::FarmCanalPathIssue::None) {
+				ImGui::TextWrapped("%s", text("Only the displayed candidates will be confirmed; the rejected segment is excluded."));
+			}
 			ImGui::TextColored(
 				ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
 				text(canalRemovalPreview ? "Canal removal: %d tiles" : "Canal path: %d tiles"),
@@ -661,6 +862,8 @@ FarmControllerActions FarmControllerWindow::Draw(
 				"%s",
 				text("Release the mouse, inspect the result, then confirm"));
 		} else if (terrainPreview) {
+			ImGui::Text(text("Height candidates: %d tiles"), viewModel.irrigationPreviewChangeCount);
+			ImGui::TextWrapped("%s", text("Drag to add height candidates; each tile changes once before confirmation."));
 			ImGui::TextColored(
 				ImVec4(1.0f, 0.76f, 0.18f, 1.0f),
 				text("Tile #%d: H%d -> H%d"),
@@ -933,6 +1136,11 @@ FarmControllerActions FarmControllerWindow::Draw(
 		ImGui::TextDisabled("%s", text("Last Harvest Result"));
 	}
 	if (quality != nullptr) {
+		if (quality->harvestSize.known && quality->harvestSize.IsConsistent())
+			ImGui::Text(text(harvestedQuality ? "Harvest size: %.2fx baseline" : "Harvest size forecast: %.2fx baseline"),
+				quality->harvestSize.multiplier);
+		else ImGui::TextDisabled("%s", text("Size unknown: no recorded care/size data."));
+		ImGui::TextWrapped("%s", text("Size uses recorded water and nutrient care. Baseline 1x; forecast may change. Not current model scale."));
 		DrawQualityRadar(*quality, language);
 		if (qualityAdvice != nullptr) {
 			ImGui::TextWrapped("%s", text(GetQualityHint(qualityAdvice->focus, harvestedQuality)));

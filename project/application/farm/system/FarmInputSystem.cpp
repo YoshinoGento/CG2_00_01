@@ -109,7 +109,7 @@ FarmInputResult FarmInputSystem::Update(
 
 	if (input.TriggerKey(InputKey::Enter)) {
 		result.toolAction = actionSystem.ApplyToolDetailed(
-			grid, toolSystem.GetCurrentTool(), selectedCrop, economySystem);
+			grid, toolSystem.GetCurrentTool(), selectedCrop, economySystem, context.currentDay);
 		result.contentChanged |= result.toolAction.Succeeded();
 	}
 	result.buySeedRequested = input.TriggerKey(InputKey::B);

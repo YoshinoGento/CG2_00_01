@@ -5,7 +5,8 @@
 
 namespace farmui {
 inline void BuildFieldActionView(View& view, const FarmToolActionResult& evaluation,
-    bool paused, bool cleared, FarmHUDNextAction nextAction = FarmHUDNextAction::SelectTile) {
+    bool paused, bool cleared, FarmHUDNextAction nextAction = FarmHUDNextAction::SelectTile,
+    bool contestSeason = false) {
     view.fieldActions = true;
     Label action = Label::ApplyHoe;
     switch (evaluation.tool) {
@@ -22,16 +23,17 @@ inline void BuildFieldActionView(View& view, const FarmToolActionResult& evaluat
     case FarmToolActionStatus::InvalidTarget: reason = Label::ActionNoTile; break;
     case FarmToolActionStatus::AlreadyWatered: reason = Label::ActionWaterFull; break;
     case FarmToolActionStatus::NoSeed: reason = Label::ActionNoSeed; break;
+    case FarmToolActionStatus::InventoryFull: reason = Label::HarvestFull; break;
     case FarmToolActionStatus::NotReady: reason = Label::ActionGrowing; break;
     default: reason = Label::ActionOtherTool; break;
     }
-    if (paused) reason = Label::Paused;
-    if (cleared) reason = Label::ClearLocked;
-    const bool shop = !paused && !cleared && evaluation.status == FarmToolActionStatus::NoSeed;
+    if (paused && evaluation.Succeeded()) reason = Label::Paused;
+    if (cleared) reason = contestSeason ? Label::SeasonEnded : Label::ClearLocked;
+    const bool shop = !cleared && evaluation.status == FarmToolActionStatus::NoSeed;
     Request request{shop ? Action::OpenSeedShop : Action::ApplyTool};
-    bool enabled = !paused && !cleared && (evaluation.Succeeded() || shop);
+    bool enabled = !cleared && (evaluation.Succeeded() || shop);
     if (shop) action = Label::OpenSeedShop;
-    if (!paused && !cleared && !evaluation.Succeeded() &&
+    if (!cleared && !evaluation.Succeeded() &&
         (evaluation.status == FarmToolActionStatus::InvalidState || evaluation.status == FarmToolActionStatus::NotReady ||
          evaluation.status == FarmToolActionStatus::AlreadyWatered)) {
         int toolIndex = -1;

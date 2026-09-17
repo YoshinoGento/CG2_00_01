@@ -476,12 +476,13 @@ void GamePlayScene::Initialize() {
 	farmToolActionSystem_.Initialize();
 	farmCropSelectionSystem_.Initialize();
 	farmFeedbackSystem_.Initialize();
-	farmProgressionSystem_.Initialize();
+	farmHarvestVisualSystem_.Clear();
+	farmProgressionSystem_.Initialize({}, FarmProgressionMode::ContestSeason);
 	farmVisualSystem_.Initialize(kFarmVisualLayout);
 	farmIrrigationSystem_.Rebuild(farmGrid_);
 	if (!farmDocumentSystem_.Initialize(
 		kFarmDocumentDirectory, farmGrid_, farmEconomySystem_,
-		farmCropSelectionSystem_)) {
+		farmCropSelectionSystem_, &farmDateSystem_, &farmProgressionSystem_)) {
 		AddLog("Farm document initialization failed: " + farmDocumentSystem_.GetStatusMessage());
 	} else {
 		static_cast<void>(
@@ -651,6 +652,9 @@ void GamePlayScene::EmitCylinderEffect(const Vector3& position) {
 }
 
 void GamePlayScene::Update() {
+	static_cast<void>(farmProgressionSystem_.EvaluateSeason(FarmContestSeasonSystem::Evaluate(
+		farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults())));
+	farmContestDaySystem_.Observe(farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults());
 	UpdateSceneDeltaTime();
     if (layoutLibraryFrame_) return;
 
@@ -708,6 +712,14 @@ void GamePlayScene::Update() {
 	farmGrowthComparisonSystem_.ObserveBeforeStep(farmGrid_);
 	if (farmProgressionSystem_.IsCleared()) farmGrowthComparisonSystem_.Stop();
 	farmFeedbackSystem_.Update(realDeltaTime_);
+	const bool harvestPaused = farmContestDaySystem_.PendingDay() || timelineScrubbing_ || layoutLibraryFrame_ ||
+		farmIrrigationPreviewSystem_.IsActive() || sceneDeltaTime_ <= 0.0f
+#ifndef USE_IMGUI
+		|| farmRuntimeController_.BlocksSimulation()
+#endif
+		;
+	if (timelineScrubbing_) farmHarvestVisualSystem_.Clear();
+	farmHarvestVisualSystem_.Update(farmGrid_, harvestPaused ? 0.0f : realDeltaTime_);
 	if (farmHudInitialized_) {
 		farmHud_.SetViewData(BuildFarmHUDViewData());
 		farmHud_.Update(sceneDeltaTime_);
@@ -814,6 +826,8 @@ void GamePlayScene::Update() {
 }
 
 void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
+    farmContestDaySystem_.Observe(farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults());
+    if (farmContestDaySystem_.PendingDay()) return;
     if (layoutLibraryFrame_) return;
 #ifndef USE_IMGUI
 	if (farmRuntimeController_.BlocksSimulation()) return;
@@ -844,7 +858,11 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 			farmDocumentSystem_.MarkDirty();
 		}
 		farmGrowthComparisonSystem_.ObserveAfterStep(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale());
-		farmDateSystem_.Update(fixedDeltaTime);
+		farmContestDaySystem_.Advance(farmDateSystem_, fixedDeltaTime, farmEconomySystem_.GetContestResults(),
+			farmProgressionSystem_.IsContestSeason() ? FarmContestEntrySystem::kContestDays.back() + 1 : 0);
+		static_cast<void>(farmProgressionSystem_.EvaluateSeason(FarmContestSeasonSystem::Evaluate(
+			farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults())));
+		if (!farmDocumentSystem_.IsDirty()) farmDocumentSystem_.MarkDirty();
 	}
 	const auto groundQuery = BuildPlayerGroundQuery();
 	levelGameplay_.UpdatePlayer(pendingPlayerCommand_, fixedDeltaTime, &groundQuery);
@@ -1572,7 +1590,7 @@ void GamePlayScene::Draw() {
 	const farm::FarmGrid& displayedFarmGrid = irrigationPreviewActive ? *previewGrid : farmGrid_;
 	const farm::FarmIrrigationSystem& displayedIrrigation = irrigationPreviewActive ? *previewIrrigation : farmIrrigationSystem_;
 	farmRenderer_.Prepare(displayedFarmGrid, farmVisualSystem_, camera_.get(),
-		farmRuntimeController_.ResolveHoveredTile(*this));
+		farmRuntimeController_.ResolveHoveredTile(*this), irrigationPreviewActive ? nullptr : &farmHarvestVisualSystem_);
 
 	auto DrawLevelObjects = [&]() {
 		if (!showLevelObjects_) {
@@ -1634,7 +1652,8 @@ void GamePlayScene::Draw() {
 		irrigationPreviewActive
 			? &farmIrrigationPreviewSystem_.GetChangedTileIndices()
 			: nullptr,
-		!farmGameMode_ || !farmRenderer_.IsReady());
+		!farmGameMode_ || !farmRenderer_.IsReady(),
+		!farmRenderer_.IsReady() || !farmRenderer_.IsVisible() || !farmRenderer_.HasCropMeshes() || farmRenderer_.IsLimitExceeded());
 
 	if (gpuParticleDebugMode_ == GPUParticleDebugMode::Interaction &&
 		interactionBrushOperation_ != InteractionBrushOperation::None) {
@@ -1785,8 +1804,9 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 		farmEconomySystem_.GetSellPrice(viewData.selectedSeedCrop));
 	viewData.cropsNeeded = (std::max)(cropsNeeded, 0);
 	viewData.goalMoney = farmProgressionSystem_.GetTargetMoney();
-	viewData.goalProgress = farmProgressionSystem_.GetProgress(farmEconomySystem_.GetMoney());
+	viewData.goalProgress = farmProgressionSystem_.GetProgress(farmEconomySystem_.GetMoney(), farmDateSystem_.GetDay());
 	viewData.goalCleared = farmProgressionSystem_.IsCleared();
+	viewData.contestSeason = farmProgressionSystem_.IsContestSeason();
 	const SelectedTileHUDData selectedTileData = BuildSelectedTileHUDData(
 		displayedFarmGrid, displayedIrrigation, farmGrowthSystem_,
 		farmDateSystem_.GetTimeScale(),
@@ -1828,6 +1848,7 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 }
 
 void GamePlayScene::HandleFarmDateDebugInput() {
+	if (farmContestDaySystem_.PendingDay()) return;
 	Input* input = framework_ ? framework_->GetInput() : nullptr;
 	if (!input) {
 		return;
@@ -1844,9 +1865,11 @@ void GamePlayScene::HandleFarmDateDebugInput() {
 
 	if (input->TriggerKey(InputKey::T)) {
 		farmDateSystem_.CycleTimeScale();
+		farmDocumentSystem_.MarkDirty();
 	}
 	if (input->TriggerKey(InputKey::Y)) {
 		farmDateSystem_.AdvanceOneDay();
+		farmDocumentSystem_.MarkDirty();
 	}
 }
 
@@ -1863,6 +1886,7 @@ bool GamePlayScene::HandleFarmInput() {
 		return false;
 	}
 	FarmInputContext context{};
+	context.currentDay = farmDateSystem_.GetDay();
 	context.keyboardEnabled = viewportFocused_ &&
 		!ImGuiManager::GetInstance()->WantsTextInput();
 	context.cameraDragActive = viewportHovered_ &&
@@ -1952,7 +1976,7 @@ bool GamePlayScene::HandleFarmInput() {
 		if (quickApply) {
 			const FarmToolActionResult actionResult = farmToolActionSystem_.ApplyToolDetailed(
 				farmGrid_, farmToolSystem_.GetCurrentTool(),
-				farmCropSelectionSystem_.GetSelectedCrop(), farmEconomySystem_);
+				farmCropSelectionSystem_.GetSelectedCrop(), farmEconomySystem_, farmDateSystem_.GetDay());
 			if (actionResult.Succeeded()) {
 				farmDocumentSystem_.MarkDirty();
 			}
@@ -1966,6 +1990,7 @@ bool GamePlayScene::HandleFarmInput() {
 void GamePlayScene::RouteFarmToolFeedback(const FarmToolActionResult& result)
 {
 	if (result.status == FarmToolActionStatus::Harvested) {
+		farmHarvestVisualSystem_.Start(result, farmGrid_, farmVisualSystem_);
 		farmFeedbackSystem_.ShowHarvest(
 			result.harvestQuality.crop, 1, result.harvestQuality.score,
 			result.harvestQuality.salePrice);
@@ -2007,6 +2032,8 @@ void GamePlayScene::RouteFarmSale(const FarmSaleResult& result)
 
 void GamePlayScene::ResetFarmSession()
 {
+	const auto mode = farmProgressionSystem_.GetMode();
+	farmContestDaySystem_.Reset();
 	if (!farmGrid_.Initialize(5, 4)) {
 		AddLog("Farm restart failed: invalid grid dimensions.");
 		return;
@@ -2018,8 +2045,9 @@ void GamePlayScene::ResetFarmSession()
 	farmIrrigationSystem_.Initialize();
 	farmToolActionSystem_.Initialize();
 	farmCropSelectionSystem_.Initialize();
-	farmProgressionSystem_.Initialize();
+	farmProgressionSystem_.Initialize({}, mode);
 	farmFeedbackSystem_.Initialize(false);
+	farmHarvestVisualSystem_.Clear();
 	farmIrrigationSystem_.Rebuild(farmGrid_);
 	farmDocumentSystem_.MarkDirty();
 	if (farmRestartCount_ < (std::numeric_limits<std::uint32_t>::max)()) {
@@ -2186,6 +2214,7 @@ void GamePlayScene::HandleFarmHistoryInput() {
 		changed = farmToolActionSystem_.Redo();
 	}
 	if (changed) {
+		farmHarvestVisualSystem_.Clear();
 		farmIrrigationPreviewSystem_.Cancel();
 		farmIrrigationSystem_.Rebuild(farmGrid_);
 		farmDocumentSystem_.MarkDirty();

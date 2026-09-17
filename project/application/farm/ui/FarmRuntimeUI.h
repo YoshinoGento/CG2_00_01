@@ -4,6 +4,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <string>
 
 namespace farmui {
@@ -13,9 +14,11 @@ enum class Action {
     Save, SaveCopy, Load, Previous, Next, Restart, Accept,
     PinA, PinB, Start, Stop, Clear, Pause, Speed, Follow, Overview, Exit, LayoutLibrary,
     ObserveField, ObserveExit, PickSlot, JumpSlot, FlowContinue, FlowRecords,
-    ApplyTool, OpenSeedShop, BuyAndReturn, SoilCare, Compost, Quality, TerrainField, TerrainExit
+    ApplyTool, OpenSeedShop, BuyAndReturn, SoilCare, Compost, Quality, TerrainField, TerrainExit,
+    HarvestInventory, HarvestPage, ProtectHarvest, UnprotectHarvest, ReserveContestHarvest, CancelContestReservation,
+    ContestPreview, SubmitContest, ContestResults, ContestDayReview, ContestDayPrepare, ContestDayResume, ChangePlayMode
 };
-struct Request { Action action = Action::None; int argument = 0; };
+struct Request { Action action = Action::None; int argument = 0; std::uint64_t inventoryGeneration = 0; };
 struct Rect {
     float x = 0, y = 0, width = 0, height = 0;
     [[nodiscard]] bool Contains(Vector2 p) const noexcept {
@@ -36,8 +39,15 @@ struct QualityRadar {
     bool visible = false;
     std::array<float, 4> values{};
     std::array<bool, 4> known{};
-    inline static constexpr Vector2 center{366, 340};
-    inline static constexpr float radius = 110;
+    inline static constexpr Vector2 center{366, 312};
+    inline static constexpr float radius = 90;
+    // Include the complete glyph rectangle when reserving space around the diagram.
+    inline static constexpr std::array<Rect, 4> axisLabels{{
+        {center.x-12, center.y-radius-40, 24, 36},
+        {center.x+radius+12, center.y-18, 24, 36},
+        {center.x-12, center.y+radius+4, 24, 36},
+        {center.x-radius-36, center.y-18, 24, 36}
+    }};
     inline static constexpr std::array<Vector2, 4> directions{{{0,-1}, {1,0}, {0,1}, {-1,0}}};
     [[nodiscard]] static Vector2 Point(std::size_t axis, float value) noexcept {
         if (axis >= directions.size() || !std::isfinite(value)) return center;
@@ -53,7 +63,9 @@ struct View {
     bool observation = false;
     bool terrain = false;
     bool fieldActions = false;
+    bool feedback = false;
     QualityRadar radar{};
+    inline static constexpr Rect kFeedbackPanel{352, 82, 504, 92};
     inline static constexpr Rect kFieldActionsPanel{1040, 532, 216, 112};
     inline static constexpr Rect kObservationTop{16, 16, 1248, 52};
     inline static constexpr Rect kObservationBottom{16, 408, 1248, 280};
@@ -76,7 +88,8 @@ struct View {
     [[nodiscard]] bool Covers(Vector2 point) const noexcept {
         if (modal || (observation && (kObservationTop.Contains(point) || kObservationBottom.Contains(point))) ||
             (terrain && (kTerrainTop.Contains(point) || kTerrainBottom.Contains(point))) ||
-            (fieldActions && kFieldActionsPanel.Contains(point))) return true;
+            (fieldActions && kFieldActionsPanel.Contains(point)) ||
+            (feedback && kFeedbackPanel.Contains(point))) return true;
         // Disabled controls and labels still own their screen area.
         for (std::size_t i = 0; i < count && i < items.size(); ++i)
             if (items[i].rect.Contains(point)) return true;

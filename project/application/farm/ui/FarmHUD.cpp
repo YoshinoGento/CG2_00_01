@@ -1,4 +1,6 @@
 #include "farm/ui/FarmHUD.h"
+#include "farm/ui/FarmRuntimeUI.h"
+#include "farm/system/FarmContestEntrySystem.h"
 
 #include "2d/SpriteCommon.h"
 #include "base/Logger.h"
@@ -22,8 +24,9 @@ constexpr Vector2 kSelectedPanelSize{ 350.0f, 176.0f };
 constexpr Vector2 kToolPanelPosition{ 390.0f, 548.0f };
 constexpr Vector2 kToolPanelSize{ 628.0f, 148.0f };
 // Leave the center for StageClearHUD (title/retry), and keep the bottom tools clear.
-constexpr Vector2 kFeedbackPanelPosition{ 352.0f, 414.0f };
-constexpr Vector2 kFeedbackPanelSize{ 576.0f, 92.0f };
+// Keep harvest feedback above the field and between the date/economy panels.
+constexpr Vector2 kFeedbackPanelPosition{ farmui::View::kFeedbackPanel.x, farmui::View::kFeedbackPanel.y };
+constexpr Vector2 kFeedbackPanelSize{ farmui::View::kFeedbackPanel.width, farmui::View::kFeedbackPanel.height };
 constexpr float kFeedbackPadding = 16.0f;
 constexpr float kFeedbackMetricsScale = 0.90f;
 constexpr Vector2 kGoalTrackPosition{ 900.0f, 136.0f };
@@ -639,6 +642,7 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 	const bool timeScaleChanged = !IsSameFloat(viewData_.timeScale, sanitized.timeScale);
 	const bool toolChanged = viewData_.currentToolIndex != sanitized.currentToolIndex;
 	const bool goalChanged = viewData_.money != sanitized.money ||
+		viewData_.contestSeason != sanitized.contestSeason || viewData_.day != sanitized.day ||
 		viewData_.goalMoney != sanitized.goalMoney ||
 		viewData_.cropsNeeded != sanitized.cropsNeeded ||
 		viewData_.goalCleared != sanitized.goalCleared ||
@@ -776,7 +780,10 @@ void FarmHUD::Draw() {
 	goalBarTrack_.Draw();
 	if (viewData_.goalProgress > 0.0f) goalBarFill_.Draw();
 	for (Sprite& panel : toolSlotPanels_) panel.Draw();
-	for (Sprite& label : localizedLabels_) label.Draw();
+	for (std::size_t i=0; i<localizedLabels_.size(); ++i) {
+		if (viewData_.contestSeason && (i==kNeedLabel || i==kNeedSuffixLabel)) continue;
+		localizedLabels_[i].Draw();
+	}
 	for (Sprite& label : localizedToolSlotLabels_) label.Draw();
 	localizedCurrentTool_.Draw();
 	localizedTileState_.Draw();
@@ -952,6 +959,12 @@ void FarmHUD::UpdateTimeScaleText() {
 }
 
 void FarmHUD::UpdateGoalText() {
+	if (viewData_.contestSeason) {
+		const int finalDay = FarmContestEntrySystem::kContestDays.back();
+		goalText_.SetText("DAY " + std::to_string((std::min)(viewData_.day, finalDay)) + " / " + std::to_string(finalDay));
+		goalNeedText_.SetText("");
+		return;
+	}
 	if (viewData_.goalCleared) {
 		goalText_.SetText(std::to_string(viewData_.goalMoney) + "G");
 		goalNeedText_.SetText("0");

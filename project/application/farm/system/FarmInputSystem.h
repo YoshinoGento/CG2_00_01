@@ -14,6 +14,7 @@ struct FarmInputContext {
 	bool keyboardEnabled = true;
 	bool cameraDragActive = false;
 	bool directToolSelectionEnabled = true;
+	int currentDay = 0;
 };
 
 struct FarmInputResult {

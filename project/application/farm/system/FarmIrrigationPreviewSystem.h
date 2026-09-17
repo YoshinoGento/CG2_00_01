@@ -37,6 +37,8 @@ public:
 		const FarmGrid& sourceGrid,
 		int tileIndex);
 	[[nodiscard]] bool VisitCanalPathTile(const FarmGrid& sourceGrid, int tileIndex);
+	[[nodiscard]] bool VisitTerrainTile(const FarmGrid& sourceGrid, int tileIndex);
+	void EndTerrainStroke() noexcept { lastTerrainTileIndex_ = -1; }
 	[[nodiscard]] FarmCanalPathIssue GetPathIssue() const noexcept { return pathIssue_; }
 	[[nodiscard]] int GetBlockedTileIndex() const noexcept { return blockedTileIndex_; }
 	void Cancel() noexcept;
@@ -89,6 +91,7 @@ private:
 	bool active_ = false;
 	FarmCanalPathIssue pathIssue_ = FarmCanalPathIssue::None;
 	int blockedTileIndex_ = -1;
+	int lastTerrainTileIndex_ = -1;
 };
 
 } // namespace farm

@@ -2,6 +2,8 @@
 
 #include "farm/system/FarmCropSelectionSystem.h"
 #include "farm/system/FarmEconomySystem.h"
+#include "farm/system/FarmDateSystem.h"
+#include "farm/system/FarmProgressionSystem.h"
 
 #include <string>
 #include <vector>
@@ -32,7 +34,8 @@ public:
 	bool Initialize(
 		const std::string& directoryPath, farm::FarmGrid& grid,
 		FarmEconomySystem& economySystem,
-		FarmCropSelectionSystem& cropSelectionSystem);
+		FarmCropSelectionSystem& cropSelectionSystem, FarmDateSystem* dateSystem = nullptr,
+		FarmProgressionSystem* progressionSystem = nullptr);
 	bool Save(
 		const farm::FarmGrid& grid, const FarmEconomySystem& economySystem,
 		const FarmCropSelectionSystem& cropSelectionSystem);
@@ -63,6 +66,13 @@ public:
 	[[nodiscard]] const std::vector<FarmDocumentEntry>& GetDocuments() const noexcept { return documents_; }
 
 private:
+	FarmProgressionSystem& Progression() noexcept { return progressionSystem_ ? *progressionSystem_ : fallbackProgression_; }
+	FarmProgressionSystem fallbackProgression_{};
+	FarmProgressionSystem* progressionSystem_ = nullptr; // Borrowed, same lifetime requirement as the clock.
+	FarmProgressionMode defaultMode_ = FarmProgressionMode::Trial;
+	FarmDateSystem& Date() noexcept { return dateSystem_ ? *dateSystem_ : fallbackDateSystem_; }
+	FarmDateSystem fallbackDateSystem_{};
+	FarmDateSystem* dateSystem_ = nullptr; // Borrowed: must outlive all document operations.
 	bool RefreshDocumentList();
 	bool WriteCatalog();
 	bool LoadCatalog(std::string& activeDocumentId) const;

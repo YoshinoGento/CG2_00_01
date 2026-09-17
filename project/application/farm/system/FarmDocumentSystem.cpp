@@ -15,6 +15,7 @@
 #include <exception>
 #include <filesystem>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -22,7 +23,7 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 7;
+constexpr int kSchemaVersion = 14;
 constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
@@ -269,6 +270,22 @@ std::string GenerateDocumentId(const std::string& saveDirectoryPath) {
 	return {};
 }
 
+nlohmann::json BuildQualityJson(const FarmCropQualityResult& quality) {
+	return {
+			{ "crop", farm::ToString(quality.crop) },
+			{ "maturity", quality.maturity },
+			{ "waterBalance", quality.waterBalance },
+			{ "terrainFit", quality.terrainFit },
+			{ "nutrientBalance", quality.nutrientBalance },
+			{ "nutrientKnown", quality.nutrientKnown },
+			{ "sizeMultiplier", quality.harvestSize.multiplier },
+			{ "sizeKnown", quality.harvestSize.known },
+			{ "score", quality.score },
+			{ "basePrice", quality.basePrice },
+			{ "salePrice", quality.salePrice },
+		};
+}
+
 nlohmann::json BuildJson(
 	const farm::FarmGrid::Snapshot& snapshot,
 	const FarmEconomySystem::Snapshot& economySnapshot,
@@ -315,22 +332,25 @@ nlohmann::json BuildJson(
 		{ "cropCounts", economySnapshot.cropCounts },
 		{ "cropValues", economySnapshot.cropValues },
 		{ "seedCounts", economySnapshot.seedCounts },
+		{ "nextHarvestRecordId", economySnapshot.nextHarvestRecordId },
+		{ "contestReservationId", economySnapshot.contestReservationId },
 	};
-	if (economySnapshot.lastHarvestQuality.crop == farm::CropType::None) {
-		document["economy"]["lastHarvestQuality"] = nullptr;
-	} else {
-		const FarmCropQualityResult& quality = economySnapshot.lastHarvestQuality;
-		document["economy"]["lastHarvestQuality"] = {
-			{ "crop", farm::ToString(quality.crop) },
-			{ "maturity", quality.maturity },
-			{ "waterBalance", quality.waterBalance },
-			{ "terrainFit", quality.terrainFit },
-			{ "nutrientBalance", quality.nutrientBalance },
-			{ "nutrientKnown", quality.nutrientKnown },
-			{ "score", quality.score },
-			{ "basePrice", quality.basePrice },
-			{ "salePrice", quality.salePrice },
-		};
+	document["economy"]["lastHarvestQuality"] = economySnapshot.lastHarvestQuality.crop == farm::CropType::None
+		? nlohmann::json(nullptr) : BuildQualityJson(economySnapshot.lastHarvestQuality);
+	auto& records = document["economy"]["harvestRecords"] = nlohmann::json::array();
+	for (std::size_t i = 0; i < economySnapshot.harvestRecordCount; ++i) {
+		const auto& record = economySnapshot.harvestRecords[i];
+		records.push_back({{"quantity", record.quantity}, {"quality", BuildQualityJson(record.quality)},
+			{"id", record.id}, {"saleProtected", record.saleProtected}, {"harvestedDay", record.harvestedDay}});
+	}
+
+	auto& submissions = document["economy"]["contestResults"] = nlohmann::json::array();
+	for (const auto& result : economySnapshot.contestResults) {
+		if (result.contestDay == 0) continue;
+		submissions.push_back({{"contestDay", result.contestDay}, {"rulesVersion", 1},
+			{"recordId", result.harvest.id}, {"harvestedDay", result.harvest.harvestedDay},
+			{"quality", BuildQualityJson(result.harvest.quality)},
+			{"qualityPoints", result.qualityPoints}, {"sizePoints", result.sizePoints}});
 	}
 	document["cropSelection"] = {
 		{ "crop", farm::ToString(cropSelectionSnapshot.selectedCrop) },
@@ -518,6 +538,66 @@ bool ParseNonNegativeIntArray(
 	return true;
 }
 
+bool ReadNonNegativeInt(const nlohmann::json& value, int& output) {
+	if (!value.is_number_integer() || value < 0 || value > (std::numeric_limits<int>::max)()) return false;
+	output = value.get<int>();
+	return true;
+}
+
+bool ParseQualityJson(const nlohmann::json& qualityJson, int schemaVersion,
+	FarmCropQualityResult& output, std::string& error) {
+	if (!qualityJson.is_object() ||
+		!qualityJson.contains("crop") || !qualityJson["crop"].is_string() ||
+		!qualityJson.contains("maturity") || !qualityJson["maturity"].is_number() ||
+		!qualityJson.contains("waterBalance") || !qualityJson["waterBalance"].is_number() ||
+		!qualityJson.contains("terrainFit") || !qualityJson["terrainFit"].is_number() ||
+		!qualityJson.contains("score") || !qualityJson["score"].is_number_integer() ||
+		!qualityJson.contains("basePrice") || !qualityJson["basePrice"].is_number_integer() ||
+		!qualityJson.contains("salePrice") || !qualityJson["salePrice"].is_number_integer()) {
+		error = "Farm last-harvest quality has invalid fields.";
+		return false;
+	}
+	FarmCropQualityResult quality;
+	quality.maturity = qualityJson["maturity"].get<float>();
+	quality.waterBalance = qualityJson["waterBalance"].get<float>();
+	quality.terrainFit = qualityJson["terrainFit"].get<float>();
+	if (schemaVersion >= 7) {
+		if (!qualityJson.contains("nutrientBalance") || !qualityJson["nutrientBalance"].is_number() ||
+			!qualityJson.contains("nutrientKnown") || !qualityJson["nutrientKnown"].is_boolean()) {
+			error = "Missing or invalid nutrient quality.";
+			return false;
+		}
+		quality.nutrientBalance = qualityJson["nutrientBalance"].get<float>();
+		quality.nutrientKnown = qualityJson["nutrientKnown"].get<bool>();
+	}
+	if (!ReadNonNegativeInt(qualityJson["score"], quality.score) ||
+		!ReadNonNegativeInt(qualityJson["basePrice"], quality.basePrice) ||
+		!ReadNonNegativeInt(qualityJson["salePrice"], quality.salePrice)) {
+		error = "Quality integer fields are outside the supported range."; return false;
+	}
+	if (schemaVersion >= 8) {
+		if (!qualityJson.contains("sizeMultiplier") || !qualityJson["sizeMultiplier"].is_number() ||
+			!qualityJson.contains("sizeKnown") || !qualityJson["sizeKnown"].is_boolean()) {
+			error = "Missing or invalid crop size record.";
+			return false;
+		}
+		quality.harvestSize = {qualityJson["sizeMultiplier"].get<float>(), qualityJson["sizeKnown"].get<bool>()};
+	}
+	if (!TryParseCrop(qualityJson["crop"].get<std::string>(), quality.crop) ||
+		!quality.IsValid() || !std::isfinite(quality.maturity) ||
+		!std::isfinite(quality.nutrientBalance) || quality.nutrientBalance < 0.0f || quality.nutrientBalance > 1.0f ||
+		!std::isfinite(quality.waterBalance) || !std::isfinite(quality.terrainFit) ||
+		quality.maturity < 0.0f || quality.maturity > 1.0f ||
+		quality.waterBalance < 0.0f || quality.waterBalance > 1.0f ||
+		quality.terrainFit < 0.0f || quality.terrainFit > 1.0f ||
+		quality.score < 0 || quality.score > 100) {
+		error = "Farm last-harvest quality is outside the supported range.";
+		return false;
+	}
+	output = quality;
+	return true;
+}
+
 bool ParsePersistentState(
 	const nlohmann::json& document,
 	FarmEconomySystem::Snapshot& economySnapshot,
@@ -530,6 +610,7 @@ bool ParsePersistentState(
 			return false;
 		}
 		static_cast<void>(schemaVersion);
+		economySnapshot.contestResults = {};
 		if (schemaVersion == 1) {
 			return true;
 		}
@@ -572,45 +653,75 @@ bool ParsePersistentState(
 		}
 		const nlohmann::json& qualityJson = economyJson["lastHarvestQuality"];
 		if (!qualityJson.is_null()) {
-			if (!qualityJson.is_object() ||
-				!qualityJson.contains("crop") || !qualityJson["crop"].is_string() ||
-				!qualityJson.contains("maturity") || !qualityJson["maturity"].is_number() ||
-				!qualityJson.contains("waterBalance") || !qualityJson["waterBalance"].is_number() ||
-				!qualityJson.contains("terrainFit") || !qualityJson["terrainFit"].is_number() ||
-				!qualityJson.contains("score") || !qualityJson["score"].is_number_integer() ||
-				!qualityJson.contains("basePrice") || !qualityJson["basePrice"].is_number_integer() ||
-				!qualityJson.contains("salePrice") || !qualityJson["salePrice"].is_number_integer()) {
-				error = "Farm last-harvest quality has invalid fields.";
-				return false;
+			if (!ParseQualityJson(qualityJson, schemaVersion, economySnapshot.lastHarvestQuality, error)) return false;
+		}
+
+		economySnapshot.harvestRecords = {};
+		economySnapshot.harvestRecordCount = 0;
+		economySnapshot.nextHarvestRecordId = 1;
+		economySnapshot.contestReservationId = 0;
+		economySnapshot.contestResults = {};
+		if (schemaVersion >= 9) {
+			if (!economyJson.contains("harvestRecords") || !economyJson["harvestRecords"].is_array() ||
+				economyJson["harvestRecords"].size() > FarmEconomySystem::kMaxHarvestRecords) {
+				error = "Invalid or oversized harvest inventory."; return false;
 			}
-			FarmCropQualityResult quality;
-			quality.maturity = qualityJson["maturity"].get<float>();
-			quality.waterBalance = qualityJson["waterBalance"].get<float>();
-			quality.terrainFit = qualityJson["terrainFit"].get<float>();
-			if (schemaVersion >= 7) {
-				if (!qualityJson.contains("nutrientBalance") || !qualityJson["nutrientBalance"].is_number() ||
-					!qualityJson.contains("nutrientKnown") || !qualityJson["nutrientKnown"].is_boolean()) {
-					error = "Missing or invalid nutrient quality.";
-					return false;
+			for (const auto& json : economyJson["harvestRecords"]) {
+				if (!json.is_object() || !json.contains("quantity") || !json["quantity"].is_number_integer() ||
+					!json.contains("quality")) { error = "Invalid harvest record fields."; return false; }
+				auto& record = economySnapshot.harvestRecords[economySnapshot.harvestRecordCount++];
+				if (!ReadNonNegativeInt(json["quantity"], record.quantity)) {
+					error = "Harvest quantity is outside the supported range."; return false;
 				}
-				quality.nutrientBalance = qualityJson["nutrientBalance"].get<float>();
-				quality.nutrientKnown = qualityJson["nutrientKnown"].get<bool>();
+				if (!ParseQualityJson(json["quality"], schemaVersion, record.quality, error)) return false;
+				if (schemaVersion >= 12 && (!json.contains("harvestedDay") ||
+					!ReadNonNegativeInt(json["harvestedDay"], record.harvestedDay))) {
+					error = "Invalid harvest day."; return false;
+				}
+				if (schemaVersion >= 10) {
+					if (!json.contains("id") || !ReadNonNegativeInt(json["id"], record.id) ||
+						!json.contains("saleProtected") || !json["saleProtected"].is_boolean()) {
+						error = "Invalid harvest identity or sale protection."; return false;
+					}
+					record.saleProtected = json["saleProtected"].get<bool>();
+				} else {
+					record.id = economySnapshot.nextHarvestRecordId++;
+				}
 			}
-			quality.score = qualityJson["score"].get<int>();
-			quality.basePrice = qualityJson["basePrice"].get<int>();
-			quality.salePrice = qualityJson["salePrice"].get<int>();
-			if (!TryParseCrop(qualityJson["crop"].get<std::string>(), quality.crop) ||
-				!quality.IsValid() || !std::isfinite(quality.maturity) ||
-				!std::isfinite(quality.nutrientBalance) || quality.nutrientBalance < 0.0f || quality.nutrientBalance > 1.0f ||
-				!std::isfinite(quality.waterBalance) || !std::isfinite(quality.terrainFit) ||
-				quality.maturity < 0.0f || quality.maturity > 1.0f ||
-				quality.waterBalance < 0.0f || quality.waterBalance > 1.0f ||
-				quality.terrainFit < 0.0f || quality.terrainFit > 1.0f ||
-				quality.score < 0 || quality.score > 100) {
-				error = "Farm last-harvest quality is outside the supported range.";
-				return false;
+		}
+		if (schemaVersion >= 10 && (!economyJson.contains("nextHarvestRecordId") ||
+			!ReadNonNegativeInt(economyJson["nextHarvestRecordId"], economySnapshot.nextHarvestRecordId))) {
+			error = "Invalid next harvest identity."; return false;
+		}
+		if (schemaVersion >= 11 && (!economyJson.contains("contestReservationId") ||
+			!ReadNonNegativeInt(economyJson["contestReservationId"], economySnapshot.contestReservationId))) {
+			error = "Invalid contest reservation identity."; return false;
+		}
+		if (schemaVersion >= 13) {
+			if (!economyJson.contains("contestResults") || !economyJson["contestResults"].is_array() ||
+				economyJson["contestResults"].size() > economySnapshot.contestResults.size()) {
+				error = "Invalid contest results array."; return false;
 			}
-			economySnapshot.lastHarvestQuality = quality;
+			for (const auto& json : economyJson["contestResults"]) {
+				FarmEconomySystem::ContestResult result; int version = 0;
+				if (!json.is_object() || !json.contains("contestDay") || !ReadNonNegativeInt(json["contestDay"], result.contestDay) ||
+					(result.contestDay != 10 && result.contestDay != 20 && result.contestDay != 30) ||
+					!json.contains("rulesVersion") || !ReadNonNegativeInt(json["rulesVersion"], version) || version != 1 ||
+					!json.contains("recordId") || !ReadNonNegativeInt(json["recordId"], result.harvest.id) ||
+					!json.contains("harvestedDay") || !ReadNonNegativeInt(json["harvestedDay"], result.harvest.harvestedDay) ||
+					!json.contains("qualityPoints") || !ReadNonNegativeInt(json["qualityPoints"], result.qualityPoints) ||
+					!json.contains("sizePoints") || !ReadNonNegativeInt(json["sizePoints"], result.sizePoints) ||
+					!json.contains("quality") || !ParseQualityJson(json["quality"], schemaVersion, result.harvest.quality, error)) {
+					error = "Invalid contest result fields."; return false;
+				}
+				result.harvest.quantity = 1; result.harvest.saleProtected = true;
+				auto& slot = economySnapshot.contestResults[result.contestDay / 10 - 1];
+				if (slot.contestDay != 0) { error = "Duplicate contest result."; return false; }
+				slot = result;
+			}
+		}
+		if (!FarmEconomySystem::ValidateSnapshot(economySnapshot)) {
+			error = "Harvest records and inventory totals are inconsistent."; return false;
 		}
 
 		const nlohmann::json& selectionJson = document["cropSelection"];
@@ -665,6 +776,36 @@ bool ReplaceWithTemporaryFile(
 	return true;
 }
 
+bool ValidateHarvestDates(const FarmDateSystem::Snapshot& date,
+	const FarmEconomySystem::Snapshot& economy) {
+	FarmDateSystem validator;
+	if (!validator.RestoreSnapshot(date) || economy.harvestRecordCount > economy.harvestRecords.size()) return false;
+	for (std::size_t i = 0; i < economy.harvestRecordCount; ++i)
+		if (economy.harvestRecords[i].harvestedDay < 0 || economy.harvestRecords[i].harvestedDay > date.day) return false;
+	for (const auto& result : economy.contestResults)
+		if (result.contestDay > date.day) return false;
+	return true;
+}
+
+bool ParseDate(const nlohmann::json& document, FarmDateSystem::Snapshot& date,
+	const FarmEconomySystem::Snapshot& economy) {
+	try {
+		int version = 0;
+		if (!TryGetSchemaVersion(document, version)) return false;
+		date = {}; // Legacy records have no clock: start at Day1, keep harvest day unknown.
+		if (version >= 12) {
+			if (!document.contains("date") || !document["date"].is_object()) return false;
+			const auto& json = document["date"];
+			if (!json.contains("day") || !ReadNonNegativeInt(json["day"], date.day) ||
+				!json.contains("elapsedSecondsInDay") || !json["elapsedSecondsInDay"].is_number() ||
+				!json.contains("timeScale") || !json["timeScale"].is_number()) return false;
+			date.elapsedSecondsInDay = json["elapsedSecondsInDay"].get<float>();
+			date.timeScale = json["timeScale"].get<float>();
+		}
+		return ValidateHarvestDates(date, economy);
+	} catch (const nlohmann::json::exception&) { return false; }
+}
+
 bool SaveJsonAtomically(
 	const std::filesystem::path& targetPath,
 	const nlohmann::json& json,
@@ -694,7 +835,12 @@ bool SaveJsonAtomically(
 bool FarmDocumentSystem::Initialize(
 	const std::string& directoryPath, farm::FarmGrid& grid,
 	FarmEconomySystem& economySystem,
-	FarmCropSelectionSystem& cropSelectionSystem) {
+	FarmCropSelectionSystem& cropSelectionSystem, FarmDateSystem* dateSystem, FarmProgressionSystem* progressionSystem) {
+	progressionSystem_ = progressionSystem;
+	fallbackProgression_.Initialize();
+	defaultMode_ = Progression().GetMode();
+	dateSystem_ = dateSystem;
+	fallbackDateSystem_.Initialize();
 	directoryPath_ = directoryPath;
 	saveDirectoryPath_ = (std::filesystem::path(directoryPath_) / "saves").string();
 	catalogPath_ = (std::filesystem::path(directoryPath_) / "farm_documents.json").string();
@@ -817,6 +963,18 @@ bool FarmDocumentSystem::Load(
 		SetError(error);
 		return false;
 	}
+	FarmDateSystem::Snapshot dateSnapshot;
+	if (!ParseDate(document, dateSnapshot, economySnapshot)) {
+		SetError("Invalid farm date or harvest day after the saved date."); return false;
+	}
+	FarmProgressionMode mode = FarmProgressionMode::Trial;
+	if (document["schemaVersion"].get<int>() >= 14) {
+		if (!document.contains("playMode") || !document["playMode"].is_string() ||
+			(document["playMode"] != "Trial" && document["playMode"] != "ContestSeason")) {
+			SetError("Invalid or missing farm play mode."); return false;
+		}
+		if (document["playMode"] == "ContestSeason") mode = FarmProgressionMode::ContestSeason;
+	}
 
 	farm::FarmGrid::Snapshot previousGridSnapshot;
 	grid.CaptureSnapshot(previousGridSnapshot);
@@ -841,6 +999,9 @@ bool FarmDocumentSystem::Load(
 		SetError("A Farm System rejected the validated document state.");
 		return false;
 	}
+	static_cast<void>(Date().RestoreSnapshot(dateSnapshot)); // Already validated before any state mutation.
+	static_cast<void>(Progression().SetMode(mode, economySnapshot.money,
+		FarmContestSeasonSystem::Evaluate(dateSnapshot.day, economySnapshot.contestResults)));
 
 	activeDocumentId_ = metadata.id;
 	displayName_ = metadata.displayName;
@@ -1033,6 +1194,9 @@ bool FarmDocumentSystem::Reset(
 		SetError("A Farm System rejected the reset state.");
 		return false;
 	}
+	Date().Initialize();
+	static_cast<void>(Progression().SetMode(defaultMode_, economySystem.GetMoney(),
+		FarmContestSeasonSystem::Evaluate(Date().GetDay(), economySystem.GetContestResults())));
 	activeDocumentId_.clear();
 	path_.clear();
 	displayName_ = std::string(kUntitledFarmName);
@@ -1151,13 +1315,22 @@ bool FarmDocumentSystem::SaveToDocument(
 	}
 
 	const std::string savedAt = MakeSavedAtTimestamp();
+	if (!FarmEconomySystem::ValidateSnapshot(economySnapshot)) {
+		SetError("Harvest inventory is inconsistent; save rejected."); return false;
+	}
+	const auto dateSnapshot = Date().CaptureSnapshot();
+	if (!ValidateHarvestDates(dateSnapshot, economySnapshot)) {
+		SetError("Farm date and harvest days are inconsistent; save rejected."); return false;
+	}
+	auto document = BuildJson(snapshot, economySnapshot, cropSelectionSnapshot, documentId, displayName, savedAt);
+	document["playMode"] = Progression().IsContestSeason() ? "ContestSeason" : "Trial";
+	document["date"] = {{"day", dateSnapshot.day}, {"elapsedSecondsInDay", dateSnapshot.elapsedSecondsInDay},
+		{"timeScale", dateSnapshot.timeScale}};
 	const std::filesystem::path documentPath =
 		std::filesystem::path(saveDirectoryPath_) / (documentId + ".json");
 	if (!SaveJsonAtomically(
 		documentPath,
-		BuildJson(
-			snapshot, economySnapshot, cropSelectionSnapshot,
-			documentId, displayName, savedAt),
+		document,
 		error)) {
 		SetError(error);
 		return false;

@@ -362,6 +362,27 @@
     <ClInclude Include="application\farm\system\FarmSoilSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
+    <ClInclude Include="application\farm\system\FarmContestSubmissionSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmContestDaySystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmContestSeasonSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmContestEntrySystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmContestJudgeSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmHarvestVisualSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
+    <ClInclude Include="application\farm\system\FarmCropSizeSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
     <ClInclude Include="application\farm\system\FarmGrowthComparisonSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>

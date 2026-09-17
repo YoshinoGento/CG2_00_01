@@ -1,7 +1,10 @@
 #include "farm/system/FarmEconomySystem.h"
+#include "farm/system/FarmContestJudgeSystem.h"
+#include "farm/system/FarmContestEntrySystem.h"
 
 #include <algorithm>
 #include <limits>
+#include <cmath>
 
 namespace {
 int SaturatingTotal(const std::array<int, farm::kFarmCropTypeCount>& values) noexcept
@@ -31,6 +34,15 @@ bool TryMultiplyNonNegative(int left, int right, int& result) noexcept
 	result = static_cast<int>(product);
 	return true;
 }
+
+bool SameQuality(const FarmCropQualityResult& a, const FarmCropQualityResult& b) noexcept
+{
+	return a.crop == b.crop && a.maturity == b.maturity && a.waterBalance == b.waterBalance &&
+		a.terrainFit == b.terrainFit && a.nutrientBalance == b.nutrientBalance &&
+		a.nutrientKnown == b.nutrientKnown && a.score == b.score && a.basePrice == b.basePrice &&
+		a.salePrice == b.salePrice && a.harvestSize.known == b.harvestSize.known &&
+		a.harvestSize.multiplier == b.harvestSize.multiplier;
+}
 }
 
 void FarmEconomySystem::Initialize(const farm::FarmRules& rules)
@@ -51,6 +63,12 @@ void FarmEconomySystem::Initialize(const farm::FarmRules& rules)
 		rules.carrotSeedPrice > 0 ? rules.carrotSeedPrice : 0,
 	};
 	lastHarvestQuality_ = {};
+	harvestRecords_ = {};
+	harvestRecordCount_ = 0;
+	nextHarvestRecordId_ = 1;
+	contestReservationId_ = 0;
+	contestResults_ = {};
+	++inventoryGeneration_;
 }
 
 bool FarmEconomySystem::AddHarvest(farm::CropType crop, int quantity) noexcept
@@ -77,17 +95,31 @@ bool FarmEconomySystem::RemoveHarvest(farm::CropType crop, int quantity) noexcep
 		removedValue > cropValues_[slot]) {
 		return false;
 	}
+	// The legacy API may remove only aggregate-only stock, never a recorded harvest.
+	long long recordedCount = 0, recordedValue = 0;
+	for (std::size_t i = 0; i < harvestRecordCount_; ++i) {
+		const auto& record = harvestRecords_[i];
+		if (record.quality.crop != crop) continue;
+		recordedCount += record.quantity;
+		recordedValue += static_cast<long long>(record.quantity) * record.quality.salePrice;
+	}
+	if (cropCounts_[slot] - recordedCount < quantity || cropValues_[slot] - recordedValue < removedValue)
+		return false;
+	if ((cropCounts_[slot] - recordedCount == quantity) != (cropValues_[slot] - recordedValue == removedValue))
+		return false;
 	cropCounts_[slot] -= quantity;
 	cropValues_[slot] -= removedValue;
 	return true;
 }
 
 bool FarmEconomySystem::AddHarvest(
-	const FarmCropQualityResult& quality, int quantity) noexcept
+	const FarmCropQualityResult& quality, int quantity, int harvestedDay) noexcept
 {
 	const int slot = farm::ToCropSlot(quality.crop);
 	int addedValue = 0;
-	if (!quality.IsValid() || slot < 0 || quantity <= 0 ||
+	if (!IsRecordedQualityValid(quality) || slot < 0 || quantity <= 0 || harvestedDay < 0 ||
+		harvestRecordCount_ >= kMaxHarvestRecords ||
+		nextHarvestRecordId_ == (std::numeric_limits<int>::max)() ||
 		!TryMultiplyNonNegative(quality.salePrice, quantity, addedValue) ||
 		cropCounts_[slot] > (std::numeric_limits<int>::max)() - quantity ||
 		cropValues_[slot] > (std::numeric_limits<int>::max)() - addedValue) {
@@ -96,6 +128,7 @@ bool FarmEconomySystem::AddHarvest(
 	cropCounts_[slot] += quantity;
 	cropValues_[slot] += addedValue;
 	lastHarvestQuality_ = quality;
+	harvestRecords_[harvestRecordCount_++] = {quality, quantity, nextHarvestRecordId_++, false, harvestedDay};
 	return true;
 }
 
@@ -111,14 +144,20 @@ bool FarmEconomySystem::RemoveHarvest(
 {
 	const int slot = farm::ToCropSlot(quality.crop);
 	int removedValue = 0;
-	if (!quality.IsValid() || slot < 0 || quantity <= 0 ||
+	if (!IsRecordedQualityValid(quality) || slot < 0 || quantity <= 0 ||
 		quantity > cropCounts_[slot] ||
 		!TryMultiplyNonNegative(quality.salePrice, quantity, removedValue) ||
 		removedValue > cropValues_[slot] ||
 		(restoredLastHarvestQuality.crop != farm::CropType::None &&
-			!restoredLastHarvestQuality.IsValid())) {
+			!IsRecordedQualityValid(restoredLastHarvestQuality))) {
 		return false;
 	}
+	// Tile history is LIFO and is cleared by sales. Reject stale/mismatched removal.
+	if (harvestRecordCount_ == 0) return false;
+	auto& record = harvestRecords_[harvestRecordCount_ - 1];
+	if (record.saleProtected || !SameQuality(record.quality, quality) || record.quantity < quantity) return false;
+	record.quantity -= quantity;
+	if (record.quantity == 0) harvestRecords_[--harvestRecordCount_] = {};
 	cropCounts_[slot] -= quantity;
 	cropValues_[slot] -= removedValue;
 	lastHarvestQuality_ = restoredLastHarvestQuality;
@@ -188,45 +227,120 @@ FarmSeedPurchaseResult FarmEconomySystem::BuySeed(
 	return result;
 }
 
+FarmSaleResult FarmEconomySystem::PreviewSale(farm::CropType crop) const noexcept
+{
+	FarmSaleResult result{}; result.crop = crop;
+	if (crop != farm::CropType::None && !farm::IsPlantableCrop(crop)) return result;
+	long long count = 0, value = 0, protectedCount = 0;
+	for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot) {
+		if (crop != farm::CropType::None && farm::CropTypeFromSlot(slot) != crop) continue;
+		count += cropCounts_[slot]; value += cropValues_[slot];
+	}
+	for (std::size_t i = 0; i < harvestRecordCount_; ++i) {
+		const auto& record = harvestRecords_[i];
+		if (!record.saleProtected || (crop != farm::CropType::None && record.quality.crop != crop)) continue;
+		count -= record.quantity;
+		value -= static_cast<long long>(record.quantity) * record.quality.salePrice;
+		protectedCount += record.quantity;
+	}
+	result.protectedCount = static_cast<int>((std::min)(protectedCount, static_cast<long long>((std::numeric_limits<int>::max)())));
+	if (count <= 0 || value <= 0 || count > (std::numeric_limits<int>::max)() ||
+		value > (std::numeric_limits<int>::max)() - static_cast<long long>(money_)) return result;
+	result.soldCount = static_cast<int>(count); result.earnedMoney = static_cast<int>(value);
+	return result;
+}
+
+FarmSaleResult FarmEconomySystem::SellMatching(farm::CropType crop) noexcept
+{
+	const auto result = PreviewSale(crop);
+	if (!result.Succeeded()) return result;
+	// Commit only after the complete sale has passed overflow and availability checks.
+	for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot) {
+		if (crop != farm::CropType::None && farm::CropTypeFromSlot(slot) != crop) continue;
+		cropCounts_[slot] = 0; cropValues_[slot] = 0;
+	}
+	std::size_t remaining = 0;
+	for (std::size_t i = 0; i < harvestRecordCount_; ++i) {
+		const auto record = harvestRecords_[i];
+		const bool matches = crop == farm::CropType::None || record.quality.crop == crop;
+		if (matches && record.saleProtected) {
+			const int slot = farm::ToCropSlot(record.quality.crop);
+			cropCounts_[slot] += record.quantity;
+			cropValues_[slot] += record.quantity * record.quality.salePrice;
+		}
+		if (!matches || record.saleProtected) harvestRecords_[remaining++] = record;
+	}
+	std::fill(harvestRecords_.begin() + remaining, harvestRecords_.end(), HarvestRecord{});
+	harvestRecordCount_ = remaining;
+	money_ += result.earnedMoney;
+	return result;
+}
+
 FarmSaleResult FarmEconomySystem::SellCrop(farm::CropType crop) noexcept
 {
-	FarmSaleResult result{};
-	result.crop = crop;
-	const int slot = farm::ToCropSlot(crop);
-	if (slot < 0 || cropCounts_[slot] <= 0 || cropValues_[slot] <= 0 ||
-		cropValues_[slot] > (std::numeric_limits<int>::max)() - money_) {
-		return result;
-	}
-
-	result.soldCount = cropCounts_[slot];
-	result.earnedMoney = cropValues_[slot];
-	money_ += result.earnedMoney;
-	cropCounts_[slot] = 0;
-	cropValues_[slot] = 0;
-	return result;
+	if (!farm::IsPlantableCrop(crop)) return {};
+	return SellMatching(crop);
 }
 
 FarmSaleResult FarmEconomySystem::SellAll() noexcept
 {
-	FarmSaleResult result{};
-	long long totalCount = 0;
-	long long earnedMoney = 0;
-	for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot) {
-		totalCount += cropCounts_[slot];
-		earnedMoney += cropValues_[slot];
-	}
-	if (totalCount <= 0 || earnedMoney <= 0 ||
-		totalCount > (std::numeric_limits<int>::max)() ||
-		earnedMoney > (std::numeric_limits<int>::max)() - static_cast<long long>(money_)) {
-		return result;
-	}
+	return SellMatching(farm::CropType::None);
+}
 
-	result.soldCount = static_cast<int>(totalCount);
-	result.earnedMoney = static_cast<int>(earnedMoney);
-	money_ += result.earnedMoney;
-	cropCounts_.fill(0);
-	cropValues_.fill(0);
-	return result;
+int FarmEconomySystem::GetProtectedCropCount() const noexcept
+{
+	long long count = 0;
+	for (std::size_t i = 0; i < harvestRecordCount_; ++i)
+		if (harvestRecords_[i].saleProtected) count += harvestRecords_[i].quantity;
+	return static_cast<int>((std::min)(count, static_cast<long long>((std::numeric_limits<int>::max)())));
+}
+
+bool FarmEconomySystem::SetHarvestProtection(int id, bool protect, std::uint64_t generation) noexcept
+{
+	if (id <= 0 || generation != inventoryGeneration_) return false;
+	if (!protect && id == contestReservationId_) return false;
+	for (std::size_t i = 0; i < harvestRecordCount_; ++i) {
+		auto& record = harvestRecords_[i];
+		if (record.id != id) continue;
+		if (record.saleProtected == protect) return false;
+		record.saleProtected = protect;
+		return true;
+	}
+	return false;
+}
+
+bool FarmEconomySystem::CanReserveForContest(const HarvestRecord& record) noexcept
+{
+	return record.id > 0 && record.quantity == 1 && record.saleProtected &&
+		IsRecordedQualityValid(record.quality) && record.quality.harvestSize.known;
+}
+
+const FarmEconomySystem::HarvestRecord* FarmEconomySystem::GetContestReservation() const noexcept
+{
+	if (contestReservationId_ == 0) return nullptr;
+	for (std::size_t i = 0; i < harvestRecordCount_; ++i)
+		if (harvestRecords_[i].id == contestReservationId_) return &harvestRecords_[i];
+	return nullptr;
+}
+
+bool FarmEconomySystem::SetContestReservation(int id, bool reserve, std::uint64_t generation) noexcept
+{
+	if (id <= 0 || generation != inventoryGeneration_) return false;
+	if (!reserve) {
+		if (contestReservationId_ != id) return false;
+		contestReservationId_ = 0;
+		return true;
+	}
+	if (contestReservationId_ == id) return false;
+	for (std::size_t i = 0; i < harvestRecordCount_; ++i) {
+		const auto& record = harvestRecords_[i];
+		if (record.id != id) continue;
+		if (!CanReserveForContest(record)) return false;
+		// Replacing the reservation never removes protection from the previous crop.
+		contestReservationId_ = id;
+		return true;
+	}
+	return false;
 }
 
 int FarmEconomySystem::GetCropCount(farm::CropType crop) const noexcept
@@ -271,35 +385,78 @@ int FarmEconomySystem::GetSeedPrice(farm::CropType crop) const noexcept
 
 int FarmEconomySystem::GetSalePreviewValue() const noexcept
 {
-	long long earnedMoney = 0;
-	for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot) {
-		earnedMoney += cropValues_[slot];
-	}
-	if (earnedMoney <= 0 ||
-		earnedMoney > (std::numeric_limits<int>::max)() - static_cast<long long>(money_)) {
-		return 0;
-	}
-	return static_cast<int>(earnedMoney);
+	return PreviewSale().earnedMoney;
 }
 
 FarmEconomySystem::Snapshot FarmEconomySystem::CaptureSnapshot() const noexcept
 {
 	return {
 		money_, cropCounts_, cropValues_, sellPrices_, seedCounts_, seedPrices_,
-		lastHarvestQuality_
+		lastHarvestQuality_, harvestRecords_, harvestRecordCount_, nextHarvestRecordId_, contestReservationId_, contestResults_
 	};
 }
 
-bool FarmEconomySystem::RestoreSnapshot(const Snapshot& snapshot) noexcept
+bool FarmEconomySystem::IsRecordedQualityValid(const FarmCropQualityResult& quality) noexcept
+{
+	const auto unit = [](float value) { return std::isfinite(value) && value >= 0 && value <= 1; };
+	return quality.IsValid() && unit(quality.maturity) && unit(quality.waterBalance) &&
+		unit(quality.terrainFit) && unit(quality.nutrientBalance) && quality.score >= 0 && quality.score <= 100;
+}
+
+int FarmEconomySystem::GetUnrecordedCropCount() const noexcept
+{
+	long long count = 0;
+	for (int value : cropCounts_) count += value;
+	for (std::size_t i = 0; i < harvestRecordCount_; ++i) count -= harvestRecords_[i].quantity;
+	return static_cast<int>((std::min)(count, static_cast<long long>((std::numeric_limits<int>::max)())));
+}
+
+bool FarmEconomySystem::ValidateSnapshot(const Snapshot& snapshot) noexcept
 {
 	if (snapshot.money < 0 || !AreValuesValid(snapshot.cropCounts) ||
 		!AreValuesValid(snapshot.cropValues) ||
 		!AreValuesValid(snapshot.sellPrices) || !AreValuesValid(snapshot.seedCounts) ||
 		!AreValuesValid(snapshot.seedPrices) ||
 		(snapshot.lastHarvestQuality.crop != farm::CropType::None &&
-			!snapshot.lastHarvestQuality.IsValid())) {
+			!IsRecordedQualityValid(snapshot.lastHarvestQuality)) ||
+		snapshot.harvestRecordCount > kMaxHarvestRecords || snapshot.nextHarvestRecordId <= 0 ||
+		snapshot.contestReservationId < 0) {
 		return false;
 	}
+	std::array<long long, farm::kFarmCropTypeCount> counts{}, values{};
+	bool reservationValid = snapshot.contestReservationId == 0;
+	for (std::size_t i = 0; i < snapshot.harvestRecordCount; ++i) {
+		const auto& record = snapshot.harvestRecords[i];
+		if (record.quantity <= 0 || record.harvestedDay < 0 || !IsRecordedQualityValid(record.quality) ||
+			record.id <= 0 || record.id >= snapshot.nextHarvestRecordId) return false;
+		for (std::size_t j = 0; j < i; ++j) if (snapshot.harvestRecords[j].id == record.id) return false;
+		if (record.id == snapshot.contestReservationId) reservationValid = CanReserveForContest(record);
+		const int slot = farm::ToCropSlot(record.quality.crop);
+		counts[slot] += record.quantity;
+		values[slot] += static_cast<long long>(record.quantity) * record.quality.salePrice;
+		if (counts[slot] > snapshot.cropCounts[slot] || values[slot] > snapshot.cropValues[slot]) return false;
+	}
+	for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot)
+		if ((snapshot.cropCounts[slot] == counts[slot]) != (snapshot.cropValues[slot] == values[slot])) return false;
+	for (std::size_t i = 0; i < snapshot.contestResults.size(); ++i) {
+		const auto& result = snapshot.contestResults[i];
+		if (result.contestDay == 0) continue;
+		const auto& harvest = result.harvest;
+		if (result.contestDay != FarmContestEntrySystem::kContestDays[i] || harvest.id >= snapshot.nextHarvestRecordId ||
+			FarmContestEntrySystem::Evaluate(result.contestDay, &harvest).issue != FarmContestEntryIssue::Eligible) return false;
+		const auto judge = FarmContestJudgeSystem::Evaluate(&harvest, kFarmContestSubmissionRulesV1);
+		if (!judge.IsValid() || result.qualityPoints != judge.qualityPoints || result.sizePoints != judge.sizePoints) return false;
+		for (std::size_t j = 0; j < snapshot.harvestRecordCount; ++j)
+			if (snapshot.harvestRecords[j].id == harvest.id) return false;
+		for (std::size_t j = 0; j < i; ++j)
+			if (snapshot.contestResults[j].contestDay && snapshot.contestResults[j].harvest.id == harvest.id) return false;
+	}
+	return reservationValid;
+}
+
+bool FarmEconomySystem::RestoreSnapshot(const Snapshot& snapshot) noexcept
+{
+	if (!ValidateSnapshot(snapshot)) return false;
 	money_ = snapshot.money;
 	cropCounts_ = snapshot.cropCounts;
 	cropValues_ = snapshot.cropValues;
@@ -307,5 +464,12 @@ bool FarmEconomySystem::RestoreSnapshot(const Snapshot& snapshot) noexcept
 	seedCounts_ = snapshot.seedCounts;
 	seedPrices_ = snapshot.seedPrices;
 	lastHarvestQuality_ = snapshot.lastHarvestQuality;
+	harvestRecords_ = snapshot.harvestRecords;
+	harvestRecordCount_ = snapshot.harvestRecordCount;
+	nextHarvestRecordId_ = snapshot.nextHarvestRecordId;
+	contestReservationId_ = snapshot.contestReservationId;
+	contestResults_ = snapshot.contestResults;
+	++inventoryGeneration_;
+	std::fill(harvestRecords_.begin() + harvestRecordCount_, harvestRecords_.end(), HarvestRecord{});
 	return true;
 }

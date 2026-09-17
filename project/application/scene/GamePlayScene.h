@@ -13,12 +13,14 @@
 #include "3d/SkeletonDebugger.h"
 #include "effect/ParticleManager.h"
 #include "time/SnapshotTimeline.h"
+#include "farm/system/FarmContestDaySystem.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmDateSystem.h"
 #include "farm/system/FarmDocumentSystem.h"
 #include "farm/system/FarmEconomySystem.h"
 #include "farm/system/FarmCropSelectionSystem.h"
 #include "farm/system/FarmFeedbackSystem.h"
+#include "farm/system/FarmHarvestVisualSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
 #include "farm/system/FarmGrowthComparisonSystem.h"
 #include "farm/system/FarmInputSystem.h"
@@ -265,12 +267,14 @@ private:
 	// Farm Systems own mutation; the Scene only schedules them.
 	farm::FarmGrid farmGrid_;
 	FarmDateSystem farmDateSystem_;
+	FarmContestDaySystem farmContestDaySystem_;
 	FarmDocumentSystem farmDocumentSystem_;
     bool layoutLibraryRequested_ = false;
     bool layoutLibraryFrame_ = false;
 	FarmEconomySystem farmEconomySystem_;
 	FarmCropSelectionSystem farmCropSelectionSystem_;
 	FarmFeedbackSystem farmFeedbackSystem_;
+	farm::FarmHarvestVisualSystem farmHarvestVisualSystem_;
 	FarmGrowthSystem farmGrowthSystem_;
 	FarmGrowthComparisonSystem farmGrowthComparisonSystem_;
 	FarmInputSystem farmInputSystem_;

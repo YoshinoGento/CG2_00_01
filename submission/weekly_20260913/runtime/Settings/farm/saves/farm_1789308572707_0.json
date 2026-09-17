@@ -1,0 +1,473 @@
+{
+    "cropSelection": {
+        "crop": "TestCrop"
+    },
+    "date": {
+        "day": 4,
+        "elapsedSecondsInDay": 57.01374816894531,
+        "timeScale": 1.0
+    },
+    "document": {
+        "displayName": "test2_週間報告0913",
+        "id": "farm_1789308572707_0",
+        "savedAt": "2026-09-13 23:16:44"
+    },
+    "economy": {
+        "contestReservationId": 2,
+        "cropCounts": [
+            1,
+            1
+        ],
+        "cropValues": [
+            142,
+            215
+        ],
+        "harvestRecords": [
+            {
+                "harvestedDay": 2,
+                "id": 1,
+                "quality": {
+                    "basePrice": 170,
+                    "crop": "Carrot",
+                    "maturity": 1.0,
+                    "nutrientBalance": 0.9828712940216064,
+                    "nutrientKnown": true,
+                    "salePrice": 215,
+                    "score": 76,
+                    "sizeKnown": true,
+                    "sizeMultiplier": 1.116294026374817,
+                    "terrainFit": 1.0,
+                    "waterBalance": 0.41802287101745605
+                },
+                "quantity": 1,
+                "saleProtected": true
+            },
+            {
+                "harvestedDay": 4,
+                "id": 2,
+                "quality": {
+                    "basePrice": 120,
+                    "crop": "TestCrop",
+                    "maturity": 1.0,
+                    "nutrientBalance": 0.9166725873947144,
+                    "nutrientKnown": true,
+                    "salePrice": 142,
+                    "score": 68,
+                    "sizeKnown": true,
+                    "sizeMultiplier": 0.8437522053718567,
+                    "terrainFit": 1.0,
+                    "waterBalance": 0.25
+                },
+                "quantity": 1,
+                "saleProtected": true
+            }
+        ],
+        "lastHarvestQuality": {
+            "basePrice": 120,
+            "crop": "TestCrop",
+            "maturity": 1.0,
+            "nutrientBalance": 0.9166725873947144,
+            "nutrientKnown": true,
+            "salePrice": 142,
+            "score": 68,
+            "sizeKnown": true,
+            "sizeMultiplier": 0.8437522053718567,
+            "terrainFit": 1.0,
+            "waterBalance": 0.25
+        },
+        "money": 200,
+        "nextHarvestRecordId": 3,
+        "seedCounts": [
+            0,
+            0
+        ]
+    },
+    "grid": {
+        "height": 4,
+        "selectedIndex": 7,
+        "width": 5
+    },
+    "schemaVersion": 12,
+    "tiles": [
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 1,
+            "moisture": 0.0,
+            "soilNutrients": 0.5500217080116272,
+            "state": "Tilled",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 1,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 1,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "WaterSource",
+            "growth": 0.0,
+            "height": 1,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 1.0,
+            "soilNutrients": 0.2999964952468872,
+            "state": "Tilled",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "careHistory": {
+                "drySeconds": 0.0,
+                "efficiencySeconds": 0.0,
+                "excessSeconds": 0.0,
+                "goodSeconds": 0.0,
+                "lowSeconds": 0.0,
+                "nutrientGrowth": 0.0,
+                "nutrientSupply": 0.0
+            },
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "soilNutrients": 0.6000000238418579,
+            "state": "Empty",
+            "waterAmount": 0.0
+        }
+    ]
+}

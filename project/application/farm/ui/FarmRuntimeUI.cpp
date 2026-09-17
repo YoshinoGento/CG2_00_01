@@ -120,8 +120,10 @@ void RuntimeUI::DrawRadar(const QualityRadar& radar) {
             line({point.x-4,point.y}, {point.x+4,point.y}, 8, gold);
         }
     }
-    constexpr std::array<Vector2,4> numbers{{{356,192},{490,322},{356,454},{220,322}}};
-    for (std::size_t i=0; i<4; ++i) ValueText(std::to_string(i+1), numbers[i], numbers[i].x+28);
+    for (std::size_t i=0; i<QualityRadar::axisLabels.size(); ++i) {
+        const auto& label = QualityRadar::axisLabels[i];
+        ValueText(std::to_string(i+1), {label.x, label.y}, label.x+label.width);
+    }
 }
 void RuntimeUI::Draw(const View& view, Vector2 pointer) {
     if (!ready_) return;

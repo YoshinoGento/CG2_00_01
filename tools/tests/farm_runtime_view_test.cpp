@@ -13,16 +13,325 @@
 
 int main() {
     using namespace farmui;
-    for (bool preview : {false,true}) for (bool allowed : {false,true}) {
+    const auto separated = [](Rect a, Rect b) {
+        return a.x+a.width<=b.x || b.x+b.width<=a.x || a.y+a.height<=b.y || b.y+b.height<=a.y;
+    };
+    for (const auto grade : {FarmContestRating::Unrated,FarmContestRating::D,FarmContestRating::C,
+        FarmContestRating::B,FarmContestRating::A,FarmContestRating::S}) {
+        FarmContestSeasonSummary summary{};
+        summary.valid=true; summary.finalized=true; summary.rating=grade;
+        summary.submitted=grade==FarmContestRating::Unrated ? 0 : 3;
+        summary.nextRating=grade==FarmContestRating::Unrated || grade==FarmContestRating::S ?
+            FarmContestRating::Unrated : FarmContestRating::S;
+        summary.pointsToNextRating=120;
+        View result;
+        BuildSeasonEndView(result,{},summary);
+        bool found=false;
+        for(std::size_t i=0;i<result.count;++i) {
+            const auto& item=result.items[i];
+            if(item.label==Label::SeasonRating || item.label==Label::SeasonUnrated) {
+                found=true; assert(item.value==FarmContestRatingText(grade));
+                assert((item.label==Label::SeasonUnrated)==(grade==FarmContestRating::Unrated));
+            }
+            const float space=item.value.empty() ? item.rect.width-20 : item.valueOffset-30;
+            assert(space/kLabels[static_cast<std::size_t>(item.label)].width>=20.f/26.f);
+            if(!item.value.empty()) assert(item.valueOffset+14*(item.value.size()-1)+24<=item.rect.width);
+            for(std::size_t j=i+1;j<result.count;++j) assert(separated(item.rect,result.items[j].rect));
+        }
+        assert(found);
+    }
+    {
+        FarmEconomySystem::ContestResults results{};
+        View end; BuildSeasonEndView(end,results,FarmContestSeasonSystem::Evaluate(31,results));
+        assert(end.modal && end.Hit({900,150}).action==Action::FlowRecords);
+        assert(end.Hit({400,640}).action==Action::FlowContinue);
+        assert(end.Hit({800,640}).action==Action::Restart);
+        for(std::size_t i=0;i<end.count;++i) {
+            const auto& a=end.items[i];
+            assert(a.rect.y+a.rect.height<=688);
+            for(std::size_t j=i+1;j<end.count;++j) assert(separated(a.rect,end.items[j].rect));
+        }
+        for(bool season : {false,true}) {
+            View entry; FarmHUDViewData data; data.contestSeason=season;
+            BuildPlayFlowView(entry,FarmPlayFlow::Phase::Briefing,data);
+            const auto change=entry.Hit({850,570});
+            assert(change.action==Action::ChangePlayMode && change.argument==(season ? 0 : 1));
+            for(std::size_t i=0;i<entry.count;++i) {
+                const auto& a=entry.items[i];
+                const float space=a.value.empty() ? a.rect.width-20 : a.valueOffset-30;
+                assert(space/kLabels[static_cast<std::size_t>(a.label)].width>=20.f/26.f);
+                for(std::size_t j=i+1;j<entry.count;++j) assert(separated(a.rect,entry.items[j].rect));
+            }
+        }
+    }
+    for(int day : {10,20,30}) {
+        View view; BuildContestDayNoticeView(view,day);
+        assert(view.modal && view.count==7);
+        assert(view.Hit({400,445}).action==Action::ContestDayReview);
+        assert(view.Hit({800,445}).action==Action::ContestDayPrepare);
+        assert(view.Hit({400,520}).action==Action::ContestDayResume);
+        assert(view.Hit({400,445}).argument==day);
+        assert(view.Covers({500,300}) && view.Hit({500,300}).action==Action::None);
+        for(std::size_t i=0;i<view.count;++i) {
+            const auto& item=view.items[i]; const auto& r=item.rect;
+            assert(r.x>=150 && r.x+r.width<=1130 && r.y>=120 && r.y+r.height<=616);
+            const float space=item.value.empty() ? r.width-20 : item.valueOffset-30;
+            assert(space/kLabels[static_cast<std::size_t>(item.label)].width>=20.f/26.f);
+            for(std::size_t j=i+1;j<view.count;++j) assert(separated(r,view.items[j].rect));
+        }
+    }
+    for (int message=0; message<=static_cast<int>(FarmHUDFeedback::InsufficientMoney); ++message)
+        for (int protectedCount : {0, 2, 2147483647})
+            for (auto crop : {farm::CropType::None, farm::CropType::TestCrop, farm::CropType::Carrot})
+                for (bool planted : {false, true}) {
+        const bool feedback = static_cast<FarmHUDFeedback>(message) != FarmHUDFeedback::None;
+        const FarmCropSizeResult size{1.5f, true};
+        View view;
+        BuildPlayQuickView(view, false, true);
+        BuildPlayCropStatusView(view, feedback, protectedCount, crop, planted ? &size : nullptr);
+        const std::size_t metrics = (planted ? 1u : 0u) + (protectedCount > 0 ? 1u : 0u) +
+            (crop != farm::CropType::None ? 1u : 0u);
+        assert(view.feedback == feedback && view.count == 2 + (feedback ? 0 : metrics));
+        const auto panel = View::kFeedbackPanel;
+        assert(panel.x>=0 && panel.y>=0 && panel.x+panel.width<=1280 && panel.y+panel.height<=720);
+        for (const auto& other : View::kFarmHudPanels) assert(separated(panel, other));
+        for (std::size_t i=0; i<view.count; ++i) {
+            if (feedback) assert(separated(panel, view.items[i].rect));
+            for (std::size_t j=i+1; j<view.count; ++j) assert(separated(view.items[i].rect,view.items[j].rect));
+        }
+        if (feedback) {
+            assert(view.Covers({panel.x,panel.y}));
+            assert(view.Covers({panel.x+panel.width-1,panel.y+panel.height-1}));
+            assert(!view.Covers({panel.x+panel.width,panel.y+panel.height}));
+            assert(view.Hit({panel.x+10,panel.y+10}).action==Action::None);
+            assert(view.Hit({400,40}).action==Action::TerrainField);
+            assert(view.Hit({650,40}).action==Action::Pause);
+        }
+        // Each refresh starts a new View, restoring current data rather than cached pre-toast values.
+        view = {};
+        BuildPlayCropStatusView(view, false, 3, farm::CropType::Carrot, &size);
+        assert(!view.feedback && view.count==3);
+        assert(view.items[0].label==Label::SizeForecast && view.items[0].value=="1.50x");
+        assert(view.items[1].label==Label::ProtectedCropCount && view.items[1].value=="3");
+        assert(view.items[2].label==Label::ContestCarrot);
+    }
+    for (const auto issue : {FarmContestJudgeIssue::None, FarmContestJudgeIssue::NoReservation,
+        FarmContestJudgeIssue::InvalidRecord, FarmContestJudgeIssue::InvalidRules}) {
+        FarmContestJudgeResult result; result.issue=issue; result.crop=farm::CropType::Carrot;
+        result.recordedQuality=100; result.recordedSize=8; result.qualityPoints=60; result.sizePoints=40; result.totalPoints=100;
+        View view; BuildContestJudgeView(view,result);
+        assert(view.Hit({800,150}).action==Action::ContestPreview && view.Hit({800,150}).argument==1);
+        assert(view.Hit({800,200}).action==Action::HarvestInventory);
+        std::size_t glyphs=0;
+        bool total=false;
+        for (std::size_t i=0;i<view.count;++i) {
+            const auto& item=view.items[i]; const auto& r=item.rect;
+            total |= item.label==Label::ContestTotal;
+            assert(r.x>=150 && r.x+r.width<=1130 && r.y>=120 && r.y+r.height<=616);
+            const float space=item.value.empty() ? r.width-20 : item.valueOffset-30;
+            assert(space/kLabels[static_cast<std::size_t>(item.label)].width>=20.f/26.f);
+            if(!item.value.empty()) assert(item.valueOffset+14*(item.value.size()-1)+24<=r.width);
+            glyphs+=item.value.size();
+            for(std::size_t j=i+1;j<view.count;++j) {
+                const auto& other=view.items[j].rect;
+                assert(r.x+r.width<=other.x || other.x+other.width<=r.x || r.y+r.height<=other.y || other.y+other.height<=r.y);
+            }
+        }
+        assert(total==result.IsValid() && glyphs<=160 && view.count+7<=View::kCapacity);
+    }
+    for (auto issue : {FarmContestEntryIssue::Eligible, FarmContestEntryIssue::InvalidDay,
+        FarmContestEntryIssue::SeasonEnded, FarmContestEntryIssue::NoReservation, FarmContestEntryIssue::InvalidRecord,
+        FarmContestEntryIssue::UnknownHarvestDay, FarmContestEntryIssue::FutureHarvestDay, FarmContestEntryIssue::OutsidePeriod}) {
+        FarmContestEntryResult result; result.issue=issue; result.currentDay=2147483647;
+        result.contestDay=20; result.firstHarvestDay=11; result.daysRemaining=9;
+        result.harvestedDay=2147483647; result.crop=farm::CropType::Carrot;
+        View view; BuildContestEntryView(view,result);
+        assert(view.Hit({800,150}).action==Action::ContestPreview && view.Hit({800,150}).argument==0);
+        assert(view.Hit({800,380}).action==Action::HarvestInventory);
+        std::size_t glyphs=0;
+        for(std::size_t i=0;i<view.count;++i) {
+            const auto& item=view.items[i]; const auto& r=item.rect;
+            assert(r.x>=150 && r.x+r.width<=1130 && r.y>=120 && r.y+r.height<=616);
+            const float space=item.value.empty() ? r.width-20 : item.valueOffset-30;
+            assert(space/kLabels[static_cast<std::size_t>(item.label)].width>=20.f/26.f);
+            if(!item.value.empty()) assert(item.valueOffset+14*(item.value.size()-1)+24<=r.width);
+            glyphs+=item.value.size();
+            for(std::size_t j=i+1;j<view.count;++j) assert(separated(r,view.items[j].rect));
+        }
+        assert(glyphs<=160 && view.count+7<=View::kCapacity);
+    }
+    for (auto status : {FarmContestSubmissionStatus::Ready, FarmContestSubmissionStatus::NotContestDay,
+        FarmContestSubmissionStatus::AlreadySubmitted, FarmContestSubmissionStatus::Ineligible}) {
+        View view; FarmContestEntryResult entry;
+        BuildContestEntryView(view,entry,status,{Action::SubmitContest,7,9});
+        const auto hit=view.Hit({400,532});
+        assert(hit.action==(status==FarmContestSubmissionStatus::Ready ? Action::SubmitContest : Action::None));
+        if(status==FarmContestSubmissionStatus::Ready) assert(hit.argument==7 && hit.inventoryGeneration==9);
+        assert(view.Hit({800,532}).action==Action::ContestResults);
+    }
+    for (int day : {0,1,10,11,20,21,30,31,2147483647}) for (bool populated : {false,true}) {
+        FarmEconomySystem::ContestResults results{};
+        if(populated) for(std::size_t i=0; i<results.size(); ++i) {
+            auto& result=results[i]; result.contestDay=10+static_cast<int>(i)*10;
+            result.harvest.quality.crop=farm::CropType::Carrot;
+            result.harvest.harvestedDay=result.contestDay;
+            result.harvest.quality.harvestSize={8,true}; result.qualityPoints=60; result.sizePoints=40;
+        }
+        const auto summary=FarmContestSeasonSystem::Evaluate(day,results);
+        View view; BuildContestResultsView(view,results,summary);
+        assert(view.items[0].label==(summary.finalized ? Label::ContestSeasonFinal : Label::ContestResults));
+        assert(view.Hit({900,150}).action==Action::ContestPreview);
+        if (!populated && day>0) {
+            for(std::size_t i=0; i<3; ++i)
+                assert(view.items[3+i].label==ContestEventLabel(summary.events[i]));
+        }
+        std::size_t glyphs=0;
+        for(std::size_t i=0;i<view.count;++i) {
+            const auto& item=view.items[i]; const auto& r=item.rect;
+            assert(r.x>=150 && r.x+r.width<=1130 && r.y>=120 && r.y+r.height<=616);
+            const float space=item.value.empty() ? r.width-20 : item.valueOffset-30;
+            assert(space/kLabels[static_cast<std::size_t>(item.label)].width>=20.f/26.f);
+            if(!item.value.empty()) assert(item.valueOffset+14*(item.value.size()-1)+24<=r.width);
+            glyphs+=item.value.size();
+            for(std::size_t j=i+1;j<view.count;++j) assert(separated(r,view.items[j].rect));
+        }
+        assert(glyphs<=160 && view.count+7<=View::kCapacity);
+    }
+    for (int day : {-1, 0, 31, 2147483647}) {
+        FarmContestEntryResult result; result.currentDay=day;
+        result.issue=day<1 ? FarmContestEntryIssue::InvalidDay : FarmContestEntryIssue::SeasonEnded;
+        View view; BuildContestEntryView(view,result);
+        assert(view.items[3].value=="--" && view.items[4].value=="--" && view.items[5].value=="--");
+    }
+    for (int count : {0, 1, 2, 3, 128}) for (bool unknown : {false, true}) for(int day : {0,1,10,20,30,2147483647}) {
+        HarvestInventoryViewState state;
+        state.records = count; state.capacity = 128; state.rowCount = (std::min)(count, state.kRows);
+        state.pages = (std::max)(1, (count + state.kRows - 1) / state.kRows); state.unknownCount = unknown ? 2147483647 : 0;
+        state.inventoryGeneration = 9; state.canChangeProtection = true;
+        int nextId = 101;
+        for (auto& row : state.rows) {
+            row.id = nextId++;
+            row.quality.crop = farm::CropType::Carrot; row.quality.harvestSize = {2, true};
+            row.quality.score = 100; row.quality.salePrice = 2147483647; row.quantity = 2147483647;
+            row.harvestedDay = day;
+        }
+        View view; BuildHarvestInventoryView(view, state);
+        assert(view.Hit({500,550}).action==Action::ContestPreview);
+        for (int i=0; i<state.rowCount; ++i) {
+            const auto request = view.Hit({250.f, 300.f+i*88.f});
+            assert(request.action == Action::ProtectHarvest && request.argument == 101+i && request.inventoryGeneration==9);
+        }
+        assert(view.count < View::kCapacity);
+        assert(view.Hit({200,450}).action == Action::None);
+        assert(view.Hit({800,450}).action == (state.pages > 1 ? Action::HarvestPage : Action::None));
+        std::size_t glyphs = 0;
+        int dateLabels = 0;
+        for (std::size_t i=0; i<view.count; ++i) {
+            const auto& item = view.items[i]; const auto& rect = item.rect;
+            if(item.label == Label::HarvestDay || item.label == Label::HarvestDayUnknown) {
+                ++dateLabels;
+                assert(day > 0 ? item.value == std::to_string(day) : item.label == Label::HarvestDayUnknown);
+                assert(item.request.action == Action::None);
+            }
+            assert(rect.x >= 150 && rect.x+rect.width <= 1130 && rect.y >= 120 && rect.y+rect.height <= 616);
+            const float space = item.value.empty() ? rect.width-20 : item.valueOffset-30;
+            assert(space/kLabels[static_cast<std::size_t>(item.label)].width >= 20.f/26.f);
+            if (!item.value.empty()) assert(item.valueOffset + 14*(item.value.size()-1) + 24 <= rect.width);
+            glyphs += item.value.size();
+            for (std::size_t j=i+1; j<view.count; ++j) {
+                const auto& other = view.items[j].rect;
+                assert(rect.x+rect.width <= other.x || other.x+other.width <= rect.x ||
+                    rect.y+rect.height <= other.y || other.y+other.height <= rect.y);
+            }
+        }
+        assert(glyphs <= 160);
+        assert(dateLabels == state.rowCount);
+    }
+    {
+        HarvestInventoryViewState state; state.records=state.rowCount=1; state.rows[0].id=42;
+        state.rows[0].saleProtected=true; state.inventoryGeneration=7;
+        for (bool enabled : {false,true}) {
+            state.canChangeProtection=enabled;
+            View view; BuildHarvestInventoryView(view,state);
+            const auto request=view.Hit({250,300});
+            assert(request.action==(enabled ? Action::UnprotectHarvest : Action::None));
+            if(enabled) assert(request.argument==42 && request.inventoryGeneration==7);
+        }
+    }
+    for (bool reserved : {false,true}) for (bool eligible : {false,true}) for (bool enabled : {false,true}) {
+        HarvestInventoryViewState state; state.records=state.rowCount=1; state.rows[0].id=42;
+        state.rows[0].saleProtected=true; state.rows[0].canReserve=eligible; state.inventoryGeneration=77;
+        state.contestReservationId=reserved ? 42 : 0; state.canChangeProtection=enabled;
+        View view; BuildHarvestInventoryView(view,state);
+        const auto request=view.Hit({700,300});
+        const auto expected=!enabled || (!reserved && !eligible) ? Action::None :
+            reserved ? Action::CancelContestReservation : Action::ReserveContestHarvest;
+        assert(request.action==expected);
+        if(expected!=Action::None) assert(request.argument==42 && request.inventoryGeneration==77);
+        if(reserved) assert(view.Hit({250,300}).action==Action::None);
+    }
+    assert(CropSizeText({}) == "--");
+    {
+        HarvestInventoryViewState state; state.records=128; state.pages=64; state.page=63;
+        state.capacity=128; state.rowCount=2; state.inventoryGeneration=99; state.canChangeProtection=true;
+        state.contestReservationId=1; state.reservedCrop=farm::CropType::Carrot;
+        for(int i=0; i<2; ++i) { state.rows[i].id=127+i; state.rows[i].canReserve=true; }
+        View view; BuildHarvestInventoryView(view,state);
+        assert(view.Hit({800,450}).action==Action::None);
+        assert(view.Hit({200,450}).action==Action::HarvestPage);
+        assert(view.Hit({700,300}).argument==127 && view.Hit({700,388}).argument==128);
+        bool label=false;
+        for(std::size_t i=0;i<view.count;++i) label |= view.items[i].label==Label::ContestCarrot;
+        assert(label);
+    }
+    assert(CropSizeText({1.25f, true}) == "1.25x");
+    assert(CropSizeText({std::numeric_limits<float>::quiet_NaN(), true}) == "--");
+    for (bool harvested : {false, true}) {
+        FarmCropQualityResult quality;
+        quality.crop = farm::CropType::TestCrop; quality.basePrice = quality.salePrice = 120;
+        quality.harvestSize = {2.f, true};
+        View view; BuildQualityView(view, quality, FarmCropQualitySystem::Analyze(quality), 0, harvested);
+        bool found = false;
+        for (std::size_t i = 0; i < view.count; ++i) {
+            if (view.items[i].label == (harvested ? Label::SizeRecorded : Label::SizeForecast)) {
+                found = true; assert(view.items[i].value == "2.00x");
+                const auto& bottom = QualityRadar::axisLabels[2];
+                assert(bottom.y + bottom.height + 8 <= view.items[i].rect.y);
+            }
+        }
+        assert(found);
+        for (const auto& label : QualityRadar::axisLabels) {
+            assert(label.width == 24 && label.height == 36);
+            for (std::size_t i = 0; i < view.count; ++i) {
+                const auto& item = view.items[i].rect;
+                assert(label.x + label.width <= item.x || item.x + item.width <= label.x ||
+                    label.y + label.height <= item.y || item.y + item.height <= label.y);
+            }
+        }
+    }
+    for (bool preview : {false,true}) for (bool allowed : {false,true})
+    for (const auto issue : {farm::FarmCanalPathIssue::None, farm::FarmCanalPathIssue::NonStraight,
+        farm::FarmCanalPathIssue::BlockedTile}) for (int blocked : {-1, 639}) {
         TerrainViewState state;
         state.preview = preview; state.canConfirm = allowed;
         state.canRaise = state.canLower = state.canCanal = state.canSource = allowed;
         state.canPath = state.canUndo = state.canRedo = state.canCompost = allowed;
         state.tileValues = "639 / H3 / 100 / 100";
         state.changeCount = preview ? 640 : 0;
+        state.pathIssue = issue;
+        state.blockedTileIndex = blocked;
         View terrain;
         BuildTerrainView(terrain, state);
         assert(terrain.terrain && !terrain.modal && terrain.count == 17);
+        const bool rejected = preview && issue != farm::FarmCanalPathIssue::None;
+        const Label expectedStatus = preview && !allowed ? Label::PreviewStale :
+            !preview || issue == farm::FarmCanalPathIssue::None ? state.status :
+            issue == farm::FarmCanalPathIssue::BlockedTile ? Label::PathBlocked : Label::PathNonStraight;
+        assert(terrain.items[0].label == expectedStatus);
+        if (expectedStatus == Label::PathBlocked)
+            assert(terrain.items[0].value == (blocked < 0 ? "--" : "#639"));
+        else assert(terrain.items[0].value.empty());
+        assert(terrain.items[13].label == (rejected && allowed ? Label::ConfirmCandidates : Label::Confirm));
         assert(terrain.items[4].value == (preview ? "640" : "0"));
         assert(terrain.Hit({50,550}).action == (!preview && allowed ? Action::Raise : Action::None));
         assert(terrain.Hit({50,660}).action == (preview && allowed ? Action::Confirm : Action::None));
@@ -56,6 +365,14 @@ int main() {
             assert(!View::FarmHUDCovers({rect.x,rect.y}));
             assert(!View::FarmHUDCovers({rect.x+rect.width-1,rect.y+rect.height-1}));
         }
+    }
+    assert(kAsciiY + 128 <= 4096);
+    for (const Label label : {Label::RaiseBrush, Label::LowerBrush}) {
+        TerrainViewState state;
+        state.preview = state.canConfirm = true; state.status = label;
+        View heightView; BuildTerrainView(heightView, state);
+        assert(heightView.items[0].label == label && heightView.count == 17);
+        assert((heightView.items[0].rect.width - 20) / kLabels[static_cast<std::size_t>(label)].width >= 20.0f/26.0f);
     }
     for (bool harvested : {false,true}) {
         View empty;
@@ -160,6 +477,12 @@ int main() {
     View view;
     for (int target : {-1, 0, 19, 639}) {
         FarmToolActionResult evaluation;
+        View ended;
+        BuildFieldActionView(ended, evaluation, false, true, FarmHUDNextAction::SelectTile, true);
+        assert(ended.items[1].label == Label::SeasonEnded && !ended.items[2].enabled);
+        View stopped;
+        BuildPlayQuickView(stopped, false, false, false);
+        assert(stopped.items[1].label == Label::Paused && stopped.Hit({700,40}).action == Action::None);
         evaluation.tileIndex = target;
         evaluation.status = target < 0 ? FarmToolActionStatus::InvalidTarget : FarmToolActionStatus::Applied;
         View targetView;
@@ -190,7 +513,7 @@ int main() {
             const int expectedTool = next == FarmHUDNextAction::Hoe ? 0 :
                 (next == FarmHUDNextAction::Water || next == FarmHUDNextAction::WaterOrSeed) ? 1 :
                 next == FarmHUDNextAction::Seed ? 2 : next == FarmHUDNextAction::Harvest ? 3 : -1;
-            if (blocked) assert(hit.action == Action::None);
+            if (blocked & 2) assert(hit.action == Action::None);
             else if (expectedTool >= 0) { assert(hit.action == Action::Tool && hit.argument == expectedTool); }
             else assert(hit.action == (next == FarmHUDNextAction::BuySeed ? Action::OpenSeedShop : Action::None));
             assert(hit.action != Action::ApplyTool); // A next-tool shortcut never farms implicitly.
@@ -219,7 +542,7 @@ int main() {
                 evaluation.status = status; evaluation.tool = tool;
                 BuildFieldActionView(field, evaluation, (blocked & 1) != 0, (blocked & 2) != 0);
                 field.Add(Label::Menu, {1040, 654, 216, 42}, {Action::Menu});
-                const auto expected = blocked != 0 ? Action::None : status == FarmToolActionStatus::NoSeed
+                const auto expected = (blocked & 2) != 0 ? Action::None : status == FarmToolActionStatus::NoSeed
                     ? Action::OpenSeedShop : evaluation.Succeeded() ? Action::ApplyTool : Action::None;
                 assert(field.Hit({1100, 610}).action == expected);
                 assert(field.Covers({1100, 610}) && field.Covers({1042, 542}));
@@ -290,7 +613,7 @@ int main() {
     for (const auto& uv : kLabels) {
         assert(std::isfinite(uv.x) && std::isfinite(uv.y));
         assert(uv.width > 0 && uv.height > 0);
-        assert(uv.x >= 0 && uv.x + uv.width <= 1280);
+        assert(uv.x >= 0 && uv.x + uv.width <= kAtlasWidth && kAtlasWidth <= 4096);
         assert(uv.y >= 0 && uv.y + uv.height <= kAsciiY);
     }
     FarmComparisonView comparison{};

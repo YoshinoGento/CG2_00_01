@@ -15,6 +15,8 @@ struct FarmCropGrowthProfile {
 };
 
 struct FarmRules {
+	float minimumCropSizeMultiplier = 0.50f;
+	float maximumCropSizeMultiplier = 2.00f;
 	int gridWidth = 3;
 	int gridHeight = 3;
 	float tileSpacing = 2.15f;
