@@ -44,6 +44,7 @@ int main() {
         std::cout << "PASS: contest-day pause, speed boundaries, large-step cap, acknowledgement, reload and rewind\n";
     }
     farm::FarmGrid grid; assert(grid.Initialize(2, 1));
+    grid.GetMutableTile(0)->irrigationEnabled = false;
     FarmEconomySystem economy; economy.Initialize();
     FarmCropSelectionSystem selection; selection.Initialize();
     FarmDocumentSystem documents;
@@ -67,15 +68,34 @@ int main() {
     assert(documents.SaveAs("size roundtrip", grid, economy, selection));
     const std::string path = documents.GetPath(), id = documents.GetActiveDocumentId();
     nlohmann::json original;
-    assert(JsonFile::Load(path, original) && original["schemaVersion"] == 14);
+    assert(JsonFile::Load(path, original) && original["schemaVersion"] == 15);
     assert(original["playMode"]=="ContestSeason");
     {
         for(int version=1;version<=13;++version) {
             auto legacy=original; legacy["schemaVersion"]=version; legacy.erase("playMode");
             assert(JsonFile::Save(path,legacy) && documents.Load(id,grid,economy,selection));
             assert(progression.GetMode()==FarmProgressionMode::Trial);
+            assert(grid.GetTile(0)->irrigationEnabled);
         }
+        auto legacy14 = original; legacy14["schemaVersion"] = 14;
+        for (auto& savedTile : legacy14["tiles"]) savedTile.erase("irrigationEnabled");
+        assert(JsonFile::Save(path,legacy14) && documents.Load(id,grid,economy,selection));
+        assert(grid.GetTile(0)->irrigationEnabled && progression.IsContestSeason());
         assert(JsonFile::Save(path,original) && documents.Load(id,grid,economy,selection));
+        assert(!grid.GetTile(0)->irrigationEnabled);
+        for (int kind = 0; kind < 5; ++kind) {
+            auto invalid = original;
+            if (kind == 0) invalid["tiles"][0].erase("irrigationEnabled");
+            if (kind == 1) invalid["tiles"][0]["irrigationEnabled"] = nullptr;
+            if (kind == 2) invalid["tiles"][0]["irrigationEnabled"] = 0;
+            if (kind == 3) invalid["tiles"][0]["irrigationEnabled"] = "false";
+            if (kind == 4) invalid["tiles"][0]["irrigationEnabled"] = nlohmann::json::array();
+            const auto generation = grid.GetGeneration();
+            const auto inventory = economy.GetInventoryGeneration();
+            assert(JsonFile::Save(path,invalid) && !documents.Load(id,grid,economy,selection));
+            assert(grid.GetGeneration() == generation && !grid.GetTile(0)->irrigationEnabled);
+            assert(economy.GetInventoryGeneration() == inventory && date.GetDay() == 7);
+        }
         for(int mode=0;mode<5;++mode) {
             auto invalid=original;
             if(mode==0) invalid.erase("playMode");
@@ -121,6 +141,7 @@ int main() {
     assert(reopened.Initialize(directory, grid, economy, selection, &date, &progression));
     assert(progression.IsContestSeason() && !progression.IsCleared());
     assert(date.GetDay()==7 && economy.GetHarvestRecord(0)->harvestedDay==7);
+    assert(!grid.GetTile(0)->irrigationEnabled);
     {
         auto legacy=original; legacy["schemaVersion"]=11; legacy.erase("date");
         legacy["economy"]["harvestRecords"][0].erase("harvestedDay");
@@ -128,7 +149,7 @@ int main() {
         assert(date.GetDay()==1 && economy.GetHarvestRecord(0)->harvestedDay==0);
         assert(documents.Save(grid,economy,selection));
         nlohmann::json migrated; assert(JsonFile::Load(path,migrated));
-        assert(migrated["schemaVersion"]==14 && migrated["economy"]["harvestRecords"][0]["harvestedDay"]==0);
+        assert(migrated["schemaVersion"]==15 && migrated["economy"]["harvestRecords"][0]["harvestedDay"]==0);
         assert(JsonFile::Save(path,original) && documents.Load(id,grid,economy,selection));
     }
     assert(economy.GetLastHarvestQuality().harvestSize.multiplier == 1.25f);
@@ -285,9 +306,10 @@ int main() {
     assert(economy.GetContestResults()[0].contestDay==0 && economy.GetHarvestRecordCount()==1);
     assert(JsonFile::Save(path,submitted) && documents.Load(id,grid,economy,selection));
     assert(documents.Reset(grid,economy,selection) && date.GetDay()==1);
+    assert(grid.GetTile(0)->irrigationEnabled);
     for(const auto& contest : economy.GetContestResults()) assert(contest.contestDay==0);
     assert(date.RestoreSnapshot({2147483647,0,4})); date.AdvanceOneDay(); date.Update(1e30f);
     assert(date.GetDay()==2147483647 && date.GetElapsedSecondsInDay()==0);
     date.Initialize(); date.Update(121.25f); assert(date.GetDay()==3 && date.GetElapsedSecondsInDay()==1.25f);
-    std::cout << "PASS: schema14 mode/result/clock roundtrip, legacy1-13, atomic invalid load and reset\n";
+    std::cout << "PASS: schema15 intake/mode/result/clock roundtrip, legacy1-14, atomic invalid load and reset\n";
 }

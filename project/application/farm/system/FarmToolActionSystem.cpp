@@ -23,6 +23,7 @@ bool TilesEqual(const farm::FarmTile& left, const farm::FarmTile& right)
 {
 	return left.heightLevel == right.heightLevel &&
 		left.feature == right.feature &&
+		left.irrigationEnabled == right.irrigationEnabled &&
 		left.state == right.state &&
 		left.crop == right.crop &&
 		left.moisture == right.moisture &&
@@ -36,6 +37,29 @@ bool TilesEqual(const farm::FarmTile& left, const farm::FarmTile& right)
 		left.careHistory.nutrientSupply == right.careHistory.nutrientSupply &&
 		left.soilNutrients == right.soilNutrients;
 }
+
+// Restore only the intake setting; simulation may have changed water/growth since the edit.
+class FarmIntakeCommand final : public IUndoableCommand {
+public:
+	FarmIntakeCommand(farm::FarmGrid& grid, int index, bool before, bool after)
+		: grid_(&grid), generation_(grid.GetGeneration()), index_(index), before_(before), after_(after) {}
+	bool Execute() override { return Apply(before_, after_); }
+	bool Undo() override { return Apply(after_, before_); }
+	std::string_view GetName() const noexcept override { return after_ ? "Open Soil Intake" : "Close Soil Intake"; }
+private:
+	bool Apply(bool expected, bool value) {
+		if (!grid_ || grid_->GetGeneration() != generation_) return false;
+		auto* tile = grid_->GetMutableTile(index_);
+		if (!tile || tile->feature != farm::FarmTileFeature::None || tile->irrigationEnabled != expected) return false;
+		tile->irrigationEnabled = value;
+		return true;
+	}
+	// History is owned by the scene and cleared before its grid is destroyed.
+	farm::FarmGrid* grid_ = nullptr;
+	uint64_t generation_ = 0;
+	int index_ = -1;
+	bool before_ = true, after_ = true;
+};
 
 class FarmTileEditCommand final : public IUndoableCommand {
 public:
@@ -436,6 +460,21 @@ bool FarmToolActionSystem::LowerSelectedTile(farm::FarmGrid& grid)
 		FarmToolActionSystem::kMinimumHeightLevel,
 		FarmToolActionSystem::kMaximumHeightLevel);
 	return CommitTileChange(grid, tileIndex, before, after, "Lower Tile");
+}
+
+bool FarmToolActionSystem::CanSetIrrigation(const farm::FarmGrid& grid, int tileIndex) const noexcept
+{
+	const auto* tile = grid.GetTile(tileIndex);
+	return tile && tile->feature == farm::FarmTileFeature::None;
+}
+
+bool FarmToolActionSystem::SetSelectedIrrigation(farm::FarmGrid& grid, bool enabled)
+{
+	const int index = grid.GetSelectedIndex();
+	if (!CanSetIrrigation(grid, index)) return false;
+	const bool before = grid.GetTile(index)->irrigationEnabled;
+	if (before == enabled) return false;
+	return history_.Execute(std::make_unique<FarmIntakeCommand>(grid, index, before, enabled));
 }
 
 bool FarmToolActionSystem::ToggleSelectedCanal(farm::FarmGrid& grid)

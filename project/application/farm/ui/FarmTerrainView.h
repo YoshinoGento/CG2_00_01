@@ -8,6 +8,7 @@ struct TerrainViewState {
     bool canConfirm = false;
     bool canRaise = false, canLower = false, canCanal = false, canSource = false;
     bool canPath = false, canUndo = false, canRedo = false, canCompost = false;
+    bool canSetIrrigation = false, irrigationEnabled = true;
     Label status = Label::Terrain;
     std::string tileValues;
     std::size_t changeCount = 0;
@@ -28,7 +29,11 @@ inline void BuildTerrainView(View& view, const TerrainViewState& state) {
     } else {
         view.Add(rejectedExtension ? Label::PathNonStraight : state.status, {26, 24, 610, 38});
     }
-    view.Add(Label::Paused, {658, 24, 250, 38});
+    const bool intakeAvailable = !state.preview && state.canSetIrrigation;
+    view.Add(Label::IntakeOn, {658, 24, 122, 40}, {Action::SetIrrigation, 1},
+        intakeAvailable, state.canSetIrrigation && state.irrigationEnabled);
+    view.Add(Label::IntakeOff, {786, 24, 122, 40}, {Action::SetIrrigation, 0},
+        intakeAvailable, state.canSetIrrigation && !state.irrigationEnabled);
     view.Add(Label::Resume, {950, 24, 298, 40}, {Action::TerrainExit});
     view.Metric(Label::Tile, {26, 68, 910, 36}, 510, state.tileValues);
     view.Metric(Label::Changed, {950, 68, 298, 36}, 180, std::to_string(state.changeCount));
@@ -57,5 +62,9 @@ inline void BuildPlayQuickView(View& view, bool paused, bool canEdit, bool canCo
     view.Add(Label::Terrain, {350, 24, 246, 44}, {Action::TerrainField}, canEdit);
     view.Add(!canControlTime ? Label::Paused : paused ? Label::Play : Label::Pause,
         {612, 24, 246, 44}, {Action::Pause}, canControlTime);
+}
+
+inline void BuildIntakeStatusView(View& view, bool closed, bool canEdit) {
+    if (closed) view.Add(Label::IntakeClosed, {390, 496, 300, 38}, {Action::TerrainField}, canEdit);
 }
 }

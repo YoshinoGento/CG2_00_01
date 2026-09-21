@@ -79,8 +79,10 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             state.canUndo = unlocked && s.farmToolActionSystem_.GetHistory().CanUndo();
             state.canRedo = unlocked && s.farmToolActionSystem_.GetHistory().CanRedo();
             state.canCompost = unlocked && tile && FarmSoilSystem::CanCompost(*tile);
+            state.canSetIrrigation = unlocked && s.farmToolActionSystem_.CanSetIrrigation(s.farmGrid_, index);
+            state.irrigationEnabled = tile && tile->irrigationEnabled;
             state.status = state.preview ? (brush_ == 1 ? Label::PathActive : brush_ == 2 ? Label::RemoveActive : Label::Preview)
-                : status_;
+                : (status_ == Label::Failure ? status_ : Label::PauseCapture);
             state.pathIssue = preview.GetPathIssue();
             if (state.preview && preview.GetOperation() == farm::FarmIrrigationPreviewOperation::RaiseTerrain)
                 state.status = Label::RaiseBrush;
@@ -120,6 +122,8 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
                 !s.farmProgressionSystem_.IsCleared());
             const auto* reserved = s.farmEconomySystem_.GetContestReservation();
             const auto* tile = s.farmGrid_.GetSelectedTile();
+            farmui::BuildIntakeStatusView(view_, tile && tile->feature == farm::FarmTileFeature::None &&
+                !tile->irrigationEnabled, !s.farmProgressionSystem_.IsCleared());
             const bool planted = tile && farm::IsPlantableCrop(tile->crop);
             const auto quality = planted ? s.farmToolActionSystem_.EvaluateHarvestQuality(*tile) : FarmCropQualityResult{};
             farmui::BuildPlayCropStatusView(view_, hud.feedback != FarmHUDFeedback::None,
@@ -515,6 +519,16 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
         if (request.action != Action::Cancel) { status_ = Label::Failure; return; }
     } else {
         switch (request.action) {
+        case Action::SetIrrigation: {
+            if (request.argument != 0 && request.argument != 1) break;
+            editor::GamePlayEditorCommand command{};
+            command.type = C::SetFarmIrrigation;
+            command.farmGeneration = s.farmGrid_.GetGeneration();
+            command.farmTileIndex = s.farmGrid_.GetSelectedIndex();
+            command.irrigationEnabled = request.argument == 1;
+            success = s.gamePlayEditorBridge_.Execute(command);
+            break;
+        }
         case Action::Compost:
             success = dispatch(C::CompostFarmTile);
             status_ = success ? Label::SoilApplied : Label::Failure;

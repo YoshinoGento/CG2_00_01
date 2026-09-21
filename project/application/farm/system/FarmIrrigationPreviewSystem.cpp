@@ -13,6 +13,7 @@ bool TilesEqual(const FarmTile& left, const FarmTile& right) noexcept
 {
 	return left.heightLevel == right.heightLevel &&
 		left.feature == right.feature &&
+		left.irrigationEnabled == right.irrigationEnabled &&
 		left.state == right.state &&
 		left.crop == right.crop &&
 		left.moisture == right.moisture &&

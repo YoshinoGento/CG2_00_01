@@ -211,7 +211,7 @@ void FarmIrrigationSystem::Rebuild(const FarmGrid& grid)
 int FarmIrrigationSystem::FindWetCanal(const FarmGrid& grid, int tileIndex) const noexcept
 {
 	const FarmTile* soil = grid.GetTile(tileIndex);
-	if (!soil || soil->feature != FarmTileFeature::None || grid.GetWidth() <= 0) { return -1; }
+	if (!soil || !soil->irrigationEnabled || soil->feature != FarmTileFeature::None || grid.GetWidth() <= 0) { return -1; }
 	int best = -1;
 	float bestStrength = 0.0f;
 	for (std::size_t direction = 0; direction < kNeighborX.size(); ++direction) {
@@ -252,6 +252,7 @@ FarmWaterStatus FarmIrrigationSystem::GetWaterStatus(const FarmGrid& grid, int t
 		return connected ? FarmWaterStatus::Waiting : FarmWaterStatus::Dry;
 	}
 	const int wetCanal = FindWetCanal(grid, tileIndex);
+	if (!tile->irrigationEnabled) { return FarmWaterStatus::None; }
 	if (wetCanal >= 0) {
 		return IsSupplied(wetCanal) ? FarmWaterStatus::Available : FarmWaterStatus::Retained;
 	}
@@ -278,7 +279,8 @@ bool FarmIrrigationSystem::MeasurementMatches(const FarmGrid& grid) const noexce
 		const auto* tile = grid.GetTile(i);
 		const auto& identity = measuredTiles_[i];
 		if (!tile || tile->heightLevel != identity.height || tile->feature != identity.feature ||
-			tile->state != identity.state || tile->crop != identity.crop) { return false; }
+			tile->state != identity.state || tile->crop != identity.crop ||
+			tile->irrigationEnabled != identity.irrigationEnabled) { return false; }
 	}
 	return true;
 }
@@ -318,7 +320,7 @@ bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float ti
 	for (int i = 0; i < count; ++i) {
 		auto& tile = *grid.GetMutableTile(i);
 		const float oldWater = tile.waterAmount;
-		measuredTiles_[i] = { tile.heightLevel, tile.feature, tile.state, tile.crop };
+		measuredTiles_[i] = { tile.heightLevel, tile.feature, tile.state, tile.crop, tile.irrigationEnabled };
 		measurable &= std::isfinite(oldWater) && oldWater >= 0.0f && oldWater <= 1.0f &&
 			std::isfinite(tile.moisture) && tile.moisture >= 0.0f && tile.moisture <= 1.0f &&
 			IsValidFarmTileFeature(tile.feature) &&

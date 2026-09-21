@@ -13,7 +13,7 @@ bool Valid(const farm::FarmTile& tile) noexcept {
 }
 bool Same(const farm::FarmTile& a, const farm::FarmTile& b) noexcept {
 	return a.state == b.state && a.crop == b.crop && a.feature == b.feature &&
-		a.heightLevel == b.heightLevel && a.moisture == b.moisture &&
+		a.heightLevel == b.heightLevel && a.moisture == b.moisture && a.irrigationEnabled == b.irrigationEnabled &&
 		a.growth == b.growth && a.waterAmount == b.waterAmount && a.soilNutrients == b.soilNutrients &&
 		a.careHistory.nutrientGrowth == b.careHistory.nutrientGrowth &&
 		a.careHistory.nutrientSupply == b.careHistory.nutrientSupply;
@@ -100,6 +100,7 @@ void FarmGrowthComparisonSystem::ObserveAfterStep(const farm::FarmGrid& grid, fl
 		const auto* tile = grid.GetTile(row.tileIndex);
 		if (!tile || !Valid(*tile) || tile->crop != row.initial.crop || tile->state != row.initial.state ||
 			tile->heightLevel != row.initial.heightLevel || tile->feature != row.initial.feature ||
+			tile->irrigationEnabled != row.initial.irrigationEnabled ||
 			tile->growth < row.current.growth) { view_.status = FarmComparisonStatus::Invalidated; return; }
 	}
 	view_.elapsedSeconds += static_cast<double>(scaledDelta);

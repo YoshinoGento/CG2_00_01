@@ -108,7 +108,7 @@ labels.extend([
     ["HarvestLegacyNotice", "旧記録の個別品質・サイズは不明です"],
     ["HarvestPageNumber", "ページ"],
 ])
-columns = 3
+columns = 4
 labels.extend([
     ["HarvestProtection", "売却保護"],
     ["HarvestProtect", "保護する"],
@@ -194,6 +194,10 @@ labels.extend([
     ["ContestDayReview", "出品画面へ（停止を維持）"],
     ["ContestDayPrepare", "畑で準備（停止を維持）"],
     ["ContestDayResume", "案内を閉じて時間を進める"],
+])
+labels.extend([
+    ["IntakeOn", "給水 入"], ["IntakeOff", "給水 切"],
+    ["IntakeClosed", "この畑の自動給水：切"],
 ])
 ascii_y = ((len(labels) + columns - 1) // columns) * cell_h
 height = ascii_y + 128

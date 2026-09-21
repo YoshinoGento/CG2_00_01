@@ -598,6 +598,9 @@ void EditorShell::DrawFarmController(GamePlayScene& playScene) {
 		command.farmTileIndex = gamePlayEditorViewModel_.selectedFarmTileIndex;
 		changed |= bridge.Execute(command);
 	}
+	if (actions.irrigationCommand) {
+		changed |= bridge.Execute(*actions.irrigationCommand);
+	}
 	if (actions.beginRaiseTerrainPreview) {
 		editor::GamePlayEditorCommand command;
 		command.type = editor::GamePlayEditorCommandType::BeginFarmRaiseTerrainPreview;

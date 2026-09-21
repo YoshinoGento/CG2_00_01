@@ -23,7 +23,7 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 14;
+constexpr int kSchemaVersion = 15;
 constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
@@ -315,6 +315,7 @@ nlohmann::json BuildJson(
 			{ "moisture", tile.moisture },
 			{ "growth", tile.growth },
 			{ "waterAmount", tile.waterAmount },
+			{ "irrigationEnabled", tile.irrigationEnabled },
 			{ "soilNutrients", tile.soilNutrients },
 			{ "careHistory", {
 				{ "drySeconds", tile.careHistory.drySeconds },
@@ -449,6 +450,13 @@ bool ParseSnapshot(
 			farm::FarmTile tile;
 			tile.heightLevel = tileJson["height"].get<int>();
 			tile.moisture = tileJson["moisture"].get<float>();
+			if (schemaVersion >= 15) {
+				if (!tileJson.contains("irrigationEnabled") || !tileJson["irrigationEnabled"].is_boolean()) {
+					error = "Farm tile has missing or invalid irrigation intake.";
+					return false;
+				}
+				tile.irrigationEnabled = tileJson["irrigationEnabled"].get<bool>();
+			}
 			tile.growth = tileJson["growth"].get<float>();
 			if (schemaVersion >= 5) {
 				if (!tileJson.contains("waterAmount") || !tileJson["waterAmount"].is_number()) {

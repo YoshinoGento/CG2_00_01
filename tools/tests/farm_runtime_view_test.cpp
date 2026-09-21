@@ -309,20 +309,28 @@ int main() {
             }
         }
     }
-    for (bool preview : {false,true}) for (bool allowed : {false,true})
+    for (bool preview : {false,true}) for (bool allowed : {false,true}) for (bool intake : {false,true})
     for (const auto issue : {farm::FarmCanalPathIssue::None, farm::FarmCanalPathIssue::NonStraight,
         farm::FarmCanalPathIssue::BlockedTile}) for (int blocked : {-1, 639}) {
         TerrainViewState state;
         state.preview = preview; state.canConfirm = allowed;
         state.canRaise = state.canLower = state.canCanal = state.canSource = allowed;
         state.canPath = state.canUndo = state.canRedo = state.canCompost = allowed;
+        state.canSetIrrigation = allowed; state.irrigationEnabled = intake;
         state.tileValues = "639 / H3 / 100 / 100";
         state.changeCount = preview ? 640 : 0;
         state.pathIssue = issue;
         state.blockedTileIndex = blocked;
         View terrain;
         BuildTerrainView(terrain, state);
-        assert(terrain.terrain && !terrain.modal && terrain.count == 17);
+        assert(terrain.terrain && !terrain.modal && terrain.count == 18);
+        assert(terrain.items[1].selected == (allowed && intake));
+        assert(terrain.items[2].selected == (allowed && !intake));
+        assert(terrain.Hit({700,40}).action == (!preview && allowed ? Action::SetIrrigation : Action::None));
+        assert(terrain.Hit({830,40}).action == (!preview && allowed ? Action::SetIrrigation : Action::None));
+        if (!preview && allowed) {
+            assert(terrain.Hit({700,40}).argument == 1 && terrain.Hit({830,40}).argument == 0);
+        }
         const bool rejected = preview && issue != farm::FarmCanalPathIssue::None;
         const Label expectedStatus = preview && !allowed ? Label::PreviewStale :
             !preview || issue == farm::FarmCanalPathIssue::None ? state.status :
@@ -331,8 +339,8 @@ int main() {
         if (expectedStatus == Label::PathBlocked)
             assert(terrain.items[0].value == (blocked < 0 ? "--" : "#639"));
         else assert(terrain.items[0].value.empty());
-        assert(terrain.items[13].label == (rejected && allowed ? Label::ConfirmCandidates : Label::Confirm));
-        assert(terrain.items[4].value == (preview ? "640" : "0"));
+        assert(terrain.items[14].label == (rejected && allowed ? Label::ConfirmCandidates : Label::Confirm));
+        assert(terrain.items[5].value == (preview ? "640" : "0"));
         assert(terrain.Hit({50,550}).action == (!preview && allowed ? Action::Raise : Action::None));
         assert(terrain.Hit({50,660}).action == (preview && allowed ? Action::Confirm : Action::None));
         assert(terrain.Hit({350,660}).action == (preview ? Action::Cancel : Action::None));
@@ -367,11 +375,22 @@ int main() {
         }
     }
     assert(kAsciiY + 128 <= 4096);
+    for (bool closed : {false,true}) for (bool editable : {false,true}) {
+        View status; BuildIntakeStatusView(status, closed, editable);
+        assert(status.count == (closed ? 1u : 0u));
+        assert(status.Hit({500,510}).action == (closed && editable ? Action::TerrainField : Action::None));
+        if (closed) {
+            const auto& item = status.items[0];
+            assert(!View::FarmHUDCovers({item.rect.x,item.rect.y}));
+            assert(!View::FarmHUDCovers({item.rect.x+item.rect.width-1,item.rect.y+item.rect.height-1}));
+            assert((item.rect.width-20)/kLabels[static_cast<std::size_t>(item.label)].width >= 20.0f/26.0f);
+        }
+    }
     for (const Label label : {Label::RaiseBrush, Label::LowerBrush}) {
         TerrainViewState state;
         state.preview = state.canConfirm = true; state.status = label;
         View heightView; BuildTerrainView(heightView, state);
-        assert(heightView.items[0].label == label && heightView.count == 17);
+        assert(heightView.items[0].label == label && heightView.count == 18);
         assert((heightView.items[0].rect.width - 20) / kLabels[static_cast<std::size_t>(label)].width >= 20.0f/26.0f);
     }
     for (bool harvested : {false,true}) {

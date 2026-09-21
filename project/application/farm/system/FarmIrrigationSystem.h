@@ -64,6 +64,7 @@ private:
 		FarmTileFeature feature = FarmTileFeature::None;
 		FarmTileState state = FarmTileState::Empty;
 		CropType crop = CropType::None;
+		bool irrigationEnabled = true;
 	};
 	[[nodiscard]] bool MeasurementMatches(const FarmGrid& grid) const noexcept;
 	FarmIrrigationStepSummary lastStep_;

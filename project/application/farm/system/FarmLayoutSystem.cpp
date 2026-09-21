@@ -39,7 +39,8 @@ Json Read(const fs::path& path) {
     Json json; stream >> json; return json;
 }
 farm::FarmGrid::Snapshot Decode(const Json& j) {
-    Require(j.is_object() && j.at("kind") == "farm_layout" && j.at("version") == 1);
+    Require(j.is_object() && j.at("kind") == "farm_layout");
+    const int version = Integer(j.at("version"), 1, 2);
     Require(ValidName(j.at("name").get<std::string>()));
     farm::FarmGrid::Snapshot result;
     result.width = Integer(j.at("width"), 1, kMaxDimension);
@@ -51,6 +52,10 @@ farm::FarmGrid::Snapshot Decode(const Json& j) {
         farm::FarmTile tile{};
         tile.heightLevel = Integer(value.at("height"), 0, 2);
         tile.feature = static_cast<farm::FarmTileFeature>(Integer(value.at("feature"), 0, 2));
+        if (version >= 2) {
+            Require(value.at("irrigationEnabled").is_boolean());
+            tile.irrigationEnabled = value.at("irrigationEnabled").get<bool>();
+        }
         Require(value.at("cultivated").is_boolean());
         const bool cultivated = value.at("cultivated").get<bool>();
         Require(!cultivated || tile.feature == farm::FarmTileFeature::None);
@@ -98,9 +103,10 @@ bool FarmLayoutSystem::SaveNew(const std::string& name, const farm::FarmGrid& gr
         for (int i = 0; i < grid.GetTileCount(); ++i) {
             const auto* tile = grid.GetTile(i); Require(tile != nullptr);
             tiles.push_back({{"height", tile->heightLevel}, {"feature", static_cast<int>(tile->feature)},
+                {"irrigationEnabled", tile->irrigationEnabled},
                 {"cultivated", tile->feature == farm::FarmTileFeature::None && tile->state != farm::FarmTileState::Empty}});
         }
-        const Json json{{"kind", "farm_layout"}, {"version", 1}, {"name", name},
+        const Json json{{"kind", "farm_layout"}, {"version", 2}, {"name", name},
             {"width", grid.GetWidth()}, {"height", grid.GetHeight()}, {"tiles", std::move(tiles)}};
         static_cast<void>(Decode(json));
         const auto stamp = std::chrono::system_clock::now().time_since_epoch().count();

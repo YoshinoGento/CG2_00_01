@@ -226,6 +226,9 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 			destination.nutrientTarget = soilProfile ? soilProfile->target : 0.0f;
 			destination.canCompost = FarmSoilSystem::CanCompost(*tile);
 			destination.storedWater = tile->waterAmount;
+			destination.irrigationEnabled = tile->irrigationEnabled;
+			destination.canSetIrrigation = !scene_->farmProgressionSystem_.IsCleared() && !output.irrigationPreviewActive &&
+				farmToolActionSystem_->CanSetIrrigation(*farmGrid_, index);
 			destination.waterStatus = displayedIrrigation->GetWaterStatus(*displayedGrid, index);
 			if (output.irrigationLastStep.valid && static_cast<std::size_t>(index) < irrigationFlows.size()) {
 				destination.irrigationFlow = irrigationFlows[static_cast<std::size_t>(index)];
@@ -631,6 +634,14 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 			return true;
 		}
 		return false;
+	case GamePlayEditorCommandType::SetFarmIrrigation:
+		if (scene_->farmIrrigationPreviewSystem_.IsActive() || !SelectCommandTarget(command)) return false;
+		if (!farmToolActionSystem_->CanSetIrrigation(*farmGrid_, command.farmTileIndex)) return false;
+		if (farmGrid_->GetTile(command.farmTileIndex)->irrigationEnabled == command.irrigationEnabled) return true;
+		if (!farmToolActionSystem_->SetSelectedIrrigation(*farmGrid_, command.irrigationEnabled)) return false;
+		farmIrrigationSystem_->Rebuild(*farmGrid_);
+		farmDocumentSystem_->MarkDirty();
+		return true;
 	case GamePlayEditorCommandType::ToggleFarmCanal:
 		if (SelectCommandTarget(command) &&
 			farmToolActionSystem_->ToggleSelectedCanal(*farmGrid_)) {

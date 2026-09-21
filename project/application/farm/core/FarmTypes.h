@@ -140,6 +140,8 @@ struct FarmTile {
 	float growth = 0.0f;
 	// Reservoir capacity is one; soil moisture is stored separately.
 	float waterAmount = 0.0f;
+	// Soil intake preference; dormant on canal/source tiles, independent of manual watering.
+	bool irrigationEnabled = true;
 	float soilNutrients = 0.60f;
 	FarmCropCareHistory careHistory{};
 };

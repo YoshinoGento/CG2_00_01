@@ -86,7 +86,7 @@ int main()
 
 	nlohmann::json savedJson;
 	assert(JsonFile::Load(savedPath, savedJson));
-    assert(savedJson["schemaVersion"].get<int>() == 14);
+    assert(savedJson["schemaVersion"].get<int>() == 15);
 	assert(savedJson["tiles"][0]["careHistory"].is_object());
 	assert(Near(
 		savedJson["tiles"][0]["careHistory"]["efficiencySeconds"].get<float>(),

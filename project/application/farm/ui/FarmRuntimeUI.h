@@ -10,7 +10,7 @@
 namespace farmui {
 enum class Action {
     None, Menu, Close, Tab, Tool, Crop, Buy, Sell, SellAll,
-    Raise, Lower, Canal, Source, Path, RemovePath, Confirm, Cancel, Undo, Redo,
+    Raise, Lower, Canal, Source, Path, RemovePath, Confirm, Cancel, Undo, Redo, SetIrrigation,
     Save, SaveCopy, Load, Previous, Next, Restart, Accept,
     PinA, PinB, Start, Stop, Clear, Pause, Speed, Follow, Overview, Exit, LayoutLibrary,
     ObserveField, ObserveExit, PickSlot, JumpSlot, FlowContinue, FlowRecords,

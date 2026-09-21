@@ -994,6 +994,18 @@ FarmControllerActions FarmControllerWindow::Draw(
 		}
 		ImGui::EndDisabled();
 		if (tile->feature == farm::FarmTileFeature::None) {
+			bool intake = tile->irrigationEnabled;
+			ImGui::BeginDisabled(!tile->canSetIrrigation);
+			if (ImGui::Checkbox(text("Automatic soil intake"), &intake)) {
+				editor::GamePlayEditorCommand command{};
+				command.type = editor::GamePlayEditorCommandType::SetFarmIrrigation;
+				command.farmGeneration = viewModel.farmGeneration;
+				command.farmTileIndex = tile->index;
+				command.irrigationEnabled = intake;
+				actions.irrigationCommand = command;
+			}
+			ImGui::EndDisabled();
+			ImGui::TextWrapped("%s", text("Closed intake keeps soil moisture and canal water. Manual watering still works."));
 			ImGui::TextColored(
 				tile->irrigationInRange
 					? ImVec4(0.20f, 0.88f, 1.0f, 1.0f)

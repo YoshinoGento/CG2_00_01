@@ -374,6 +374,8 @@ constexpr std::array kJapaneseText = {
 	LocalizedText{ "Stored", u8"残水" },
 	LocalizedText{ "Waiting", u8"待機" },
 	LocalizedText{ "Retained water", u8"残水あり" },
+	LocalizedText{ "Automatic soil intake", u8"この畑の自動給水" },
+	LocalizedText{ "Closed intake keeps soil moisture and canal water. Manual watering still works.", u8"切っても土の水分・水路の水は残ります。じょうろは使用できます。" },
 	LocalizedText{ "Waiting for water", u8"補給待ち" },
 	LocalizedText{ "Water depleted", u8"水切れ" },
 	LocalizedText{ "No irrigation access", u8"給水経路なし" },

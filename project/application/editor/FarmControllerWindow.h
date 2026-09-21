@@ -11,6 +11,7 @@ struct FarmControllerActions {
 	bool beginRaiseTerrainPreview = false;
 	bool beginLowerTerrainPreview = false;
 	bool compost = false;
+	std::optional<editor::GamePlayEditorCommand> irrigationCommand;
 	bool toggleCanal = false;
 	bool toggleWaterSource = false;
 	bool beginCanalPreview = false;

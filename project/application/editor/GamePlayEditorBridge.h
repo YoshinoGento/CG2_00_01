@@ -54,6 +54,8 @@ struct FarmTileEditorViewData {
 	bool canSeed = false;
 	bool canHarvest = false;
 	bool canToggleCanal = false;
+	bool irrigationEnabled = true;
+	bool canSetIrrigation = false;
 	bool canToggleWaterSource = false;
 	bool irrigationSupplied = false;
 	bool irrigationInRange = false;
@@ -321,6 +323,7 @@ enum class GamePlayEditorCommandType {
 	SetFarmProgressionMode,
 	LowerFarmTile,
 	ToggleFarmCanal,
+	SetFarmIrrigation,
 	ToggleFarmWaterSource,
 	BeginFarmCanalPreview,
 	BeginFarmWaterSourcePreview,
@@ -354,6 +357,7 @@ struct GamePlayEditorCommand {
 	FarmProgressionMode progressionMode = FarmProgressionMode::Trial;
 	uint64_t inventoryGeneration = 0;
 	bool harvestProtected = false;
+	bool irrigationEnabled = true;
 };
 
 enum class FarmDocumentCommandType {
