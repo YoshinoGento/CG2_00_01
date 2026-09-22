@@ -35,8 +35,38 @@ struct FarmGrowthForecast {
 	bool irrigationActive = false;
 };
 
+enum class FarmWaterAdvice {
+	Unknown, Till, Plant, Harvest, Water, CheckSupply, CloseIntake, AvoidWater, Monitor,
+};
+
+struct FarmWaterGuidance {
+	bool visible = false;
+	bool intakeClosed = false;
+	farm::FarmWaterStatus supply = farm::FarmWaterStatus::None;
+	FarmWaterAdvice advice = FarmWaterAdvice::Unknown;
+};
+
+[[nodiscard]] inline const char* FarmWaterAdviceText(FarmWaterAdvice advice) noexcept
+{
+	switch (advice) {
+	case FarmWaterAdvice::Till: return "Cultivate soil before irrigation.";
+	case FarmWaterAdvice::Plant: return "Plant a crop before checking growth.";
+	case FarmWaterAdvice::Harvest: return "Ready to harvest; no more watering needed.";
+	case FarmWaterAdvice::Water: return "Low moisture: water with the watering can.";
+	case FarmWaterAdvice::CheckSupply: return "Low moisture: check soil after irrigation.";
+	case FarmWaterAdvice::CloseIntake: return "Excess moisture: close automatic intake.";
+	case FarmWaterAdvice::AvoidWater: return "Excess moisture: avoid additional watering.";
+	case FarmWaterAdvice::Monitor: return "Good moisture: monitor while growing.";
+	default: return "Water guidance unavailable.";
+	}
+}
+
 class FarmGrowthSystem final {
 public:
+	// Advice describes the current state; availability is not measured delivery.
+	[[nodiscard]] static FarmWaterGuidance AnalyzeWater(
+		const farm::FarmTile* tile, const FarmGrowthForecast& forecast,
+		farm::FarmWaterStatus supply) noexcept;
 	void Initialize(const farm::FarmRules& rules = {}) noexcept;
 	// Reports persistent tile changes, including repaired nonfinite values.
 	bool Update(

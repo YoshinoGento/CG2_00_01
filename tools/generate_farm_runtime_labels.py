@@ -198,6 +198,21 @@ labels.extend([
 labels.extend([
     ["IntakeOn", "給水 入"], ["IntakeOff", "給水 切"],
     ["IntakeClosed", "この畑の自動給水：切"],
+    ["SupplyAvailable", "給水可能（実際の給水量とは異なります）"],
+    ["SupplyRetained", "残り水で給水可能（水源からは切断）"],
+    ["SupplyWaiting", "用水路への通水待ち"],
+    ["SupplyDry", "用水路の水が不足：水源と接続を確認"],
+    ["SupplyNone", "給水経路なし：用水路と高さを確認"],
+    ["WaterAdviceUnknown", "水分状態を確認できません"],
+    ["WaterAdviceTill", "耕してから給水できます"],
+    ["WaterAdvicePlant", "種を植えてから生育を確認"],
+    ["WaterAdviceHarvest", "収穫できます：追加の水やりは不要"],
+    ["WaterAdviceWater", "水不足：じょうろで水やり"],
+    ["WaterAdviceSupply", "水不足：給水後の水分量を確認"],
+    ["WaterAdviceClose", "水過多：自動給水を切る"],
+    ["WaterAdviceAvoid", "水過多：追加の水やりを控える"],
+    ["WaterAdviceMonitor", "水分は適量：状態を見ながら育てる"],
+    ["SpeedCompact1", "1倍"], ["SpeedCompact2", "2倍"], ["SpeedCompact4", "4倍"],
 ])
 ascii_y = ((len(labels) + columns - 1) // columns) * cell_h
 height = ascii_y + 128

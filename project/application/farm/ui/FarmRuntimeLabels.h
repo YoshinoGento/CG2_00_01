@@ -273,9 +273,26 @@ enum class Label {
     IntakeOn,
     IntakeOff,
     IntakeClosed,
+    SupplyAvailable,
+    SupplyRetained,
+    SupplyWaiting,
+    SupplyDry,
+    SupplyNone,
+    WaterAdviceUnknown,
+    WaterAdviceTill,
+    WaterAdvicePlant,
+    WaterAdviceHarvest,
+    WaterAdviceWater,
+    WaterAdviceSupply,
+    WaterAdviceClose,
+    WaterAdviceAvoid,
+    WaterAdviceMonitor,
+    SpeedCompact1,
+    SpeedCompact2,
+    SpeedCompact4,
 };
 struct AtlasRect { float x, y, width, height; };
-inline constexpr std::array<AtlasRect, 271> kLabels = {{
+inline constexpr std::array<AtlasRect, 288> kLabels = {{
     {0.0f, 0.0f, 160.0f, 38.0f},
     {640.0f, 0.0f, 160.0f, 38.0f},
     {1280.0f, 0.0f, 160.0f, 38.0f},
@@ -547,7 +564,24 @@ inline constexpr std::array<AtlasRect, 271> kLabels = {{
     {0.0f, 2948.0f, 89.0f, 38.0f},
     {640.0f, 2948.0f, 89.0f, 38.0f},
     {1280.0f, 2948.0f, 264.0f, 38.0f},
+    {1920.0f, 2948.0f, 498.0f, 38.0f},
+    {0.0f, 2992.0f, 446.0f, 38.0f},
+    {640.0f, 2992.0f, 238.0f, 38.0f},
+    {1280.0f, 2992.0f, 446.0f, 38.0f},
+    {1920.0f, 2992.0f, 420.0f, 38.0f},
+    {0.0f, 3036.0f, 316.0f, 38.0f},
+    {640.0f, 3036.0f, 290.0f, 38.0f},
+    {1280.0f, 3036.0f, 316.0f, 38.0f},
+    {1920.0f, 3036.0f, 420.0f, 38.0f},
+    {0.0f, 3080.0f, 316.0f, 38.0f},
+    {640.0f, 3080.0f, 368.0f, 38.0f},
+    {1280.0f, 3080.0f, 290.0f, 38.0f},
+    {1920.0f, 3080.0f, 368.0f, 38.0f},
+    {0.0f, 3124.0f, 420.0f, 38.0f},
+    {640.0f, 3124.0f, 44.0f, 38.0f},
+    {1280.0f, 3124.0f, 44.0f, 38.0f},
+    {1920.0f, 3124.0f, 44.0f, 38.0f},
 }};
 inline constexpr float kAtlasWidth = 2560.0f;
-inline constexpr float kAsciiY = 2992.0f;
+inline constexpr float kAsciiY = 3168.0f;
 }

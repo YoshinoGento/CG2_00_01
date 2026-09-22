@@ -1,6 +1,7 @@
 #pragma once
 #include "farm/ui/FarmRuntimeUI.h"
 #include "farm/system/FarmIrrigationPreviewSystem.h"
+#include "farm/system/FarmGrowthSystem.h"
 
 namespace farmui {
 struct TerrainViewState {
@@ -58,13 +59,44 @@ inline void BuildTerrainView(View& view, const TerrainViewState& state) {
     button(Label::Overview, Action::Overview, true);
 }
 
-inline void BuildPlayQuickView(View& view, bool paused, bool canEdit, bool canControlTime = true) {
-    view.Add(Label::Terrain, {350, 24, 246, 44}, {Action::TerrainField}, canEdit);
+inline void BuildPlayQuickView(View& view, bool paused, bool canEdit, bool canControlTime = true,
+    float timeScale = 1.0f) {
+    view.Add(Label::Terrain, {350, 24, 178, 44}, {Action::TerrainField}, canEdit);
     view.Add(!canControlTime ? Label::Paused : paused ? Label::Play : Label::Pause,
-        {612, 24, 246, 44}, {Action::Pause}, canControlTime);
+        {536, 24, 146, 44}, {Action::Pause}, canControlTime);
+    constexpr std::array labels{Label::SpeedCompact1, Label::SpeedCompact2, Label::SpeedCompact4};
+    constexpr std::array speeds{1, 2, 4};
+    for (std::size_t i = 0; i < speeds.size(); ++i)
+        view.Add(labels[i], {690.0f + static_cast<float>(i) * 60.0f, 24, 56, 44},
+            {Action::Speed, speeds[i]}, canControlTime,
+            canControlTime && !paused && timeScale == static_cast<float>(speeds[i]));
 }
 
-inline void BuildIntakeStatusView(View& view, bool closed, bool canEdit) {
-    if (closed) view.Add(Label::IntakeClosed, {390, 496, 300, 38}, {Action::TerrainField}, canEdit);
+inline void BuildWaterGuidanceView(View& view, const FarmWaterGuidance& state, bool canEdit) {
+    if (!state.visible) return;
+    view.waterGuidance = true;
+    Label supply = Label::SupplyNone;
+    if (state.intakeClosed) supply = Label::IntakeClosed;
+    else switch (state.supply) {
+    case farm::FarmWaterStatus::Available: supply = Label::SupplyAvailable; break;
+    case farm::FarmWaterStatus::Retained: supply = Label::SupplyRetained; break;
+    case farm::FarmWaterStatus::Waiting: supply = Label::SupplyWaiting; break;
+    case farm::FarmWaterStatus::Dry: supply = Label::SupplyDry; break;
+    default: break;
+    }
+    Label advice = Label::WaterAdviceUnknown;
+    switch (state.advice) {
+    case FarmWaterAdvice::Till: advice = Label::WaterAdviceTill; break;
+    case FarmWaterAdvice::Plant: advice = Label::WaterAdvicePlant; break;
+    case FarmWaterAdvice::Harvest: advice = Label::WaterAdviceHarvest; break;
+    case FarmWaterAdvice::Water: advice = Label::WaterAdviceWater; break;
+    case FarmWaterAdvice::CheckSupply: advice = Label::WaterAdviceSupply; break;
+    case FarmWaterAdvice::CloseIntake: advice = Label::WaterAdviceClose; break;
+    case FarmWaterAdvice::AvoidWater: advice = Label::WaterAdviceAvoid; break;
+    case FarmWaterAdvice::Monitor: advice = Label::WaterAdviceMonitor; break;
+    default: break;
+    }
+    view.Add(supply, {390, 448, 628, 38}, {Action::TerrainField}, canEdit);
+    view.Add(advice, {390, 496, 628, 38});
 }
 }

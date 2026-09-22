@@ -495,6 +495,9 @@ FarmControllerActions FarmControllerWindow::Draw(
 		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", text("Pause, plant matching crops, adjust water, pin A/B, start, then resume. Do not edit during measurement."));
 	}
 	ImGui::SeparatorText(text("Playtest"));
+	ImGui::Text(text("Day %d: %.1f / %.0f simulation seconds"), playtest.clock.day,
+		playtest.clock.elapsedSecondsInDay, playtest.dayLengthSeconds);
+	ImGui::TextWrapped(text("Configured speed: %.0fx (no progress while paused)"), playtest.clock.timeScale);
 	const bool seasonMode = playtest.progressionMode == FarmProgressionMode::ContestSeason;
 	ImGui::TextWrapped("%s", text(seasonMode ? "30-day contest mode" : "540G trial mode"));
 	if (ImGui::Button(text(seasonMode ? "Switch to trial mode" : "Switch to contest mode"))) {
@@ -1023,7 +1026,11 @@ FarmControllerActions FarmControllerWindow::Draw(
 		}
 
 		ImGui::SeparatorText(text("Crop Status"));
-		ImGui::Text("%s", text(farm::ToString(tile->waterStatus)));
+		ImGui::Text("%s", text(tile->waterGuidance.intakeClosed
+			? "Automatic soil intake closed" : farm::ToString(tile->waterStatus)));
+		if (tile->waterGuidance.visible) {
+			ImGui::TextWrapped("%s", text(FarmWaterAdviceText(tile->waterGuidance.advice)));
+		}
 		ImGui::TextWrapped("%s", text("Availability is not measured delivery. Soil receives water only after cultivation."));
 		const float moisture = std::clamp(tile->moisture, 0.0f, 1.0f);
 		const float growth = std::clamp(tile->growth, 0.0f, 1.0f);

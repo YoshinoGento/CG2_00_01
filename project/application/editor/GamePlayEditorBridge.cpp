@@ -249,6 +249,8 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 				selectedCrop,
 				scene_->farmDateSystem_.GetTimeScale(),
 				displayedIrrigation->GetAvailableIrrigationStrength(*displayedGrid, index));
+			destination.waterGuidance = FarmGrowthSystem::AnalyzeWater(
+				tile, destination.growthForecast, destination.waterStatus);
 			destination.quality = farmToolActionSystem_->EvaluateHarvestQuality(*tile);
 			destination.qualityAdvice = FarmCropQualitySystem::Analyze(destination.quality);
 			destination.canHoe = farmToolActionSystem_->EvaluateTool(
@@ -290,6 +292,8 @@ void GamePlayEditorBridge::BuildViewModel(GamePlayEditorViewModel& output) const
 		*farmGrid_, output.currentFarmTool, selectedCrop,
 		&scene_->farmEconomySystem_);
 	output.farmPlaytest.money = scene_->farmEconomySystem_.GetMoney();
+	output.farmPlaytest.clock = scene_->farmDateSystem_.CaptureSnapshot();
+	output.farmPlaytest.dayLengthSeconds = scene_->farmDateSystem_.GetDayLengthSeconds();
 	output.farmPlaytest.playerPosition = scene_->levelGameplay_.GetPlayerPosition();
 	output.farmPlaytest.playerGrounded = scene_->levelGameplay_.IsPlayerGrounded();
 	output.farmPlaytest.canPlacePlayer = scene_->levelGameplay_.HasPlayer() && scene_->levelGameplay_.HasGround() &&

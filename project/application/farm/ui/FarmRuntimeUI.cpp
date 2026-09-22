@@ -141,6 +141,7 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
         Panel(View::kTerrainBottom, {0.035f, 0.055f, 0.06f, 0.96f});
     }
     if (view.fieldActions) Panel(View::kFieldActionsPanel, {0.035f, 0.055f, 0.06f, 0.96f});
+    if (view.waterGuidance) Panel(View::kWaterGuidancePanel, {0.035f, 0.055f, 0.06f, 0.96f});
     if (view.radar.visible) DrawRadar(view.radar);
     for (std::size_t i = 0; i < (std::min)(view.count, view.items.size()); ++i) {
         const auto& item = view.items[i];

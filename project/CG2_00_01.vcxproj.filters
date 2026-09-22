@@ -469,6 +469,7 @@
     <ClInclude Include="engine\base\DirectXCommon.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>
+    <ClInclude Include="engine\base\D3D12DeviceSelection.h" />
     <ClInclude Include="engine\base\Logger.h">
       <Filter>繝倥ャ繝繝ｼ 繝輔ぃ繧､繝ｫ</Filter>
     </ClInclude>

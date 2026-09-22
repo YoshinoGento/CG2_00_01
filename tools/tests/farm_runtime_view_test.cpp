@@ -91,7 +91,7 @@ int main() {
         BuildPlayCropStatusView(view, feedback, protectedCount, crop, planted ? &size : nullptr);
         const std::size_t metrics = (planted ? 1u : 0u) + (protectedCount > 0 ? 1u : 0u) +
             (crop != farm::CropType::None ? 1u : 0u);
-        assert(view.feedback == feedback && view.count == 2 + (feedback ? 0 : metrics));
+        assert(view.feedback == feedback && view.count == 5 + (feedback ? 0 : metrics));
         const auto panel = View::kFeedbackPanel;
         assert(panel.x>=0 && panel.y>=0 && panel.x+panel.width<=1280 && panel.y+panel.height<=720);
         for (const auto& other : View::kFarmHudPanels) assert(separated(panel, other));
@@ -366,7 +366,7 @@ int main() {
         View quick;
         BuildPlayQuickView(quick, preview, allowed);
         assert(quick.Hit({400,40}).action == (allowed ? Action::TerrainField : Action::None));
-        assert(quick.Hit({700,40}).action == Action::Pause);
+        assert(quick.Hit({650,40}).action == Action::Pause);
         assert(quick.items[1].label == (preview ? Label::Play : Label::Pause));
         for (std::size_t i=0; i<quick.count; ++i) {
             const auto& rect = quick.items[i].rect;
@@ -375,16 +375,54 @@ int main() {
         }
     }
     assert(kAsciiY + 128 <= 4096);
-    for (bool closed : {false,true}) for (bool editable : {false,true}) {
-        View status; BuildIntakeStatusView(status, closed, editable);
-        assert(status.count == (closed ? 1u : 0u));
-        assert(status.Hit({500,510}).action == (closed && editable ? Action::TerrainField : Action::None));
-        if (closed) {
-            const auto& item = status.items[0];
+    for (bool paused : {false,true}) for (bool canEdit : {false,true})
+    for (bool canControlTime : {false,true})
+    for (float speed : {1.0f,2.0f,4.0f,3.0f,std::numeric_limits<float>::quiet_NaN()}) {
+        View quick;
+        BuildPlayQuickView(quick, paused, canEdit, canControlTime, speed);
+        assert(quick.count == 5);
+        assert(quick.Hit({650,40}).action == (canControlTime ? Action::Pause : Action::None));
+        int selected = 0;
+        for (std::size_t i = 0; i < quick.count; ++i) {
+            const auto& item = quick.items[i];
+            assert((item.rect.width-20)/kLabels[static_cast<std::size_t>(item.label)].width >= 20.f/26.f);
+            for (const auto& panel : View::kFarmHudPanels) assert(separated(item.rect, panel));
+            for (std::size_t j=i+1; j<quick.count; ++j) assert(separated(item.rect,quick.items[j].rect));
+            if (i < 2) continue;
+            const int expected = i == 2 ? 1 : i == 3 ? 2 : 4;
+            assert(item.request.argument == expected);
+            const Vector2 center{item.rect.x+item.rect.width/2,item.rect.y+item.rect.height/2};
+            const auto hit = quick.Hit(center);
+            assert(hit.action == (canControlTime ? Action::Speed : Action::None));
+            if (canControlTime) assert(hit.argument == expected);
+            assert(quick.Covers(center));
+            assert(item.selected == (canControlTime && !paused && speed == expected));
+            selected += item.selected ? 1 : 0;
+        }
+        assert(selected == (canControlTime && !paused && (speed==1 || speed==2 || speed==4) ? 1 : 0));
+        assert(quick.Hit({748,40}).action == Action::None);
+    }
+    assert(farm::kFarmOverviewFrame.bottom * 720 <= View::kWaterGuidancePanel.y - 8);
+    for (bool visible : {false,true}) for (bool closed : {false,true}) for (bool editable : {false,true})
+    for (auto supply : {farm::FarmWaterStatus::None, farm::FarmWaterStatus::Available,
+        farm::FarmWaterStatus::Retained, farm::FarmWaterStatus::Waiting, farm::FarmWaterStatus::Dry})
+    for (auto advice : {FarmWaterAdvice::Unknown, FarmWaterAdvice::Till, FarmWaterAdvice::Plant,
+        FarmWaterAdvice::Harvest, FarmWaterAdvice::Water, FarmWaterAdvice::CheckSupply,
+        FarmWaterAdvice::CloseIntake, FarmWaterAdvice::AvoidWater, FarmWaterAdvice::Monitor}) {
+        View status; BuildWaterGuidanceView(status, {visible,closed,supply,advice}, editable);
+        assert(status.count == (visible ? 2u : 0u));
+        assert(status.waterGuidance == visible);
+        assert(status.Hit({500,460}).action == (visible && editable ? Action::TerrainField : Action::None));
+        assert(status.Hit({500,510}).action == Action::None);
+        assert(status.Covers({500,490}) == visible);
+        if (visible && closed) assert(status.items[0].label == Label::IntakeClosed);
+        for (std::size_t i=0; i<status.count; ++i) {
+            const auto& item = status.items[i];
             assert(!View::FarmHUDCovers({item.rect.x,item.rect.y}));
             assert(!View::FarmHUDCovers({item.rect.x+item.rect.width-1,item.rect.y+item.rect.height-1}));
             assert((item.rect.width-20)/kLabels[static_cast<std::size_t>(item.label)].width >= 20.0f/26.0f);
         }
+        if (visible) assert(status.items[0].rect.y+status.items[0].rect.height <= status.items[1].rect.y);
     }
     for (const Label label : {Label::RaiseBrush, Label::LowerBrush}) {
         TerrainViewState state;
@@ -501,7 +539,7 @@ int main() {
         assert(ended.items[1].label == Label::SeasonEnded && !ended.items[2].enabled);
         View stopped;
         BuildPlayQuickView(stopped, false, false, false);
-        assert(stopped.items[1].label == Label::Paused && stopped.Hit({700,40}).action == Action::None);
+        assert(stopped.items[1].label == Label::Paused && stopped.Hit({650,40}).action == Action::None);
         evaluation.tileIndex = target;
         evaluation.status = target < 0 ? FarmToolActionStatus::InvalidTarget : FarmToolActionStatus::Applied;
         View targetView;

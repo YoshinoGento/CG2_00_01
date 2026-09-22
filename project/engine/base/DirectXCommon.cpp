@@ -1,5 +1,7 @@
 ﻿#include "DirectXCommon.h"
 #include "Logger.h"
+#include "D3D12DeviceSelection.h"
+#include <cstdio>
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -12,6 +14,17 @@
 #pragma comment(lib, "d3dcompiler.lib")
 
 using namespace Microsoft::WRL;
+
+namespace {
+void RequireGraphics(HRESULT result, const char* operation) {
+    if (SUCCEEDED(result)) return;
+    char message[256]{};
+    std::snprintf(message, sizeof(message), "%s failed (HRESULT 0x%08lX).", operation,
+        static_cast<unsigned long>(result));
+    Logger::Error(message);
+    throw graphics::InitializationError(message);
+}
+}
 
 // --- 譁・ｭ怜・螟画鋤繝倥Ν繝代・ ---
 std::wstring ConvertString(const std::string& str) {
@@ -57,20 +70,23 @@ void DirectXCommon::InitializeDevice() {
         debugController->SetEnableGPUBasedValidation(TRUE);
     }
 #endif
-    CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory_));
-    ComPtr<IDXGIAdapter4> useAdapter = nullptr;
-    for (UINT i = 0; dxgiFactory_->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&useAdapter)) != DXGI_ERROR_NOT_FOUND; ++i) {
-        if (SUCCEEDED(D3D12CreateDevice(useAdapter.Get(), D3D_FEATURE_LEVEL_12_2, __uuidof(ID3D12Device), nullptr))) break;
-    }
-    D3D12CreateDevice(useAdapter.Get(), D3D_FEATURE_LEVEL_12_2, IID_PPV_ARGS(&device_));
+    RequireGraphics(CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory_)), "CreateDXGIFactory");
+    auto selected = graphics::SelectHardwareDevice(dxgiFactory_.Get());
+    RequireGraphics(selected.error, "DirectX12 hardware device (FL12_0+ and Shader Model6.0 required)");
+    if (!selected.device) RequireGraphics(E_POINTER, "DirectX12 device selection");
+    device_ = std::move(selected.device);
+    char level[32]{};
+    std::snprintf(level, sizeof(level), " / Feature Level 0x%04X", static_cast<unsigned>(selected.featureLevel));
+    Logger::Info("DirectX12 GPU: " + ConvertString(selected.adapter.Description) + level);
 }
 
 void DirectXCommon::InitializeCommand() {
-    device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator_));
-    device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator_.Get(), nullptr, IID_PPV_ARGS(&commandList_));
+    if (!device_) RequireGraphics(E_POINTER, "InitializeCommand device");
+    RequireGraphics(device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator_)), "CreateCommandAllocator");
+    RequireGraphics(device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator_.Get(), nullptr, IID_PPV_ARGS(&commandList_)), "CreateCommandList");
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-    device_->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue_));
+    RequireGraphics(device_->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue_)), "CreateCommandQueue");
 }
 
 void DirectXCommon::InitializeSwapChain(WinApp* winApp) {

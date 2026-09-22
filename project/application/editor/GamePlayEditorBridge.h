@@ -8,6 +8,7 @@
 #include "farm/system/FarmContestSeasonSystem.h"
 #include "farm/system/FarmFeedbackSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
+#include "farm/system/FarmDateSystem.h"
 #include "farm/system/FarmGrowthComparisonSystem.h"
 #include "farm/system/FarmIrrigationPreviewSystem.h"
 #include "farm/system/FarmIrrigationSystem.h"
@@ -47,6 +48,7 @@ struct FarmTileEditorViewData {
 	float nutrientTarget = 0.0f;
 	bool canCompost = false;
 	FarmGrowthForecast growthForecast{};
+	FarmWaterGuidance waterGuidance{};
 	FarmCropQualityResult quality{};
 	FarmQualityAdvice qualityAdvice{};
 	bool canHoe = false;
@@ -195,6 +197,8 @@ struct SimulationEditorViewData {
 };
 
 struct FarmPlaytestEditorViewData {
+	FarmDateSystem::Snapshot clock{};
+	float dayLengthSeconds = 0.0f;
 	Vector3 playerPosition{};
 	bool playerGrounded = false;
 	bool canPlacePlayer = false;

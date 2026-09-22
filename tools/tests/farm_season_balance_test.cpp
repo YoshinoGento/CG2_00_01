@@ -15,9 +15,11 @@ namespace {
 void Require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
-enum class Care { Managed, Dry, Canal };
-constexpr std::array<const char*, 3> kCareNames{"managed", "dry", "canal"};
-constexpr float kTickSeconds = 1.0f / 60.0f;
+enum class Care { Managed, Dry, Canal, IntakeHalfSecond, IntakeOneSecond, IntakeTwoSeconds };
+constexpr std::array<const char*, 6> kCareNames{
+    "managed", "dry", "canal", "intake_0.5s", "intake_1s", "intake_2s"};
+constexpr int kTicksPerSecond = 60;
+constexpr float kTickSeconds = 1.0f / static_cast<float>(kTicksPerSecond);
 constexpr int kMaximumTicks = 120000;
 constexpr int kField = 2;
 
@@ -27,8 +29,16 @@ struct Outcome {
     int watering = 0;
     int purchases = 0;
     int harvested = 0;
+    int intakeChanges = 0;
+    int observations = 0;
+    int suppliedHarvests = 0;
+    int retainedHarvests = 0;
     double growingSeconds = 0;
     double excessSeconds = 0;
+    double lowSeconds = 0;
+    double growingRealSeconds = 0;
+    double idleRealSeconds = 0;
+    double irrigationReceived = 0;
     double runningSeconds = 0;
     FarmContestRating rating = FarmContestRating::Unrated;
 };
@@ -41,7 +51,7 @@ public:
         economy_.Initialize(); tools_.Initialize(); growth_.Initialize(); water_.Initialize(); date_.Initialize();
         progression_.Initialize({}, FarmProgressionMode::ContestSeason);
         date_.SetTimeScale(speed);
-        if (care_ == Care::Canal) {
+        if (UsesCanal()) {
             Require(grid_.SelectTile(0), "source select");
             if (crop_ == farm::CropType::Carrot) Require(tools_.RaiseSelectedTile(grid_), "source height");
             Require(tools_.ToggleSelectedWaterSource(grid_), "source placement");
@@ -53,6 +63,7 @@ public:
         if (crop_ == farm::CropType::Carrot && care_ != Care::Dry)
             Require(tools_.RaiseSelectedTile(grid_), "carrot height");
         Apply(FarmTool::Hoe);
+        if (ControlsIntake()) SetIntake(false);
     }
 
     Outcome Run(bool skipLast) {
@@ -101,6 +112,36 @@ public:
         return outcome_;
     }
 private:
+    bool ControlsIntake() const noexcept {
+        return care_ == Care::IntakeHalfSecond || care_ == Care::IntakeOneSecond || care_ == Care::IntakeTwoSeconds;
+    }
+    bool UsesCanal() const noexcept { return care_ == Care::Canal || ControlsIntake(); }
+    int ObservationTicks() const noexcept {
+        if (care_ == Care::IntakeHalfSecond) return kTicksPerSecond / 2;
+        if (care_ == Care::IntakeTwoSeconds) return kTicksPerSecond * 2;
+        return kTicksPerSecond;
+    }
+    void SetIntake(bool enabled) {
+        const auto* tile = grid_.GetSelectedTile();
+        Require(tile != nullptr, "intake selection");
+        if (tile->irrigationEnabled == enabled) return;
+        Require(tools_.SetSelectedIrrigation(grid_, enabled), "intake command");
+        ++outcome_.intakeChanges;
+    }
+    void SampleIntake() {
+        const auto* tile = grid_.GetSelectedTile();
+        Require(tile != nullptr, "sample selection");
+        const auto forecast = growth_.Evaluate(*tile, crop_);
+        Require(forecast.moistureValid, "intake moisture profile");
+        // Test policy: hysteresis within the good band, sampled in unscaled simulation ticks.
+        // This is not an in-game automatic controller or a measured human reaction time.
+        const float band = forecast.goodMoistureMaximum - forecast.goodMoistureMinimum;
+        const float openAt = forecast.goodMoistureMinimum + band * 0.25f;
+        const float closeAt = forecast.goodMoistureMaximum - band * 0.25f;
+        ++outcome_.observations;
+        if (tile->moisture <= openAt) SetIntake(true);
+        else if (tile->moisture >= closeAt) SetIntake(false);
+    }
     void Apply(FarmTool tool) {
         Require(tools_.ApplyToolDetailed(grid_, tool, crop_, economy_, date_.GetDay()).Succeeded(), "tool action");
     }
@@ -119,9 +160,22 @@ private:
             "water conservation");
         const auto* tile = grid_.GetTile(kField);
         Require(tile != nullptr, "field pointer");
-        if (care_ == Care::Canal) Require(water_.IsInIrrigationRange(kField), "canal scenario not connected");
-        if (tile->crop != farm::CropType::None && tile->growth < 1.0f)
+        Require(std::isfinite(tile->moisture) && tile->moisture >= 0 && tile->moisture <= 1 &&
+            std::isfinite(tile->growth) && tile->growth >= 0 && tile->growth <= 1, "finite tile state");
+        if (UsesCanal()) Require(water_.IsInIrrigationRange(kField), "canal scenario not connected");
+        if (ControlsIntake()) {
+            const auto flows = water_.GetLastTileFlows(grid_);
+            Require(flows.size() > static_cast<std::size_t>(kField), "flow bounds");
+            Require(std::isfinite(flows[kField].soilReceived) && flows[kField].soilReceived >= 0, "finite soil delivery");
+            Require(tile->irrigationEnabled || flows[kField].soilReceived == 0, "closed intake delivered water");
+            outcome_.irrigationReceived += flows[kField].soilReceived;
+        }
+        if (tile->crop != farm::CropType::None && tile->growth < 1.0f) {
             outcome_.growingSeconds += static_cast<double>(kTickSeconds) * date_.GetTimeScale();
+            outcome_.growingRealSeconds += kTickSeconds;
+        } else {
+            outcome_.idleRealSeconds += kTickSeconds;
+        }
         static_cast<void>(growth_.Update(grid_, kTickSeconds, date_.GetTimeScale()));
         notice_.Advance(date_, kTickSeconds, economy_.GetContestResults(), 31);
         outcome_.runningSeconds += kTickSeconds;
@@ -145,17 +199,33 @@ private:
         }
         Apply(FarmTool::Seed);
         const int start = ticks_;
+        const double receivedBefore = outcome_.irrigationReceived;
+        const float initialMoisture = grid_.GetSelectedTile()->moisture;
+        int nextObservation = ticks_;
         while (tools_.EvaluateTool(grid_, FarmTool::Harvest, crop_, &economy_).status != FarmToolActionStatus::Harvested) {
             Require(ticks_ - start < 36000 && !notice_.PendingDay(), "growth blocked");
             if (care_ == Care::Managed) {
                 const float threshold = crop_ == farm::CropType::Carrot ? 0.45f : 0.35f;
                 if (grid_.GetSelectedTile()->moisture < threshold) { Apply(FarmTool::Water); ++outcome_.watering; }
             }
+            if (ControlsIntake() && ticks_ >= nextObservation) {
+                SampleIntake();
+                nextObservation += ObservationTicks();
+            }
             Step();
+        }
+        if (ControlsIntake()) {
+            SetIntake(false);
+            if (outcome_.irrigationReceived > receivedBefore) ++outcome_.suppliedHarvests;
+            else {
+                Require(initialMoisture > 0 && outcome_.irrigationReceived > 0, "no irrigation or retained water");
+                ++outcome_.retainedHarvests;
+            }
         }
         const auto harvested = tools_.ApplyToolDetailed(grid_, FarmTool::Harvest, crop_, economy_, date_.GetDay());
         Require(harvested.Succeeded() && harvested.harvestedTile.has_value(), "harvest action");
         outcome_.excessSeconds += harvested.harvestedTile->careHistory.excessSeconds;
+        outcome_.lowSeconds += harvested.harvestedTile->careHistory.lowSeconds + harvested.harvestedTile->careHistory.drySeconds;
         ++outcome_.harvested;
         const auto* record = economy_.GetHarvestRecord(economy_.GetHarvestRecordCount() - 1);
         Require(record && record->quality.harvestSize.known && record->harvestedDay == date_.GetDay(), "harvest record");
@@ -178,9 +248,13 @@ private:
 
 int main() {
     try {
-        std::cout << "crop,care,speed,end,money,points,rating,watering,harvests,growing_seconds,excess_seconds,running_seconds\n";
+        int cases = 0;
+        std::cout << "crop,care,speed,end,money,points,rating,watering,harvests,growing_seconds,excess_seconds,running_seconds,"
+            "intake_changes,observations,low_dry_seconds,growing_real_seconds,idle_real_seconds,irrigation_received,"
+            "supplied_harvests,retained_harvests\n";
         for (const auto crop : {farm::CropType::TestCrop, farm::CropType::Carrot}) {
-            for (const auto care : {Care::Managed, Care::Dry, Care::Canal}) {
+            for (const auto care : {Care::Managed, Care::Dry, Care::Canal,
+                Care::IntakeHalfSecond, Care::IntakeOneSecond, Care::IntakeTwoSeconds}) {
                 for (const bool skipLast : {false, true}) {
                     Outcome baseline;
                     for (const float speed : {1.0f, 2.0f, 4.0f}) {
@@ -188,21 +262,36 @@ int main() {
                         const auto result = run.Run(skipLast);
                         if (speed == 1.0f) baseline = result;
                         Require(result.harvested == 6 && result.purchases == 6, "missing core loop");
-                        Require(std::abs(result.points - baseline.points) <= 3, "speed changed contest score");
-                        Require(std::abs(result.money - baseline.money) <= 6, "speed changed finances");
-                        Require(result.rating == baseline.rating, "speed changed rating");
+                        if (care == Care::Managed || care == Care::Dry || care == Care::Canal) {
+                            Require(std::abs(result.points - baseline.points) <= 3, "speed changed contest score");
+                            Require(std::abs(result.money - baseline.money) <= 6, "speed changed finances");
+                            Require(result.rating == baseline.rating, "speed changed rating");
+                        } else {
+                            Require(result.intakeChanges >= 3 && result.observations >= 6 && result.watering == 0 &&
+                                result.suppliedHarvests > 0 && result.suppliedHarvests + result.retainedHarvests == 6,
+                                "unexercised intake-only policy");
+                        }
+                        Require(std::abs(result.growingRealSeconds + result.idleRealSeconds - result.runningSeconds) < 0.001,
+                            "time accounting");
+                        Require(result.growingSeconds > 0 && result.idleRealSeconds > 0, "unmeasured pacing");
                         if (care == Care::Managed && !skipLast) Require(result.rating == FarmContestRating::S, "S unreachable on managed route");
                         if (care == Care::Canal) Require(result.excessSeconds > 0, "unmeasured excess-water scenario");
                         std::cout << (crop == farm::CropType::Carrot ? "carrot" : "turnip") << ','
                             << kCareNames[static_cast<std::size_t>(care)] << ',' << speed << ',' << (skipLast ? "deadline" : "submit")
                             << ',' << result.money << ',' << result.points << ',' << FarmContestRatingText(result.rating)
                             << ',' << result.watering << ',' << result.harvested << ',' << std::fixed << std::setprecision(2)
-                            << result.growingSeconds << ',' << result.excessSeconds << ',' << result.runningSeconds << '\n';
+                            << result.growingSeconds << ',' << result.excessSeconds << ',' << result.runningSeconds
+                            << ',' << result.intakeChanges << ',' << result.observations << ',' << result.lowSeconds
+                            << ',' << result.growingRealSeconds << ',' << result.idleRealSeconds
+                            << ',' << result.irrigationReceived << ',' << result.suppliedHarvests
+                            << ',' << result.retainedHarvests << '\n';
+                        ++cases;
                     }
                 }
             }
         }
-        std::cout << "PASS: 36 full-season System scenarios; automated evidence, not a human playthrough\n";
+        Require(cases == 72, "scenario coverage");
+        std::cout << "PASS: 72 full-season System scenarios; automated evidence, not a human playthrough\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';

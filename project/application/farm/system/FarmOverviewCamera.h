@@ -9,7 +9,7 @@ namespace farm {
 struct OverviewFrame {
     float left, top, right, bottom;
 };
-inline constexpr OverviewFrame kFarmOverviewFrame{32.0f/1280, 172.0f/720, 864.0f/1280, 510.0f/720};
+inline constexpr OverviewFrame kFarmOverviewFrame{32.0f/1280, 172.0f/720, 864.0f/1280, 440.0f/720};
 inline constexpr OverviewFrame kObservationOverviewFrame{32.0f/1280, 84.0f/720, 1248.0f/1280, 392.0f/720};
 inline constexpr OverviewFrame kTerrainOverviewFrame{32.0f/1280, 128.0f/720, 1248.0f/1280, 504.0f/720};
 inline constexpr float kOverviewPitch = 0.70f;

@@ -119,11 +119,15 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             view_.Add(Label::Cancel, {1040, 596, 216, 44}, {Action::Cancel});
         } else if (!s.farmCropSelectionSystem_.IsOpen()) {
             farmui::BuildPlayQuickView(view_, paused_, !s.farmProgressionSystem_.IsCleared(),
-                !s.farmProgressionSystem_.IsCleared());
+                !s.farmProgressionSystem_.IsCleared(), s.farmDateSystem_.GetTimeScale());
             const auto* reserved = s.farmEconomySystem_.GetContestReservation();
             const auto* tile = s.farmGrid_.GetSelectedTile();
-            farmui::BuildIntakeStatusView(view_, tile && tile->feature == farm::FarmTileFeature::None &&
-                !tile->irrigationEnabled, !s.farmProgressionSystem_.IsCleared());
+            const int index = s.farmGrid_.GetSelectedIndex();
+            const auto forecast = tile ? s.farmGrowthSystem_.Evaluate(*tile,
+                s.farmCropSelectionSystem_.GetSelectedCrop(), s.farmDateSystem_.GetTimeScale(),
+                s.farmIrrigationSystem_.GetAvailableIrrigationStrength(s.farmGrid_, index)) : FarmGrowthForecast{};
+            farmui::BuildWaterGuidanceView(view_, FarmGrowthSystem::AnalyzeWater(tile, forecast,
+                s.farmIrrigationSystem_.GetWaterStatus(s.farmGrid_, index)), !s.farmProgressionSystem_.IsCleared());
             const bool planted = tile && farm::IsPlantableCrop(tile->crop);
             const auto quality = planted ? s.farmToolActionSystem_.EvaluateHarvestQuality(*tile) : FarmCropQualityResult{};
             farmui::BuildPlayCropStatusView(view_, hud.feedback != FarmHUDFeedback::None,
@@ -582,7 +586,8 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
             if (success) { EnterObservation(s); pickingSlot_ = -1; paused_ = false; }
             break;
         case Action::Speed:
-            s.farmDateSystem_.SetTimeScale(static_cast<float>(std::clamp(request.argument, 1, 4)));
+            if (request.argument != 1 && request.argument != 2 && request.argument != 4) break;
+            s.farmDateSystem_.SetTimeScale(static_cast<float>(request.argument));
             s.farmDocumentSystem_.MarkDirty();
             pickingSlot_ = -1; paused_ = false; success = true; break;
         default: break;

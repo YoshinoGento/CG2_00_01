@@ -531,6 +531,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\scene\BaseScene.h" />
     <ClInclude Include="engine\3d\Camera.h" />
     <ClInclude Include="engine\base\DirectXCommon.h" />
+    <ClInclude Include="engine\base\D3D12DeviceSelection.h" />
     <ClInclude Include="engine\math\Matrix.h" />
     <ClInclude Include="engine\math\Struct.h" />
     <ClInclude Include="engine\math\Transform.h" />

@@ -64,9 +64,11 @@ struct View {
     bool terrain = false;
     bool fieldActions = false;
     bool feedback = false;
+    bool waterGuidance = false;
     QualityRadar radar{};
     inline static constexpr Rect kFeedbackPanel{352, 82, 504, 92};
     inline static constexpr Rect kFieldActionsPanel{1040, 532, 216, 112};
+    inline static constexpr Rect kWaterGuidancePanel{390, 448, 628, 86};
     inline static constexpr Rect kObservationTop{16, 16, 1248, 52};
     inline static constexpr Rect kObservationBottom{16, 408, 1248, 280};
     inline static constexpr Rect kTerrainTop{16, 16, 1248, 96};
@@ -89,6 +91,7 @@ struct View {
         if (modal || (observation && (kObservationTop.Contains(point) || kObservationBottom.Contains(point))) ||
             (terrain && (kTerrainTop.Contains(point) || kTerrainBottom.Contains(point))) ||
             (fieldActions && kFieldActionsPanel.Contains(point)) ||
+            (waterGuidance && kWaterGuidancePanel.Contains(point)) ||
             (feedback && kFeedbackPanel.Contains(point))) return true;
         // Disabled controls and labels still own their screen area.
         for (std::size_t i = 0; i < count && i < items.size(); ++i)

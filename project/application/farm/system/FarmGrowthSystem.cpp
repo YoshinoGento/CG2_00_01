@@ -173,6 +173,43 @@ void FarmGrowthSystem::Initialize(const farm::FarmRules& rules) noexcept
 		defaults.irrigationMoistureRecoveryPerSecond);
 }
 
+FarmWaterGuidance FarmGrowthSystem::AnalyzeWater(
+	const farm::FarmTile* tile, const FarmGrowthForecast& forecast,
+	farm::FarmWaterStatus supply) noexcept
+{
+	FarmWaterGuidance result;
+	if (!tile || tile->feature != farm::FarmTileFeature::None) return result;
+	result.visible = true;
+	result.intakeClosed = !tile->irrigationEnabled;
+	result.supply = supply;
+	if (!std::isfinite(tile->moisture) || tile->moisture < 0.0f || tile->moisture > 1.0f ||
+		!std::isfinite(tile->growth) || tile->growth < 0.0f || tile->growth > 1.0f) return result;
+	if (tile->state == farm::FarmTileState::Empty) {
+		result.advice = FarmWaterAdvice::Till;
+	} else if (tile->state == farm::FarmTileState::Tilled || tile->state == farm::FarmTileState::Watered) {
+		result.advice = FarmWaterAdvice::Plant;
+	} else if (tile->state == farm::FarmTileState::Planted && farm::IsPlantableCrop(tile->crop)) {
+		if (farm::IsHarvestReady(*tile)) {
+			result.advice = FarmWaterAdvice::Harvest;
+		} else if (forecast.moistureValid && forecast.profileCrop == tile->crop) {
+			const bool available = !result.intakeClosed &&
+				(supply == farm::FarmWaterStatus::Available || supply == farm::FarmWaterStatus::Retained);
+			switch (forecast.moistureStatus) {
+			case FarmMoistureStatus::Dry:
+			case FarmMoistureStatus::Low:
+				result.advice = available ? FarmWaterAdvice::CheckSupply : FarmWaterAdvice::Water;
+				break;
+			case FarmMoistureStatus::Excess:
+				result.advice = available ? FarmWaterAdvice::CloseIntake : FarmWaterAdvice::AvoidWater;
+				break;
+			case FarmMoistureStatus::Good: result.advice = FarmWaterAdvice::Monitor; break;
+			default: break;
+			}
+		}
+	}
+	return result;
+}
+
 bool FarmGrowthSystem::Update(
 	farm::FarmGrid& grid,
 	float deltaTime,

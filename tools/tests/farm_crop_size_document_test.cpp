@@ -13,6 +13,27 @@ int main() {
         FarmContestDaySystem notice;
         FarmDateSystem clock; clock.Initialize();
         FarmEconomySystem::ContestResults results{};
+        for (float speed : {1.f,2.f,4.f}) {
+            clock.Initialize(); clock.SetTimeScale(speed);
+            clock.Update(1.0f);
+            assert(clock.GetDay()==1 && clock.GetElapsedSecondsInDay()==speed);
+            FarmDateSystem restored; restored.Initialize();
+            assert(restored.RestoreSnapshot(clock.CaptureSnapshot()));
+            assert(restored.GetTimeScale()==speed && restored.GetElapsedSecondsInDay()==speed);
+            for (float invalid : {-1.f,0.f,3.f,8.f,std::numeric_limits<float>::quiet_NaN(),
+                std::numeric_limits<float>::infinity()}) {
+                restored.SetTimeScale(invalid);
+                assert(restored.GetTimeScale()==speed && restored.GetElapsedSecondsInDay()==speed);
+            }
+        }
+        clock.Initialize(); notice.Reset();
+        assert(clock.RestoreSnapshot({9,59.f,1.f}));
+        clock.SetTimeScale(4.f); notice.Advance(clock,0.5f,results);
+        assert(clock.GetDay()==10 && clock.GetElapsedSecondsInDay()==0 && notice.PendingDay()==10);
+        for (float speed : {1.f,2.f,4.f}) {
+            clock.SetTimeScale(speed); notice.Advance(clock,30.f,results);
+            assert(clock.GetDay()==10 && clock.GetElapsedSecondsInDay()==0 && notice.PendingDay()==10);
+        }
         for (float speed : {1.f,2.f,4.f}) for(int day : {10,20,30}) {
             notice.Reset();
             assert(clock.RestoreSnapshot({day-1,59.99f,speed}));

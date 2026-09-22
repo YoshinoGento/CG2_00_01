@@ -9,6 +9,18 @@ struct LocalizedText {
 };
 
 constexpr std::array kJapaneseText = {
+	LocalizedText{ "Day %d: %.1f / %.0f simulation seconds", u8"%d日目：%.1f / %.0f 秒（ゲーム内）" },
+	LocalizedText{ "Configured speed: %.0fx (no progress while paused)", u8"設定速度：%.0f倍（停止中は進みません）" },
+	LocalizedText{ "Automatic soil intake closed", u8"この畑の自動給水：切" },
+	LocalizedText{ "Cultivate soil before irrigation.", u8"耕してから給水できます" },
+	LocalizedText{ "Plant a crop before checking growth.", u8"種を植えてから生育を確認" },
+	LocalizedText{ "Ready to harvest; no more watering needed.", u8"収穫できます：追加の水やりは不要" },
+	LocalizedText{ "Low moisture: water with the watering can.", u8"水不足：じょうろで水やり" },
+	LocalizedText{ "Low moisture: check soil after irrigation.", u8"水不足：給水後の水分量を確認" },
+	LocalizedText{ "Excess moisture: close automatic intake.", u8"水過多：自動給水を切る" },
+	LocalizedText{ "Excess moisture: avoid additional watering.", u8"水過多：追加の水やりを控える" },
+	LocalizedText{ "Good moisture: monitor while growing.", u8"水分は適量：状態を見ながら育てる" },
+	LocalizedText{ "Water guidance unavailable.", u8"水分状態を確認できません" },
 	LocalizedText{ "Contest day %d: simulation stopped", u8"%d日目の大会：時間を停止中" },
 	LocalizedText{ "Submit in inventory while stopped, or dismiss to resume. No late submissions.", u8"停止中に保管庫から提出できます。案内を閉じると再開します。当日を過ぎると提出できません。" },
 	LocalizedText{ "Dismiss contest notice and resume", u8"大会案内を閉じて時間を進める" },

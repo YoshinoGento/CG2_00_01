@@ -7,6 +7,7 @@
 #include "base/ImGuiManager.h"
 #include "base/Logger.h"
 #include "base/FrameClock.h"
+#include "base/D3D12DeviceSelection.h"
 #include "2d/SpriteCommon.h"
 #include "2d/TextureManager.h"
 #include "3d/Object3dCommon.h"
@@ -61,7 +62,14 @@ void Framework::Initialize() {
 	winApp_->Initialize();
 
 	dxCommon_ = std::make_unique<DirectXCommon>();
-	dxCommon_->Initialize(winApp_.get());
+	try {
+		dxCommon_->Initialize(winApp_.get());
+	} catch (const graphics::InitializationError&) {
+		// No GPU commands have been submitted; later subsystems are not initialized yet.
+		dxCommon_.reset();
+		winApp_->Finalize();
+		throw;
+	}
 
 	srvManager_ = std::make_unique<SrvManager>();
 	srvManager_->Initialize(dxCommon_.get());
