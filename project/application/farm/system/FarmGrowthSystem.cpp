@@ -151,6 +151,8 @@ const farm::FarmCropGrowthProfile* GetGrowthProfile(
 		return &rules.testCropGrowth;
 	case farm::CropType::Carrot:
 		return &rules.carrotGrowth;
+	case farm::CropType::Tomato: return &rules.tomatoGrowth;
+	case farm::CropType::Pumpkin: return &rules.pumpkinGrowth;
 	case farm::CropType::None:
 	default:
 		return nullptr;
@@ -166,6 +168,8 @@ void FarmGrowthSystem::Initialize(const farm::FarmRules& rules) noexcept
 		rules.testCropGrowth, defaults.testCropGrowth);
 	rules_.carrotGrowth = SanitizeProfile(
 		rules.carrotGrowth, defaults.carrotGrowth);
+	rules_.tomatoGrowth = SanitizeProfile(rules.tomatoGrowth, defaults.tomatoGrowth);
+	rules_.pumpkinGrowth = SanitizeProfile(rules.pumpkinGrowth, defaults.pumpkinGrowth);
 	rules_.maxUpdateDeltaTime = SanitizePositive(
 		rules.maxUpdateDeltaTime, defaults.maxUpdateDeltaTime);
 	rules_.irrigationMoistureRecoveryPerSecond = SanitizeNonNegative(

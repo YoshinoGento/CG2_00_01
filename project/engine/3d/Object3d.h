@@ -20,6 +20,7 @@ public:
 	enum class SpecularType : int32_t {
 		Phong = 0,
 		BlinnPhong = 1,
+		None = 2,
 	};
 
 	// シェーダーと一致させる構造体 (16バイト境界に注意)

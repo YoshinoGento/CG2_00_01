@@ -51,14 +51,19 @@ void FarmCropQualitySystem::Initialize(const farm::FarmRules& rules) noexcept
 	basePrices_ = {
 		rules.normalHarvestPrice > 0 ? rules.normalHarvestPrice : 120,
 		rules.carrotHarvestPrice > 0 ? rules.carrotHarvestPrice : 170,
+		rules.tomatoHarvestPrice > 0 ? rules.tomatoHarvestPrice : 260,
+		rules.pumpkinHarvestPrice > 0 ? rules.pumpkinHarvestPrice : 420,
 	};
 	idealMoisture_ = {
 		SanitizeNormalized(rules.testCropIdealHarvestMoisture, 0.55f),
 		SanitizeNormalized(rules.carrotIdealHarvestMoisture, 0.65f),
+		SanitizeNormalized(rules.tomatoIdealHarvestMoisture, 0.55f),
+		SanitizeNormalized(rules.pumpkinIdealHarvestMoisture, 0.65f),
 	};
 	idealHeight_ = {
 		std::max(rules.testCropIdealHeight, 0),
 		std::max(rules.carrotIdealHeight, 0),
+		std::max(rules.tomatoIdealHeight, 0), std::max(rules.pumpkinIdealHeight, 0),
 	};
 	maturityWeight_ = SanitizePositive(rules.qualityMaturityWeight, 0.25f);
 	waterBalanceWeight_ = SanitizePositive(rules.qualityWaterBalanceWeight, 0.50f);

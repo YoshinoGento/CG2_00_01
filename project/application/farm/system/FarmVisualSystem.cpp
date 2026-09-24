@@ -206,11 +206,14 @@ void DrawCropSilhouette(
 			lineDrawer.DrawLine(
 				{ center.x, shoulderY, center.z + shoulderWidth }, rootTip, rootColor);
 		} else {
-			const float bulbRadius = (0.10f + growth * 0.07f) * scale;
+			const bool tomato = tile.crop == CropType::Tomato;
+			const bool pumpkin = tile.crop == CropType::Pumpkin;
+			const float bulbRadius = (pumpkin ? 0.25f : 0.10f + growth * 0.07f) * scale;
 			lineDrawer.DrawWireSphere(
-				{ center.x, center.y + bulbRadius, center.z },
+				{ center.x, tomato ? stemBase.y + stemHeight * 0.65f : center.y + bulbRadius, center.z },
 				bulbRadius,
-				{ 0.92f, 0.48f, 0.78f, 1.0f },
+				tomato ? Vector4{0.8f, 0.15f, 0.1f, 1.0f} :
+				pumpkin ? Vector4{0.15f, 0.38f, 0.15f, 1.0f} : Vector4{0.92f, 0.48f, 0.78f, 1.0f},
 				8);
 		}
 	}

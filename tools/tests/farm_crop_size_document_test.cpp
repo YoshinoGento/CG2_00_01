@@ -8,6 +8,14 @@
 #include <iostream>
 #include <limits>
 
+static nlohmann::json Legacy(const nlohmann::json& original) {
+    auto result=original;
+    for(const char* field : {"cropCounts","cropValues","seedCounts"}) {
+        result["economy"][field]=nlohmann::json::array({original["economy"][field][0],original["economy"][field][1]});
+    }
+    return result;
+}
+
 int main() {
     {
         FarmContestDaySystem notice;
@@ -89,16 +97,16 @@ int main() {
     assert(documents.SaveAs("size roundtrip", grid, economy, selection));
     const std::string path = documents.GetPath(), id = documents.GetActiveDocumentId();
     nlohmann::json original;
-    assert(JsonFile::Load(path, original) && original["schemaVersion"] == 15);
+    assert(JsonFile::Load(path, original) && original["schemaVersion"] == 16);
     assert(original["playMode"]=="ContestSeason");
     {
         for(int version=1;version<=13;++version) {
-            auto legacy=original; legacy["schemaVersion"]=version; legacy.erase("playMode");
+            auto legacy=Legacy(original); legacy["schemaVersion"]=version; legacy.erase("playMode");
             assert(JsonFile::Save(path,legacy) && documents.Load(id,grid,economy,selection));
             assert(progression.GetMode()==FarmProgressionMode::Trial);
             assert(grid.GetTile(0)->irrigationEnabled);
         }
-        auto legacy14 = original; legacy14["schemaVersion"] = 14;
+        auto legacy14 = Legacy(original); legacy14["schemaVersion"] = 14;
         for (auto& savedTile : legacy14["tiles"]) savedTile.erase("irrigationEnabled");
         assert(JsonFile::Save(path,legacy14) && documents.Load(id,grid,economy,selection));
         assert(grid.GetTile(0)->irrigationEnabled && progression.IsContestSeason());
@@ -164,13 +172,13 @@ int main() {
     assert(date.GetDay()==7 && economy.GetHarvestRecord(0)->harvestedDay==7);
     assert(!grid.GetTile(0)->irrigationEnabled);
     {
-        auto legacy=original; legacy["schemaVersion"]=11; legacy.erase("date");
+        auto legacy=Legacy(original); legacy["schemaVersion"]=11; legacy.erase("date");
         legacy["economy"]["harvestRecords"][0].erase("harvestedDay");
         assert(JsonFile::Save(path,legacy) && documents.Load(id,grid,economy,selection));
         assert(date.GetDay()==1 && economy.GetHarvestRecord(0)->harvestedDay==0);
         assert(documents.Save(grid,economy,selection));
         nlohmann::json migrated; assert(JsonFile::Load(path,migrated));
-        assert(migrated["schemaVersion"]==15 && migrated["economy"]["harvestRecords"][0]["harvestedDay"]==0);
+        assert(migrated["schemaVersion"]==16 && migrated["economy"]["harvestRecords"][0]["harvestedDay"]==0);
         assert(JsonFile::Save(path,original) && documents.Load(id,grid,economy,selection));
     }
     assert(economy.GetLastHarvestQuality().harvestSize.multiplier == 1.25f);
@@ -178,12 +186,12 @@ int main() {
     assert(economy.GetContestReservationId()==harvestId && economy.GetContestReservation()->quality.harvestSize.multiplier==1.25f);
     assert(economy.GetSalePreviewValue() == 0 && !economy.SellAll().Succeeded());
     {
-        auto legacy=original; legacy["schemaVersion"]=10; legacy["economy"].erase("contestReservationId");
+        auto legacy=Legacy(original); legacy["schemaVersion"]=10; legacy["economy"].erase("contestReservationId");
         assert(JsonFile::Save(path,legacy) && documents.Load(id,grid,economy,selection));
         assert(economy.GetContestReservationId()==0 && economy.GetHarvestRecord(0)->saleProtected);
     }
     {
-        auto legacy = original; legacy["schemaVersion"] = 9;
+        auto legacy = Legacy(original); legacy["schemaVersion"] = 9;
         legacy["economy"].erase("nextHarvestRecordId");
         legacy["economy"]["harvestRecords"][0].erase("id");
         legacy["economy"]["harvestRecords"][0].erase("saleProtected");
@@ -194,7 +202,7 @@ int main() {
         assert(economy.GetContestReservationId()==0);
     }
     for (int version = 1; version <= 7; ++version) {
-        auto legacy = original; legacy["schemaVersion"] = version;
+        auto legacy = Legacy(original); legacy["schemaVersion"] = version;
         auto& record = legacy["economy"]["lastHarvestQuality"];
         record.erase("sizeKnown"); record.erase("sizeMultiplier");
         assert(JsonFile::Save(path, legacy));
@@ -204,7 +212,7 @@ int main() {
     }
     assert(JsonFile::Save(path, original) && documents.Load(id, grid, economy, selection));
     {
-        auto legacy = original; legacy["schemaVersion"] = 8; legacy["economy"].erase("harvestRecords");
+        auto legacy = Legacy(original); legacy["schemaVersion"] = 8; legacy["economy"].erase("harvestRecords");
         assert(JsonFile::Save(path, legacy) && documents.Load(id, grid, economy, selection));
         assert(economy.GetHarvestRecordCount() == 0 && economy.GetUnrecordedCropCount() == 1);
         assert(economy.GetLastHarvestQuality().harvestSize.multiplier == 1.25f);
@@ -322,7 +330,7 @@ int main() {
         assert(economy.GetInventoryGeneration()==generation && economy.GetContestResults()[0].contestDay==10);
         assert(economy.GetHarvestRecordCount()==0 && date.GetDay()==10);
     }
-    auto legacy12=original; legacy12["schemaVersion"]=12; legacy12["economy"].erase("contestResults");
+    auto legacy12=Legacy(original); legacy12["schemaVersion"]=12; legacy12["economy"].erase("contestResults");
     assert(JsonFile::Save(path,legacy12) && documents.Load(id,grid,economy,selection));
     assert(economy.GetContestResults()[0].contestDay==0 && economy.GetHarvestRecordCount()==1);
     assert(JsonFile::Save(path,submitted) && documents.Load(id,grid,economy,selection));
@@ -332,5 +340,5 @@ int main() {
     assert(date.RestoreSnapshot({2147483647,0,4})); date.AdvanceOneDay(); date.Update(1e30f);
     assert(date.GetDay()==2147483647 && date.GetElapsedSecondsInDay()==0);
     date.Initialize(); date.Update(121.25f); assert(date.GetDay()==3 && date.GetElapsedSecondsInDay()==1.25f);
-    std::cout << "PASS: schema15 intake/mode/result/clock roundtrip, legacy1-14, atomic invalid load and reset\n";
+    std::cout << "PASS: schema16 intake/mode/result/clock roundtrip, legacy1-14, atomic invalid load and reset\n";
 }

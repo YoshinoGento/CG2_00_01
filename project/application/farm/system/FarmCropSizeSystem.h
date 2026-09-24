@@ -20,6 +20,8 @@ public:
         minimum_ = Sanitize(rules.minimumCropSizeMultiplier, 0.5f);
         maximum_ = Sanitize(rules.maximumCropSizeMultiplier, 2.0f);
         if (minimum_ > maximum_) std::swap(minimum_, maximum_);
+        tomatoMaximum_ = (std::max)(minimum_, Sanitize(rules.tomatoMaximumSizeMultiplier, 2.0f));
+        pumpkinMaximum_ = (std::max)(minimum_, Sanitize(rules.pumpkinMaximumSizeMultiplier, 3.0f));
     }
     [[nodiscard]] FarmCropSizeResult Evaluate(const farm::FarmTile& tile) const noexcept {
         const auto& history = tile.careHistory;
@@ -29,7 +31,9 @@ public:
         // Predict maturation under the average care observed so far; no instant-water fallback.
         const float nutrients = std::clamp(history.nutrientSupply / history.nutrientGrowth, 0.0f, 1.0f);
         const float care = history.GetAverageEfficiency() * nutrients;
-        return {std::clamp(minimum_ + (maximum_ - minimum_) * care, minimum_, maximum_), true};
+        const float maximum = tile.crop == farm::CropType::Tomato ? tomatoMaximum_ :
+            tile.crop == farm::CropType::Pumpkin ? pumpkinMaximum_ : maximum_;
+        return {std::clamp(minimum_ + (maximum - minimum_) * care, minimum_, maximum), true};
     }
 private:
     static float Sanitize(float value, float fallback) noexcept {
@@ -38,4 +42,6 @@ private:
     }
     float minimum_ = 0.5f;
     float maximum_ = 2.0f;
+    float tomatoMaximum_ = 2.0f;
+    float pumpkinMaximum_ = 3.0f;
 };

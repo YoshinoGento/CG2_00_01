@@ -53,14 +53,17 @@ void FarmEconomySystem::Initialize(const farm::FarmRules& rules)
 	sellPrices_ = {
 		rules.normalHarvestPrice > 0 ? rules.normalHarvestPrice : 0,
 		rules.carrotHarvestPrice > 0 ? rules.carrotHarvestPrice : 0,
+		(std::max)(rules.tomatoHarvestPrice, 0), (std::max)(rules.pumpkinHarvestPrice, 0),
 	};
 	seedCounts_ = {
 		rules.initialTestCropSeedCount >= 0 ? rules.initialTestCropSeedCount : 0,
 		rules.initialCarrotSeedCount >= 0 ? rules.initialCarrotSeedCount : 0,
+		(std::max)(rules.initialTomatoSeedCount, 0), (std::max)(rules.initialPumpkinSeedCount, 0),
 	};
 	seedPrices_ = {
 		rules.testCropSeedPrice > 0 ? rules.testCropSeedPrice : 0,
 		rules.carrotSeedPrice > 0 ? rules.carrotSeedPrice : 0,
+		(std::max)(rules.tomatoSeedPrice, 0), (std::max)(rules.pumpkinSeedPrice, 0),
 	};
 	lastHarvestQuality_ = {};
 	harvestRecords_ = {};

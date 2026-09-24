@@ -33,7 +33,7 @@ public:
 	int GetPartCount() const { return static_cast<int>(parts_.size()); }
 	bool IsReady() const { return common_ != nullptr && model_ != nullptr; }
 	bool IsLimitExceeded() const { return limitExceeded_; }
-	bool HasCropMeshes() const { return cropModels_[0] && cropModels_[1] && cropModels_[2]; }
+	bool HasCropMeshes() const { for (const auto* model : cropModels_) if (!model) return false; return true; }
 
 private:
 	bool visible_ = true;
@@ -46,7 +46,7 @@ private:
 	Model* model_ = nullptr; // ModelManager-owned immutable static mesh.
 	Model* triangleLower_ = nullptr; // Same ModelManager lifetime as the box.
 	Model* triangleUpper_ = nullptr;
-	std::array<Model*, 3> cropModels_{}; // ModelManager-owned; shared by all tiles.
+	std::array<Model*, 8> cropModels_{}; // ModelManager-owned; shared by all tiles.
 	Texture2DHandle whiteTexture_{};
 	std::vector<std::unique_ptr<Object3d>> objects_;
 	std::vector<FarmMeshPart> parts_;

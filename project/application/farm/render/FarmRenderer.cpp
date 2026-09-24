@@ -30,7 +30,10 @@ bool FarmRenderer::Initialize(Object3dCommon* common, ModelManager* models, Text
 	triangleLower_ = lower;
 	triangleUpper_ = upper;
 	whiteTexture_ = whiteTexture;
-	constexpr std::array<const char*,3> cropPaths{"farm/crop_turnip.obj", "farm/crop_carrot.obj", "farm/crop_leaves.obj"};
+	constexpr std::array<const char*,8> cropPaths{"farm/crop_turnip.obj", "farm/crop_carrot.obj",
+		"farm/crop_turnip_leaves.obj", "farm/crop_carrot_leaves.obj", "farm/crop_tomato.obj",
+		"farm/crop_tomato_stems.obj", "farm/crop_pumpkin.obj", "farm/crop_pumpkin_vines.obj"};
+	static_assert(cropPaths.size() == std::tuple_size_v<decltype(cropModels_)>);
 	bool cropFilesPresent = true;
 	for (const auto* path : cropPaths) cropFilesPresent &= std::filesystem::is_regular_file(std::filesystem::path("Resources") / path, error);
 	if (cropFilesPresent) {
@@ -96,11 +99,19 @@ void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual,
 		if (part.shape == FarmMeshShape::Turnip) desired = cropModels_[0];
 		if (part.shape == FarmMeshShape::Carrot) desired = cropModels_[1];
 		if (part.shape == FarmMeshShape::Leaves) desired = cropModels_[2];
+		if (part.shape == FarmMeshShape::CarrotLeaves) desired = cropModels_[3];
+		if (part.shape == FarmMeshShape::Tomato) desired = cropModels_[4];
+		if (part.shape == FarmMeshShape::TomatoStems) desired = cropModels_[5];
+		if (part.shape == FarmMeshShape::Pumpkin) desired = cropModels_[6];
+		if (part.shape == FarmMeshShape::PumpkinVines) desired = cropModels_[7];
 		if (object.GetModel() != desired) { object.SetModel(desired); }
 		object.SetPosition(part.position);
 		if (!object.SetShearY(part.slope)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		if (!object.SetScale(part.scale)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		object.SetColor(part.color);
+		// Pooled objects can change from a crop to terrain on the next Prepare.
+		object.SetSpecularType(part.surface == FarmMeshSurface::Crop
+			? Object3d::SpecularType::None : Object3d::SpecularType::BlinnPhong);
 		object.SetEnableLighting(!part.water && part.surface != FarmMeshSurface::Selection &&
 			part.surface != FarmMeshSurface::Hover);
 		object.Update(camera, 0.0f);

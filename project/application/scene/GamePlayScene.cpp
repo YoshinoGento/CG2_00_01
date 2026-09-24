@@ -316,14 +316,20 @@ FarmHUDFeedback ToHUDFeedback(FarmFeedbackKind kind, farm::CropType crop)
 	case FarmFeedbackKind::Restarted:
 		return FarmHUDFeedback::Restarted;
 	case FarmFeedbackKind::SeedPurchased:
+		if (crop == farm::CropType::Tomato) return FarmHUDFeedback::SeedPurchasedTomato;
+		if (crop == farm::CropType::Pumpkin) return FarmHUDFeedback::SeedPurchasedPumpkin;
 		return crop == farm::CropType::Carrot
 			? FarmHUDFeedback::SeedPurchasedCarrot
 			: FarmHUDFeedback::SeedPurchasedTurnip;
 	case FarmFeedbackKind::CropSelected:
+		if (crop == farm::CropType::Tomato) return FarmHUDFeedback::CropSelectedTomato;
+		if (crop == farm::CropType::Pumpkin) return FarmHUDFeedback::CropSelectedPumpkin;
 		return crop == farm::CropType::Carrot
 			? FarmHUDFeedback::CropSelectedCarrot
 			: FarmHUDFeedback::CropSelectedTurnip;
 	case FarmFeedbackKind::NoSeed:
+		if (crop == farm::CropType::Tomato) return FarmHUDFeedback::NoSeedTomato;
+		if (crop == farm::CropType::Pumpkin) return FarmHUDFeedback::NoSeedPumpkin;
 		return crop == farm::CropType::Carrot
 			? FarmHUDFeedback::NoSeedCarrot
 			: FarmHUDFeedback::NoSeedTurnip;
@@ -593,6 +599,9 @@ void GamePlayScene::Initialize() {
 	InitializeFarmHUD();
 	InitializeStageClearHUD();
 #ifndef USE_IMGUI
+	if (!farmSeedShopRenderer_.Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager(), levelWhiteTextureHandle_)) {
+		AddLog("Farm seed shop presentation initialization failed.");
+	}
 	if (!farmRuntimeController_.Initialize(framework_->GetSpriteCommon())) {
 		AddLog("Farm runtime menu initialization failed.");
 	}
@@ -1584,6 +1593,16 @@ void GamePlayScene::RebuildCylinder() {
 void GamePlayScene::Draw() {
 	auto objCommon = framework_->GetObject3dCommon();
 	auto spriteCommon = framework_->GetSpriteCommon();
+#ifndef USE_IMGUI
+    if (farmRuntimeController_.ShowsSeedShop() || farmRuntimeController_.ShowsHarvestDisplay()) {
+		objCommon->BeginObjectPass();
+        farmSeedShopRenderer_.Draw(farmRuntimeController_.ShowsSeedShop() ? farmRuntimeController_.SeedShopSelection() % 2 : farmRuntimeController_.HarvestDisplaySelection());
+		objCommon->EndObjectPass();
+		spriteCommon->PreDraw();
+		farmRuntimeController_.Draw();
+		return;
+	}
+#endif
 	const farm::FarmGrid* previewGrid = farmIrrigationPreviewSystem_.GetPreviewGrid();
 	const farm::FarmIrrigationSystem* previewIrrigation = farmIrrigationPreviewSystem_.GetPreviewIrrigation();
 	const bool irrigationPreviewActive = previewGrid != nullptr && previewIrrigation != nullptr;
@@ -1908,7 +1927,7 @@ bool GamePlayScene::HandleFarmInput() {
 		Vector2 virtualMouse{};
 		if (ConvertMouseToVirtualScreen(viewportMousePosition_, virtualMouse)) {
 			virtualMouse.x = std::clamp(virtualMouse.x, 190.0f, 1090.0f);
-			virtualMouse.y = std::clamp(virtualMouse.y, 110.0f, 610.0f);
+			virtualMouse.y = std::clamp(virtualMouse.y, 130.0f, 500.0f);
 			static_cast<void>(farmCropSelectionSystem_.Open(virtualMouse));
 		}
 	}
@@ -2266,6 +2285,10 @@ void GamePlayScene::ToggleCameraMode() {
 
 void GamePlayScene::UpdatePlayerCamera() {
 	if (!usePlayerCamera_ || !levelGameplay_.HasPlayer()) {
+		return;
+	}
+	if (farmGameMode_) {
+		farmRuntimeController_.UpdateFollowCamera(*this);
 		return;
 	}
 

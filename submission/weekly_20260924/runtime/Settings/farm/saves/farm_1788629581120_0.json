@@ -1,0 +1,222 @@
+{
+    "cropSelection": {
+        "crop": "TestCrop"
+    },
+    "document": {
+        "displayName": "動画",
+        "id": "farm_1788629581120_0",
+        "savedAt": "2026-09-06 02:33:01"
+    },
+    "economy": {
+        "cropCounts": [
+            3,
+            0
+        ],
+        "cropValues": [
+            441,
+            0
+        ],
+        "lastHarvestQuality": {
+            "basePrice": 120,
+            "crop": "TestCrop",
+            "maturity": 1.0,
+            "salePrice": 131,
+            "score": 59,
+            "terrainFit": 1.0,
+            "waterBalance": 0.18181824684143066
+        },
+        "money": 20,
+        "seedCounts": [
+            4,
+            0
+        ]
+    },
+    "grid": {
+        "height": 4,
+        "selectedIndex": 12,
+        "width": 5
+    },
+    "schemaVersion": 5,
+    "tiles": [
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0708339512348175,
+            "state": "Tilled",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 1.0,
+            "state": "Tilled",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0708339512348175,
+            "state": "Tilled",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 1.0,
+            "state": "Tilled",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 1.0,
+            "state": "Tilled",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 1.0,
+            "state": "Tilled",
+            "waterAmount": 0.0
+        },
+        {
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 1,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "crop": "None",
+            "feature": "WaterSource",
+            "growth": 0.0,
+            "height": 2,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 2,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 2,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 2,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 1.0
+        },
+        {
+            "crop": "None",
+            "feature": "Canal",
+            "growth": 0.0,
+            "height": 1,
+            "moisture": 0.0,
+            "state": "Empty",
+            "waterAmount": 1.0
+        }
+    ]
+}

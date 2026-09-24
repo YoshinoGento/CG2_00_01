@@ -24,6 +24,8 @@ enum class CropType {
 	None,
 	TestCrop,
 	Carrot,
+	Tomato,
+	Pumpkin,
 };
 
 // Availability now, not a measurement of water delivered during the previous step.
@@ -53,7 +55,9 @@ enum class FarmCropGrowthStage : std::uint8_t {
 inline constexpr float kFarmGrowthStageGrowingMinimum = 0.25f;
 inline constexpr float kFarmGrowthStageAlmostReadyMinimum = 0.70f;
 
-inline constexpr int kFarmCropTypeCount = 2;
+// Slot0 is reserved for legacy turnips; never reinterpret saved IDs.
+inline constexpr int kFarmCropTypeCount = 4;
+inline constexpr int kPlayableCropCount = 3;
 
 struct FarmCropCareHistory {
 	float drySeconds = 0.0f;
@@ -108,6 +112,8 @@ inline int ToCropSlot(CropType crop) noexcept
 		return 0;
 	case CropType::Carrot:
 		return 1;
+	case CropType::Tomato: return 2;
+	case CropType::Pumpkin: return 3;
 	case CropType::None:
 	default:
 		return -1;
@@ -121,6 +127,8 @@ inline CropType CropTypeFromSlot(int slot) noexcept
 		return CropType::TestCrop;
 	case 1:
 		return CropType::Carrot;
+	case 2: return CropType::Tomato;
+	case 3: return CropType::Pumpkin;
 	default:
 		return CropType::None;
 	}
@@ -129,6 +137,10 @@ inline CropType CropTypeFromSlot(int slot) noexcept
 inline bool IsPlantableCrop(CropType crop) noexcept
 {
 	return ToCropSlot(crop) >= 0;
+}
+
+inline CropType PlayableCrop(int index) noexcept {
+	return index >= 0 && index < kPlayableCropCount ? CropTypeFromSlot(index + 1) : CropType::None;
 }
 
 struct FarmTile {
@@ -219,6 +231,8 @@ inline const char* ToString(CropType crop)
 		return "TestCrop";
 	case CropType::Carrot:
 		return "Carrot";
+	case CropType::Tomato: return "Tomato";
+	case CropType::Pumpkin: return "Pumpkin";
 	default:
 		return "Unknown";
 	}

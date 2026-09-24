@@ -16,7 +16,9 @@ enum class Action {
     ObserveField, ObserveExit, PickSlot, JumpSlot, FlowContinue, FlowRecords,
     ApplyTool, OpenSeedShop, BuyAndReturn, SoilCare, Compost, Quality, TerrainField, TerrainExit,
     HarvestInventory, HarvestPage, ProtectHarvest, UnprotectHarvest, ReserveContestHarvest, CancelContestReservation,
-    ContestPreview, SubmitContest, ContestResults, ContestDayReview, ContestDayPrepare, ContestDayResume, ChangePlayMode
+    ContestPreview, SubmitContest, ContestResults, ContestDayReview, ContestDayPrepare, ContestDayResume, ChangePlayMode,
+    ShopSelect, ShopQuantity, ShopReview, ShopConfirm, ShopCancel, ShopClose,
+    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage
 };
 struct Request { Action action = Action::None; int argument = 0; std::uint64_t inventoryGeneration = 0; };
 struct Rect {
@@ -34,6 +36,8 @@ struct Item {
     std::string value;
     bool focused = false;
     float valueOffset = 540;
+    bool darkInk = false;
+    bool warning = false;
 };
 struct QualityRadar {
     bool visible = false;
@@ -60,6 +64,10 @@ struct View {
     std::array<Item, kCapacity> items{};
     std::size_t count = 0;
     bool modal = false;
+    bool seedShop = false;
+    bool harvestDisplay = false;
+    int counterSelection = -1;
+    std::array<int, 2> harvestFigures{{-1, -1}};
     bool observation = false;
     bool terrain = false;
     bool fieldActions = false;
@@ -130,12 +138,15 @@ public:
 private:
     void Panel(Rect rect, Vector4 color);
     void LabelQuad(Label label, Rect rect, Vector4 color);
-    void ValueText(const std::string& value, Vector2 position, float right);
+    void ValueText(const std::string& value, Vector2 position, float right, Vector4 color = {1.0f, 0.87f, 0.50f, 1});
     void DrawRadar(const QualityRadar& radar);
     std::array<Sprite, 42> panels_{};
     std::array<Sprite, 40> labels_{};
     std::array<Sprite, 160> digits_{};
     std::array<Sprite, 28> radarLines_{};
+    std::array<Sprite, 4> seedPackets_{};
+    // Distinct per displayed slot: do not rewrite a submitted Sprite constant buffer.
+    std::array<Sprite, 8> harvestFigures_{};
     Sprite names_;
     std::array<std::string, 2> cachedNames_{};
     bool namesReady_ = false;

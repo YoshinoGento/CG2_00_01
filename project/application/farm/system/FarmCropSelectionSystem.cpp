@@ -4,7 +4,6 @@
 
 namespace {
 constexpr float kSelectionDeadZone = 44.0f;
-constexpr float kHorizontalDirectionBias = 0.45f;
 
 bool IsFinite(const Vector2& value) noexcept
 {
@@ -14,7 +13,7 @@ bool IsFinite(const Vector2& value) noexcept
 
 void FarmCropSelectionSystem::Initialize() noexcept
 {
-	selectedCrop_ = farm::CropType::TestCrop;
+	selectedCrop_ = farm::CropType::Carrot;
 	hoveredCrop_ = farm::CropType::None;
 	center_ = {};
 	pointer_ = {};
@@ -41,14 +40,15 @@ void FarmCropSelectionSystem::UpdatePointer(const Vector2& pointer) noexcept
 	pointer_ = pointer;
 	const float deltaX = pointer_.x - center_.x;
 	const float deltaY = pointer_.y - center_.y;
-	if (std::abs(deltaX) < kSelectionDeadZone ||
-		std::abs(deltaX) < std::abs(deltaY) * kHorizontalDirectionBias) {
+	if (std::hypot(deltaX, deltaY) < kSelectionDeadZone) {
 		hoveredCrop_ = farm::CropType::None;
 		return;
 	}
-	hoveredCrop_ = deltaX < 0.0f
-		? farm::CropType::TestCrop
-		: farm::CropType::Carrot;
+	// Three directions match the HUD: left carrot, right tomato, down pumpkin.
+	if (deltaY > std::abs(deltaX)) hoveredCrop_ = farm::CropType::Pumpkin;
+	else if (std::abs(deltaX) >= std::abs(deltaY))
+		hoveredCrop_ = deltaX < 0 ? farm::CropType::Carrot : farm::CropType::Tomato;
+	else hoveredCrop_ = farm::CropType::None;
 }
 
 bool FarmCropSelectionSystem::Confirm() noexcept

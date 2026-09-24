@@ -34,6 +34,21 @@ struct FarmRules {
 		0.80f,
 		0.25f,
 	};
+	// Provisional game profiles: tomato rewards steady water, pumpkin grows slowly.
+	FarmCropGrowthProfile tomatoGrowth{1.0f/100.0f, 1.0f/24.0f, 0.08f, 1.0f/65.0f, 0.45f, 0.65f, 0.10f};
+	FarmCropGrowthProfile pumpkinGrowth{1.0f/180.0f, 1.0f/40.0f, 0.10f, 1.0f/80.0f, 0.50f, 0.80f, 0.15f};
+	int tomatoSeedPrice = 90;
+	int pumpkinSeedPrice = 140;
+	int initialTomatoSeedCount = 0;
+	int initialPumpkinSeedCount = 0;
+	int tomatoHarvestPrice = 260;
+	int pumpkinHarvestPrice = 420;
+	float tomatoIdealHarvestMoisture = 0.55f;
+	float pumpkinIdealHarvestMoisture = 0.65f;
+	int tomatoIdealHeight = 1;
+	int pumpkinIdealHeight = 0;
+	float tomatoMaximumSizeMultiplier = 2.0f;
+	float pumpkinMaximumSizeMultiplier = 3.0f;
 	float maxMoisture = 1.0f;
 	float irrigationMoistureRecoveryPerSecond = 1.0f / 8.0f;
 	float irrigationSourceStrength = 1.0f;

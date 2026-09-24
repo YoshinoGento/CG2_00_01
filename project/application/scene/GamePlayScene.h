@@ -32,6 +32,7 @@
 #include "farm/system/FarmToolSystem.h"
 #include "farm/system/FarmVisualSystem.h"
 #include "farm/render/FarmRenderer.h"
+#include "farm/render/FarmSeedShopRenderer.h"
 #include "farm/ui/FarmHUD.h"
 #include "level/ui/StageClearHUD.h"
 
@@ -285,6 +286,7 @@ private:
 	FarmToolActionSystem farmToolActionSystem_;
 	farm::FarmVisualSystem farmVisualSystem_;
 	farm::FarmRenderer farmRenderer_;
+	FarmSeedShopRenderer farmSeedShopRenderer_;
 	editor::GamePlayEditorBridge gamePlayEditorBridge_;
 	FarmHUD farmHud_;
 	FarmRuntimeController farmRuntimeController_;

@@ -23,6 +23,19 @@ void LineDrawer::DrawWireCube(const Vector3&, float, const Vector4&) {}
 void LineDrawer::DrawWireSphere(const Vector3& p, float r, const Vector4&, uint32_t) { sphereCenter=p; sphereRadius=r; }
 
 int main() {
+    for(auto crop : {farm::CropType::Tomato, farm::CropType::Pumpkin}) {
+        farm::FarmGrid grid; assert(grid.Initialize(1,1));
+        farm::FarmTile before; before.crop=crop; before.state=farm::FarmTileState::Planted; before.growth=1;
+        auto* current=grid.GetMutableTile(0); current->state=farm::FarmTileState::Tilled;
+        FarmToolActionResult result; result.status=FarmToolActionStatus::Harvested; result.tileIndex=0; result.harvestedTile=before;
+        farm::FarmVisualSystem visual; visual.Initialize({});
+        farm::FarmHarvestVisualSystem harvest; assert(harvest.Start(result,grid,visual));
+        assert(harvest.GetParts(grid,0).count==1);
+        const float start=harvest.GetParts(grid,0).parts[0].position.y;
+        harvest.Update(grid,.3f);
+        assert(harvest.GetParts(grid,0).count==1 && harvest.GetParts(grid,0).parts[0].position.y>start);
+        harvest.Update(grid,2.f); assert(harvest.GetActiveCount(grid)==0);
+    }
     {
         farm::FarmGrid field; assert(field.Initialize(3,3));
         farm::FarmVisualSystem visual; visual.Initialize({});
@@ -74,7 +87,8 @@ int main() {
         assert(grid.SetTile(0,tile));
         const auto good = visual.GetTileVisualData(grid,0);
         const auto mesh = farm::BuildFarmCropMeshParts(grid,0,visual);
-        assert(mesh.count == 2 && mesh.parts[1].shape == farm::FarmMeshShape::Leaves);
+        const auto leafShape = crop == farm::CropType::Carrot ? farm::FarmMeshShape::CarrotLeaves : farm::FarmMeshShape::Leaves;
+        assert(mesh.count == 2 && mesh.parts[1].shape == leafShape);
         assert(mesh.parts[0].shape == (crop == farm::CropType::Carrot ? farm::FarmMeshShape::Carrot : farm::FarmMeshShape::Turnip));
         const float buriedFraction = crop == farm::CropType::Carrot ? 0.84f : 0.50f;
         assert(Near(mesh.parts[0].position.y + mesh.parts[0].scale.y * buriedFraction, good.center.y));
@@ -123,6 +137,7 @@ int main() {
         assert(grid.SetTile(0,tile));
         assert(Near(visual.GetTileVisualData(grid,0).cropScale,1.05f));
         assert(farm::BuildFarmCropMeshParts(grid,0,visual).count == 1);
+        assert(farm::BuildFarmCropMeshParts(grid,0,visual).parts[0].shape == leafShape);
         grid.GetMutableTile(0)->growth = std::numeric_limits<float>::quiet_NaN();
         assert(std::isfinite(visual.GetTileVisualData(grid,0).cropScale));
         assert(farm::BuildFarmCropMeshParts(grid,0,visual).count == 0);

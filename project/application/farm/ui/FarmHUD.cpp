@@ -171,18 +171,21 @@ constexpr std::array<const char*, 11> kTileStatePaths = {
 	"Resources/generated/text/hud_state_ready.png",
 };
 
-constexpr std::array<const char*, 3> kCropPaths = {
+constexpr std::array<const char*, 5> kCropPaths = {
 	"Resources/generated/text/hud_crop_none.png",
 	"Resources/generated/text/hud_crop_test.png",
 	"Resources/generated/text/hud_crop_carrot.png",
+	"Resources/generated/text/hud_crop_tomato.png",
+	"Resources/generated/text/hud_crop_pumpkin.png",
 };
 
 constexpr const char* kCropPieGuidePath =
 	"Resources/generated/text/hud_crop_pie_guide.png";
 
-constexpr std::array<const char*, 2> kCropPieTraitPaths = {
-	"Resources/generated/text/hud_crop_trait_turnip.png",
+constexpr std::array<const char*, 3> kCropPieTraitPaths = {
 	"Resources/generated/text/hud_crop_trait_carrot.png",
+	"Resources/generated/text/hud_crop_trait_tomato.png",
+	"Resources/generated/text/hud_crop_trait_pumpkin.png",
 };
 
 constexpr std::array<const char*, 11> kNextActionPaths = {
@@ -219,7 +222,7 @@ constexpr std::array<const char*, 2> kIrrigationPreviewPaths = {
 	"Resources/generated/text/hud_irrigation_removal_preview.png",
 };
 
-constexpr std::array<const char*, 13> kFeedbackPaths = {
+constexpr std::array<const char*, 19> kFeedbackPaths = {
 	"Resources/generated/text/hud_feedback_harvest.png",
 	"Resources/generated/text/hud_feedback_harvest.png",
 	"Resources/generated/text/hud_feedback_sale.png",
@@ -233,6 +236,12 @@ constexpr std::array<const char*, 13> kFeedbackPaths = {
 	"Resources/generated/text/hud_feedback_no_seed_turnip.png",
 	"Resources/generated/text/hud_feedback_no_seed_carrot.png",
 	"Resources/generated/text/hud_feedback_no_money.png",
+	"Resources/generated/text/hud_feedback_seed_bought_tomato.png",
+	"Resources/generated/text/hud_feedback_seed_bought_pumpkin.png",
+	"Resources/generated/text/hud_feedback_crop_selected_tomato.png",
+	"Resources/generated/text/hud_feedback_crop_selected_pumpkin.png",
+	"Resources/generated/text/hud_feedback_no_seed_tomato.png",
+	"Resources/generated/text/hud_feedback_no_seed_pumpkin.png",
 };
 
 bool IsSameFloat(float lhs, float rhs) {
@@ -316,6 +325,8 @@ std::size_t GetCropTextureIndex(farm::CropType crop) {
 		return 1;
 	case farm::CropType::Carrot:
 		return 2;
+	case farm::CropType::Tomato: return 3;
+	case farm::CropType::Pumpkin: return 4;
 	case farm::CropType::None:
 	default:
 		return 0;
@@ -456,10 +467,12 @@ bool FarmHUD::InitializeLocalizedSprites(SpriteCommon* spriteCommon) {
 		localizedTileState_.Initialize(spriteCommon, kTileStatePaths[0]) &&
 		localizedCropName_.Initialize(spriteCommon, kCropPaths[0]) &&
 		localizedSelectedSeedCrop_.Initialize(spriteCommon, kCropPaths[1]) &&
-		localizedCropPieNames_[0].Initialize(spriteCommon, kCropPaths[1]) &&
-		localizedCropPieNames_[1].Initialize(spriteCommon, kCropPaths[2]) &&
+		localizedCropPieNames_[0].Initialize(spriteCommon, kCropPaths[2]) &&
+		localizedCropPieNames_[1].Initialize(spriteCommon, kCropPaths[3]) &&
+		localizedCropPieNames_[2].Initialize(spriteCommon, kCropPaths[4]) &&
 		localizedCropPieTraits_[0].Initialize(spriteCommon, kCropPieTraitPaths[0]) &&
 		localizedCropPieTraits_[1].Initialize(spriteCommon, kCropPieTraitPaths[1]) &&
+		localizedCropPieTraits_[2].Initialize(spriteCommon, kCropPieTraitPaths[2]) &&
 		localizedCropPieGuide_.Initialize(spriteCommon, kCropPieGuidePath) &&
 		localizedNextAction_.Initialize(spriteCommon, kNextActionPaths[0]) &&
 		localizedMoistureStatus_.Initialize(spriteCommon, kMoistureStatusPaths[0]) &&
@@ -532,7 +545,7 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 		sanitized.currentToolIndex = -1;
 	}
 	if (!farm::IsPlantableCrop(sanitized.selectedSeedCrop)) {
-		sanitized.selectedSeedCrop = farm::CropType::TestCrop;
+		sanitized.selectedSeedCrop = farm::CropType::Carrot;
 	}
 	if (!farm::IsPlantableCrop(sanitized.cropPieHovered)) {
 		sanitized.cropPieHovered = farm::CropType::None;
@@ -1037,7 +1050,7 @@ void FarmHUD::UpdateLocalizedSelections() {
 		irrigationPreviewTextureHandles_[viewData_.irrigationPreviewRemoval ? 1 : 0], 0.86f);
 	SetLocalizedTexture(
 		localizedFeedback_,
-		feedbackTextureHandles_[ToBoundedIndex<FarmHUDFeedback, 13>(viewData_.feedback)],
+		feedbackTextureHandles_[ToBoundedIndex<FarmHUDFeedback, 19>(viewData_.feedback)],
 		0.72f);
 	SetLocalizedTexture(
 		localizedFeedbackCrop_,
@@ -1068,26 +1081,26 @@ void FarmHUD::UpdateFeedbackDetails() {
 }
 
 void FarmHUD::UpdateCropPieStats() {
-	for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot) {
-		const std::size_t index = static_cast<std::size_t>(slot);
+	for (std::size_t index = 0; index < cropPieStatsText_.size(); ++index) {
+		const std::size_t slot = index + 1;
 		cropPieStatsText_[index].SetText(
-			std::to_string(viewData_.cropSeedCounts[index]) + " / " +
-			std::to_string(viewData_.cropInventoryCounts[index]));
+			std::to_string(viewData_.cropSeedCounts[slot]) + " / " +
+			std::to_string(viewData_.cropInventoryCounts[slot]));
 		cropPieValueText_[index].SetText(
-			std::to_string(viewData_.cropInventoryValues[index]) + "G");
+			std::to_string(viewData_.cropInventoryValues[slot]) + "G");
 	}
 }
 
 void FarmHUD::UpdateCropPieMenu() {
 	const Vector2 center = viewData_.cropPieCenter;
 	const float halfGap = kPiePanelGap * 0.5f;
-	const Vector2 positions[2] = {
+	const Vector2 positions[3] = {
 		{ center.x - halfGap - kPiePanelSize.x, center.y - kPiePanelSize.y * 0.5f },
 		{ center.x + halfGap, center.y - kPiePanelSize.y * 0.5f },
+		{ center.x - kPiePanelSize.x * 0.5f, center.y + 78.0f },
 	};
-	const farm::CropType crops[2] = {
-		farm::CropType::TestCrop,
-		farm::CropType::Carrot,
+	const farm::CropType crops[3] = {
+		farm::CropType::Carrot, farm::CropType::Tomato, farm::CropType::Pumpkin,
 	};
 	for (std::size_t index = 0; index < cropPiePanels_.size(); ++index) {
 		Vector4 color = crops[index] == viewData_.selectedSeedCrop
@@ -1132,7 +1145,7 @@ void FarmHUD::UpdateCropPieMenu() {
 		{ center.x - halfGap, center.y - 18.0f },
 		{ kPiePanelGap, 36.0f },
 		kFeedbackPanelColor);
-	localizedCropPieGuide_.SetPosition({ center.x - 160.0f, center.y + 76.0f });
+	localizedCropPieGuide_.SetPosition({ center.x - 180.0f, center.y - 108.0f });
 }
 
 void FarmHUD::UpdateGoalBar() {

@@ -23,9 +23,11 @@ public:
         visual.crop = before.crop;
         visual.cropStage = FarmCropGrowthStage::Ready;
         visual.cropScale = visualSystem.GetCropRenderScale(before);
-        const auto meshes = BuildFarmCropMeshParts(visual, before.growth);
+        auto meshes = BuildFarmCropMeshParts(visual, before.growth);
         if (meshes.count != 2) return false;
         for (const auto& mesh : meshes.parts) if (!IsValidPart(mesh)) return false;
+        // Fruit crops show only the picked fruit; roots retain their attached foliage.
+        if (before.crop == CropType::Tomato || before.crop == CropType::Pumpkin) meshes.count = 1;
         std::size_t slot = kCapacity;
         for (std::size_t i = 0; i < entries_.size(); ++i) {
             if (Matches(entries_[i], grid) && entries_[i].tileIndex == result.tileIndex) return false;
@@ -37,7 +39,7 @@ public:
                 if (entries_[i].age > entries_[slot].age) slot = i;
         }
         entries_[slot] = {meshes, grid.GetGeneration(), result.tileIndex, before.heightLevel, 0.0f,
-            visual.center.y - meshes.parts[0].position.y + 0.16f, true};
+            (std::max)(0.16f, visual.center.y - meshes.parts[0].position.y + 0.16f), true};
         return true;
     }
 
@@ -63,7 +65,8 @@ public:
         const float lift = entry.lift * (1.0f - (1.0f - t) * (1.0f - t));
         const float shrink = 1.0f - std::clamp((entry.age - kPullSeconds - kHoldSeconds) / kShrinkSeconds, 0.0f, 1.0f);
         const auto pivot = entry.meshes.parts[0].position;
-        for (auto& part : parts.parts) {
+        for (std::size_t i=0; i<parts.count; ++i) {
+            auto& part = parts.parts[i];
             part.position = {pivot.x + (part.position.x - pivot.x) * shrink,
                 pivot.y + lift + (part.position.y - pivot.y) * shrink,
                 pivot.z + (part.position.z - pivot.z) * shrink};

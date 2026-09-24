@@ -6,7 +6,7 @@
 class FarmCropSelectionSystem final {
 public:
 	struct Snapshot {
-		farm::CropType selectedCrop = farm::CropType::TestCrop;
+		farm::CropType selectedCrop = farm::CropType::Carrot;
 	};
 
 	void Initialize() noexcept;
@@ -25,7 +25,7 @@ public:
 	bool RestoreSnapshot(const Snapshot& snapshot) noexcept;
 
 private:
-	farm::CropType selectedCrop_ = farm::CropType::TestCrop;
+	farm::CropType selectedCrop_ = farm::CropType::Carrot;
 	farm::CropType hoveredCrop_ = farm::CropType::None;
 	Vector2 center_{};
 	Vector2 pointer_{};

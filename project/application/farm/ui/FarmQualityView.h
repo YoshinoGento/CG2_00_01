@@ -8,6 +8,15 @@
 #include <cstdio>
 
 namespace farmui {
+inline Label CropLabel(farm::CropType crop) noexcept {
+    switch(crop) {
+    case farm::CropType::TestCrop: return Label::Turnip;
+    case farm::CropType::Carrot: return Label::Carrot;
+    case farm::CropType::Tomato: return Label::Tomato;
+    case farm::CropType::Pumpkin: return Label::Pumpkin;
+    default: return Label::NoCrop;
+    }
+}
 inline std::string CropSizeText(const FarmCropSizeResult& size) {
     if (!size.known || !size.IsConsistent()) return "--";
     char buffer[16]{};
@@ -31,6 +40,8 @@ inline Label ContestReservationLabel(farm::CropType crop) noexcept {
     switch (crop) {
     case farm::CropType::Carrot: return Label::ContestCarrot;
     case farm::CropType::TestCrop: return Label::ContestTurnip;
+    case farm::CropType::Tomato: return Label::ContestTomato;
+    case farm::CropType::Pumpkin: return Label::ContestPumpkin;
     default: return Label::ContestNone;
     }
 }
@@ -58,7 +69,7 @@ inline void BuildHarvestInventoryView(View& view, const HarvestInventoryViewStat
         const auto& row = state.rows[i];
         std::snprintf(value, sizeof(value), "%d / %s / %d / %dG", row.quantity,
             CropSizeText(row.quality.harvestSize).c_str(), row.quality.score, row.quality.salePrice);
-        view.Metric(row.quality.crop == farm::CropType::Carrot ? Label::Carrot : Label::Turnip,
+        view.Metric(CropLabel(row.quality.crop),
             {176,248.0f+i*88,920,38}, 120, value);
         const bool reserved = row.id > 0 && row.id == state.contestReservationId;
         view.Add(row.saleProtected ? Label::HarvestProtected : Label::HarvestProtect,
@@ -196,7 +207,7 @@ inline void BuildContestResultsView(View& view, const FarmEconomySystem::Contest
         } else {
             std::snprintf(value,sizeof(value),"%d / %d / %d / %d",result.contestDay,
                 result.qualityPoints,result.sizePoints,result.qualityPoints+result.sizePoints);
-            view.Metric(result.harvest.quality.crop==farm::CropType::Carrot ? Label::Carrot : Label::Turnip,
+            view.Metric(CropLabel(result.harvest.quality.crop),
                 {176,y,920,38},220,value);
             std::snprintf(value,sizeof(value),"%d / %.2fx",result.harvest.harvestedDay,
                 static_cast<double>(result.harvest.quality.harvestSize.multiplier));
@@ -253,7 +264,7 @@ inline void BuildQualityView(View& view, const FarmCropQualityResult& quality, c
         view.Add(harvested ? Label::QualityNoHarvest : Label::NoCrop, {176,254,920,44});
         return;
     }
-    view.Add(quality.crop == farm::CropType::Carrot ? Label::Carrot : Label::Turnip, {176,192,150,38});
+    view.Add(CropLabel(quality.crop), {176,192,150,38});
     if (!harvested) view.Metric(Label::Selected, {646,192,450,38}, 160, tileIndex >= 0 ? "#" + std::to_string(tileIndex) : "--");
     view.radar.visible = true;
     const std::array<float,4> values{{quality.maturity, quality.waterBalance, quality.terrainFit, quality.nutrientBalance}};

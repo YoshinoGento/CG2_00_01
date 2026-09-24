@@ -215,7 +215,7 @@ struct FarmPlaytestEditorViewData {
 	std::array<int, farm::kFarmCropTypeCount> cropCounts{};
 	std::array<int, farm::kFarmCropTypeCount> cropValues{};
 	std::array<int, farm::kFarmCropTypeCount> seedCounts{};
-	farm::CropType selectedSeedCrop = farm::CropType::TestCrop;
+	farm::CropType selectedSeedCrop = farm::CropType::Carrot;
 	int requiredCropCount = -1;
 	float progress = 0.0f;
 	bool cleared = false;

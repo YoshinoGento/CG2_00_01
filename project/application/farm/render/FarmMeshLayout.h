@@ -7,7 +7,8 @@
 #include <cmath>
 
 namespace farm {
-enum class FarmMeshShape { Box, TriangleLower, TriangleUpper, Turnip, Carrot, Leaves };
+enum class FarmMeshShape { Box, TriangleLower, TriangleUpper, Turnip, Carrot, Leaves, CarrotLeaves,
+    Tomato, TomatoStems, Pumpkin, PumpkinVines };
 enum class FarmMeshSurface { None, CanalBed, CanalBank, SoilBoundary, Selection, Hover, Crop };
 struct FarmMeshPart {
 	Vector3 position{};
@@ -43,6 +44,21 @@ inline FarmCropMeshParts BuildFarmCropMeshParts(
 		!std::isfinite(cropGrowth) || !std::isfinite(visual.cropScale) || visual.cropScale <= 0) return result;
 	const float growth = std::clamp(cropGrowth, 0.0f, 1.0f);
 	const float scale = visual.cropScale;
+	if (visual.crop == CropType::Tomato || visual.crop == CropType::Pumpkin) {
+		const bool tomato = visual.crop == CropType::Tomato;
+		const bool fruit = growth >= kFarmGrowthStageAlmostReadyMinimum;
+		const float size = (0.25f + 0.75f*growth)*scale;
+		// Tomato fruit hangs above soil; pumpkin sits on soil. Neither is a buried root.
+		if (fruit) result.parts[result.count++] = {
+			{visual.center.x,visual.center.y + (tomato ? .22f*size : .015f),visual.center.z},
+			{(tomato ? .42f : .46f)*size,(tomato ? .60f : .65f)*size,(tomato ? .42f : .46f)*size},
+			tomato ? Vector4{.87f,.12f,.07f,1} : Vector4{.12f,.36f,.16f,1},false,{},
+			tomato ? FarmMeshShape::Tomato : FarmMeshShape::Pumpkin,FarmMeshSurface::Crop};
+		result.parts[result.count++] = {{visual.center.x,visual.center.y+.02f,visual.center.z},
+			{.58f*size,(tomato ? 1.05f : .80f)*size,.58f*size},{.24f,.50f,.18f,1},false,{},
+			tomato ? FarmMeshShape::TomatoStems : FarmMeshShape::PumpkinVines,FarmMeshSurface::Crop};
+		return result;
+	}
 	const bool carrot = visual.crop == CropType::Carrot;
 	const bool bodyVisible = visual.cropStage == FarmCropGrowthStage::AlmostReady ||
 		visual.cropStage == FarmCropGrowthStage::Ready;
@@ -56,7 +72,7 @@ inline FarmCropMeshParts BuildFarmCropMeshParts(
 	if (bodyVisible) {
 		const float radius = (carrot ? 0.18f : 0.28f) * growth * scale;
 		result.parts[result.count++] = {rootBase, {radius, bodyHeight, radius},
-			carrot ? Vector4{1.0f,0.34f,0.035f,1} : Vector4{0.94f,0.75f,0.88f,1},
+			carrot ? Vector4{0.94f,0.43f,0.10f,1} : Vector4{0.91f,0.79f,0.87f,1},
 			false, {}, carrot ? FarmMeshShape::Carrot : FarmMeshShape::Turnip, FarmMeshSurface::Crop};
 	}
 	const float leafWidth = (0.10f + growth * 0.22f) * scale;
@@ -65,8 +81,8 @@ inline FarmCropMeshParts BuildFarmCropMeshParts(
 		? Vector3{rootBase.x, rootBase.y + bodyHeight * kLeafAttachmentFraction, rootBase.z}
 		: visual.cropAnchor;
 	result.parts[result.count++] = {leafBase, {leafWidth, (0.12f + growth*0.25f)*scale, leafWidth},
-		carrot ? Vector4{0.12f,0.64f,0.08f,1} : Vector4{0.24f,0.76f,0.10f,1},
-		false, {}, FarmMeshShape::Leaves, FarmMeshSurface::Crop};
+		carrot ? Vector4{0.25f,0.54f,0.18f,1} : Vector4{0.40f,0.65f,0.22f,1},
+		false, {}, carrot ? FarmMeshShape::CarrotLeaves : FarmMeshShape::Leaves, FarmMeshSurface::Crop};
 	return result;
 }
 

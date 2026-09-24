@@ -368,6 +368,9 @@
     <ClInclude Include="application\farm\system\FarmContestDaySystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
+    <ClInclude Include="application\farm\system\FarmTimeAdvanceSystem.h">
+      <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
+    </ClInclude>
     <ClInclude Include="application\farm\system\FarmContestSeasonSystem.h">
       <Filter>繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ\application\farm\system</Filter>
     </ClInclude>
@@ -689,6 +692,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="application\farm\render\FarmRenderer.cpp" />
+    <ClCompile Include="application\farm\render\FarmSeedShopRenderer.cpp" />
+    <ClInclude Include="application\farm\render\FarmSeedShopRenderer.h" />
+    <ClInclude Include="application\farm\system\FarmSeedShopSystem.h" />
+    <ClInclude Include="application\farm\ui\FarmSeedShopView.h" />
+    <ClInclude Include="application\farm\ui\FarmHarvestDisplayView.h" />
+    <ClInclude Include="application\farm\system\FarmHarvestDisplaySystem.h" />
     <ClInclude Include="application\farm\render\FarmRenderer.h" />
     <ClInclude Include="application\farm\render\FarmMeshLayout.h" />
     <ClInclude Include="application\farm\render\FarmSoilSurface.h" />

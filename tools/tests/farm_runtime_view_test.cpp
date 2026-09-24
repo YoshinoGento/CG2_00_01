@@ -404,17 +404,28 @@ int main() {
     }
     assert(farm::kFarmOverviewFrame.bottom * 720 <= View::kWaterGuidancePanel.y - 8);
     for (bool visible : {false,true}) for (bool closed : {false,true}) for (bool editable : {false,true})
+    for (bool canSetIntake : {false,true})
     for (auto supply : {farm::FarmWaterStatus::None, farm::FarmWaterStatus::Available,
         farm::FarmWaterStatus::Retained, farm::FarmWaterStatus::Waiting, farm::FarmWaterStatus::Dry})
     for (auto advice : {FarmWaterAdvice::Unknown, FarmWaterAdvice::Till, FarmWaterAdvice::Plant,
         FarmWaterAdvice::Harvest, FarmWaterAdvice::Water, FarmWaterAdvice::CheckSupply,
         FarmWaterAdvice::CloseIntake, FarmWaterAdvice::AvoidWater, FarmWaterAdvice::Monitor}) {
-        View status; BuildWaterGuidanceView(status, {visible,closed,supply,advice}, editable);
-        assert(status.count == (visible ? 2u : 0u));
+        View status; BuildWaterGuidanceView(status, {visible,closed,supply,advice}, editable, canSetIntake);
+        assert(status.count == (visible ? 3u : 0u));
         assert(status.waterGuidance == visible);
         assert(status.Hit({500,460}).action == (visible && editable ? Action::TerrainField : Action::None));
         assert(status.Hit({500,510}).action == Action::None);
         assert(status.Covers({500,490}) == visible);
+        const auto intake = status.Hit({940,510});
+        assert(intake.action == (visible && editable && canSetIntake ? Action::SetIrrigation : Action::None));
+        if (intake.action == Action::SetIrrigation) assert(intake.argument == (closed ? 1 : 0));
+        assert(status.Covers({940,510}) == visible);
+        assert(status.Hit({882,510}).action == Action::None);
+        if (visible) {
+            assert(status.items[1].warning == (advice == FarmWaterAdvice::CloseIntake || advice == FarmWaterAdvice::AvoidWater));
+            assert(status.items[2].label == (closed ? Label::IntakeOn : Label::IntakeOff));
+            assert(status.items[1].rect.x + status.items[1].rect.width <= status.items[2].rect.x);
+        }
         if (visible && closed) assert(status.items[0].label == Label::IntakeClosed);
         for (std::size_t i=0; i<status.count; ++i) {
             const auto& item = status.items[i];
@@ -510,12 +521,48 @@ int main() {
             }
         }
     }
+    for (const auto frame : {farm::kFarmOverviewFrame, farm::kObservationOverviewFrame, farm::kTerrainOverviewFrame}) {
+        for (float aspect : {4.f/3, 16.f/9, 21.f/9}) for (float x : {-8.f, 0.f, 8.f})
+        for (float z : {-4.f, 8.f, 18.f}) for (float height : {0.f, 3.f}) {
+            const Vector3 farmMin{-3,0,5}, farmMax{3,2,11};
+            const Vector3 playerCenter{x,height+.9f,z}, playerHalf{.45f,.9f,.45f};
+            const float py = 1/std::tan(.45f/2), px = py/aspect;
+            farm::OverviewPose pose;
+            assert(farm::FitFarmFollowCamera(farmMin, farmMax, playerCenter, playerHalf,
+                px, py, .1f, 1000, frame, pose));
+            const std::array minima{farmMin, Vector3{x-.70f,height-.25f,z-.70f}};
+            const std::array maxima{farmMax, Vector3{x+.70f,height+2.05f,z+.70f}};
+            for (std::size_t box=0; box<minima.size(); ++box) for (int corner=0; corner<8; ++corner) {
+                const auto& low=minima[box]; const auto& high=maxima[box];
+                const float dx=((corner&1)?high.x:low.x)-pose.position.x;
+                const float dy=((corner&2)?high.y:low.y)-pose.position.y;
+                const float dz=((corner&4)?high.z:low.z)-pose.position.z;
+                const float cameraY=std::cos(pose.rotation.x)*dy+std::sin(pose.rotation.x)*dz;
+                const float cameraZ=-std::sin(pose.rotation.x)*dy+std::cos(pose.rotation.x)*dz;
+                const float screenX=(px*dx/cameraZ+1)*.5f, screenY=(1-py*cameraY/cameraZ)*.5f;
+                assert(cameraZ>.1f && cameraZ<1000);
+                assert(screenX>=frame.left-.0001f && screenX<=frame.right+.0001f);
+                assert(screenY>=frame.top-.0001f && screenY<=frame.bottom+.0001f);
+            }
+        }
+    }
     farm::OverviewPose unchanged{{123,456,789}, {0,0,0}};
+    for (float invalid : {0.f,-1.f,std::numeric_limits<float>::infinity(),std::numeric_limits<float>::quiet_NaN()})
+        assert(!farm::FitFarmFollowCamera({0,0,0},{1,1,1},{0,0,0},{invalid,1,1},2,4,.1f,100,
+            farm::kFarmOverviewFrame,unchanged));
+    assert(!farm::FitFarmFollowCamera({2,0,0},{1,1,1},{0,0,0},{1,1,1},2,4,.1f,100,farm::kFarmOverviewFrame,unchanged));
+    assert(!farm::FitFarmFollowCamera({0,0,0},{1,1,1},{std::numeric_limits<float>::quiet_NaN(),0,0},
+        {1,1,1},2,4,.1f,100,farm::kFarmOverviewFrame,unchanged));
+    assert(!farm::FitFarmFollowCamera({0,0,0},{1,1,1},{0,0,0},{1,1,1},2,4,.1f,1,farm::kFarmOverviewFrame,unchanged));
+    std::cout << "PASS: follow camera farm/player safe bounds, 162 poses, invalid input retains pose\n";
     for (float invalid : {0.0f, -1.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
         assert(!farm::FitOverviewCamera({0,0,0}, {1,1,1}, invalid, 4, 0.1f, 100, farm::kFarmOverviewFrame, unchanged));
     assert(!farm::FitOverviewCamera({2,0,0}, {1,1,1}, 2, 4, 0.1f, 100, farm::kFarmOverviewFrame, unchanged));
     assert(!farm::FitOverviewCamera({0,0,0}, {1,1,1}, 2, 4, 0.1f, 1, farm::kFarmOverviewFrame, unchanged));
     assert(!farm::FitOverviewCamera({0,0,0}, {1,1,1}, 2, 4, 0.1f, 100, {0,0,0,1}, unchanged));
+    for (float pitch : {0.f, 1.4f, std::numeric_limits<float>::quiet_NaN()})
+        assert(!farm::FitOverviewCamera({0,0,0}, {1,1,1}, 2, 4, .1f, 100,
+            farm::kFarmOverviewFrame, unchanged, pitch));
     assert(unchanged.position.x == 123 && unchanged.position.y == 456 && unchanged.position.z == 789);
     for (bool follow : {false,true}) for (bool available : {false,true}) {
         View camera;

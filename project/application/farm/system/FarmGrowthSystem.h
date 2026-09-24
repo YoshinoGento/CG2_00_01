@@ -44,6 +44,9 @@ struct FarmWaterGuidance {
 	bool intakeClosed = false;
 	farm::FarmWaterStatus supply = farm::FarmWaterStatus::None;
 	FarmWaterAdvice advice = FarmWaterAdvice::Unknown;
+	[[nodiscard]] bool HasExcessMoisture() const noexcept {
+		return advice == FarmWaterAdvice::CloseIntake || advice == FarmWaterAdvice::AvoidWater;
+	}
 };
 
 [[nodiscard]] inline const char* FarmWaterAdviceText(FarmWaterAdvice advice) noexcept

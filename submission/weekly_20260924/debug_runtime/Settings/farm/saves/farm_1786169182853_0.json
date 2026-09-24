@@ -1,0 +1,155 @@
+{
+    "document": {
+        "displayName": "夏の畑仮",
+        "id": "farm_1786169182853_0",
+        "savedAt": "2026-08-08 15:06:22"
+    },
+    "grid": {
+        "height": 4,
+        "selectedIndex": 11,
+        "width": 5
+    },
+    "schemaVersion": 1,
+    "tiles": [
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.5739016532897949,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Tilled"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        },
+        {
+            "crop": "None",
+            "growth": 0.0,
+            "height": 0,
+            "moisture": 0.0,
+            "state": "Empty"
+        }
+    ]
+}

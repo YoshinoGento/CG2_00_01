@@ -11,10 +11,14 @@ class FarmSoilSystem final {
 public:
     inline static constexpr FarmSoilProfile kTurnip{0.45f, 0.30f};
     inline static constexpr FarmSoilProfile kCarrot{0.65f, 0.45f};
+    inline static constexpr FarmSoilProfile kTomato{0.70f, 0.50f};
+    inline static constexpr FarmSoilProfile kPumpkin{0.80f, 0.65f};
     [[nodiscard]] static const FarmSoilProfile* Profile(farm::CropType crop) noexcept {
         switch (crop) {
         case farm::CropType::TestCrop: return &kTurnip;
         case farm::CropType::Carrot: return &kCarrot;
+        case farm::CropType::Tomato: return &kTomato;
+        case farm::CropType::Pumpkin: return &kPumpkin;
         default: return nullptr;
         }
     }

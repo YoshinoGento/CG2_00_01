@@ -22,10 +22,30 @@ constexpr int kTicksPerSecond = 60;
 constexpr float kTickSeconds = 1.0f / static_cast<float>(kTicksPerSecond);
 constexpr int kMaximumTicks = 120000;
 constexpr int kField = 2;
+constexpr std::array kCrops{farm::CropType::TestCrop, farm::CropType::Carrot,
+    farm::CropType::Tomato, farm::CropType::Pumpkin};
+
+int IdealHeight(farm::CropType crop) {
+    constexpr farm::FarmRules rules{};
+    switch (crop) {
+    case farm::CropType::TestCrop: return rules.testCropIdealHeight;
+    case farm::CropType::Carrot: return rules.carrotIdealHeight;
+    case farm::CropType::Tomato: return rules.tomatoIdealHeight;
+    case farm::CropType::Pumpkin: return rules.pumpkinIdealHeight;
+    default: throw std::runtime_error("invalid scenario crop");
+    }
+}
 
 struct Outcome {
     int money = 0;
+    int minimumMoney = 0;
+    int seedSpent = 0;
+    int saleEarned = 0;
     int points = 0;
+    int qualityPoints = 0;
+    int sizePoints = 0;
+    int sizeCappedEntries = 0;
+    double harvestSizeSum = 0;
     int watering = 0;
     int purchases = 0;
     int harvested = 0;
@@ -49,19 +69,19 @@ public:
     SeasonRun(farm::CropType crop, Care care, float speed) : crop_(crop), care_(care) {
         Require(grid_.Initialize(5, 4), "grid init");
         economy_.Initialize(); tools_.Initialize(); growth_.Initialize(); water_.Initialize(); date_.Initialize();
+        outcome_.minimumMoney = economy_.GetMoney();
         progression_.Initialize({}, FarmProgressionMode::ContestSeason);
         date_.SetTimeScale(speed);
         if (UsesCanal()) {
             Require(grid_.SelectTile(0), "source select");
-            if (crop_ == farm::CropType::Carrot) Require(tools_.RaiseSelectedTile(grid_), "source height");
+            RaiseToIdeal();
             Require(tools_.ToggleSelectedWaterSource(grid_), "source placement");
             Require(grid_.SelectTile(1), "canal select");
-            if (crop_ == farm::CropType::Carrot) Require(tools_.RaiseSelectedTile(grid_), "canal height");
+            RaiseToIdeal();
             Require(tools_.ToggleSelectedCanal(grid_), "canal placement");
         }
         Require(grid_.SelectTile(kField), "field select");
-        if (crop_ == farm::CropType::Carrot && care_ != Care::Dry)
-            Require(tools_.RaiseSelectedTile(grid_), "carrot height");
+        if (care_ != Care::Dry) RaiseToIdeal();
         Apply(FarmTool::Hoe);
         if (ControlsIntake()) SetIntake(false);
     }
@@ -109,9 +129,23 @@ public:
         Require(date_.GetDay() == stopped.day && date_.GetElapsedSecondsInDay() == stopped.elapsedSecondsInDay,
             "end clock advanced");
         outcome_.money = economy_.GetMoney(); outcome_.points = summary.totalPoints; outcome_.rating = summary.rating;
+        outcome_.seedSpent = spent_; outcome_.saleEarned = earned_;
+        for (const auto& result : economy_.GetContestResults()) {
+            if (result.contestDay == 0) continue;
+            outcome_.qualityPoints += result.qualityPoints;
+            outcome_.sizePoints += result.sizePoints;
+            if (result.harvest.quality.harvestSize.multiplier >= kFarmContestSubmissionRulesV1.sizeMaximum)
+                ++outcome_.sizeCappedEntries;
+        }
+        Require(outcome_.qualityPoints + outcome_.sizePoints == outcome_.points, "score breakdown");
+        Require(outcome_.minimumMoney >= 0 && outcome_.minimumMoney <= outcome_.money, "minimum funds");
         return outcome_;
     }
 private:
+    void RaiseToIdeal() {
+        for (int height = 0; height < IdealHeight(crop_); ++height)
+            Require(tools_.RaiseSelectedTile(grid_), "ideal height command");
+    }
     bool ControlsIntake() const noexcept {
         return care_ == Care::IntakeHalfSecond || care_ == Care::IntakeOneSecond || care_ == Care::IntakeTwoSeconds;
     }
@@ -192,9 +226,19 @@ private:
         const auto bought = economy_.BuySeed(crop_);
         Require(bought.Succeeded(), "cannot afford next seed");
         spent_ += bought.spentMoney; ++outcome_.purchases;
+        outcome_.minimumMoney = (std::min)(outcome_.minimumMoney, economy_.GetMoney());
         if (care_ != Care::Dry) Require(tools_.CompostSelectedTile(grid_), "compost");
+        const auto* selected = grid_.GetSelectedTile();
+        Require(selected != nullptr, "planting selection");
+        const auto profile = growth_.Evaluate(*selected, crop_);
+        Require(profile.moistureValid, "managed moisture profile");
+        const float band = profile.goodMoistureMaximum - profile.goodMoistureMinimum;
+        // Same policy for every crop. One watering command must fit above the trigger without flooding.
+        const float target = profile.goodMoistureMinimum + band * 0.5f;
+        const float threshold = profile.goodMoistureMinimum + band * 0.25f;
+        Require(threshold + farm::FarmRules{}.wateringMoistureIncrement <= profile.goodMoistureMaximum,
+            "watering step does not fit managed policy");
         if (care_ == Care::Managed) {
-            const float target = crop_ == farm::CropType::Carrot ? 0.60f : 0.50f;
             while (grid_.GetSelectedTile()->moisture < target) { Apply(FarmTool::Water); ++outcome_.watering; }
         }
         Apply(FarmTool::Seed);
@@ -205,7 +249,6 @@ private:
         while (tools_.EvaluateTool(grid_, FarmTool::Harvest, crop_, &economy_).status != FarmToolActionStatus::Harvested) {
             Require(ticks_ - start < 36000 && !notice_.PendingDay(), "growth blocked");
             if (care_ == Care::Managed) {
-                const float threshold = crop_ == farm::CropType::Carrot ? 0.45f : 0.35f;
                 if (grid_.GetSelectedTile()->moisture < threshold) { Apply(FarmTool::Water); ++outcome_.watering; }
             }
             if (ControlsIntake() && ticks_ >= nextObservation) {
@@ -229,6 +272,9 @@ private:
         ++outcome_.harvested;
         const auto* record = economy_.GetHarvestRecord(economy_.GetHarvestRecordCount() - 1);
         Require(record && record->quality.harvestSize.known && record->harvestedDay == date_.GetDay(), "harvest record");
+        Require(std::isfinite(record->quality.harvestSize.multiplier) && record->quality.harvestSize.multiplier > 0,
+            "finite harvest size");
+        outcome_.harvestSizeSum += record->quality.harvestSize.multiplier;
         return record->id;
     }
     farm::CropType crop_;
@@ -251,15 +297,29 @@ int main() {
         int cases = 0;
         std::cout << "crop,care,speed,end,money,points,rating,watering,harvests,growing_seconds,excess_seconds,running_seconds,"
             "intake_changes,observations,low_dry_seconds,growing_real_seconds,idle_real_seconds,irrigation_received,"
-            "supplied_harvests,retained_harvests\n";
-        for (const auto crop : {farm::CropType::TestCrop, farm::CropType::Carrot}) {
+            "supplied_harvests,retained_harvests,minimum_money,seed_spent,sale_earned,quality_points,size_points,"
+            "size_capped_entries,mean_harvest_size\n";
+        for (const auto crop : kCrops) {
+            std::array<Outcome, 3> managed{};
             for (const auto care : {Care::Managed, Care::Dry, Care::Canal,
                 Care::IntakeHalfSecond, Care::IntakeOneSecond, Care::IntakeTwoSeconds}) {
                 for (const bool skipLast : {false, true}) {
                     Outcome baseline;
+                    std::size_t speedIndex = 0;
                     for (const float speed : {1.0f, 2.0f, 4.0f}) {
                         SeasonRun run(crop, care, speed);
+                        std::cerr << "RUN: " << farm::ToString(crop) << '/' << kCareNames[static_cast<std::size_t>(care)]
+                            << '/' << speed << '/' << (skipLast ? "deadline" : "submit") << '\n';
                         const auto result = run.Run(skipLast);
+                        Require(result.points >= 0 && result.points <= 300, "season score range");
+                        if (!skipLast) {
+                            if (care == Care::Managed) managed[speedIndex] = result;
+                            else if (care == Care::Dry || care == Care::Canal) {
+                                Require(result.points < managed[speedIndex].points, "neglect beats managed score");
+                                Require(result.growingSeconds > managed[speedIndex].growingSeconds,
+                                    "neglect beats managed growth time");
+                            }
+                        }
                         if (speed == 1.0f) baseline = result;
                         Require(result.harvested == 6 && result.purchases == 6, "missing core loop");
                         if (care == Care::Managed || care == Care::Dry || care == Care::Canal) {
@@ -276,7 +336,7 @@ int main() {
                         Require(result.growingSeconds > 0 && result.idleRealSeconds > 0, "unmeasured pacing");
                         if (care == Care::Managed && !skipLast) Require(result.rating == FarmContestRating::S, "S unreachable on managed route");
                         if (care == Care::Canal) Require(result.excessSeconds > 0, "unmeasured excess-water scenario");
-                        std::cout << (crop == farm::CropType::Carrot ? "carrot" : "turnip") << ','
+                        std::cout << farm::ToString(crop) << ','
                             << kCareNames[static_cast<std::size_t>(care)] << ',' << speed << ',' << (skipLast ? "deadline" : "submit")
                             << ',' << result.money << ',' << result.points << ',' << FarmContestRatingText(result.rating)
                             << ',' << result.watering << ',' << result.harvested << ',' << std::fixed << std::setprecision(2)
@@ -284,14 +344,17 @@ int main() {
                             << ',' << result.intakeChanges << ',' << result.observations << ',' << result.lowSeconds
                             << ',' << result.growingRealSeconds << ',' << result.idleRealSeconds
                             << ',' << result.irrigationReceived << ',' << result.suppliedHarvests
-                            << ',' << result.retainedHarvests << '\n';
+                            << ',' << result.retainedHarvests << ',' << result.minimumMoney << ',' << result.seedSpent
+                            << ',' << result.saleEarned << ',' << result.qualityPoints << ',' << result.sizePoints
+                            << ',' << result.sizeCappedEntries << ',' << result.harvestSizeSum / result.harvested << '\n';
                         ++cases;
+                        ++speedIndex;
                     }
                 }
             }
         }
-        Require(cases == 72, "scenario coverage");
-        std::cout << "PASS: 72 full-season System scenarios; automated evidence, not a human playthrough\n";
+        Require(cases == 144, "scenario coverage");
+        std::cout << "PASS: 144 full-season System scenarios; automated evidence, not a human playthrough\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';

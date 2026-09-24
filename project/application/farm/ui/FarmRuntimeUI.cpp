@@ -1,4 +1,5 @@
 #include "farm/ui/FarmRuntimeUI.h"
+#include "farm/ui/FarmSeedShopView.h"
 #include <algorithm>
 #include <gdiplus.h>
 #pragma comment(lib, "gdiplus.lib")
@@ -10,6 +11,10 @@ bool RuntimeUI::Initialize(SpriteCommon* common) {
     for (auto& sprite : labels_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
     for (auto& sprite : digits_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
     for (auto& sprite : radarLines_) if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
+    for (std::size_t i=0;i<seedPackets_.size();++i)
+        if (!seedPackets_[i].Initialize(common, i<2 ? "Resources/ui/farm_seed_packets.png" : "Resources/ui/farm_seed_packets_formal.png")) return false;
+    for (std::size_t i=0;i<harvestFigures_.size();++i)
+        if (!harvestFigures_[i].Initialize(common, i%4<2 ? "Resources/ui/farm_harvest_display.png" : "Resources/ui/farm_harvest_formal.png")) return false;
     if (!names_.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
     ready_ = true;
     return true;
@@ -83,7 +88,7 @@ void RuntimeUI::LabelQuad(Label label, Rect r, Vector4 color) {
     sprite.SetSize({uv.width * scale, uv.height * scale});
     sprite.SetColor(color); sprite.Update(); sprite.Draw();
 }
-void RuntimeUI::ValueText(const std::string& value, Vector2 position, float right) {
+void RuntimeUI::ValueText(const std::string& value, Vector2 position, float right, Vector4 color) {
     // Numeric/status identifiers only; Japanese labels use whole-line atlas regions.
     for (const unsigned char c : value) {
         if (digitCount_ >= digits_.size() || position.x + 24 > right) break;
@@ -91,7 +96,7 @@ void RuntimeUI::ValueText(const std::string& value, Vector2 position, float righ
         auto& sprite = digits_[digitCount_++];
         sprite.SetTextureRect({static_cast<float>((glyph % 40) * 32), kAsciiY + (glyph / 40) * 40.0f}, {24, 36});
         sprite.SetSize({24, 36}); sprite.SetPosition(position);
-        sprite.SetColor({1.0f, 0.87f, 0.50f, 1}); sprite.Update(); sprite.Draw();
+        sprite.SetColor(color); sprite.Update(); sprite.Draw();
         position.x += 14;
     }
 }
@@ -128,7 +133,11 @@ void RuntimeUI::DrawRadar(const QualityRadar& radar) {
 void RuntimeUI::Draw(const View& view, Vector2 pointer) {
     if (!ready_) return;
     panelCount_ = labelCount_ = digitCount_ = 0;
-    if (view.modal) {
+    if (view.seedShop || view.harvestDisplay) {
+        Panel({24, 16, 1232, 60}, {0.035f, 0.055f, 0.06f, 0.94f});
+        Panel(SeedShopLayout::receipt, {0.035f, 0.055f, 0.06f, 0.97f});
+        Panel(SeedShopLayout::footer, {0.035f, 0.055f, 0.06f, 0.97f});
+    } else if (view.modal) {
         Panel({0, 0, 1280, 720}, {0.01f, 0.015f, 0.02f, 0.75f});
         Panel({130, 32, 1020, 656}, {0.055f, 0.075f, 0.072f, 0.99f});
     }
@@ -143,8 +152,34 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
     if (view.fieldActions) Panel(View::kFieldActionsPanel, {0.035f, 0.055f, 0.06f, 0.96f});
     if (view.waterGuidance) Panel(View::kWaterGuidancePanel, {0.035f, 0.055f, 0.06f, 0.96f});
     if (view.radar.visible) DrawRadar(view.radar);
+    if (view.harvestDisplay) {
+        for (std::size_t i = 0; i < view.harvestFigures.size(); ++i) {
+            const int crop = view.harvestFigures[i];
+            if (crop < 0 || crop >= farm::kFarmCropTypeCount) continue;
+            const auto& target = SeedShopLayout::products[i];
+            auto& figure = harvestFigures_[i*farm::kFarmCropTypeCount+crop];
+            figure.SetTextureRect({(crop % 2) * 768.0f, 0}, {768, 1024});
+            figure.SetPosition({target.x + 15, view.counterSelection == static_cast<int>(i) ? 156.0f : 168.0f});
+            figure.SetSize({210, 280}); figure.SetColor({1,1,1,1}); figure.Update(); figure.Draw();
+        }
+    }
     for (std::size_t i = 0; i < (std::min)(view.count, view.items.size()); ++i) {
         const auto& item = view.items[i];
+        if (item.request.action == Action::HarvestDisplaySelect) continue;
+        // The physical packet is the button. Do not paint a menu rectangle over it.
+        if (item.request.action == Action::ShopSelect && item.rect.y < 544) {
+            const int index = item.request.argument;
+            if (index < 0 || index >= farm::kPlayableCropCount) continue;
+            const int crop = farm::ToCropSlot(farm::PlayableCrop(index));
+            const auto front = SeedShopLayout::PacketFront(index % 2, item.selected);
+            // Fixed-camera packet fronts share their layout with the counter targets.
+            Panel({front.x + 5, front.y + 5, front.width, front.height}, {0.02f, 0.03f, 0.025f, 0.55f});
+            auto& packet = seedPackets_[crop];
+            packet.SetTextureRect({(crop % 2) * 768.0f, 0}, {768, 1024});
+            packet.SetPosition({front.x, front.y}); packet.SetSize({front.width, front.height});
+            packet.SetColor({1, 1, 1, 1}); packet.Update(); packet.Draw();
+            continue;
+        }
         const bool button = item.request.action != Action::None;
         if (button) {
             Vector4 color = item.enabled ? Vector4{0.16f, 0.23f, 0.22f, 1} : Vector4{0.09f, 0.11f, 0.11f, 1};
@@ -153,9 +188,16 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
             Panel(item.rect, color);
         }
         Rect labelRect = item.rect;
+        if (item.label == Label::ShopPlus || item.label == Label::ShopMinus) {
+            const float width = kLabels[static_cast<std::size_t>(item.label)].width + 20.0f;
+            labelRect.x += (labelRect.width - width) * 0.5f; labelRect.width = width;
+        }
         if (!item.value.empty()) labelRect.width = item.valueOffset - 10;
-        LabelQuad(item.label, labelRect, item.enabled ? Vector4{0.96f, 0.98f, 0.96f, 1} : Vector4{0.42f, 0.46f, 0.45f, 1});
-        if (!item.value.empty()) ValueText(item.value, {item.rect.x + item.valueOffset, item.rect.y + 1}, item.rect.x + item.rect.width);
+        const Vector4 darkInk{0.015f, 0.025f, 0.02f, 1};
+        LabelQuad(item.label, labelRect, item.darkInk ? darkInk : !item.enabled ? Vector4{0.42f, 0.46f, 0.45f, 1} :
+            item.warning ? Vector4{1.0f, 0.72f, 0.32f, 1} : Vector4{0.96f, 0.98f, 0.96f, 1});
+        if (!item.value.empty()) ValueText(item.value, {item.rect.x + item.valueOffset, item.rect.y + 1}, item.rect.x + item.rect.width,
+            item.darkInk ? darkInk : Vector4{1.0f, 0.87f, 0.50f, 1});
     }
     if (!view.recordNames[0].empty() && namesReady_) { names_.Update(); names_.Draw(); }
 }

@@ -38,6 +38,9 @@ enum class FarmHUDFeedback : std::uint8_t {
 	NoSeedTurnip,
 	NoSeedCarrot,
 	InsufficientMoney,
+	SeedPurchasedTomato, SeedPurchasedPumpkin,
+	CropSelectedTomato, CropSelectedPumpkin,
+	NoSeedTomato, NoSeedPumpkin,
 };
 
 enum class FarmHUDMoistureStatus : std::uint8_t {
@@ -59,7 +62,7 @@ struct FarmHUDViewData {
 	std::array<int, farm::kFarmCropTypeCount> cropInventoryCounts{};
 	std::array<int, farm::kFarmCropTypeCount> cropInventoryValues{};
 	std::array<int, farm::kFarmCropTypeCount> cropSeedCounts{};
-	farm::CropType selectedSeedCrop = farm::CropType::TestCrop;
+	farm::CropType selectedSeedCrop = farm::CropType::Carrot;
 	int cropsNeeded = 0;
 	int goalMoney = 1;
 	bool contestSeason = false;
@@ -139,7 +142,7 @@ private:
 	Sprite goalBarTrack_;
 	Sprite goalBarFill_;
 	Sprite cropPieCenterPanel_;
-	std::array<Sprite, 2> cropPiePanels_;
+	std::array<Sprite, 3> cropPiePanels_;
 	std::array<Sprite, 4> toolSlotPanels_;
 	std::array<Sprite, 20> localizedLabels_;
 	std::array<Sprite, 4> localizedToolSlotLabels_;
@@ -147,8 +150,8 @@ private:
 	Sprite localizedTileState_;
 	Sprite localizedCropName_;
 	Sprite localizedSelectedSeedCrop_;
-	std::array<Sprite, 2> localizedCropPieNames_;
-	std::array<Sprite, 2> localizedCropPieTraits_;
+	std::array<Sprite, 3> localizedCropPieNames_;
+	std::array<Sprite, 3> localizedCropPieTraits_;
 	Sprite localizedCropPieGuide_;
 	Sprite localizedNextAction_;
 	Sprite localizedMoistureStatus_;
@@ -161,12 +164,12 @@ private:
 	std::array<Texture2DHandle, 2> waterLabelTextureHandles_;
 	std::array<Texture2DHandle, 2> toolGuideTextureHandles_;
 	std::array<Texture2DHandle, 11> tileStateTextureHandles_;
-	std::array<Texture2DHandle, 3> cropTextureHandles_;
+	std::array<Texture2DHandle, 5> cropTextureHandles_;
 	std::array<Texture2DHandle, 11> nextActionTextureHandles_;
 	std::array<Texture2DHandle, 4> moistureStatusTextureHandles_;
 	std::array<Texture2DHandle, 5> irrigationStatusTextureHandles_;
 	std::array<Texture2DHandle, 2> irrigationPreviewTextureHandles_;
-	std::array<Texture2DHandle, 13> feedbackTextureHandles_;
+	std::array<Texture2DHandle, 19> feedbackTextureHandles_;
 
 	SpriteText dayText_;
 	SpriteText moneyText_;
@@ -183,6 +186,6 @@ private:
 	SpriteText selectedTileMetricsText_;
 	SpriteText selectedTileGrowthText_;
 	SpriteText feedbackMetricsText_;
-	std::array<SpriteText, farm::kFarmCropTypeCount> cropPieStatsText_;
-	std::array<SpriteText, farm::kFarmCropTypeCount> cropPieValueText_;
+	std::array<SpriteText, farm::kPlayableCropCount> cropPieStatsText_;
+	std::array<SpriteText, farm::kPlayableCropCount> cropPieValueText_;
 };

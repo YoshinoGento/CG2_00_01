@@ -59,7 +59,77 @@ def leaves_mesh():
     return faces
 
 
+def crop_foliage_mesh(carrot=False):
+    # Paired contour samples form opaque ribbons: no alpha sorting or two-sided material.
+    # Broad stepped turnip blades contrast with the divided silhouette of carrot foliage.
+    profile = ([(0, .025), (.14, .035), (.24, .23), (.30, .065),
+                (.42, .26), (.48, .065), (.61, .22), (.67, .055),
+                (.79, .16), (.85, .04), (.94, .075), (1, .01)] if carrot else
+               [(0, .025), (.18, .035), (.30, .23), (.45, .23),
+                (.46, .32), (.68, .32), (.69, .23), (.85, .23), (1, .01)])
+    faces = []
+    for blade in range(5):
+        angle = blade * math.tau / 5
+        reach = .64 if carrot else .82
+        vertices = []
+        for t, width in profile:
+            for side, depth in [(-1, -.015), (1, -.015), (1, .015), (-1, .015)]:
+                x, z = t * reach, side * width
+                vertices.append((x * math.cos(angle) - z * math.sin(angle),
+                                 (t + depth + .015) / 1.03,
+                                 x * math.sin(angle) + z * math.cos(angle)))
+        blade_faces = []
+        def quad(a, b, c, d):
+            blade_faces.extend([(vertices[a], vertices[b], vertices[c]),
+                                (vertices[a], vertices[c], vertices[d])])
+        for section in range(len(profile)-1):
+            for edge in range(4):
+                a = section*4+edge
+                b = section*4+(edge+1)%4
+                quad(a, b, b+4, a+4)
+        quad(3, 2, 1, 0)
+        end = len(vertices)-4
+        quad(end, end+1, end+2, end+3)
+        # A positive signed volume fixes the winding for the model loader's handedness conversion.
+        volume = sum(a[0]*(b[1]*c[2]-b[2]*c[1]) + a[1]*(b[2]*c[0]-b[0]*c[2]) +
+                     a[2]*(b[0]*c[1]-b[1]*c[0]) for a,b,c in blade_faces)
+        faces.extend(blade_faces if volume > 0 else [(a,c,b) for a,b,c in blade_faces])
+    return faces
+
+
+def transformed(mesh, scale, offset):
+    return [tuple(tuple(p[j]*scale[j]+offset[j] for j in range(3)) for p in tri) for tri in mesh]
+
+
+def tomato_mesh():
+    sphere = root_mesh([(0,.15),(.18,.75),(.45,1),(.78,.86),(1,.20)])
+    return sum((transformed(sphere, (r,h,r), (x,y,z)) for x,y,z,r,h in
+                [(-.42,.20,0,.46,.50),(.42,.38,.08,.43,.48),(0,0,-.32,.38,.45)]), [])
+
+
+def tomato_stems():
+    stem = root_mesh([(0,.055),(1,.055)], 6)
+    for y, angle in [(.25,0),(.50,2),(.70,4)]:
+        stem += transformed(leaves_mesh(), (.45,.25,.45), (.10*math.cos(angle),y,.10*math.sin(angle)))
+    return stem
+
+
+def pumpkin_mesh():
+    mesh = root_mesh([(0,.35),(.15,.83),(.40,1),(.70,.96),(.92,.65),(1,.25)], 32)
+    def rib(p):
+        strength = .94 + .06*math.cos(8*math.atan2(p[2],p[0]))
+        return (p[0]*strength,p[1],p[2]*strength)
+    return [tuple(rib(p) for p in tri) for tri in mesh]
+
+
 if __name__ == "__main__":
     write_mesh("crop_turnip", root_mesh([(0,.06),(.12,.62),(.42,1),(.72,.90),(1,.32)]))
     write_mesh("crop_carrot", root_mesh([(0,.035),(.45,.40),(.84,1),(1,.80)]))
     write_mesh("crop_leaves", leaves_mesh())
+    write_mesh("crop_turnip_leaves", crop_foliage_mesh())
+    write_mesh("crop_carrot_leaves", crop_foliage_mesh(carrot=True))
+    write_mesh("crop_tomato", tomato_mesh())
+    write_mesh("crop_tomato_stems", tomato_stems())
+    write_mesh("crop_pumpkin", pumpkin_mesh())
+    write_mesh("crop_pumpkin_vines", transformed(leaves_mesh(), (1,.25,1), (0,0,0)) +
+               transformed(root_mesh([(0,.10),(1,.07)],6), (.6,1,.6), (0,0,0)))

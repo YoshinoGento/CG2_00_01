@@ -1,0 +1,109 @@
+{
+  "height": 4,
+  "kind": "farm_layout",
+  "name": "本撮影_右岸三マス",
+  "tiles": [
+    {
+      "cultivated": true,
+      "feature": 0,
+      "height": 1
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 1
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 1
+    },
+    {
+      "cultivated": false,
+      "feature": 2,
+      "height": 1
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 1
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": true,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 1,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 1
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 1,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 1
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 1,
+      "height": 0
+    },
+    {
+      "cultivated": false,
+      "feature": 0,
+      "height": 0
+    }
+  ],
+  "version": 1,
+  "width": 5
+}

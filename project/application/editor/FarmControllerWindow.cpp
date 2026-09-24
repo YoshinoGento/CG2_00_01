@@ -1029,7 +1029,10 @@ FarmControllerActions FarmControllerWindow::Draw(
 		ImGui::Text("%s", text(tile->waterGuidance.intakeClosed
 			? "Automatic soil intake closed" : farm::ToString(tile->waterStatus)));
 		if (tile->waterGuidance.visible) {
+			if (tile->waterGuidance.HasExcessMoisture())
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.72f, 0.32f, 1.0f));
 			ImGui::TextWrapped("%s", text(FarmWaterAdviceText(tile->waterGuidance.advice)));
+			if (tile->waterGuidance.HasExcessMoisture()) ImGui::PopStyleColor();
 		}
 		ImGui::TextWrapped("%s", text("Availability is not measured delivery. Soil receives water only after cultivation."));
 		const float moisture = std::clamp(tile->moisture, 0.0f, 1.0f);

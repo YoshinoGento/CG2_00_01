@@ -23,7 +23,7 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 15;
+constexpr int kSchemaVersion = 16;
 constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
@@ -34,7 +34,9 @@ constexpr std::string_view kUntitledFarmName = "Untitled Farm";
 
 bool TryGetSchemaVersion(const nlohmann::json& document, int& output) {
 	if (!document.is_object() || !document.contains("schemaVersion") ||
-		!document["schemaVersion"].is_number_integer()) {
+		!document["schemaVersion"].is_number_integer() ||
+		document["schemaVersion"] < kMinimumSupportedSchemaVersion ||
+		document["schemaVersion"] > kSchemaVersion) {
 		return false;
 	}
 	output = document["schemaVersion"].get<int>();
@@ -57,7 +59,7 @@ bool TryParseState(const std::string& value, farm::FarmTileState& output) {
 	return false;
 }
 
-bool TryParseCrop(const std::string& value, farm::CropType& output) {
+bool TryParseCrop(const std::string& value, farm::CropType& output, int schemaVersion) {
 	if (value == "None") {
 		output = farm::CropType::None;
 		return true;
@@ -70,6 +72,8 @@ bool TryParseCrop(const std::string& value, farm::CropType& output) {
 		output = farm::CropType::Carrot;
 		return true;
 	}
+	if (schemaVersion >= 16 && value == "Tomato") { output = farm::CropType::Tomato; return true; }
+	if (schemaVersion >= 16 && value == "Pumpkin") { output = farm::CropType::Pumpkin; return true; }
 	return false;
 }
 
@@ -498,7 +502,7 @@ bool ParseSnapshot(
 				tile.careHistory.nutrientSupply = tileJson["careHistory"]["nutrientSupply"].get<float>();
 			}
 			if (!TryParseState(tileJson["state"].get<std::string>(), tile.state) ||
-				!TryParseCrop(tileJson["crop"].get<std::string>(), tile.crop)) {
+				!TryParseCrop(tileJson["crop"].get<std::string>(), tile.crop, schemaVersion)) {
 				error = "Farm tile contains an unsupported state or crop.";
 				return false;
 			}
@@ -526,13 +530,16 @@ bool ParseSnapshot(
 template<std::size_t Size>
 bool ParseNonNegativeIntArray(
 	const nlohmann::json& object, const char* key,
-	std::array<int, Size>& output, std::string& error) {
-	if (!object.contains(key) || !object[key].is_array() || object[key].size() != Size) {
+	std::array<int, Size>& output, std::string& error, int schemaVersion) {
+	const std::size_t expected = schemaVersion < 16 ? 2 : Size;
+	if (!object.contains(key) || !object[key].is_array() || object[key].size() != expected) {
 		error = std::string("Farm economy field has an invalid size: ") + key;
 		return false;
 	}
-	for (std::size_t index = 0; index < Size; ++index) {
-		if (!object[key][index].is_number_integer()) {
+	output.fill(0);
+	for (std::size_t index = 0; index < expected; ++index) {
+		if (!object[key][index].is_number_integer() || object[key][index] < 0 ||
+			object[key][index] > (std::numeric_limits<int>::max)()) {
 			error = std::string("Farm economy field has an invalid type: ") + key;
 			return false;
 		}
@@ -591,7 +598,7 @@ bool ParseQualityJson(const nlohmann::json& qualityJson, int schemaVersion,
 		}
 		quality.harvestSize = {qualityJson["sizeMultiplier"].get<float>(), qualityJson["sizeKnown"].get<bool>()};
 	}
-	if (!TryParseCrop(qualityJson["crop"].get<std::string>(), quality.crop) ||
+	if (!TryParseCrop(qualityJson["crop"].get<std::string>(), quality.crop, schemaVersion) ||
 		!quality.IsValid() || !std::isfinite(quality.maturity) ||
 		!std::isfinite(quality.nutrientBalance) || quality.nutrientBalance < 0.0f || quality.nutrientBalance > 1.0f ||
 		!std::isfinite(quality.waterBalance) || !std::isfinite(quality.terrainFit) ||
@@ -636,11 +643,11 @@ bool ParsePersistentState(
 		economySnapshot.money = economyJson["money"].get<int>();
 		if (economySnapshot.money < 0 ||
 			!ParseNonNegativeIntArray(
-				economyJson, "cropCounts", economySnapshot.cropCounts, error) ||
+				economyJson, "cropCounts", economySnapshot.cropCounts, error, schemaVersion) ||
 			!ParseNonNegativeIntArray(
-				economyJson, "cropValues", economySnapshot.cropValues, error) ||
+				economyJson, "cropValues", economySnapshot.cropValues, error, schemaVersion) ||
 			!ParseNonNegativeIntArray(
-				economyJson, "seedCounts", economySnapshot.seedCounts, error)) {
+				economyJson, "seedCounts", economySnapshot.seedCounts, error, schemaVersion)) {
 			if (error.empty()) {
 				error = "Farm economy money is negative.";
 			}
@@ -735,7 +742,7 @@ bool ParsePersistentState(
 		const nlohmann::json& selectionJson = document["cropSelection"];
 		if (!selectionJson.contains("crop") || !selectionJson["crop"].is_string() ||
 			!TryParseCrop(
-				selectionJson["crop"].get<std::string>(), cropSelectionSnapshot.selectedCrop) ||
+				selectionJson["crop"].get<std::string>(), cropSelectionSnapshot.selectedCrop, schemaVersion) ||
 			!farm::IsPlantableCrop(cropSelectionSnapshot.selectedCrop)) {
 			error = "Farm selected crop is invalid.";
 			return false;

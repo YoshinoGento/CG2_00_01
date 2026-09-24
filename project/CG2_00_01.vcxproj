@@ -182,6 +182,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClCompile Include="application\farm\system\FarmVisualSystem.cpp" />
 	<ClCompile Include="application\farm\system\FarmTerrainQuerySystem.cpp" />
 	<ClCompile Include="application\farm\render\FarmRenderer.cpp" />
+	<ClCompile Include="application\farm\render\FarmSeedShopRenderer.cpp" />
 	<ClCompile Include="engine\command\CommandHistory.cpp" />
     <ClCompile Include="engine\core\Component.cpp" />
     <ClCompile Include="engine\core\GameObject.cpp" />
@@ -479,6 +480,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmContestEntrySystem.h" />
 	<ClInclude Include="application\farm\system\FarmContestSubmissionSystem.h" />
 	<ClInclude Include="application\farm\system\FarmContestDaySystem.h" />
+	<ClInclude Include="application\farm\system\FarmTimeAdvanceSystem.h" />
 	<ClInclude Include="application\farm\system\FarmContestSeasonSystem.h" />
 	<ClInclude Include="application\farm\system\FarmHarvestVisualSystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthSystem.h" />
@@ -492,6 +494,11 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmVisualSystem.h" />
 	<ClInclude Include="application\farm\system\FarmTerrainQuerySystem.h" />
 	<ClInclude Include="application\farm\render\FarmRenderer.h" />
+	<ClInclude Include="application\farm\render\FarmSeedShopRenderer.h" />
+	<ClInclude Include="application\farm\system\FarmSeedShopSystem.h" />
+	<ClInclude Include="application\farm\ui\FarmSeedShopView.h" />
+	<ClInclude Include="application\farm\ui\FarmHarvestDisplayView.h" />
+	<ClInclude Include="application\farm\system\FarmHarvestDisplaySystem.h" />
     <ClInclude Include="application\farm\render\FarmMeshLayout.h" />
     <ClInclude Include="application\farm\render\FarmSoilSurface.h" />
 	<ClInclude Include="engine\command\CommandHistory.h" />

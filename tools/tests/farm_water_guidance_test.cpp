@@ -28,7 +28,7 @@ int main() try {
     }
     tile.state = FarmTileState::Planted;
     int cases = 0;
-    for (auto crop : {farm::CropType::TestCrop, farm::CropType::Carrot})
+    for (auto crop : {farm::CropType::TestCrop, farm::CropType::Carrot, farm::CropType::Tomato, farm::CropType::Pumpkin})
     for (float speed : {0.0f, 1.0f, 2.0f, 4.0f})
     for (bool enabled : {false, true})
     for (auto supply : {FarmWaterStatus::None, FarmWaterStatus::Available, FarmWaterStatus::Retained,
@@ -49,11 +49,14 @@ int main() try {
                 : FarmWaterAdvice::Monitor;
             Require(guidance.visible && guidance.intakeClosed == !enabled, "intake projection");
             Require(guidance.supply == supply && guidance.advice == expected, "crop/speed/moisture advice");
+            Require(guidance.HasExcessMoisture() == (moisture > profile.goodMoistureMaximum), "excess warning");
             Require(tile.moisture == moisture && tile.growth == 0.25f && tile.irrigationEnabled == enabled, "read only");
             ++cases;
         }
         tile.growth = 1;
         Require(growth.AnalyzeWater(&tile, growth.Evaluate(tile, crop, speed, strength), supply).advice == FarmWaterAdvice::Harvest, "harvest takes priority");
+        Require(!growth.AnalyzeWater(&tile, growth.Evaluate(tile, crop, speed, strength), supply).HasExcessMoisture(),
+            "ready crop warning priority");
     }
     tile.growth = 0.5f;
     for (float invalid : {-1.0f, 2.0f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()}) {

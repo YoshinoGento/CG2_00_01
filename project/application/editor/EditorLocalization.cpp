@@ -338,6 +338,8 @@ constexpr std::array kJapaneseText = {
 	LocalizedText{ "Ready", u8"収穫可能" },
 	LocalizedText{ "TestCrop", u8"カブ" },
 	LocalizedText{ "Carrot", u8"ニンジン" },
+	LocalizedText{ "Tomato", u8"トマト" },
+	LocalizedText{ "Pumpkin", u8"かぼちゃ" },
 	LocalizedText{ "Legend", u8"凡例" },
 	LocalizedText{ "Blue bar: moisture", u8"青いバー: 水分量" },
 	LocalizedText{ "Green/gold bar: growth", u8"緑・金のバー: 成長度" },

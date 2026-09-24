@@ -52,7 +52,7 @@ labels.extend([
 ])
 font = ImageFont.truetype("C:/Windows/Fonts/YuGothM.ttc", 26)
 labels.extend([
-    ["SoilCare", "土づくり・養分を確認"], ["Compost", "堆肥を混ぜる（無料）"],
+    ["SoilCare", "土・養分・適正水分"], ["Compost", "堆肥を混ぜる（無料）"],
     ["SoilNutrients", "土の養分（０～１００）"], ["NutrientTarget", "この作物の養分目安"],
     ["NutrientUse", "成長０～１００％で使う養分"], ["NutrientQuality", "育成中の養分充足度"],
     ["SoilHelp", "不足すると品質が低下。植える前に堆肥で準備"],
@@ -213,6 +213,35 @@ labels.extend([
     ["WaterAdviceAvoid", "水過多：追加の水やりを控える"],
     ["WaterAdviceMonitor", "水分は適量：状態を見ながら育てる"],
     ["SpeedCompact1", "1倍"], ["SpeedCompact2", "2倍"], ["SpeedCompact4", "4倍"],
+])
+labels.extend([
+    ["ShopTitle", "種屋"], ["ShopMoney", "所持金"],
+    ["ShopTurnip", "カブの種"], ["ShopCarrot", "ニンジンの種"],
+    ["ShopOwned", "持っている種"], ["ShopUnitPrice", "単価"],
+    ["ShopQuantity", "購入数"], ["ShopTotal", "合計"],
+    ["ShopMinus", "－"], ["ShopPlus", "＋"],
+    ["ShopChoose", "購入する種と個数を選択"], ["ShopReview", "購入内容を確認"],
+    ["ShopConfirm", "右の内容で購入しますか？"], ["ShopPay", "この内容で購入"],
+    ["ShopPurchased", "選んだ種を購入しました"],
+    ["ShopChanged", "所持金などが変わりました。もう一度確認"],
+    ["ShopNoMoney", "所持金が足りません"], ["ShopUnavailable", "この数量では購入できません"],
+])
+labels.extend([
+    ["HarvestDisplay", "収穫物の展示台"], ["HarvestList", "一覧で確認"],
+    ["DisplayPoints", "品質／大きさ"], ["DisplayQuantity", "所持数"],
+    ["DisplayEstimate", "大会予想点"], ["DisplayReview", "取り置いた作物の出品確認へ"],
+    ["DisplayArtNote", "絵は種類の見本です。品質・大きさは数値で比較"],
+    ["DisplayReserved", "取り置き"], ["DisplayEligible", "対象期間内"],
+    ["DisplayWrongPeriod", "対象期間外"], ["DisplayUnknownDay", "収穫日が不明"],
+    ["DisplayNoContest", "大会は終了しました"],
+    ["DisplayProtectFirst", "先に売却保護してください"],
+])
+labels.extend([
+    ["Tomato", "トマト"], ["Pumpkin", "かぼちゃ"],
+    ["OptimalWater", "この作物の適正水分"],
+    ["ShopTomato", "トマトの種"], ["ShopPumpkin", "かぼちゃの種"],
+    ["ContestTomato", "出品予約：トマト"], ["ContestPumpkin", "出品予約：かぼちゃ"],
+    ["ShopPrevious", "前の種へ"], ["ShopNext", "次の種へ"],
 ])
 ascii_y = ((len(labels) + columns - 1) // columns) * cell_h
 height = ascii_y + 128

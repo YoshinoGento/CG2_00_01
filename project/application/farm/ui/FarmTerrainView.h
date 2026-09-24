@@ -72,7 +72,8 @@ inline void BuildPlayQuickView(View& view, bool paused, bool canEdit, bool canCo
             canControlTime && !paused && timeScale == static_cast<float>(speeds[i]));
 }
 
-inline void BuildWaterGuidanceView(View& view, const FarmWaterGuidance& state, bool canEdit) {
+inline void BuildWaterGuidanceView(View& view, const FarmWaterGuidance& state, bool canEdit,
+    bool canSetIrrigation = false) {
     if (!state.visible) return;
     view.waterGuidance = true;
     Label supply = Label::SupplyNone;
@@ -97,6 +98,11 @@ inline void BuildWaterGuidanceView(View& view, const FarmWaterGuidance& state, b
     default: break;
     }
     view.Add(supply, {390, 448, 628, 38}, {Action::TerrainField}, canEdit);
-    view.Add(advice, {390, 496, 628, 38});
+    const auto adviceIndex = view.count;
+    view.Add(advice, {390, 496, 486, 38});
+    if (view.count > adviceIndex) view.items[adviceIndex].warning = state.HasExcessMoisture();
+    view.Add(state.intakeClosed ? Label::IntakeOn : Label::IntakeOff, {888, 496, 130, 38},
+        {Action::SetIrrigation, state.intakeClosed ? 1 : 0}, canEdit && canSetIrrigation,
+        state.advice == FarmWaterAdvice::CloseIntake);
 }
 }
