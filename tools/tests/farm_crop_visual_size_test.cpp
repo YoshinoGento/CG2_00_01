@@ -23,6 +23,24 @@ void LineDrawer::DrawWireCube(const Vector3&, float, const Vector4&) {}
 void LineDrawer::DrawWireSphere(const Vector3& p, float r, const Vector4&, uint32_t) { sphereCenter=p; sphereRadius=r; }
 
 int main() {
+    // Presentation progresses with real time even while world time is zero (pause or clear).
+    for(auto crop : {farm::CropType::TestCrop, farm::CropType::Carrot, farm::CropType::Tomato, farm::CropType::Pumpkin}) {
+        farm::FarmGrid field; assert(field.Initialize(1,1));
+        farm::FarmTile before; before.crop=crop; before.state=farm::FarmTileState::Planted; before.growth=1;
+        before.heightLevel=2; auto* after=field.GetMutableTile(0);
+        after->state=farm::FarmTileState::Tilled; after->heightLevel=2;
+        const auto saved=*after;
+        FarmToolActionResult action; action.status=FarmToolActionStatus::Harvested;
+        action.tileIndex=0; action.harvestedTile=before;
+        farm::FarmVisualSystem visual; visual.Initialize({});
+        farm::FarmHarvestVisualSystem effect; assert(effect.Start(action,field,visual));
+        for(int frame=0;frame<20;++frame) effect.Update(field,1.f/60.f);
+        const auto pulled=effect.GetParts(field,0);
+        assert(pulled.count>0 && pulled.parts[0].position.y>visual.GetTileVisualData(field,0).center.y);
+        for(int frame=0;frame<100;++frame) effect.Update(field,1.f/60.f);
+        assert(effect.GetActiveCount(field)==0);
+        assert(after->state==saved.state && after->crop==saved.crop && after->growth==saved.growth && after->moisture==saved.moisture);
+    }
     for(auto crop : {farm::CropType::Tomato, farm::CropType::Pumpkin}) {
         farm::FarmGrid grid; assert(grid.Initialize(1,1));
         farm::FarmTile before; before.crop=crop; before.state=farm::FarmTileState::Planted; before.growth=1;

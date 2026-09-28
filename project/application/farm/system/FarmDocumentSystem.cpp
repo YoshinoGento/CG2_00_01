@@ -363,6 +363,34 @@ nlohmann::json BuildJson(
 	return document;
 }
 
+// Only validated load candidates are migrated; stored IDs and original files stay readable.
+bool MigrateLegacyCrops(farm::FarmGrid::Snapshot& grid, FarmEconomySystem::Snapshot& economy,
+	FarmCropSelectionSystem::Snapshot& selection, bool& changed) {
+	changed = false;
+	const auto legacy = static_cast<std::size_t>(farm::ToCropSlot(farm::CropType::TestCrop));
+	const auto carrot = static_cast<std::size_t>(farm::ToCropSlot(farm::CropType::Carrot));
+	for (const auto* counts : {&economy.seedCounts, &economy.cropCounts, &economy.cropValues}) {
+		if ((*counts)[legacy] > (std::numeric_limits<int>::max)() - (*counts)[carrot]) return false;
+	}
+	for (auto* counts : {&economy.seedCounts, &economy.cropCounts, &economy.cropValues}) {
+		changed |= (*counts)[legacy] != 0;
+		(*counts)[carrot] += (*counts)[legacy];
+		(*counts)[legacy] = 0;
+	}
+	const auto migrate = [&changed](farm::CropType& crop) {
+		if (crop == farm::CropType::TestCrop) { crop = farm::CropType::Carrot; changed = true; }
+	};
+	for (auto& tile : grid.tiles) migrate(tile.crop);
+	migrate(selection.selectedCrop);
+	migrate(economy.lastHarvestQuality.crop);
+	for (std::size_t i = 0; i < economy.harvestRecordCount; ++i) migrate(economy.harvestRecords[i].quality.crop);
+	for (auto& result : economy.contestResults) {
+		if (result.contestDay != 0) migrate(result.harvest.quality.crop);
+	}
+	// Historical sale prices and confirmed points are not recalculated on migration.
+	return FarmEconomySystem::ValidateSnapshot(economy);
+}
+
 bool ParseMetadata(
 	const nlohmann::json& document,
 	std::string_view expectedId,
@@ -894,10 +922,11 @@ bool FarmDocumentSystem::Initialize(
 		farm::FarmGrid::Snapshot legacySnapshot;
 		std::string error;
 		if (JsonFile::Load(legacyPath.string(), legacyDocument) &&
-			ParseSnapshot(legacyDocument, grid.GetWidth(), grid.GetHeight(), legacySnapshot, error) &&
-			grid.RestoreSnapshot(legacySnapshot)) {
-			return SaveAs(
-				"Legacy Farm", grid, economySystem, cropSelectionSystem);
+			ParseSnapshot(legacyDocument, grid.GetWidth(), grid.GetHeight(), legacySnapshot, error)) {
+			for (auto& tile : legacySnapshot.tiles)
+				if (tile.crop == farm::CropType::TestCrop) tile.crop = farm::CropType::Carrot;
+			if (grid.RestoreSnapshot(legacySnapshot))
+				return SaveAs("Legacy Farm", grid, economySystem, cropSelectionSystem);
 		}
 		Logger::Log("FarmDocumentSystem: legacy Farm document was not imported: " + error);
 	}
@@ -991,6 +1020,11 @@ bool FarmDocumentSystem::Load(
 		if (document["playMode"] == "ContestSeason") mode = FarmProgressionMode::ContestSeason;
 	}
 
+	bool migratedLegacyCrops = false;
+	if (!MigrateLegacyCrops(snapshot, economySnapshot, cropSelectionSnapshot, migratedLegacyCrops)) {
+		SetError("Legacy crop migration exceeds inventory limits or has invalid records.");
+		return false;
+	}
 	farm::FarmGrid::Snapshot previousGridSnapshot;
 	grid.CaptureSnapshot(previousGridSnapshot);
 	const FarmEconomySystem::Snapshot previousEconomySnapshot =
@@ -1022,12 +1056,13 @@ bool FarmDocumentSystem::Load(
 	displayName_ = metadata.displayName;
 	path_ = documentPath.string();
 	fileExists_ = true;
-	dirty_ = false;
+	dirty_ = migratedLegacyCrops;
 	if (!WriteCatalog()) {
 		SetError("Loaded the Farm, but could not remember it for the next launch.");
 		return true;
 	}
-	SetStatus(FarmDocumentStatus::Loaded, "Loaded");
+	SetStatus(FarmDocumentStatus::Loaded, migratedLegacyCrops
+		? "Loaded; legacy turnips converted to carrots. Save to keep the migration." : "Loaded");
 	return true;
 }
 

@@ -9,6 +9,7 @@
 #include "io/JsonFile.h"
 #include <cassert>
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 
@@ -140,7 +141,7 @@ int main() {
     }
     assert(JsonFile::Save(path,original));
 
-    // A real two-slot legacy snapshot must retain turnips, not rename them.
+    // Legacy IDs stay readable, but playable state migrates without losing inventory or results.
     FarmDocumentSystem oldDocs; farm::FarmGrid oldGrid; assert(oldGrid.Initialize(1,1));
     FarmEconomySystem oldEconomy; oldEconomy.Initialize();
     FarmCropSelectionSystem oldSelection; oldSelection.Initialize();
@@ -148,19 +149,85 @@ int main() {
     auto* oldTile=oldGrid.GetMutableTile(0); oldTile->crop=CropType::TestCrop;
     oldTile->state=farm::FarmTileState::Planted; oldTile->growth=.4f;
     assert(oldEconomy.BuySeed(CropType::TestCrop).Succeeded());
-    assert(oldDocs.Initialize(directory+"_legacy",oldGrid,oldEconomy,oldSelection));
+    assert(oldEconomy.AddSeed(CropType::Carrot,2));
+    farm::FarmTile mature; mature.state=farm::FarmTileState::Planted; mature.growth=1;
+    mature.careHistory.goodSeconds=10; mature.careHistory.efficiencySeconds=10;
+    mature.careHistory.nutrientGrowth=1; mature.careHistory.nutrientSupply=1;
+    mature.crop=CropType::Carrot; assert(oldEconomy.AddHarvest(quality.Evaluate(mature),1,1));
+    mature.crop=CropType::TestCrop; assert(oldEconomy.AddHarvest(quality.Evaluate(mature),1,1));
+    int reservedId=oldEconomy.GetHarvestRecord(1)->id;
+    assert(oldEconomy.SetHarvestProtection(reservedId,true,oldEconomy.GetInventoryGeneration()));
+    assert(oldEconomy.SetContestReservation(reservedId,true,oldEconomy.GetInventoryGeneration()));
+    assert(FarmContestSubmissionSystem::Submit(oldEconomy,10,reservedId,oldEconomy.GetInventoryGeneration()));
+    assert(oldEconomy.AddHarvest(quality.Evaluate(mature),1,1));
+    reservedId=oldEconomy.GetHarvestRecord(1)->id;
+    assert(oldEconomy.SetHarvestProtection(reservedId,true,oldEconomy.GetInventoryGeneration()));
+    assert(oldEconomy.SetContestReservation(reservedId,true,oldEconomy.GetInventoryGeneration()));
+    const auto beforeMigration=oldEconomy.CaptureSnapshot();
+    FarmDateSystem oldDate; oldDate.Initialize(); assert(oldDate.RestoreSnapshot({10,0,1}));
+    assert(oldDocs.Initialize(directory+"_legacy",oldGrid,oldEconomy,oldSelection,&oldDate));
     assert(oldDocs.SaveAs("Legacy turnip",oldGrid,oldEconomy,oldSelection));
     nlohmann::json legacy; assert(JsonFile::Load(oldDocs.GetPath(),legacy)); legacy["schemaVersion"]=15;
     for(const char* key : {"seedCounts","cropCounts","cropValues"}) {
         const auto a=legacy["economy"][key]; legacy["economy"][key]=nlohmann::json::array({a[0],a[1]});
     }
-    assert(JsonFile::Save(oldDocs.GetPath(),legacy));
-    assert(oldDocs.Load(oldDocs.GetActiveDocumentId(),oldGrid,oldEconomy,oldSelection));
-    assert(oldGrid.GetTile(0)->crop==CropType::TestCrop && oldSelection.GetSelectedCrop()==CropType::TestCrop);
-    assert(oldEconomy.GetSeedCount(CropType::TestCrop)==1 && oldEconomy.GetSeedCount(CropType::Tomato)==0);
-    assert(oldEconomy.GetSeedCount(CropType::Pumpkin)==0);
+    for(int version : {15,16}) {
+        auto source=legacy; source["schemaVersion"]=version;
+        if(version==16) for(const char* key : {"seedCounts","cropCounts","cropValues"}) {
+            source["economy"][key].push_back(0); source["economy"][key].push_back(0);
+        }
+        assert(JsonFile::Save(oldDocs.GetPath(),source));
+        assert(oldDocs.Load(oldDocs.GetActiveDocumentId(),oldGrid,oldEconomy,oldSelection));
+        assert(oldDocs.IsDirty());
+        assert(oldGrid.GetTile(0)->crop==CropType::Carrot && oldSelection.GetSelectedCrop()==CropType::Carrot);
+        assert(oldGrid.GetTile(0)->growth==.4f);
+        assert(oldEconomy.GetSeedCount(CropType::TestCrop)==0 && oldEconomy.GetSeedCount(CropType::Carrot)==3);
+        assert(oldEconomy.GetCropCount(CropType::TestCrop)==0 && oldEconomy.GetCropCount(CropType::Carrot)==2);
+        assert(oldEconomy.GetMoney()==beforeMigration.money);
+        assert(oldEconomy.GetCropInventoryValue(CropType::Carrot)==beforeMigration.cropValues[0]+beforeMigration.cropValues[1]);
+        assert(oldEconomy.GetContestReservationId()==reservedId && oldEconomy.GetProtectedCropCount()==1);
+        assert(oldEconomy.GetLastHarvestQuality().crop==CropType::Carrot);
+        assert(oldEconomy.GetLastHarvestQuality().salePrice==beforeMigration.lastHarvestQuality.salePrice);
+        for(std::size_t i=0;i<oldEconomy.GetHarvestRecordCount();++i) {
+            assert(oldEconomy.GetHarvestRecord(i)->quality.crop==CropType::Carrot);
+            assert(oldEconomy.GetHarvestRecord(i)->id==beforeMigration.harvestRecords[i].id);
+        }
+        const auto& result=oldEconomy.GetContestResults()[0];
+        assert(result.harvest.quality.crop==CropType::Carrot && result.contestDay==10);
+        assert(result.qualityPoints==beforeMigration.contestResults[0].qualityPoints);
+        assert(result.sizePoints==beforeMigration.contestResults[0].sizePoints);
+        nlohmann::json onDisk; assert(JsonFile::Load(oldDocs.GetPath(),onDisk) && onDisk==source);
+        assert(oldDocs.Save(oldGrid,oldEconomy,oldSelection));
+        assert(oldDocs.Load(oldDocs.GetActiveDocumentId(),oldGrid,oldEconomy,oldSelection) && !oldDocs.IsDirty());
+        assert(oldEconomy.GetSeedCount(CropType::Carrot)==3); // Repeated loads never duplicate the migration.
+    }
+    for(int mode=0;mode<3;++mode) {
+        auto overflow=legacy;
+        if(mode==0) overflow["economy"]["seedCounts"]=nlohmann::json::array({(std::numeric_limits<int>::max)(),1});
+        else {
+            overflow["economy"]["harvestRecords"]=nlohmann::json::array();
+            overflow["economy"]["contestReservationId"]=0;
+            overflow["economy"]["cropCounts"]=nlohmann::json::array({mode==1 ? (std::numeric_limits<int>::max)() : 1,1});
+            overflow["economy"]["cropValues"]=nlohmann::json::array({(std::numeric_limits<int>::max)(),1});
+        }
+        const auto generation=oldEconomy.GetInventoryGeneration(), gridGeneration=oldGrid.GetGeneration();
+        assert(JsonFile::Save(oldDocs.GetPath(),overflow));
+        assert(!oldDocs.Load(oldDocs.GetActiveDocumentId(),oldGrid,oldEconomy,oldSelection));
+        assert(oldEconomy.GetInventoryGeneration()==generation && oldGrid.GetGeneration()==gridGeneration);
+        assert(oldEconomy.GetSeedCount(CropType::Carrot)==3 && oldEconomy.GetContestReservationId()==reservedId);
+    }
     legacy["tiles"][0]["crop"]="Tomato";
     assert(JsonFile::Save(oldDocs.GetPath(),legacy) && !oldDocs.Load(oldDocs.GetActiveDocumentId(),oldGrid,oldEconomy,oldSelection));
+    // Old standalone farm_stage imports follow the same playable crop policy.
+    legacy["tiles"][0]["crop"]="TestCrop";
+    const auto importDirectory=directory+"_import";
+    std::filesystem::create_directories(importDirectory);
+    assert(JsonFile::Save(importDirectory+"/farm_stage.json",legacy));
+    FarmDocumentSystem imported; farm::FarmGrid importedGrid; assert(importedGrid.Initialize(1,1));
+    FarmEconomySystem importedEconomy; importedEconomy.Initialize();
+    FarmCropSelectionSystem importedSelection; importedSelection.Initialize();
+    assert(imported.Initialize(importDirectory,importedGrid,importedEconomy,importedSelection));
+    assert(importedGrid.GetTile(0)->crop==CropType::Carrot);
     std::cout<<"PASS: formal crop selection/water/soil/quality/size/mesh/trade/schema16 and legacy15 migration\n";
     std::cout<<"Synthetic visual fixture: "<<directory<<'\n';
 }

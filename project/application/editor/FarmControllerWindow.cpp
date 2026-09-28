@@ -603,9 +603,9 @@ FarmControllerActions FarmControllerWindow::Draw(
 		ImGui::TableSetupColumn(text("Harvested"));
 		ImGui::TableSetupColumn(text("Value"));
 		ImGui::TableHeadersRow();
-		for (int slot = 0; slot < farm::kFarmCropTypeCount; ++slot) {
-			const std::size_t index = static_cast<std::size_t>(slot);
-			const farm::CropType crop = farm::CropTypeFromSlot(slot);
+		for (int playable = 0; playable < farm::kPlayableCropCount; ++playable) {
+			const farm::CropType crop = farm::PlayableCrop(playable);
+			const std::size_t index = static_cast<std::size_t>(farm::ToCropSlot(crop));
 			ImGui::TableNextRow();
 			ImGui::TableSetColumnIndex(0);
 			ImGui::TextUnformatted(text(farm::ToString(crop)));

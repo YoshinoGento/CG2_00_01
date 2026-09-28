@@ -721,14 +721,9 @@ void GamePlayScene::Update() {
 	farmGrowthComparisonSystem_.ObserveBeforeStep(farmGrid_);
 	if (farmProgressionSystem_.IsCleared()) farmGrowthComparisonSystem_.Stop();
 	farmFeedbackSystem_.Update(realDeltaTime_);
-	const bool harvestPaused = farmContestDaySystem_.PendingDay() || timelineScrubbing_ || layoutLibraryFrame_ ||
-		farmIrrigationPreviewSystem_.IsActive() || sceneDeltaTime_ <= 0.0f
-#ifndef USE_IMGUI
-		|| farmRuntimeController_.BlocksSimulation()
-#endif
-		;
 	if (timelineScrubbing_) farmHarvestVisualSystem_.Clear();
-	farmHarvestVisualSystem_.Update(farmGrid_, harvestPaused ? 0.0f : realDeltaTime_);
+	// Committed harvest feedback must finish even when pause or clear stops world time.
+	farmHarvestVisualSystem_.Update(farmGrid_, realDeltaTime_);
 	if (farmHudInitialized_) {
 		farmHud_.SetViewData(BuildFarmHUDViewData());
 		farmHud_.Update(sceneDeltaTime_);
