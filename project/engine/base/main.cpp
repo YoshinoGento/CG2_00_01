@@ -20,7 +20,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	try {
 		game->Run();
 	} catch (const graphics::InitializationError& error) {
-		MessageBoxA(nullptr, error.what(), "CG2 - DirectX12 startup failed", MB_OK | MB_ICONERROR);
+		MessageBoxA(nullptr, error.what(), "SuidoNogyo - DirectX12 startup failed", MB_OK | MB_ICONERROR);
 		return EXIT_FAILURE;
 	}
 

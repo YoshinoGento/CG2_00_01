@@ -66,6 +66,7 @@ struct FarmHUDViewData {
 	int cropsNeeded = 0;
 	int goalMoney = 1;
 	bool contestSeason = false;
+	bool freeFarming = false;
 	int currentToolIndex = -1;
 	float goalProgress = 0.0f;
 	float timeScale = 1.0f;

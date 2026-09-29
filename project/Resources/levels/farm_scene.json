@@ -21,7 +21,7 @@
           1
         ]
       },
-      "file_name": "tl1/Cube.obj",
+      "file_name": "farm/player_marker.obj",
       "gameplay_role": "PLAYER"
     },
     {
@@ -86,7 +86,7 @@
           37.08103561401367
         ]
       },
-      "file_name": "tl1/ground.obj",
+      "file_name": "farm/ground.obj",
       "gameplay_role": "GROUND"
     }
   ]

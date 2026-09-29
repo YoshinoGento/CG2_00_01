@@ -249,7 +249,7 @@ void Game::InitializeGameplayHud() {
 		return;
 	}
 
-	hudWhiteTextureHandle_ = spriteCommon_->LoadTexture("Resources/human/white.png");
+	hudWhiteTextureHandle_ = spriteCommon_->LoadTexture("Resources/farm/white.png");
 	hudControlsLine1TextureHandle_ = spriteCommon_->LoadTexture("Resources/generated/text/field_controls_line1.png");
 	hudControlsLine2TextureHandle_ = spriteCommon_->LoadTexture("Resources/generated/text/field_controls_line2.png");
 	hudSelectedLabelTextureHandle_ = spriteCommon_->LoadTexture("Resources/generated/text/field_selected_label.png");

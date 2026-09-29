@@ -118,7 +118,7 @@ int main() {
     assert(documents.SaveAs("Formal crops QA",grid,economy,selection));
     const auto path=documents.GetPath(), id=documents.GetActiveDocumentId();
     nlohmann::json original; assert(JsonFile::Load(path,original));
-    assert(original["schemaVersion"]==16 && original["economy"]["seedCounts"].size()==4);
+    assert(original["schemaVersion"]==17 && original["economy"]["seedCounts"].size()==4);
     economy.Initialize(); selection.Initialize();
     assert(documents.Load(id,grid,economy,selection));
     assert(selection.GetSelectedCrop()==CropType::Pumpkin);
@@ -228,6 +228,6 @@ int main() {
     FarmCropSelectionSystem importedSelection; importedSelection.Initialize();
     assert(imported.Initialize(importDirectory,importedGrid,importedEconomy,importedSelection));
     assert(importedGrid.GetTile(0)->crop==CropType::Carrot);
-    std::cout<<"PASS: formal crop selection/water/soil/quality/size/mesh/trade/schema16 and legacy15 migration\n";
+    std::cout<<"PASS: formal crop selection/water/soil/quality/size/mesh/trade/schema17 and legacy15 migration\n";
     std::cout<<"Synthetic visual fixture: "<<directory<<'\n';
 }

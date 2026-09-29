@@ -50,7 +50,9 @@ labels.extend([
     ["CompareReady", "比較を開始できます"],
     ["KeepResults", "表示は計測終了時の値です"],
 ])
-font = ImageFont.truetype("C:/Windows/Fonts/YuGothM.ttc", 26)
+font_path = ROOT / "project/Resources/fonts/NotoSansJP-VF.ttf"
+font = ImageFont.truetype(str(font_path), 26)
+font.set_variation_by_axes([500])
 labels.extend([
     ["SoilCare", "土・養分・適正水分"], ["Compost", "堆肥を混ぜる（無料）"],
     ["SoilNutrients", "土の養分（０～１００）"], ["NutrientTarget", "この作物の養分目安"],
@@ -243,6 +245,12 @@ labels.extend([
     ["ContestTomato", "出品予約：トマト"], ["ContestPumpkin", "出品予約：かぼちゃ"],
     ["ShopPrevious", "前の種へ"], ["ShopNext", "次の種へ"],
 ])
+labels.extend([
+    ["FreeMode", "フリー農業モード"],
+    ["FreeGoal", "土地と水を整え、自分のペースで野菜を育てる"],
+    ["FreePrepare", "収穫・売買・地形づくりを自由に続けられます"],
+    ["FreeEndRule", "日数・金額による終了なし。大会日の自動停止なし"],
+])
 ascii_y = ((len(labels) + columns - 1) // columns) * cell_h
 height = ascii_y + 128
 assert height <= 4096, "Split the label atlas before adding more rows"
@@ -255,7 +263,8 @@ for i, (name, text) in enumerate(labels):
     assert width <= cell_w, (name, width)
     draw.text((x + 2, y + 4), text, fill="white", font=font, anchor="lt")
     rects.append((x, y, width, 38))
-ascii_font = ImageFont.truetype("C:/Windows/Fonts/consola.ttf", 24)
+ascii_font = ImageFont.truetype(str(font_path), 24)
+ascii_font.set_variation_by_axes([500])
 for i in range(95):
     x, y = (i % 40) * 32, ascii_y + (i // 40) * 40
     # A shared baseline keeps decimal points and punctuation below the digits.

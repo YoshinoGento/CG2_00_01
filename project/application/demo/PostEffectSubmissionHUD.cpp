@@ -7,7 +7,7 @@
 
 namespace {
 constexpr const char* kFontConfigPath = "Resources/ui/font/ascii_bitmap_font.json";
-constexpr const char* kPanelTexturePath = "Resources/human/white.png";
+constexpr const char* kPanelTexturePath = "Resources/farm/white.png";
 constexpr Vector2 kPanelPosition{ 140.0f, 54.0f };
 constexpr Vector2 kPanelSize{ 1000.0f, 96.0f };
 constexpr Vector2 kEffectPosition{ 176.0f, 72.0f };

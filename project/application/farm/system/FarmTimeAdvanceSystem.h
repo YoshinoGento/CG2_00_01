@@ -43,6 +43,7 @@ public:
         if (status_.active) return false;
         Reset();
         if (!Check(context, interactionBlocked)) return false;
+        if (context.progression.IsFreeFarming()) return Stop(StopReason::NoTarget);
         for (std::size_t i = 0; i < FarmContestEntrySystem::kContestDays.size(); ++i) {
             const int day = FarmContestEntrySystem::kContestDays[i];
             if (day > context.date.GetDay() && context.economy.GetContestResults()[i].contestDay == 0) {
@@ -110,7 +111,7 @@ private:
         if (context.progression.IsCleared() || (context.progression.IsContestSeason() &&
             FarmContestSeasonSystem::Evaluate(clock.day, context.economy.GetContestResults()).finalized))
             return Stop(StopReason::Finished);
-        context.contest.Observe(clock.day, context.economy.GetContestResults());
+        context.contest.Observe(clock.day, context.economy.GetContestResults(), !context.progression.IsFreeFarming());
         if (context.contest.PendingDay()) return Stop(StopReason::ContestDay);
         if (status_.active && clock.day >= status_.targetDay) return Stop(StopReason::TargetReached);
         for (int index = 0; index < context.grid.GetTileCount(); ++index) {

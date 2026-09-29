@@ -51,11 +51,12 @@ int main() {
             assert(a.rect.y+a.rect.height<=688);
             for(std::size_t j=i+1;j<end.count;++j) assert(separated(a.rect,end.items[j].rect));
         }
-        for(bool season : {false,true}) {
-            View entry; FarmHUDViewData data; data.contestSeason=season;
+        for(int mode : {0,1,2}) {
+            View entry; FarmHUDViewData data; data.contestSeason=mode==1; data.freeFarming=mode==2;
             BuildPlayFlowView(entry,FarmPlayFlow::Phase::Briefing,data);
             const auto change=entry.Hit({850,570});
-            assert(change.action==Action::ChangePlayMode && change.argument==(season ? 0 : 1));
+            assert(change.action==Action::ChangePlayMode && change.argument==(mode==2 ? 1 : 2));
+            if (mode==2) assert(entry.items[0].label==Label::FreeMode);
             for(std::size_t i=0;i<entry.count;++i) {
                 const auto& a=entry.items[i];
                 const float space=a.value.empty() ? a.rect.width-20 : a.valueOffset-30;

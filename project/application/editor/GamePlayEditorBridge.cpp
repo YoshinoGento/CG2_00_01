@@ -584,7 +584,7 @@ bool GamePlayEditorBridge::Execute(const GamePlayEditorCommand& command) {
 		static_cast<void>(scene_->farmProgressionSystem_.EvaluateSeason(FarmContestSeasonSystem::Evaluate(
 			scene_->farmDateSystem_.GetDay(), scene_->farmEconomySystem_.GetContestResults())));
 		scene_->InitializeTimeline();
-		scene_->farmContestDaySystem_.Observe(scene_->farmDateSystem_.GetDay(), scene_->farmEconomySystem_.GetContestResults());
+		scene_->farmContestDaySystem_.Observe(scene_->farmDateSystem_.GetDay(), scene_->farmEconomySystem_.GetContestResults(), !scene_->farmProgressionSystem_.IsFreeFarming());
 		farmDocumentSystem_->MarkDirty();
 		return true;
 	case GamePlayEditorCommandType::AcknowledgeContestDay:

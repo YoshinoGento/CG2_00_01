@@ -52,7 +52,7 @@ bool PostEffectSystem::Initialize(DirectXCommon* dxCommon, SrvManager* srvManage
 		return false;
 	}
 
-	noiseNames_ = { "noise0.png", "noise1.png" };
+	noiseNames_ = { "farm/noise0.png", "farm/noise1.png" };
 	noiseTextureHandles_.reserve(noiseNames_.size());
 	for (const std::string& noiseName : noiseNames_) {
 		noiseTextureHandles_.push_back(TextureManager::GetInstance()->LoadTexture2D(

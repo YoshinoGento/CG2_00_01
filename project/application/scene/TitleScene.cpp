@@ -51,7 +51,7 @@ void TitleScene::Initialize() {
 
 	backgroundSprite_ = CreateCenteredSprite(
 		spriteCommon_,
-		"Resources/human/white.png",
+		"Resources/farm/white.png",
 		kScreenCenter,
 		kVirtualHeight,
 		{ 0.015f, 0.035f, 0.060f, 1.0f });

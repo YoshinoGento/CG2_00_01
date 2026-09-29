@@ -110,7 +110,7 @@ Vector3 LerpVector3(const Vector3& a, const Vector3& b, float t)
 	};
 }
 
-float MoveTowards(float current, float target, float maxDelta)
+[[maybe_unused]] float MoveTowards(float current, float target, float maxDelta)
 {
 	if (current < target) {
 		return (std::min)(current + maxDelta, target);
@@ -505,16 +505,16 @@ void GamePlayScene::Initialize() {
 	// 1. テクスチャ・リソースの読み込み
 	// ---------------------------------------------------------
 	textureHandles_.clear();
-	std::vector<std::string> textureNames = { "monsterBall.png", "uvChecker.png", "choju8_0008.png" };
+	std::vector<std::string> textureNames = { "farm/white.png" };
 	for (const auto& name : textureNames) {
 		textureHandles_.push_back(TextureManager::GetInstance()->LoadTexture2D("Resources/" + name));
 	}
-	levelWhiteTextureHandle_ = TextureManager::GetInstance()->LoadTexture2D("Resources/human/white.png");
+	levelWhiteTextureHandle_ = TextureManager::GetInstance()->LoadTexture2D("Resources/farm/white.png");
 	if (!farmRenderer_.Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager(), levelWhiteTextureHandle_)) {
 		AddLog("Farm placeholder OBJ unavailable; keeping debug-line rendering.");
 	}
-	Texture2DHandle circle2Handle = TextureManager::GetInstance()->LoadTexture2D("Resources/circle2.png");
-	ringTexHandle_ = TextureManager::GetInstance()->LoadTexture2D("Resources/gradationLine.png");
+	Texture2DHandle circle2Handle = TextureManager::GetInstance()->LoadTexture2D("Resources/farm/particle_circle.png");
+	ringTexHandle_ = TextureManager::GetInstance()->LoadTexture2D("Resources/farm/particle_ring.png");
 
 	// ---------------------------------------------------------
 	// 2. システム・環境の初期化
@@ -534,14 +534,15 @@ void GamePlayScene::Initialize() {
 	// ---------------------------------------------------------
 	// 3. モデルデータのロード
 	// ---------------------------------------------------------
-	std::string terrainPath = "terrain/terrain.obj";
+	std::string terrainPath = "farm/ground.obj";
 	framework_->GetModelManager()->LoadModel(terrainPath);
 	Model* tModel = framework_->GetModelManager()->GetModel(terrainPath);
 	if (tModel) { tModel->LoadTextures(); }
 
-	framework_->GetModelManager()->LoadModel("plane.obj");
-	Model* planeModel = framework_->GetModelManager()->GetModel("plane.obj");
+	Model* planeModel = tModel;
 
+	// School sample animations are development-only, never a Release dependency.
+#ifdef USE_IMGUI
 	// アニメーションモデルのプリロード（配布データ3種と仮モデル1種）
 	std::vector<std::pair<std::string, std::string>> animModels = {
 		{ "AnimatedCube", "AnimatedCube.gltf" },
@@ -560,6 +561,7 @@ void GamePlayScene::Initialize() {
 		}
 	}
 
+#endif
 	// ---------------------------------------------------------
 	// 4. 各種オブジェクトの実体生成
 	// ---------------------------------------------------------
@@ -663,7 +665,7 @@ void GamePlayScene::EmitCylinderEffect(const Vector3& position) {
 void GamePlayScene::Update() {
 	static_cast<void>(farmProgressionSystem_.EvaluateSeason(FarmContestSeasonSystem::Evaluate(
 		farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults())));
-	farmContestDaySystem_.Observe(farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults());
+	farmContestDaySystem_.Observe(farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults(), !farmProgressionSystem_.IsFreeFarming());
 	UpdateSceneDeltaTime();
     if (layoutLibraryFrame_) return;
 
@@ -830,7 +832,7 @@ void GamePlayScene::Update() {
 }
 
 void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
-    farmContestDaySystem_.Observe(farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults());
+    farmContestDaySystem_.Observe(farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults(), !farmProgressionSystem_.IsFreeFarming());
     if (farmContestDaySystem_.PendingDay()) return;
     if (layoutLibraryFrame_) return;
 #ifndef USE_IMGUI
@@ -863,7 +865,8 @@ void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
 		}
 		farmGrowthComparisonSystem_.ObserveAfterStep(farmGrid_, fixedDeltaTime, farmDateSystem_.GetTimeScale());
 		farmContestDaySystem_.Advance(farmDateSystem_, fixedDeltaTime, farmEconomySystem_.GetContestResults(),
-			farmProgressionSystem_.IsContestSeason() ? FarmContestEntrySystem::kContestDays.back() + 1 : 0);
+			farmProgressionSystem_.IsContestSeason() ? FarmContestEntrySystem::kContestDays.back() + 1 : 0,
+			!farmProgressionSystem_.IsFreeFarming());
 		static_cast<void>(farmProgressionSystem_.EvaluateSeason(FarmContestSeasonSystem::Evaluate(
 			farmDateSystem_.GetDay(), farmEconomySystem_.GetContestResults())));
 		if (!farmDocumentSystem_.IsDirty()) farmDocumentSystem_.MarkDirty();
@@ -919,7 +922,7 @@ void GamePlayScene::CreateSphere(float radius) {
 		sphereObj_->Initialize(framework_->GetObject3dCommon());
 	}
 	sphereObj_->SetModel(sphereModel_.get());
-	sphereObj_->SetTexture(textureHandles_[1]);
+	sphereObj_->SetTexture(levelWhiteTextureHandle_);
 	sphereObj_->SetShininess(40.0f);
 }
 
@@ -1291,6 +1294,7 @@ void GamePlayScene::UpdateLevelPlayerVisual()
 		playerAnimationState_ = PlayerAnimationState::Walk;
 	}
 
+#ifdef USE_IMGUI
 	PlayerAnimationMode desiredMode = playerAnimationMode_;
 	if (playerAnimationState_ == PlayerAnimationState::Walk) {
 		desiredMode = PlayerAnimationMode::Walk;
@@ -1300,6 +1304,7 @@ void GamePlayScene::UpdateLevelPlayerVisual()
 	if (!playerVisualConfigured_ || desiredMode != playerAnimationMode_) {
 		ConfigureLevelPlayerAnimation(playerIndex, desiredMode);
 	}
+#endif
 
 	Object3d* playerObject = levelObjects_[playerIndex].object.get();
 	playerObject->SetPosition(levelGameplay_.GetPlayerPosition());
@@ -1307,6 +1312,7 @@ void GamePlayScene::UpdateLevelPlayerVisual()
 		const Vector3& facing = levelGameplay_.GetPlayerFacingDirection();
 		playerObject->SetRotation({ 0.0f, std::atan2(facing.x, facing.z), 0.0f });
 	}
+#ifdef USE_IMGUI
 	const PlayerAnimationClip& clip = GetPlayerAnimationClip(playerAnimationMode_);
 	float targetSpeed = clip.playbackSpeed;
 	if (playerAnimationState_ == PlayerAnimationState::Idle) {
@@ -1318,6 +1324,9 @@ void GamePlayScene::UpdateLevelPlayerVisual()
 	playerAnimationSpeed_ = MoveTowards(playerAnimationSpeed_, targetSpeed, maxSpeedChange);
 	playerObject->GetAnimationSpeed() = playerAnimationSpeed_;
 	playerObject->GetIsAnimationPlaying() = playerAnimationSpeed_ > 0.001f;
+#else
+	playerObject->GetIsAnimationPlaying() = false;
+#endif
 
 }
 
@@ -1821,6 +1830,7 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.goalProgress = farmProgressionSystem_.GetProgress(farmEconomySystem_.GetMoney(), farmDateSystem_.GetDay());
 	viewData.goalCleared = farmProgressionSystem_.IsCleared();
 	viewData.contestSeason = farmProgressionSystem_.IsContestSeason();
+	viewData.freeFarming = farmProgressionSystem_.IsFreeFarming();
 	const SelectedTileHUDData selectedTileData = BuildSelectedTileHUDData(
 		displayedFarmGrid, displayedIrrigation, farmGrowthSystem_,
 		farmDateSystem_.GetTimeScale(),
@@ -2047,6 +2057,7 @@ void GamePlayScene::RouteFarmSale(const FarmSaleResult& result)
 void GamePlayScene::ResetFarmSession()
 {
 	const auto mode = farmProgressionSystem_.GetMode();
+	const auto rules = FarmProgressionSystem::InitialRules(mode);
 	farmContestDaySystem_.Reset();
 	if (!farmGrid_.Initialize(5, 4)) {
 		AddLog("Farm restart failed: invalid grid dimensions.");
@@ -2054,12 +2065,12 @@ void GamePlayScene::ResetFarmSession()
 	}
 	farmDateSystem_.Initialize();
 	farmToolSystem_.Initialize();
-	farmEconomySystem_.Initialize();
+	farmEconomySystem_.Initialize(rules);
 	farmIrrigationPreviewSystem_.Initialize();
 	farmIrrigationSystem_.Initialize();
 	farmToolActionSystem_.Initialize();
 	farmCropSelectionSystem_.Initialize();
-	farmProgressionSystem_.Initialize({}, mode);
+	farmProgressionSystem_.Initialize(rules, mode);
 	farmFeedbackSystem_.Initialize(false);
 	farmHarvestVisualSystem_.Clear();
 	farmIrrigationSystem_.Rebuild(farmGrid_);

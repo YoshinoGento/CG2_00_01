@@ -3,6 +3,17 @@
 #include <algorithm>
 #include <limits>
 
+farm::FarmRules FarmProgressionSystem::InitialRules(FarmProgressionMode mode) noexcept {
+	farm::FarmRules rules;
+	if (mode == FarmProgressionMode::FreeFarming) {
+		constexpr int kFreeInitialSeedCount = 5;
+		rules.initialCarrotSeedCount = kFreeInitialSeedCount;
+		rules.initialTomatoSeedCount = kFreeInitialSeedCount;
+		rules.initialPumpkinSeedCount = kFreeInitialSeedCount;
+	}
+	return rules;
+}
+
 void FarmProgressionSystem::Initialize(const farm::FarmRules& rules, FarmProgressionMode mode) noexcept
 {
 	targetMoney_ = (std::max)(1, rules.clearMoneyTarget);
@@ -12,7 +23,7 @@ void FarmProgressionSystem::Initialize(const farm::FarmRules& rules, FarmProgres
 
 bool FarmProgressionSystem::EvaluateClear(int currentMoney) noexcept
 {
-	if (IsContestSeason() || cleared_ || currentMoney < targetMoney_) {
+	if (mode_ != FarmProgressionMode::Trial || cleared_ || currentMoney < targetMoney_) {
 		return false;
 	}
 	cleared_ = true;
@@ -36,6 +47,7 @@ bool FarmProgressionSystem::SetMode(FarmProgressionMode mode, int money, const F
 
 int FarmProgressionSystem::GetRemainingMoney(int currentMoney) const noexcept
 {
+	if (mode_ != FarmProgressionMode::Trial) return 0;
 	if (currentMoney >= targetMoney_) {
 		return 0;
 	}
@@ -61,6 +73,7 @@ int FarmProgressionSystem::GetRequiredCropCount(
 
 float FarmProgressionSystem::GetProgress(int currentMoney, int day) const noexcept
 {
+	if (IsFreeFarming()) return 0.0f;
 	if (IsContestSeason()) {
 		if (cleared_) return 1.0f;
 		return std::clamp(static_cast<float>((std::max)(1, day) - 1) /
@@ -80,7 +93,8 @@ FarmProgressionSystem::Snapshot FarmProgressionSystem::CaptureSnapshot() const n
 
 bool FarmProgressionSystem::RestoreSnapshot(const Snapshot& snapshot) noexcept
 {
-	if (snapshot.targetMoney <= 0 || !ValidMode(snapshot.mode)) {
+	if (snapshot.targetMoney <= 0 || !ValidMode(snapshot.mode) ||
+		(snapshot.mode == FarmProgressionMode::FreeFarming && snapshot.cleared)) {
 		return false;
 	}
 	targetMoney_ = snapshot.targetMoney;

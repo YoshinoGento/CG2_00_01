@@ -64,7 +64,7 @@ void FieldManager::Initialize(Framework* framework) {
 	cropPartModel_ = PrimitiveGenerator::CreateBox(framework_->GetModelManager(), { 1.0f, 1.0f, 1.0f });
 	pebbleModel_ = PrimitiveGenerator::CreateSphere(framework_->GetModelManager(), 0.08f, 8);
 	fieldTextureHandle_ = framework_->GetSpriteCommon()
-		? framework_->GetSpriteCommon()->LoadTexture("Resources/human/white.png")
+		? framework_->GetSpriteCommon()->LoadTexture("Resources/farm/white.png")
 		: kDefaultTextureHandle;
 
 	tiles_.clear();

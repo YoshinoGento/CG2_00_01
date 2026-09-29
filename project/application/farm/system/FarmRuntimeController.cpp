@@ -121,6 +121,7 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             return;
         }
         const auto hud = s.BuildFarmHUDViewData();
+        if (hud.freeFarming) view_.Add(Label::FreeMode, {900, 82, 332, 40});
         view_.feedback = hud.feedback != FarmHUDFeedback::None;
         view_.Add(Label::Menu, {1040, 654, 216, 42}, {Action::Menu});
         if (s.farmIrrigationPreviewSystem_.IsActive()) {
@@ -318,7 +319,8 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         button(Label::Overview, Action::Overview, 0, true, !s.usePlayerCamera_);
         button(Label::Exit, Action::Exit);
         button(Label::SeasonMode, Action::ChangePlayMode, 1, true, hud.contestSeason);
-        button(Label::TrialMode, Action::ChangePlayMode, 0, true, !hud.contestSeason);
+        button(Label::TrialMode, Action::ChangePlayMode, 0, true, !hud.contestSeason && !hud.freeFarming);
+        button(Label::FreeMode, Action::ChangePlayMode, 2, true, hud.freeFarming);
         view_.Value(Label::Day, 440, Numbers("%d / x%.0f", hud.day, hud.timeScale));
         view_.Add(Label::PauseCapture, {176, 492, 900, 40});
     }
@@ -456,7 +458,7 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
     case Action::Exit:
         pending_ = request.action; open_ = true; return;
     case Action::ChangePlayMode:
-        if (request.argument != 0 && request.argument != 1) return;
+        if (!FarmProgressionSystem::ValidMode(static_cast<FarmProgressionMode>(request.argument))) return;
         pendingPlayMode_=request.argument; pending_=request.action; open_=true; return;
     case Action::LayoutLibrary: OpenLayoutLibrary(s); return;
     case Action::Accept: {
@@ -465,7 +467,7 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
         if (action == Action::ChangePlayMode) {
             editor::GamePlayEditorCommand command{};
             command.type=C::SetFarmProgressionMode; command.farmGeneration=s.farmGrid_.GetGeneration();
-            command.progressionMode=pendingPlayMode_==1 ? FarmProgressionMode::ContestSeason : FarmProgressionMode::Trial;
+            command.progressionMode=static_cast<FarmProgressionMode>(pendingPlayMode_);
             success=s.gamePlayEditorBridge_.Execute(command);
             if (success) {
                 flow_.Reset(); open_=false; observation_=false; terrain_=false; pickingSlot_=-1; paused_=false;

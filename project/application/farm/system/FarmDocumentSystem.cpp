@@ -23,7 +23,7 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 16;
+constexpr int kSchemaVersion = 17;
 constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
@@ -1014,10 +1014,12 @@ bool FarmDocumentSystem::Load(
 	FarmProgressionMode mode = FarmProgressionMode::Trial;
 	if (document["schemaVersion"].get<int>() >= 14) {
 		if (!document.contains("playMode") || !document["playMode"].is_string() ||
-			(document["playMode"] != "Trial" && document["playMode"] != "ContestSeason")) {
+			(document["playMode"] != "Trial" && document["playMode"] != "ContestSeason" &&
+			 !(document["schemaVersion"].get<int>() >= 17 && document["playMode"] == "FreeFarming"))) {
 			SetError("Invalid or missing farm play mode."); return false;
 		}
 		if (document["playMode"] == "ContestSeason") mode = FarmProgressionMode::ContestSeason;
+		if (document["playMode"] == "FreeFarming") mode = FarmProgressionMode::FreeFarming;
 	}
 
 	bool migratedLegacyCrops = false;
@@ -1373,7 +1375,8 @@ bool FarmDocumentSystem::SaveToDocument(
 		SetError("Farm date and harvest days are inconsistent; save rejected."); return false;
 	}
 	auto document = BuildJson(snapshot, economySnapshot, cropSelectionSnapshot, documentId, displayName, savedAt);
-	document["playMode"] = Progression().IsContestSeason() ? "ContestSeason" : "Trial";
+	document["playMode"] = Progression().IsFreeFarming() ? "FreeFarming" :
+		Progression().IsContestSeason() ? "ContestSeason" : "Trial";
 	document["date"] = {{"day", dateSnapshot.day}, {"elapsedSecondsInDay", dateSnapshot.elapsedSecondsInDay},
 		{"timeScale", dateSnapshot.timeScale}};
 	const std::filesystem::path documentPath =

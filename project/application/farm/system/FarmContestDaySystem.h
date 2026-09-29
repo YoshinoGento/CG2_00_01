@@ -6,7 +6,8 @@
 class FarmContestDaySystem final {
 public:
     void Reset() noexcept { acknowledged_ = {}; lastDay_ = 0; pendingDay_ = 0; }
-    void Observe(int day, const FarmEconomySystem::ContestResults& results) noexcept {
+    void Observe(int day, const FarmEconomySystem::ContestResults& results, bool noticesEnabled = true) noexcept {
+        if (!noticesEnabled) { Reset(); return; }
         if (day < lastDay_) Reset();
         lastDay_ = day;
         pendingDay_ = 0;
@@ -22,7 +23,9 @@ public:
         pendingDay_ = 0;
         return true;
     }
-    void Advance(FarmDateSystem& date, float deltaTime, const FarmEconomySystem::ContestResults& results, int endAtDay = 0) {
+    void Advance(FarmDateSystem& date, float deltaTime, const FarmEconomySystem::ContestResults& results,
+        int endAtDay = 0, bool noticesEnabled = true) {
+        if (!noticesEnabled) { Reset(); date.Update(deltaTime); return; }
         Observe(date.GetDay(), results);
         if (pendingDay_) return;
         int stopDay = 0;

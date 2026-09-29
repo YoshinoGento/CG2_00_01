@@ -3,7 +3,7 @@
 #include "farm/data/FarmRules.h"
 #include "farm/system/FarmContestSeasonSystem.h"
 
-enum class FarmProgressionMode { Trial, ContestSeason };
+enum class FarmProgressionMode { Trial, ContestSeason, FreeFarming };
 
 class FarmProgressionSystem final {
 public:
@@ -19,8 +19,11 @@ public:
 	bool SetMode(FarmProgressionMode mode, int money, const FarmContestSeasonSummary& summary) noexcept;
 	[[nodiscard]] FarmProgressionMode GetMode() const noexcept { return mode_; }
 	[[nodiscard]] bool IsContestSeason() const noexcept { return mode_ == FarmProgressionMode::ContestSeason; }
+	[[nodiscard]] bool IsFreeFarming() const noexcept { return mode_ == FarmProgressionMode::FreeFarming; }
+	[[nodiscard]] static farm::FarmRules InitialRules(FarmProgressionMode mode) noexcept;
 	[[nodiscard]] static bool ValidMode(FarmProgressionMode mode) noexcept {
-		return mode == FarmProgressionMode::Trial || mode == FarmProgressionMode::ContestSeason;
+		return mode == FarmProgressionMode::Trial || mode == FarmProgressionMode::ContestSeason ||
+			mode == FarmProgressionMode::FreeFarming;
 	}
 
 	[[nodiscard]] bool IsCleared() const noexcept { return cleared_; }

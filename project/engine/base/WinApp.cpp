@@ -44,7 +44,7 @@ void WinApp::Initialize() {
 	RegisterClass(&wc);
 	RECT wrc = { 0, 0, WinApp::kClientWidth, WinApp::kClientHeight };
 	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
-	hwnd = CreateWindow(wc.lpszClassName, L"CG2", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, wrc.right - wrc.left, wrc.bottom - wrc.top, nullptr, nullptr, wc.hInstance, nullptr);
+	hwnd = CreateWindow(wc.lpszClassName, L"\u6C34\u9053\u8FB2\u696D", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, wrc.right - wrc.left, wrc.bottom - wrc.top, nullptr, nullptr, wc.hInstance, nullptr);
 	SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 	ShowWindow(hwnd, SW_SHOW);
 }

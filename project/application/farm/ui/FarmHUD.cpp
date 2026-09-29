@@ -655,7 +655,7 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 	const bool timeScaleChanged = !IsSameFloat(viewData_.timeScale, sanitized.timeScale);
 	const bool toolChanged = viewData_.currentToolIndex != sanitized.currentToolIndex;
 	const bool goalChanged = viewData_.money != sanitized.money ||
-		viewData_.contestSeason != sanitized.contestSeason || viewData_.day != sanitized.day ||
+		viewData_.contestSeason != sanitized.contestSeason || viewData_.freeFarming != sanitized.freeFarming || viewData_.day != sanitized.day ||
 		viewData_.goalMoney != sanitized.goalMoney ||
 		viewData_.cropsNeeded != sanitized.cropsNeeded ||
 		viewData_.goalCleared != sanitized.goalCleared ||
@@ -790,11 +790,12 @@ void FarmHUD::Draw() {
 	economyPanel_.Draw();
 	selectedTilePanel_.Draw();
 	toolPanel_.Draw();
-	goalBarTrack_.Draw();
+	if (!viewData_.freeFarming) goalBarTrack_.Draw();
 	if (viewData_.goalProgress > 0.0f) goalBarFill_.Draw();
 	for (Sprite& panel : toolSlotPanels_) panel.Draw();
 	for (std::size_t i=0; i<localizedLabels_.size(); ++i) {
-		if (viewData_.contestSeason && (i==kNeedLabel || i==kNeedSuffixLabel)) continue;
+		if ((viewData_.contestSeason || viewData_.freeFarming) && (i==kNeedLabel || i==kNeedSuffixLabel)) continue;
+		if (viewData_.freeFarming && i==kGoalLabel) continue;
 		localizedLabels_[i].Draw();
 	}
 	for (Sprite& label : localizedToolSlotLabels_) label.Draw();
@@ -972,6 +973,11 @@ void FarmHUD::UpdateTimeScaleText() {
 }
 
 void FarmHUD::UpdateGoalText() {
+	if (viewData_.freeFarming) {
+		goalText_.SetText("");
+		goalNeedText_.SetText("");
+		return;
+	}
 	if (viewData_.contestSeason) {
 		const int finalDay = FarmContestEntrySystem::kContestDays.back();
 		goalText_.SetText("DAY " + std::to_string((std::min)(viewData_.day, finalDay)) + " / " + std::to_string(finalDay));

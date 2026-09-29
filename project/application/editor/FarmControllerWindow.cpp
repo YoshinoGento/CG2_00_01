@@ -499,12 +499,16 @@ FarmControllerActions FarmControllerWindow::Draw(
 		playtest.clock.elapsedSecondsInDay, playtest.dayLengthSeconds);
 	ImGui::TextWrapped(text("Configured speed: %.0fx (no progress while paused)"), playtest.clock.timeScale);
 	const bool seasonMode = playtest.progressionMode == FarmProgressionMode::ContestSeason;
-	ImGui::TextWrapped("%s", text(seasonMode ? "30-day contest mode" : "540G trial mode"));
-	if (ImGui::Button(text(seasonMode ? "Switch to trial mode" : "Switch to contest mode"))) {
+	const bool freeMode = playtest.progressionMode == FarmProgressionMode::FreeFarming;
+	ImGui::TextWrapped("%s", text(freeMode ? "Free farming mode" : seasonMode ? "30-day contest mode" : "540G trial mode"));
+	constexpr std::array modes{FarmProgressionMode::Trial, FarmProgressionMode::ContestSeason, FarmProgressionMode::FreeFarming};
+	constexpr std::array modeNames{"540G trial mode", "30-day contest mode", "Free farming mode"};
+	for (std::size_t i = 0; i < modes.size(); ++i) {
+		if (!ImGui::RadioButton(text(modeNames[i]), playtest.progressionMode == modes[i])) continue;
 		editor::GamePlayEditorCommand command;
 		command.type = editor::GamePlayEditorCommandType::SetFarmProgressionMode;
 		command.farmGeneration = viewModel.farmGeneration;
-		command.progressionMode = seasonMode ? FarmProgressionMode::Trial : FarmProgressionMode::ContestSeason;
+		command.progressionMode = modes[i];
 		pendingProgressionMode_ = command;
 		ImGui::OpenPopup("ConfirmFarmMode");
 	}
@@ -578,7 +582,7 @@ FarmControllerActions FarmControllerWindow::Draw(
 		playtest.targetMoney);
 	if (seasonMode) std::snprintf(progressOverlay.data(), progressOverlay.size(), "Day %d / %d", playtest.contestEntry.currentDay, FarmContestEntrySystem::kContestDays.back());
 	ImGui::PushStyleColor(ImGuiCol_PlotHistogram, stateColor);
-	ImGui::ProgressBar(
+	if (!freeMode) ImGui::ProgressBar(
 		std::clamp(playtest.progress, 0.0f, 1.0f),
 		ImVec2(-1.0f, 0.0f),
 		progressOverlay.data());
@@ -767,7 +771,7 @@ FarmControllerActions FarmControllerWindow::Draw(
 			ImGui::EndTable();
 		}
 	}
-	if (!playtest.cleared && !seasonMode) {
+	if (!playtest.cleared && !seasonMode && !freeMode) {
 		if (playtest.requiredCropCount >= 0) {
 			ImGui::Text(text("Goal: %dG left / %d crop(s) needed"),
 				playtest.remainingMoney, playtest.requiredCropCount);

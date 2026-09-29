@@ -30,6 +30,7 @@ constexpr std::array kJapaneseText = {
 	LocalizedText{ "Confirm submission", u8"提出を確定" },
 	LocalizedText{ "Contest submission results", u8"大会の提出結果" },
 	LocalizedText{ "30-day contest mode", u8"３０日間の大会モード" },
+	LocalizedText{ "Free farming mode", u8"フリー農業モード（日数・金額の終了なし）" },
 	LocalizedText{ "540G trial mode", u8"５４０Ｇの体験版モード" },
 	LocalizedText{ "Switch to trial mode", u8"体験版モードへ切替" },
 	LocalizedText{ "Switch to contest mode", u8"大会モードへ切替" },
