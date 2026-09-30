@@ -22,6 +22,7 @@ public:
 	bool BeginShadowPass();
 	void EndShadowPass();
 	void SetShadowStrength(float strength);
+	[[nodiscard]] float GetShadowStrength() const noexcept { return shadowStrength_; }
 
 	// 0: None, 1: Front, 2: Back
 	ID3D12PipelineState* GetPipelineState(int cullMode, bool isSkinned = false) {

@@ -1,0 +1,22 @@
+{
+  "triangles": 3620,
+  "sections": {
+    "ground": 1280,
+    "road": 52,
+    "road_median": 52,
+    "road_verge": 104,
+    "road_posts": 36,
+    "forest_trunks": 96,
+    "forest": 2000
+  },
+  "materials": [
+    0,
+    1,
+    2,
+    4
+  ],
+  "groundY": -0.235,
+  "atlasColumns": 3,
+  "atlasRows": 2,
+  "atlasInset": 0.025
+}

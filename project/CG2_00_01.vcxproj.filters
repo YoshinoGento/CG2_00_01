@@ -723,4 +723,27 @@
     <ClInclude Include="application\farm\system\FarmLayoutSystem.h" />
     <ClInclude Include="application\farm\ui\FarmRecordDialog.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Title">
+      <UniqueIdentifier>{A3C43D9A-D107-4EE4-95E1-F97589EC8B7D}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="application\title\TitlePresentationSystem.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleSkyRenderer.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleFarmRenderer.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleView.cpp"><Filter>Title</Filter></ClCompile>
+    <ClInclude Include="application\title\TitlePresentationSystem.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleSkyRenderer.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleCelestialGeometry.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleFarmRenderer.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleView.h"><Filter>Title</Filter></ClInclude>
+    <None Include="Resources\shader\TitleSky.hlsli"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitleSky.VS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitleSky.PS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\title\sky.png"><Filter>Title</Filter></None>
+    <None Include="Resources\title\logo.png"><Filter>Title</Filter></None>
+    <None Include="Resources\title\start.png"><Filter>Title</Filter></None>
+    <None Include="Resources\title\ASSET_CREDITS.txt"><Filter>Title</Filter></None>
+  </ItemGroup>
 </Project>

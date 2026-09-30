@@ -1,11 +1,9 @@
 #pragma once
 
 #include "BaseScene.h"
-#include "2d/Sprite.h"
-
-#include <memory>
-
-class SpriteCommon;
+#include "title/TitlePresentationSystem.h"
+#include "title/TitleFarmRenderer.h"
+#include "title/TitleView.h"
 
 class TitleScene : public BaseScene {
 public:
@@ -15,8 +13,8 @@ public:
 	void Draw() override;
 
 private:
-	SpriteCommon* spriteCommon_ = nullptr;
-	std::unique_ptr<Sprite> backgroundSprite_;
-	std::unique_ptr<Sprite> titleLogoSprite_;
-	std::unique_ptr<Sprite> pressSpaceSprite_;
+	title::TitlePresentationSystem presentation_;
+	title::TitleFarmRenderer renderer_;
+	title::TitleView view_;
+	bool ready_ = false;
 };
