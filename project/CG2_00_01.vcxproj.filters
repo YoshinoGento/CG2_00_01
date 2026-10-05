@@ -733,6 +733,7 @@
     <ClCompile Include="application\title\TitleSkyRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleFarmRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleView.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleLogoRippleRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClInclude Include="application\title\TitlePresentationSystem.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitlePresentationLayout.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleCropPresentation.h"><Filter>Title</Filter></ClInclude>
@@ -740,9 +741,14 @@
     <ClInclude Include="application\title\TitleCelestialGeometry.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleFarmRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleView.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleLogoRippleRenderer.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleLogoRipplePoints.h"><Filter>Title</Filter></ClInclude>
     <None Include="Resources\shader\TitleSky.hlsli"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleSky.VS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleSky.PS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitleLogoRipple.VS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitleLogoRipple.PS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\title\logo_reflection.png"><Filter>Title</Filter></None>
     <None Include="Resources\title\sky.png"><Filter>Title</Filter></None>
     <None Include="Resources\title\logo.png"><Filter>Title</Filter></None>
     <None Include="Resources\title\start.png"><Filter>Title</Filter></None>

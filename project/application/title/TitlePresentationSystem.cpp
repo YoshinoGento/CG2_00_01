@@ -1,7 +1,9 @@
 #include "title/TitlePresentationSystem.h"
+#include "title/TitleLogoRipplePoints.h"
 
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <numbers>
 
 namespace title {
@@ -14,9 +16,10 @@ constexpr Vector2 kOrbitRadius{0.42f, 0.48f};
 constexpr float kGrowSeconds = 7.5f;
 constexpr float kCropClearSeconds = 9.0f;
 constexpr float kTileStagger = 0.18f;
-constexpr float kLogoCycleSeconds = 5.0f;
-constexpr float kLogoFloatPixels = 2.0f;
-constexpr float kLogoScaleAmplitude = .006f;
+constexpr float kReflectionDayAlpha = .86f;
+constexpr float kReflectionNightAlpha = .64f;
+constexpr float kReflectionEdgeSeconds = .45f;
+static_assert(kReflectionEdgeSeconds*2 < kLogoRippleLifetime);
 static_assert(kGrowSeconds < kCropClearSeconds && kCropClearSeconds < kCropCycleSeconds &&
     kCycleSeconds == 4*kCropCycleSeconds);
 constexpr std::array<Vector4, 4> kLights{{
@@ -41,12 +44,21 @@ CelestialBodyFrame MakeCelestialBody(float angle) noexcept {
 }
 }
 
-bool TitlePresentationSystem::Initialize(std::uint32_t windSeed) {
+bool TitlePresentationSystem::Initialize(std::uint32_t windSeed, std::uint32_t rippleSeed) {
     cycleTime_ = entryTime_ = leavingTime_ = 0.0f;
     leaving_ = startConsumed_ = false;
     cloudOffset_ = windVelocity_ = windTarget_ = {};
     windRemaining_ = 0;
     windSeed_ = windSeed;
+    ripples_ = {};
+    rippleId_ = 0;
+    previousRipplePoint_ = kLogoRipplePoints.size();
+    if (rippleSeed == 0) {
+        const auto ticks = static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+        rippleSeed = static_cast<std::uint32_t>(ticks ^ (ticks >> 32));
+    }
+    rippleSeed_ = rippleSeed ? rippleSeed : 1;
+    rippleRemaining_ = .9f+.6f*NextRippleValue();
     if (!farm_.Initialize(5, 4)) return false;
     for (int index = 0; index < farm_.GetTileCount(); ++index) {
         const int row = index / farm_.GetWidth();
@@ -76,6 +88,7 @@ bool TitlePresentationSystem::Initialize(std::uint32_t windSeed) {
 void TitlePresentationSystem::Update(float delta) noexcept {
     if (!std::isfinite(delta) || delta <= 0.0f) return;
     delta = (std::min)(delta, kMaximumDelta);
+    UpdateRipples(delta);
     windRemaining_ -= delta;
     if (windRemaining_ <= 0) {
         windRemaining_ = 8.0f + NextWindValue()*6.0f;
@@ -94,6 +107,37 @@ void TitlePresentationSystem::Update(float delta) noexcept {
 float TitlePresentationSystem::NextWindValue() noexcept {
     windSeed_ = windSeed_*1664525u + 1013904223u;
     return static_cast<float>(windSeed_ >> 8) / 16777216.0f;
+}
+
+float TitlePresentationSystem::NextRippleValue() noexcept {
+    rippleSeed_ = rippleSeed_*1664525u+1013904223u;
+    return static_cast<float>(rippleSeed_ >> 8)/16777216.0f;
+}
+
+void TitlePresentationSystem::UpdateRipples(float delta) noexcept {
+    const auto advance = [this](float seconds) {
+        for (auto& ripple : ripples_) ripple.age = (std::min)(ripple.age+seconds,kLogoRippleLifetime);
+    };
+    // Expire slots at the impact time, not at frame end; slot selection stays timestep-independent.
+    advance((std::min)(delta,rippleRemaining_));
+    rippleRemaining_ -= delta;
+    if (rippleRemaining_ > 0) return;
+    // Delta is bounded below the minimum interval; lifetime guarantees a free retained slot.
+    for (auto& ripple : ripples_) {
+        if (ripple.age < kLogoRippleLifetime) continue;
+        auto point = static_cast<std::size_t>(NextRippleValue()*kLogoRipplePoints.size());
+        point = (std::min)(point,kLogoRipplePoints.size()-1);
+        if (point == previousRipplePoint_) point = (point+1)%kLogoRipplePoints.size();
+        previousRipplePoint_ = point;
+        ripple.center = kLogoRipplePoints[point];
+        ripple.age = 0;
+        if (++rippleId_ == 0) ++rippleId_;
+        ripple.id = rippleId_;
+        break;
+    }
+    advance(-rippleRemaining_);
+    const float jitter = (NextRippleValue()+NextRippleValue())*.5f;
+    rippleRemaining_ += Mix(kLogoRippleMinimumInterval,kLogoRippleMaximumInterval,jitter);
 }
 
 void TitlePresentationSystem::RequestStart() noexcept {
@@ -124,9 +168,6 @@ Frame TitlePresentationSystem::GetFrame() const noexcept {
     frame.skyOffset = std::sin(cycleTime_ * kTau / kCycleSeconds) * 10.0f;
     frame.promptAlpha = 0.82f + 0.18f * std::cos(cycleTime_ * kTau / 2.5f);
     frame.fadeAlpha = leaving_ ? Smooth(leavingTime_ / kFadeSeconds) : 1.0f - Smooth(entryTime_ / kFadeSeconds);
-    const float logoWave = std::sin(cycleTime_ * kTau / kLogoCycleSeconds);
-    frame.logoOffsetY = kLogoFloatPixels * logoWave;
-    frame.logoScale = 1.0f + kLogoScaleAmplitude * logoWave;
     for (std::size_t i = 0; i < frame.crops.size(); ++i) {
         const auto* tile = farm_.GetTile(static_cast<int>(i));
         if (!tile || !farm::IsPlantableCrop(tile->crop)) continue;
@@ -146,6 +187,20 @@ Frame TitlePresentationSystem::GetFrame() const noexcept {
     frame.skyHorizon = Mix(horizons[from], horizons[to], blend);
     frame.cloudColor = Mix(clouds[from], clouds[to], blend);
     frame.nightAmount = night;
+    for (std::size_t i=0; i<ripples_.size(); ++i) {
+        const auto& ripple = ripples_[i];
+        if (!ripple.id || ripple.age >= kLogoRippleLifetime) continue;
+        auto& output = frame.logoRipples[i];
+        output.center = ripple.center;
+        output.id = ripple.id;
+        const float farX = (std::max)(ripple.center.x,kLogoSize.x-ripple.center.x);
+        const float farY = (std::max)(ripple.center.y,kLogoJapaneseHeight-ripple.center.y)*kLogoRippleVerticalScale;
+        output.radius = ripple.age/kLogoRippleLifetime*(std::hypot(farX,farY)+
+            kLogoRippleEchoDistance+3*kLogoRippleWidth);
+        const float entry = Smooth(std::clamp(ripple.age/kReflectionEdgeSeconds,0.0f,1.0f));
+        const float exit = Smooth(std::clamp((kLogoRippleLifetime-ripple.age)/kReflectionEdgeSeconds,0.0f,1.0f));
+        output.alpha = Mix(kReflectionDayAlpha,kReflectionNightAlpha,night)*entry*exit;
+    }
     const float orbit = cycleTime_ * kTau / kCycleSeconds;
     frame.skyYaw = cloudOffset_.x;
     frame.cloudLift = cloudOffset_.y;

@@ -15,6 +15,23 @@ inline constexpr float kFadeSeconds = 0.8f;
 inline constexpr std::size_t kStarCount = 36;
 inline constexpr std::size_t kTitleTileCount = 20;
 inline constexpr float kCropCycleSeconds = 10.0f;
+inline constexpr std::size_t kLogoRippleCount = 2;
+inline constexpr float kLogoRippleMinimumInterval = 2.6f;
+inline constexpr float kLogoRippleMaximumInterval = 4.2f;
+inline constexpr float kLogoRippleLifetime = 3.2f;
+inline constexpr float kLogoRippleWidth = 12.0f;
+inline constexpr float kLogoRippleEchoDistance = 40.0f;
+inline constexpr float kLogoRippleVerticalScale = 1.6f;
+inline constexpr float kLogoRippleEchoStrength = .45f;
+inline constexpr float kLogoJapaneseHeight = 128.0f;
+static_assert(kLogoRippleLifetime < kLogoRippleMinimumInterval*kLogoRippleCount);
+
+struct LogoRippleFrame {
+    Vector2 center{};
+    float radius = 0.0f;
+    float alpha = 0.0f;
+    std::uint32_t id = 0;
+};
 
 struct CropFrame {
     float growth = 0.0f;
@@ -51,8 +68,7 @@ struct Frame {
     float windAngle = 0.0f;
     float promptAlpha = 1.0f;
     float fadeAlpha = 1.0f;
-    float logoOffsetY = 0.0f;
-    float logoScale = 1.0f;
+    std::array<LogoRippleFrame,kLogoRippleCount> logoRipples{};
     std::array<CropFrame, kTitleTileCount> crops{};
     std::array<Star, kStarCount> stars{};
 };
@@ -60,7 +76,7 @@ struct Frame {
 // Staged title data has no document/economy access and never advances a saved farm.
 class TitlePresentationSystem final {
 public:
-    bool Initialize(std::uint32_t windSeed = 0x5A17u);
+    bool Initialize(std::uint32_t windSeed = 0x5A17u, std::uint32_t rippleSeed = 0);
     void Update(float realDeltaSeconds) noexcept;
     void RequestStart() noexcept;
     bool ConsumeStart() noexcept;
@@ -81,6 +97,18 @@ private:
     float windRemaining_ = 0.0f;
     std::uint32_t windSeed_ = 0x5A17u;
     float NextWindValue() noexcept;
+    struct RippleState {
+        Vector2 center{};
+        float age = kLogoRippleLifetime;
+        std::uint32_t id = 0;
+    };
+    std::array<RippleState,kLogoRippleCount> ripples_{};
+    std::uint32_t rippleSeed_ = 1;
+    std::uint32_t rippleId_ = 0;
+    std::size_t previousRipplePoint_ = 0;
+    float rippleRemaining_ = 0;
+    float NextRippleValue() noexcept;
+    void UpdateRipples(float delta) noexcept;
 };
 
 } // namespace title

@@ -13,7 +13,7 @@ SystemのCropFrameを、純粋関数BuildTitleCropPartsで既存の作物形状�
 引き抜き/浮き上がり/縮小演出は取り消した。ゲーム中の収穫演出は変更しない。
 成熟時の全パーツを初期化で確保し、毎フレームはTransform/表示フラグのみ更新。
 非表示パーツはShadow/Mainの両方で描かず、0 scaleをGPUへ渡さない。
-ロゴは5秒周期で上下2px、拡縮±0.6%。開始表示/HitTestは動かさない。
+ロゴの位置と大きさは固定。文字内のランダム波紋だけを動かし、開始表示/HitTestは動かさない。
 ロゴとWindow titleは「水路農業」、英字はSUIRO NOGYO。過去の提出物は旧名のまま保持する。
 
 ### 2026-10-05 検証範囲
@@ -29,10 +29,11 @@ Debug virtual1600x900の値を直接比較していた不一致を修正した�
 最新指示通り「はじめる」の位置・HitTest・点滅は維持する。
 
 ## 責務と描画順
-- TitlePresentationSystem: 時間、風の目標・追従、ステージ用畑、開始の状態遷移。
+- TitlePresentationSystem: 時間、風の目標・追従、ステージ用畑、雨粒の発生間隔・中心・寿命、開始の状態遷移。
 - TitleSkyRenderer: カメラ中心の球、空・雲・天体のShader、専用PSO/CBV。
 - TitleFarmRenderer: 既存の地形/作物メッシュ変換、保持したObject3d、光、水面の反射線。
 - TitleView: ロゴと開始表示、開始入力の通知のみ。
+- TitleLogoRippleRenderer: glyph maskと専用PSO/Root Signature/固定bufferを保持し、Systemの波紋を描く。
 - TitleScene: 上記の初期化・更新・描画とSceneManagerへの遷移通知。
 
 Shadow pass、天球、Object pass、Sprite、既存PostEffect/最終表示の順。
@@ -177,10 +178,78 @@ NASAでは実際のSun/Moonの見かけの大きさは近く、満月は影を�
 - [NASA: Moonlight](https://science.nasa.gov/moon/moonlight/)
 
 ### 7. ロゴと開始操作を重ねる
-TitleViewがロゴ、開始表示、黒fadeの3枚のSpriteを描く。
+TitleViewがロゴ、開始表示、黒fadeのSpriteを描く。
 SPACE/ENTER、Gamepad A、開始文字のクリックを開始要求として通知する。
 Systemが約0.8秒の退出fadeを管理し、完了時に一度だけ開始通知を返す。
 TitleSceneがSceneManagerへGAMEPLAY遷移を通知する。ViewはSceneを直接切り替えない。
+
+#### 控えめなドット風ロゴ（2026-10-05）
+「水路農業」と開始文字に加え、最新の指定で英字も2px単位の輪郭と塗りに統一。
+既存Noto Sans JPを47pxで228x84のmaskへ描き、alpha128以上を塗りとして二値化。
+Nearest Neighborで456x168へ拡大し、元の位置とサイズで使用する。
+低解像度maskにMaxFilter(3)をかけてから拡大し、輪郭も2pxの階段に揃える。
+新しいpixel fontの導入ではなく、既存fontのraster表現の変更である。
+波紋用glyph maskも同じ字形から生成するため、反射が文字外にはみ出す問題を避ける。
+開始日本語は15px/140x40のmaskから280x80へ拡大する。
+`SUIRO NOGYO` は10px/228x84、`SPACE / ENTER / A` は10px/140x40のmaskから2倍拡大。
+既存fontのweight600で、小さい英字のstrokeを残す。subtitleは(16,130)、キー案内は(140,48)中心揃え。
+キー案内は16px相当から20px相当へ大きくしてslashを判別しやすくした。画像全体のサイズは変えない。
+点滅式(.82+.18*cos、2.5秒周期)、画像サイズ、表示位置、開始領域は変更しない。
+`tools/title/generate_title_text.py --logo-only` でlogoと波紋だけを再生成する。
+`--reflection-only` との同時指定は拒否する。どちらも開始画像には書き込まない。
+文字画像のGPUサイズは変えない。波紋用Textureと描画は次節の通り変更する。
+2px grid/4文字のstroke量/波紋の文字内制限/phaseの連続性/昼夜contrastの素材検査は成功。
+Debug/Release x64 Build、従来の点滅・crop/timing regressionは成功。
+独立Releaseのpixel_logo02.mp4（41.966667秒/1280x720/1211frames）と通常サイズの昼夜画像で、
+文字の判別・階段状の輪郭・波紋が新字形内に収まる表示を確認。
+証拠はgenerated/codex_checks/title_pixel_logo_20261005/、6秒の抜粋はpixel_preview02.mp4。
+上記pixel_logo02はロゴのみを変更した時点の証拠。「はじめる」のドット化は、その後の変更。
+最新の素材検査では、英字も含む画像全体の2px gridと独立生成した英字mask/outline、
+文字boundsと各英字・slashのstroke残存を検査。英字変更時には日本語領域・旧波紋Atlasが不変だった。
+英字変更はPNGとoffline generatorのみ。C++/Shader/Descriptor/Barrier/Fence/DrawCallは変更しない。
+この素材変更では再compile不要。Release Buildも成功。
+独立Releaseの `generated/codex_checks/title_pixel_english_20261005/full01.png` でsubtitleと
+16px相当のキー案内を確認後、slashを判別しやすくするため最終20px相当へ改善した。
+録画は途中で終了（2.533333秒）。原因は未特定。最終20px案内は下記rain01の通常サイズ画像でも確認した。
+古いpixel_logo02およびfull01は最終20px案内の表示証拠ではない。
+別DPI/非整数縮小/Debug dock内のpixel鮮明さは未確認。既存linear samplerは変えていない。
+
+#### 雨粒風のランダム波紋（2026-10-05）
+固定中心・10秒周期のAtlas演出は取りやめた。雨粒が文字へ落ちるように、中心から外側へ広げる。
+初回は0.9〜1.5秒、その後の発生間隔は2.6〜4.2秒。2回の一様乱数の平均で、極端な間隔を少なめにする。
+1波紋の寿命は3.2秒、固定配列2個で最大2波紋まで重なる。寿命<最短間隔*2をstatic_assertする。
+発生時刻まで既存波を進め、空いたslotに新しい波を作り、残りのフレーム時間を進める。
+Frame末尾で先にslotを消す方式では、フレーム時間により選ばれるslotが変わるため、この順序へ修正した。
+大きいdeltaは従来通り0.25秒に制限する。停止後の積み残しを一斉発生させない。
+中心候補は日本語maskのopaque pixelから生成した64点（各文字16点）。直前と同じ候補の連続選択を避ける。
+`TitleLogoRipplePoints.h` はgeneratorで再生成する。文字外・輪郭・英字には発生させない。
+雨のPRNGは風とは独立。通常起動はsteady_clock由来seed、テストでは明示seedで再現する。
+これは見た目用の疑似乱数であり、暗号や厳密な物理的降雨の分布ではない。落下する粒子自体は追加していない。
+Systemが中心、半径、寿命opacityをFrameへ渡す。Viewは時間・抽選を扱わずRendererへ通知する。
+Shaderが幅12pxのGaussian波頭と40px遅れる45%の波頭を描く。縦方向は1.6倍の楕円距離、2px単位。
+出入り各0.45秒はsmoothstep、昼最大opacity0.86/夜0.64。重なりは最大opacityを採用し、文字を濃くしすぎない。
+色は(.02,.36,.82)。同じ字形の456x168 maskをpoint samplingし、塗りの内側だけに描く。
+旧32コマAtlas（base9.35MiB）からmask1枚（base約0.29MiB）へ変更。mips/alignment/実測VRAMは含まない。
+専用PSO/Root Signatureを初期化時に作り、vertex/index/256-byte CBの3 bufferを保持。
+2波紋とも1 DrawCallで描く。休止時は0。毎フレームの動的確保・Texture upload・Descriptor作成はない。
+既存TextureManagerからmaskを借りる。RendererのComPtrがbuffer/PSOを所有し、Scene寿命内で使う。
+現行PostDraw Fence待機後のCB再利用を前提とする。複数frame in flightにする場合はbuffer ringが必要。
+描画後はTitleViewがSpriteCommon::PreDrawを呼び、開始文字/暗転用PSO・Root Signatureを戻す。
+共通Sprite Shader/Sampler、Barrier/Fence、Game/Scene/保存・提出ZIPは変更しない。
+Shaderの演算は増えるため、Texture容量の減少だけで速度改善とは断定しない。実測CPU/GPU負荷は未計測。
+検証:600秒・12種seed・混在delta・異なる刻み幅で、間隔/発生数/中心/最大2/空白上限/再現性/風独立を確認。
+不正delta、再Initialize、開始点滅/一度だけの遷移、昼夜/cropも回帰検査。64候補のmask所属と
+独立CPU参照による外向きの波/昼夜contrastを検査。GPU保証とは区別する。
+DXC VS/PS6_0 -WXとDebug/Release x64 Build成功。
+独立Releaseのrain01.mp4（32秒/1280x720/853frames）で、異なる中心・外向きの進行・英字最終サイズを確認。
+証拠は `generated/codex_checks/title_rain_ripples_20261005/`。rain_preview01.mp4は1〜13秒の未拡大抜粋。
+rain01はslot処理順の最終修正前。最終修正後の独立Release runtime02でrain02.mp4（19.966667秒/1280x720/547frames）を撮影した。
+半秒間隔のsequence_final.pngと通常サイズfull_final.pngで、中心の変化・外向きの進行・文字内への制限・英字最終サイズを確認した。
+rain_preview02.mp4は最終版から12秒を抜粋。記録場所はgenerated/codex_checks/title_rain_ripples_20261005/。
+これは現在のGPUでのタイトル表示確認。最終版の全夜景や実入力、GPU負荷の計測を確認したことにはしない。
+旧radial02/visible05/pixel_logo02はランダム版の証拠として使わない。
+再生成は `tools/title/generate_title_text.py --reflection-only`。logo/startは更新しない。
+他GPU/DPI、Debug dock、実操作による開始遷移、実測VRAM/フレーム負荷、全エンジン同期は未検証。
 
 ### 現在の制限
 小鳥・トンボ・満ち欠け、完成したHD2Dのモデル/背景は未実装。

@@ -1,14 +1,21 @@
 #include "title/TitlePresentationSystem.h"
 #include "title/TitleCelestialGeometry.h"
 #include "title/TitleCropPresentation.h"
+#include "title/TitleLogoRipplePoints.h"
 
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <numbers>
 #include <stdexcept>
+#include <source_location>
 
 namespace {
-void Check(bool value) { if (!value) throw std::runtime_error("title presentation assertion failed"); }
+void Check(bool value, std::source_location location = std::source_location::current()) {
+    if (value) return;
+    std::cerr << "Title assertion at line " << location.line() << std::endl;
+    throw std::runtime_error("title presentation assertion failed");
+}
 bool Near(float a, float b) { return std::abs(a-b) < 0.002f; }
 }
 int main() {
@@ -69,7 +76,12 @@ int main() {
             const auto previous = system.GetFrame();
             system.Update(0.25f);
             const auto current = system.GetFrame();
-            Check(std::abs(current.logoOffsetY) <= 2.0f && current.logoScale >= .994f && current.logoScale <= 1.006f);
+            Check(Near(current.promptAlpha,.82f+.18f*std::cos((phase*10+(step+1)*.25f)*
+                std::numbers::pi_v<float>*2/2.5f)));
+            for (const auto& ripple : current.logoRipples) {
+                Check(std::isfinite(ripple.alpha) && ripple.alpha >= 0 && ripple.alpha <= .86f);
+                Check(std::isfinite(ripple.radius) && ripple.radius >= 0);
+            }
             for (std::size_t i=0; i<current.crops.size(); ++i) {
                 const auto& crop = current.crops[i];
                 Check(std::isfinite(crop.growth) && crop.growth >= 0 && crop.growth <= 1);
@@ -147,7 +159,6 @@ int main() {
     Check(Near(wrapped.moon.center.x,initial.moon.center.x));
     Check(Near(wrapped.moon.center.y,initial.moon.center.y));
     Check(system.GetFarm().GetGeneration() == generation);
-    Check(Near(wrapped.logoOffsetY,initial.logoOffsetY) && Near(wrapped.logoScale,initial.logoScale));
     for (std::size_t i=0; i<wrapped.crops.size(); ++i) {
         Check(Near(wrapped.crops[i].growth,initial.crops[i].growth));
         Check(wrapped.crops[i].visible == initial.crops[i].visible);
@@ -166,6 +177,100 @@ int main() {
         Check(buried.parts[i].scale.y == shared.parts[i].scale.y);
     }
     Check(title::BuildTitleCropParts(visual,cleared).count == 0);
+    title::TitlePresentationSystem rain, identicalRain, differentRain;
+    Check(rain.Initialize(123,987) && identicalRain.Initialize(123,987) && differentRain.Initialize(123,654));
+    constexpr float rainDelta = .03125f;
+    std::array<bool,title::kLogoRipplePoints.size()> visited{};
+    std::uint32_t lastId = 0;
+    Vector2 lastCenter{};
+    float lastBirth = 0, minimumGap = 10, maximumGap = 0, idle = 0;
+    bool distinctSeed = false, sawOverlap = false, sawNightAttenuation = false;
+    for (int step=1; step<=19200; ++step) {
+        const auto before = rain.GetFrame();
+        rain.Update(rainDelta); identicalRain.Update(rainDelta); differentRain.Update(rainDelta);
+        const auto frame = rain.GetFrame(), twinFrame = identicalRain.GetFrame(), otherFrame = differentRain.GetFrame();
+        int active = 0, births = 0;
+        for (std::size_t i=0; i<frame.logoRipples.size(); ++i) {
+            const auto& ripple = frame.logoRipples[i];
+            const auto& twinRipple = twinFrame.logoRipples[i];
+            Check(ripple.id == twinRipple.id && ripple.radius == twinRipple.radius && ripple.alpha == twinRipple.alpha);
+            Check(ripple.center.x == twinRipple.center.x && ripple.center.y == twinRipple.center.y);
+            distinctSeed = distinctSeed || ripple.id != otherFrame.logoRipples[i].id ||
+                ripple.center.x != otherFrame.logoRipples[i].center.x;
+            Check(std::isfinite(ripple.radius) && std::isfinite(ripple.alpha));
+            Check(ripple.alpha >= 0 && ripple.alpha <= .86f-.22f*frame.nightAmount+.0001f);
+            if (!ripple.id) { Check(ripple.alpha == 0); continue; }
+            ++active;
+            sawNightAttenuation = sawNightAttenuation || (frame.nightAmount > .9f && ripple.alpha > .5f && ripple.alpha < .67f);
+            bool validPoint = false;
+            for (std::size_t p=0; p<title::kLogoRipplePoints.size(); ++p) {
+                const auto point = title::kLogoRipplePoints[p];
+                if (ripple.center.x == point.x && ripple.center.y == point.y) { visited[p] = true; validPoint = true; }
+            }
+            Check(validPoint);
+            if (ripple.id == before.logoRipples[i].id) Check(ripple.radius >= before.logoRipples[i].radius);
+            if (ripple.id <= lastId) continue;
+            ++births;
+            Check(ripple.id == lastId+1);
+            const float seconds = step*rainDelta;
+            if (lastId == 0) Check(seconds >= .9f && seconds <= 1.5f+rainDelta);
+            else {
+                const float gap = seconds-lastBirth;
+                Check(gap >= title::kLogoRippleMinimumInterval-rainDelta && gap <= title::kLogoRippleMaximumInterval+rainDelta);
+                Check(ripple.center.x != lastCenter.x || ripple.center.y != lastCenter.y);
+                minimumGap = (std::min)(minimumGap,gap); maximumGap = (std::max)(maximumGap,gap);
+            }
+            lastId = ripple.id; lastCenter = ripple.center; lastBirth = seconds;
+        }
+        Check(active <= 2 && births <= 1);
+        sawOverlap = sawOverlap || active == 2;
+        idle = active ? 0 : idle+rainDelta;
+        Check(idle <= 1.5f+rainDelta);
+        Check(frame.skyYaw == otherFrame.skyYaw); // Ripple seeds never consume the wind stream.
+        const auto repeated = rain.GetFrame();
+        Check(repeated.logoRipples[0].radius == frame.logoRipples[0].radius);
+    }
+    int visitedCount = 0;
+    for (bool seen : visited) visitedCount += seen ? 1 : 0;
+    Check(lastId >= 142 && lastId <= 231 && visitedCount >= 35);
+    Check(maximumGap-minimumGap > .7f && distinctSeed && sawOverlap && sawNightAttenuation);
+    const auto validRain = rain.GetFrame();
+    for (const float bad : {0.0f,-1.0f,std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}) rain.Update(bad);
+    Check(rain.GetFrame().logoRipples[0].radius == validRain.logoRipples[0].radius);
+    Check(rain.Initialize(123,987));
+    for (const auto& ripple : rain.GetFrame().logoRipples) Check(ripple.id == 0 && ripple.alpha == 0);
+    title::TitlePresentationSystem coarseRain, fineRain;
+    Check(coarseRain.Initialize(123,789) && fineRain.Initialize(123,789));
+    for (int step=0; step<4800; ++step) {
+        coarseRain.Update(.125f);
+        for (int sub=0; sub<4; ++sub) fineRain.Update(.03125f);
+        const auto coarse = coarseRain.GetFrame(), fine = fineRain.GetFrame();
+        for (std::size_t i=0; i<coarse.logoRipples.size(); ++i) {
+            Check(coarse.logoRipples[i].id == fine.logoRipples[i].id);
+            Check(coarse.logoRipples[i].center.x == fine.logoRipples[i].center.x);
+            Check(std::abs(coarse.logoRipples[i].radius-fine.logoRipples[i].radius) < .1f);
+        }
+    }
+    for (std::uint32_t seed=1; seed<=12; ++seed) {
+        Check(rain.Initialize(123,seed));
+        std::uint32_t id = 0;
+        float seconds = 0, birth = 0;
+        for (int step=0; step<1200; ++step) {
+            const float delta = step%3 == 0 ? .25f : (step%3 == 1 ? .0625f : .125f);
+            rain.Update(delta); seconds += delta;
+            const auto frame = rain.GetFrame();
+            int births = 0;
+            for (const auto& ripple : frame.logoRipples) {
+                if (ripple.id <= id) continue;
+                Check(ripple.id == id+1);
+                if (id) Check(seconds-birth >= title::kLogoRippleMinimumInterval-.25f &&
+                    seconds-birth <= title::kLogoRippleMaximumInterval+.25f);
+                birth = seconds; id = ripple.id; ++births;
+            }
+            Check(births <= 1);
+        }
+        Check(id > 35);
+    }
     for (const auto invalid : {title::CropFrame{-1,true},
         title::CropFrame{std::numeric_limits<float>::quiet_NaN(),true},
         title::CropFrame{2,true}}) Check(title::BuildTitleCropParts(visual,invalid).count == 0);
@@ -200,5 +305,5 @@ int main() {
     const auto invalidLighting = title::MakeCelestialLighting({0,std::numeric_limits<float>::quiet_NaN(),0},{0,0,0},.1f);
     Check(invalidLighting.shadowStrength == 0 && invalidLighting.direction.y == -1);
     Check(title::MakeCelestialLighting({0,1,0},{0,-1,0},std::numeric_limits<float>::quiet_NaN()).intensity == 0);
-    std::cout << "Title: four day phases, quiet crop cycle x4, soil anchors, logo bounds, invalid input, immutable grid and single transition PASS\n";
+    std::cout << "Title: bounded seeded rain, glyph centers, max2, independent wind, 600s no drought/burst, sky/crops/blink/start PASS\n";
 }

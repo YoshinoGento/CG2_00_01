@@ -285,6 +285,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\title\TitleSkyRenderer.cpp" />
     <ClCompile Include="application\title\TitleFarmRenderer.cpp" />
     <ClCompile Include="application\title\TitleView.cpp" />
+    <ClCompile Include="application\title\TitleLogoRippleRenderer.cpp" />
     <ClCompile Include="engine\base\WinApp.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -614,6 +615,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\title\TitleCelestialGeometry.h" />
     <ClInclude Include="application\title\TitleFarmRenderer.h" />
     <ClInclude Include="application\title\TitleView.h" />
+    <ClInclude Include="application\title\TitleLogoRippleRenderer.h" />
+    <ClInclude Include="application\title\TitleLogoRipplePoints.h" />
     <ClInclude Include="engine\base\WinApp.h" />
   </ItemGroup>
   <ItemGroup>
@@ -632,6 +635,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\shader\TitleSky.hlsli" />
     <None Include="Resources\shader\TitleSky.VS.hlsl" />
     <None Include="Resources\shader\TitleSky.PS.hlsl" />
+    <None Include="Resources\shader\TitleLogoRipple.VS.hlsl" />
+    <None Include="Resources\shader\TitleLogoRipple.PS.hlsl" />
+    <None Include="Resources\title\logo_reflection.png" />
     <None Include="Resources\title\sky.png" />
     <None Include="Resources\title\logo.png" />
     <None Include="Resources\title\start.png" />
