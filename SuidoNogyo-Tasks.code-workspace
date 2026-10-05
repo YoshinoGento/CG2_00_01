@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "SuidoNogyo",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "workbench.editorAssociations": {
+      "**/GAME_TASKS.md": "vscode.markdown.editor"
+    }
+  }
+}

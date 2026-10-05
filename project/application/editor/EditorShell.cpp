@@ -11,6 +11,7 @@
 #include "io/Input.h"
 #include "scene/BaseScene.h"
 #include "scene/GamePlayScene.h"
+#include "scene/TitleScene.h"
 
 #ifdef USE_IMGUI
 #include "externals/imgui/imgui_internal.h"
@@ -102,6 +103,14 @@ void EditorShell::Draw(
 				static_cast<float>(WinApp::kClientHeight),
 			},
 			editorSettings_.GetLanguage(), gameMode);
+	}
+
+	if (auto* titleScene = dynamic_cast<TitleScene*>(currentScene)) {
+		const auto& viewport = gameViewportWindow_.GetFrameState();
+		if (viewport.leftClicked && title::HitTestStartButtonInViewport(viewport.virtualMousePosition,
+			{static_cast<float>(WinApp::kClientWidth),static_cast<float>(WinApp::kClientHeight)})) {
+			titleScene->RequestStart();
+		}
 	}
 
 	if (!playScene) {

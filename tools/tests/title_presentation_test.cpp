@@ -1,5 +1,6 @@
 #include "title/TitlePresentationSystem.h"
 #include "title/TitleCelestialGeometry.h"
+#include "title/TitleCropPresentation.h"
 
 #include <cmath>
 #include <iostream>
@@ -11,8 +12,22 @@ void Check(bool value) { if (!value) throw std::runtime_error("title presentatio
 bool Near(float a, float b) { return std::abs(a-b) < 0.002f; }
 }
 int main() {
-    const auto cameraWorld = MatrixMath::MakeAffineMatrix({1,1,1},{.10f,-.45f,0},{6.5f,3.5f,-6.5f});
-    const auto projection = MatrixMath::MakePerspectiveFovMatrix(.72f,16.0f/9.0f,.1f,180);
+    Check(title::HitTestStartButton(title::kStartCenter));
+    Check(title::HitTestStartButton({500,610}));
+    Check(title::HitTestStartButton({780,690}));
+    for (const auto resolution : {Vector2{1600,900},Vector2{1280,720},Vector2{1920,1080}}) {
+        Check(title::HitTestStartButtonInViewport({resolution.x*.5f,resolution.y*650/720},resolution));
+        Check(!title::HitTestStartButtonInViewport({resolution.x*.8f,resolution.y*.9f},resolution));
+    }
+    Check(!title::HitTestStartButtonInViewport({640,650},{0,720}));
+    Check(!title::HitTestStartButtonInViewport({640,650},{1280,std::numeric_limits<float>::infinity()}));
+    for (const auto point : {Vector2{499,650}, Vector2{781,650}, Vector2{640,609},
+            Vector2{640,691}, Vector2{0,0}, Vector2{640,std::numeric_limits<float>::quiet_NaN()},
+            Vector2{std::numeric_limits<float>::infinity(),650}}) {
+        Check(!title::HitTestStartButton(point));
+    }
+    const auto cameraWorld = MatrixMath::MakeAffineMatrix({1,1,1},title::kCameraRotation,title::kCameraPosition);
+    const auto projection = MatrixMath::MakePerspectiveFovMatrix(title::kCameraFovY,title::kWidth/title::kHeight,.1f,180);
     float previousExposure = .25f;
     title::TitlePresentationSystem system;
     Check(system.Initialize());
@@ -26,6 +41,8 @@ int main() {
         Check(upstream->heightLevel >= downstream->heightLevel);
     }
     const auto initial = system.GetFrame();
+    std::array<bool, title::kTitleTileCount> sawGrowth{}, sawMature{}, sawEmpty{};
+    std::array<int, title::kTitleTileCount> clearCounts{};
     system.Update(std::numeric_limits<float>::quiet_NaN());
     system.Update(std::numeric_limits<float>::infinity());
     system.Update(-1.0f);
@@ -52,6 +69,30 @@ int main() {
             const auto previous = system.GetFrame();
             system.Update(0.25f);
             const auto current = system.GetFrame();
+            Check(std::abs(current.logoOffsetY) <= 2.0f && current.logoScale >= .994f && current.logoScale <= 1.006f);
+            for (std::size_t i=0; i<current.crops.size(); ++i) {
+                const auto& crop = current.crops[i];
+                Check(std::isfinite(crop.growth) && crop.growth >= 0 && crop.growth <= 1);
+                const auto* tile = system.GetFarm().GetTile(static_cast<int>(i));
+                if (!farm::IsPlantableCrop(tile->crop)) { Check(!crop.visible); continue; }
+                sawGrowth[i] = sawGrowth[i] || (crop.visible && crop.growth < .5f);
+                sawMature[i] = sawMature[i] || (crop.visible && crop.growth == 1);
+                sawEmpty[i] = sawEmpty[i] || !crop.visible;
+                if (previous.crops[i].visible && !crop.visible) ++clearCounts[i];
+                farm::FarmTileVisualData visual;
+                visual.valid = true; visual.center = {1,.54f,6}; visual.cropAnchor = visual.center;
+                visual.crop = tile->crop;
+                const auto parts = title::BuildTitleCropParts(visual,crop);
+                if (!crop.visible) Check(parts.count == 0);
+                else Check(parts.count >= 1 && parts.count <= 2);
+                for (std::size_t part=0; part<parts.count; ++part) {
+                    const auto& mesh = parts.parts[part];
+                    Check(std::isfinite(mesh.position.y) && mesh.scale.x > .0001f && mesh.scale.y > .0001f);
+                    if (mesh.shape == farm::FarmMeshShape::Carrot) Check(mesh.position.y < visual.center.y);
+                    if (mesh.shape == farm::FarmMeshShape::TomatoStems || mesh.shape == farm::FarmMeshShape::PumpkinVines)
+                        Check(Near(mesh.position.y,visual.center.y+.02f));
+                }
+            }
             Check(current.skyFrom < 4 && current.skyTo < 4);
             Check(current.skyBlend >= 0 && current.skyBlend <= 1);
             Check(std::isfinite(current.skyYaw) && current.skyYaw >= 0 && current.skyYaw < 1);
@@ -106,6 +147,28 @@ int main() {
     Check(Near(wrapped.moon.center.x,initial.moon.center.x));
     Check(Near(wrapped.moon.center.y,initial.moon.center.y));
     Check(system.GetFarm().GetGeneration() == generation);
+    Check(Near(wrapped.logoOffsetY,initial.logoOffsetY) && Near(wrapped.logoScale,initial.logoScale));
+    for (std::size_t i=0; i<wrapped.crops.size(); ++i) {
+        Check(Near(wrapped.crops[i].growth,initial.crops[i].growth));
+        Check(wrapped.crops[i].visible == initial.crops[i].visible);
+        if (farm::IsPlantableCrop(system.GetFarm().GetTile(static_cast<int>(i))->crop))
+            Check(sawGrowth[i] && sawMature[i] && sawEmpty[i] && clearCounts[i] == 4);
+    }
+    farm::FarmTileVisualData visual;
+    visual.valid = true; visual.crop = farm::CropType::Carrot;
+    const title::CropFrame mature{1,true}, cleared{1,false};
+    const auto buried = title::BuildTitleCropParts(visual,mature);
+    Check(buried.count == 2 && buried.parts[0].position.y < 0);
+    visual.cropStage = farm::FarmCropGrowthStage::Ready;
+    const auto shared = farm::BuildFarmCropMeshParts(visual,1.0f);
+    for (std::size_t i=0; i<buried.count; ++i) {
+        Check(buried.parts[i].position.y == shared.parts[i].position.y);
+        Check(buried.parts[i].scale.y == shared.parts[i].scale.y);
+    }
+    Check(title::BuildTitleCropParts(visual,cleared).count == 0);
+    for (const auto invalid : {title::CropFrame{-1,true},
+        title::CropFrame{std::numeric_limits<float>::quiet_NaN(),true},
+        title::CropFrame{2,true}}) Check(title::BuildTitleCropParts(visual,invalid).count == 0);
     Check(!system.ConsumeStart());
     system.RequestStart();
     system.Update(0.25f);
@@ -137,5 +200,5 @@ int main() {
     const auto invalidLighting = title::MakeCelestialLighting({0,std::numeric_limits<float>::quiet_NaN(),0},{0,0,0},.1f);
     Check(invalidLighting.shadowStrength == 0 && invalidLighting.direction.y == -1);
     Check(title::MakeCelestialLighting({0,1,0},{0,-1,0},std::numeric_limits<float>::quiet_NaN()).intensity == 0);
-    std::cout << "Title: farm, four phases, continuous celestial arcs/hidden turnarounds, wrap, invalid delta, immutable grid and single transition PASS\n";
+    std::cout << "Title: four day phases, quiet crop cycle x4, soil anchors, logo bounds, invalid input, immutable grid and single transition PASS\n";
 }

@@ -608,6 +608,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\base\SrvManager.h" />
     <ClInclude Include="application\scene\TitleScene.h" />
     <ClInclude Include="application\title\TitlePresentationSystem.h" />
+    <ClInclude Include="application\title\TitlePresentationLayout.h" />
+    <ClInclude Include="application\title\TitleCropPresentation.h" />
     <ClInclude Include="application\title\TitleSkyRenderer.h" />
     <ClInclude Include="application\title\TitleCelestialGeometry.h" />
     <ClInclude Include="application\title\TitleFarmRenderer.h" />

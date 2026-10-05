@@ -1,6 +1,7 @@
 #pragma once
 
 #include "farm/core/FarmGrid.h"
+#include "title/TitlePresentationLayout.h"
 #include "math/Struct.h"
 
 #include <array>
@@ -9,11 +10,16 @@
 
 namespace title {
 
-inline constexpr float kWidth = 1280.0f;
-inline constexpr float kHeight = 720.0f;
 inline constexpr float kCycleSeconds = 40.0f;
 inline constexpr float kFadeSeconds = 0.8f;
 inline constexpr std::size_t kStarCount = 36;
+inline constexpr std::size_t kTitleTileCount = 20;
+inline constexpr float kCropCycleSeconds = 10.0f;
+
+struct CropFrame {
+    float growth = 0.0f;
+    bool visible = false;
+};
 
 struct Star {
     Vector2 position{};
@@ -45,6 +51,9 @@ struct Frame {
     float windAngle = 0.0f;
     float promptAlpha = 1.0f;
     float fadeAlpha = 1.0f;
+    float logoOffsetY = 0.0f;
+    float logoScale = 1.0f;
+    std::array<CropFrame, kTitleTileCount> crops{};
     std::array<Star, kStarCount> stars{};
 };
 

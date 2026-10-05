@@ -11,6 +11,14 @@ constexpr float kMaximumDelta = 0.25f;
 constexpr float kTau = std::numbers::pi_v<float> * 2.0f;
 constexpr Vector2 kOrbitCenter{0.50f, 0.58f};
 constexpr Vector2 kOrbitRadius{0.42f, 0.48f};
+constexpr float kGrowSeconds = 7.5f;
+constexpr float kCropClearSeconds = 9.0f;
+constexpr float kTileStagger = 0.18f;
+constexpr float kLogoCycleSeconds = 5.0f;
+constexpr float kLogoFloatPixels = 2.0f;
+constexpr float kLogoScaleAmplitude = .006f;
+static_assert(kGrowSeconds < kCropClearSeconds && kCropClearSeconds < kCropCycleSeconds &&
+    kCycleSeconds == 4*kCropCycleSeconds);
 constexpr std::array<Vector4, 4> kLights{{
     {1.0f, 0.88f, 0.73f, 1.0f}, {0.97f, 1.0f, 0.96f, 1.0f},
     {1.0f, 0.66f, 0.43f, 1.0f}, {0.48f, 0.67f, 0.94f, 1.0f}}};
@@ -116,6 +124,17 @@ Frame TitlePresentationSystem::GetFrame() const noexcept {
     frame.skyOffset = std::sin(cycleTime_ * kTau / kCycleSeconds) * 10.0f;
     frame.promptAlpha = 0.82f + 0.18f * std::cos(cycleTime_ * kTau / 2.5f);
     frame.fadeAlpha = leaving_ ? Smooth(leavingTime_ / kFadeSeconds) : 1.0f - Smooth(entryTime_ / kFadeSeconds);
+    const float logoWave = std::sin(cycleTime_ * kTau / kLogoCycleSeconds);
+    frame.logoOffsetY = kLogoFloatPixels * logoWave;
+    frame.logoScale = 1.0f + kLogoScaleAmplitude * logoWave;
+    for (std::size_t i = 0; i < frame.crops.size(); ++i) {
+        const auto* tile = farm_.GetTile(static_cast<int>(i));
+        if (!tile || !farm::IsPlantableCrop(tile->crop)) continue;
+        const float age = std::fmod(cycleTime_ + static_cast<float>(i)*kTileStagger, kCropCycleSeconds);
+        auto& crop = frame.crops[i];
+        crop.visible = age < kCropClearSeconds;
+        crop.growth = Mix(.02f, 1.0f, Smooth(std::clamp(age/kGrowSeconds, 0.0f, 1.0f)));
+    }
     const float night = (from == 3 ? 1.0f - blend : 0.0f) + (to == 3 ? blend : 0.0f);
     constexpr std::array<Vector4,4> tops{{{.14f,.40f,.61f,1}, {.10f,.43f,.75f,1},
         {.23f,.16f,.36f,1}, {.009f,.022f,.065f,1}}};

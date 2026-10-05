@@ -11,6 +11,7 @@ public:
 	void Finalize() override;
 	void Update() override;
 	void Draw() override;
+	void RequestStart() noexcept { presentation_.RequestStart(); }
 
 private:
 	title::TitlePresentationSystem presentation_;

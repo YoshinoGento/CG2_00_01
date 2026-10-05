@@ -734,6 +734,8 @@
     <ClCompile Include="application\title\TitleFarmRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleView.cpp"><Filter>Title</Filter></ClCompile>
     <ClInclude Include="application\title\TitlePresentationSystem.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitlePresentationLayout.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleCropPresentation.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleSkyRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleCelestialGeometry.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleFarmRenderer.h"><Filter>Title</Filter></ClInclude>

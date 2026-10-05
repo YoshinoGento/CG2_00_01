@@ -43,7 +43,7 @@ float4 main(SkyVertex input) : SV_TARGET {
     float cloud = smoothstep(.08,.34,min(photo.r,photo.g)-photo.b*.45);
     float altitude = saturate(direction.y*1.65);
     float3 color = lerp(horizonColor.rgb,topColor.rgb,sqrt(altitude));
-    color = lerp(color,cloudColor.rgb,cloud*.72*smoothstep(-.04,.16,direction.y));
+    float cloudOpacity = cloud*smoothstep(-.04,.16,direction.y);
     float3 solar = normalize(sun.xyz);
     float sunDisc = smoothstep(discs.x,discs.y,dot(direction,solar));
     float3 lunar = normalize(moon.xyz);
@@ -55,8 +55,10 @@ float4 main(SkyVertex input) : SV_TARGET {
     float2 cell = floor(starUv*float2(320,160));
     float random = Hash(cell);
     float starPoint = 1-smoothstep(.08,.22,length(frac(starUv*float2(320,160))-.5));
-    float star = starPoint*step(.996,random)*step(.2, direction.y)*(1-cloud)*animation.z*(1-moonDisc)*(1-sunDisc);
+    float star = starPoint*step(.996,random)*step(.2, direction.y)*animation.z*(1-moonDisc)*(1-sunDisc);
     color += star * (.42+.18*sin(random*20+motion.y*6.2831853));
+    // Clouds are foreground: opaque cores hide bodies, thin edges transmit them.
+    color = lerp(color,cloudColor.rgb,cloudOpacity);
     // Preserve continuous sky gradients; angular cloud texels carry the pixel-art style.
     return float4(saturate(color + OutputDither(uint2(input.position.xy))),1);
 }
