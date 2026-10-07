@@ -2,6 +2,7 @@
 
 #include "farm/core/FarmGrid.h"
 #include "title/TitlePresentationLayout.h"
+#include "title/TitleAudioMix.h"
 #include "math/Struct.h"
 
 #include <array>
@@ -10,14 +11,13 @@
 
 namespace title {
 
-inline constexpr float kCycleSeconds = 40.0f;
 inline constexpr float kFadeSeconds = 0.8f;
 inline constexpr std::size_t kStarCount = 36;
 inline constexpr std::size_t kTitleTileCount = 20;
 inline constexpr float kCropCycleSeconds = 10.0f;
 inline constexpr std::size_t kLogoRippleCount = 2;
-inline constexpr float kLogoRippleMinimumInterval = 2.6f;
-inline constexpr float kLogoRippleMaximumInterval = 4.2f;
+inline constexpr float kLogoRippleMinimumInterval = 1.8f;
+inline constexpr float kLogoRippleMaximumInterval = 2.8f;
 inline constexpr float kLogoRippleLifetime = 3.2f;
 inline constexpr float kLogoRippleWidth = 12.0f;
 inline constexpr float kLogoRippleEchoDistance = 40.0f;
@@ -68,6 +68,7 @@ struct Frame {
     float windAngle = 0.0f;
     float promptAlpha = 1.0f;
     float fadeAlpha = 1.0f;
+    AudioMix audio{};
     std::array<LogoRippleFrame,kLogoRippleCount> logoRipples{};
     std::array<CropFrame, kTitleTileCount> crops{};
     std::array<Star, kStarCount> stars{};

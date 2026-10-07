@@ -1,0 +1,31 @@
+Suiro Nogyo title environmental sound credits - checked 2026-10-05
+
+morning.wav: スズメが鳴く朝
+day.wav: ミンミンゼミが鳴く雑木林
+evening.wav: 夏の山2 (夕暮れにヒグラシが鳴く)
+night.wav: 夏の田舎の夜
+Provider/rightsholder: 効果音ラボ (Sound Effect Lab)
+Source page: https://soundeffect-lab.info/sound/environment/
+Terms: https://soundeffect-lab.info/agreement/
+FAQ (game incorporation, exposed assets, conversion): https://soundeffect-lab.info/faq/
+Free game incorporation under provider's own terms, not CC0 or CC BY.
+No standalone redistribution, sound-introduction videos or AI training use.
+
+water.wav: user-supplied river recording (water .mp3)
+Provider/rightsholder: On-Jin ～音人～
+https://on-jin.com/
+Source category: https://on-jin.com/sound/kan.php?bunr=%E5%B7%9D&kate=%E6%B0%B4
+Terms: https://on-jin.com/kiyaku.php
+On-Jin ～音人～の音源の二次配布・無断利用を禁止します。
+No standalone redistribution or unauthorized use of the On-Jin sound asset.
+This recording is incorporated in an individual student's game under the
+provider's individual/student terms. Business/commercial-project use requires
+separate review of the provider's current contact requirements.
+
+Processing for all five files:
+PCM16 conversion, silence-padding trim, maximum32-second excerpt,
+400ms tail/head overlap for looping, bounded RMS/peak normalization.
+No resampling, time stretching, AI generation or AI training.
+Source/output hashes and conversion metadata: audio_manifest.json.
+Tool: tools/title/prepare_title_ambience.py. Original source recordings unchanged.
+These files accompany the game only and are not a sound-effects collection.

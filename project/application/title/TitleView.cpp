@@ -1,6 +1,4 @@
 #include "title/TitleView.h"
-#include "io/Input.h"
-#include "base/WinApp.h"
 namespace title {
 bool TitleView::Initialize(SpriteCommon* common) {
     if (!common) return false;
@@ -17,21 +15,6 @@ bool TitleView::Initialize(SpriteCommon* common) {
     logo_ = std::move(logo); prompt_ = std::move(prompt); fade_ = std::move(fade);
     reflection_ = std::move(reflection);
     return true;
-}
-bool TitleView::IsStartRequested(const Input& input, const WinApp& window) const {
-    if (input.TriggerKey(InputKey::Space) || input.TriggerKey(InputKey::Enter) ||
-        input.TriggerGamepadButton(InputGamepadButton::A)) return true;
-#ifdef USE_IMGUI
-    // EditorShell supplies clicks in the displayed image's virtual coordinates.
-    (void)window;
-    return false;
-#else
-    const auto width = window.GetClientWidth(), height = window.GetClientHeight();
-    if (!width || !height || !input.TriggerMouseButton(InputMouseButton::Left)) return false;
-    const auto mouse = input.GetMousePosition();
-    const float x = mouse.x*kWidth/static_cast<float>(width), y = mouse.y*kHeight/static_cast<float>(height);
-    return HitTestStartButton({x,y});
-#endif
 }
 void TitleView::Draw(const Frame& frame) {
     if (!common_) return;

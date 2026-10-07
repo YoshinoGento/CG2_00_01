@@ -19,6 +19,60 @@ void Check(bool value, std::source_location location = std::source_location::cur
 bool Near(float a, float b) { return std::abs(a-b) < 0.002f; }
 }
 int main() {
+    title::TitlePresentationSystem blink;
+    Check(blink.Initialize(1,2));
+    Check(blink.GetFrame().promptAlpha == 1);
+    for (int repeat=0; repeat<16; ++repeat) {
+        for (int tick=1; tick<=25; ++tick) {
+            blink.Update(.1f);
+            const float alpha = blink.GetFrame().promptAlpha;
+            Check(std::isfinite(alpha) && alpha >= 0 && alpha <= 1);
+            if (tick <= 15 || tick == 25) Check(Near(alpha,1));
+            if (tick == 16 || tick == 24) Check(Near(alpha,.5f));
+            if (tick >= 17 && tick <= 23) Check(Near(alpha,0));
+        }
+    }
+    const float beforeInvalid = blink.GetFrame().promptAlpha;
+    for (const float bad : {-1.0f,0.0f,std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()})
+        blink.Update(bad);
+    Check(blink.GetFrame().promptAlpha == beforeInvalid);
+    for (const float bad : {-1.0f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()}) {
+        Check(title::MakeAudioMix(bad,0).water == 0);
+        Check(title::MakeAudioMix(0,bad).water == (bad == -1 ? title::kWaterGain : 0));
+    }
+    for (int i=0; i<60000; ++i) {
+        const float seconds = i*.01f;
+        const auto mix = title::MakeAudioMix(seconds,0);
+        float total = 0;
+        int audible = 0;
+        for (auto gain : mix.ambience) {
+            Check(std::isfinite(gain) && gain >= 0 && gain <= title::kAmbienceGain);
+            total += gain;
+            audible += gain>0 ? 1 : 0;
+        }
+        Check(audible <= 2 && Near(total,title::kAmbienceGain) && Near(mix.water,title::kWaterGain));
+        const auto next = title::MakeAudioMix(seconds+.001f,0);
+        for (std::size_t j=0; j<mix.ambience.size(); ++j) Check(std::abs(next.ambience[j]-mix.ambience[j]) < .001f);
+    }
+    for (std::size_t i=0; i<title::kAmbienceCount; ++i) {
+        const auto mix = title::MakeAudioMix(static_cast<float>(i)*10,0);
+        Check(Near(mix.ambience[i],title::kAmbienceGain));
+        const auto silent = title::MakeAudioMix(static_cast<float>(i)*10,1);
+        for (float gain : silent.ambience) Check(gain == 0);
+        Check(silent.water == 0);
+    }
+    title::AudioMix malformed;
+    malformed.ambience.fill(100);
+    malformed.water = 100;
+    auto safe = title::SanitizeAudioMix(malformed);
+    float total = 0;
+    for (float gain : safe.ambience) total += gain;
+    Check(Near(total,title::kAmbienceGain) && safe.water == title::kWaterGain);
+    malformed.ambience.fill(std::numeric_limits<float>::quiet_NaN());
+    malformed.water = std::numeric_limits<float>::infinity();
+    safe = title::SanitizeAudioMix(malformed);
+    for (float gain : safe.ambience) Check(gain == 0);
+    Check(safe.water == 0);
     Check(title::HitTestStartButton(title::kStartCenter));
     Check(title::HitTestStartButton({500,610}));
     Check(title::HitTestStartButton({780,690}));
@@ -76,8 +130,8 @@ int main() {
             const auto previous = system.GetFrame();
             system.Update(0.25f);
             const auto current = system.GetFrame();
-            Check(Near(current.promptAlpha,.82f+.18f*std::cos((phase*10+(step+1)*.25f)*
-                std::numbers::pi_v<float>*2/2.5f)));
+            const int blinkQuarter = (step+1)%10;
+            Check(Near(current.promptAlpha,blinkQuarter <= 6 ? 1.0f : 0.0f));
             for (const auto& ripple : current.logoRipples) {
                 Check(std::isfinite(ripple.alpha) && ripple.alpha >= 0 && ripple.alpha <= .86f);
                 Check(std::isfinite(ripple.radius) && ripple.radius >= 0);
@@ -216,13 +270,14 @@ int main() {
             if (lastId == 0) Check(seconds >= .9f && seconds <= 1.5f+rainDelta);
             else {
                 const float gap = seconds-lastBirth;
-                Check(gap >= title::kLogoRippleMinimumInterval-rainDelta && gap <= title::kLogoRippleMaximumInterval+rainDelta);
+                Check(gap >= 1.8f-rainDelta && gap <= 2.8f+rainDelta);
                 Check(ripple.center.x != lastCenter.x || ripple.center.y != lastCenter.y);
                 minimumGap = (std::min)(minimumGap,gap); maximumGap = (std::max)(maximumGap,gap);
             }
             lastId = ripple.id; lastCenter = ripple.center; lastBirth = seconds;
         }
         Check(active <= 2 && births <= 1);
+        if (lastId) Check(active >= 1);
         sawOverlap = sawOverlap || active == 2;
         idle = active ? 0 : idle+rainDelta;
         Check(idle <= 1.5f+rainDelta);
@@ -232,7 +287,8 @@ int main() {
     }
     int visitedCount = 0;
     for (bool seen : visited) visitedCount += seen ? 1 : 0;
-    Check(lastId >= 142 && lastId <= 231 && visitedCount >= 35);
+    Check(lastId >= 214 && lastId <= 334 && visitedCount >= 35);
+    std::cout << "Ripple600s: " << lastId << " events; observed gaps " << minimumGap << ".." << maximumGap << "s\n";
     Check(maximumGap-minimumGap > .7f && distinctSeed && sawOverlap && sawNightAttenuation);
     const auto validRain = rain.GetFrame();
     for (const float bad : {0.0f,-1.0f,std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}) rain.Update(bad);
@@ -282,6 +338,8 @@ int main() {
     Check(system.ConsumeStart());
     Check(!system.ConsumeStart());
     Check(system.GetFrame().fadeAlpha == 1.0f);
+    Check(system.GetFrame().audio.water == 0);
+    for (float gain : system.GetFrame().audio.ambience) Check(gain == 0);
     Check(system.Initialize());
     system.Update(10000.0f);
     Check(system.GetFrame().skyFrom == 0 && system.GetFrame().skyBlend < 0.01f);
@@ -305,5 +363,5 @@ int main() {
     const auto invalidLighting = title::MakeCelestialLighting({0,std::numeric_limits<float>::quiet_NaN(),0},{0,0,0},.1f);
     Check(invalidLighting.shadowStrength == 0 && invalidLighting.direction.y == -1);
     Check(title::MakeCelestialLighting({0,1,0},{0,-1,0},std::numeric_limits<float>::quiet_NaN()).intensity == 0);
-    std::cout << "Title: bounded seeded rain, glyph centers, max2, independent wind, 600s no drought/burst, sky/crops/blink/start PASS\n";
+    std::cout << "Title: prompt visible/fades/hidden/repeat, bounded rain, 600s sky/crops/start PASS\n";
 }

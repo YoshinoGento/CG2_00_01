@@ -11,6 +11,11 @@ namespace {
 constexpr float kQuarterSeconds = kCycleSeconds / 4.0f;
 constexpr float kMaximumDelta = 0.25f;
 constexpr float kTau = std::numbers::pi_v<float> * 2.0f;
+constexpr float kPromptBlinkSeconds = 2.5f;
+constexpr float kPromptVisibleSeconds = 1.5f;
+constexpr float kPromptFadeSeconds = .2f;
+constexpr float kPromptHiddenSeconds = .6f;
+static_assert(kPromptVisibleSeconds+kPromptFadeSeconds*2+kPromptHiddenSeconds == kPromptBlinkSeconds);
 constexpr Vector2 kOrbitCenter{0.50f, 0.58f};
 constexpr Vector2 kOrbitRadius{0.42f, 0.48f};
 constexpr float kGrowSeconds = 7.5f;
@@ -32,6 +37,15 @@ constexpr std::array<float, 4> kGroundExposure{{.25f, .82f, .25f, .10f}};
 
 float Smooth(float t) noexcept { return t * t * (3.0f - 2.0f * t); }
 float Mix(float a, float b, float t) noexcept { return a + (b - a) * t; }
+float PromptAlpha(float seconds) noexcept {
+    const float phase = std::fmod(seconds,kPromptBlinkSeconds);
+    if (phase < kPromptVisibleSeconds) return 1;
+    if (phase < kPromptVisibleSeconds+kPromptFadeSeconds)
+        return 1-Smooth((phase-kPromptVisibleSeconds)/kPromptFadeSeconds);
+    const float fadeInStart = kPromptBlinkSeconds-kPromptFadeSeconds;
+    if (phase < fadeInStart) return 0;
+    return Smooth((phase-fadeInStart)/kPromptFadeSeconds);
+}
 Vector4 Mix(Vector4 a, Vector4 b, float t) noexcept {
     return {Mix(a.x,b.x,t), Mix(a.y,b.y,t), Mix(a.z,b.z,t), 1.0f};
 }
@@ -166,8 +180,9 @@ Frame TitlePresentationSystem::GetFrame() const noexcept {
     frame.waterPhase = std::fmod(cycleTime_ / 2.0f, 1.0f);
     frame.windAngle = std::sin(cycleTime_ * kTau / 5.0f) * 0.028f;
     frame.skyOffset = std::sin(cycleTime_ * kTau / kCycleSeconds) * 10.0f;
-    frame.promptAlpha = 0.82f + 0.18f * std::cos(cycleTime_ * kTau / 2.5f);
+    frame.promptAlpha = PromptAlpha(cycleTime_);
     frame.fadeAlpha = leaving_ ? Smooth(leavingTime_ / kFadeSeconds) : 1.0f - Smooth(entryTime_ / kFadeSeconds);
+    frame.audio = MakeAudioMix(cycleTime_, frame.fadeAlpha);
     for (std::size_t i = 0; i < frame.crops.size(); ++i) {
         const auto* tile = farm_.GetTile(static_cast<int>(i));
         if (!tile || !farm::IsPlantableCrop(tile->crop)) continue;

@@ -730,11 +730,19 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="application\title\TitlePresentationSystem.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleAudioSystem.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleAudioSettingsSystem.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleAudioSettingsView.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleSkyRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleFarmRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleView.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleLogoRippleRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClInclude Include="application\title\TitlePresentationSystem.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleAudioSystem.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleAudioMix.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleAudioSettingsSystem.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleAudioSettingsLayout.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleAudioSettingsView.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitlePresentationLayout.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleCropPresentation.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleSkyRenderer.h"><Filter>Title</Filter></ClInclude>
@@ -752,6 +760,16 @@
     <None Include="Resources\title\sky.png"><Filter>Title</Filter></None>
     <None Include="Resources\title\logo.png"><Filter>Title</Filter></None>
     <None Include="Resources\title\start.png"><Filter>Title</Filter></None>
+    <None Include="Resources\title\audio_settings.png"><Filter>Title</Filter></None>
     <None Include="Resources\title\ASSET_CREDITS.txt"><Filter>Title</Filter></None>
+    <None Include="Resources\fonts\NotoSerifJP-VF.ttf"><Filter>Title</Filter></None>
+    <None Include="Resources\fonts\NotoSerifJP-OFL.txt"><Filter>Title</Filter></None>
+    <None Include="Resources\title\audio\morning.wav"><Filter>Title</Filter></None>
+    <None Include="Resources\title\audio\day.wav"><Filter>Title</Filter></None>
+    <None Include="Resources\title\audio\evening.wav"><Filter>Title</Filter></None>
+    <None Include="Resources\title\audio\night.wav"><Filter>Title</Filter></None>
+    <None Include="Resources\title\audio\water.wav"><Filter>Title</Filter></None>
+    <None Include="Resources\title\audio\AUDIO_CREDITS.txt"><Filter>Title</Filter></None>
+    <None Include="Resources\title\audio\audio_manifest.json"><Filter>Title</Filter></None>
   </ItemGroup>
 </Project>

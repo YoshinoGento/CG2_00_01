@@ -107,10 +107,12 @@ void EditorShell::Draw(
 
 	if (auto* titleScene = dynamic_cast<TitleScene*>(currentScene)) {
 		const auto& viewport = gameViewportWindow_.GetFrameState();
-		if (viewport.leftClicked && title::HitTestStartButtonInViewport(viewport.virtualMousePosition,
-			{static_cast<float>(WinApp::kClientWidth),static_cast<float>(WinApp::kClientHeight)})) {
-			titleScene->RequestStart();
-		}
+		title::AudioSettingsInput pointer;
+		pointer.pointer = viewport.virtualMousePosition;
+		pointer.pointerValid = viewport.imageVisible;
+		pointer.pressed = viewport.leftClicked;
+		pointer.held = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+		titleScene->SetSettingsViewportInput(pointer,viewport.focused);
 	}
 
 	if (!playScene) {

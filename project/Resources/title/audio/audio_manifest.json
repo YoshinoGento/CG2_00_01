@@ -1,0 +1,62 @@
+{
+  "morning": {
+    "source_file": "sparrow-morning1.mp3",
+    "source_sha256": "d82c78f4bd94e548b52b578def25a4763bd9d822b5185997f73fcfb87cf67643",
+    "output_sha256": "302804154d2d55189ba8b2d88ea31c368b2e087b436c964f56efac5c7f48facd",
+    "sample_rate": 44100,
+    "channels": 2,
+    "frames": 1393560,
+    "pcm_bytes": 5574240,
+    "excerpt_start_seconds": 2.0,
+    "normalization_gain": 2.533685072318748,
+    "processing": "PCM16; trim silence padding; max32s excerpt; 400ms wrap overlap; RMS/peak normalization"
+  },
+  "day": {
+    "source_file": "hyalessa-maculaticollis-thickets1.mp3",
+    "source_sha256": "a475ed4dad486ec9b2ea74b3cfefd1f09e74febcdba8b033e223b721fcc1d874",
+    "output_sha256": "75458132caf719af3e2b131ffed2f54bfdab94df68fe19f3830ff61db795a7de",
+    "sample_rate": 48000,
+    "channels": 2,
+    "frames": 1516800,
+    "pcm_bytes": 6067200,
+    "excerpt_start_seconds": 2.0,
+    "normalization_gain": 0.9195378012545394,
+    "processing": "PCM16; trim silence padding; max32s excerpt; 400ms wrap overlap; RMS/peak normalization"
+  },
+  "evening": {
+    "source_file": "summer-mountain2.mp3",
+    "source_sha256": "6ec903508fe3ea329966712b7733fef05903dec07d936a54111913bb770cf253",
+    "output_sha256": "450d79ec264e9c1437d6a8c469344f757b45be25d97b325fed152d6e278fe333",
+    "sample_rate": 44100,
+    "channels": 2,
+    "frames": 1393560,
+    "pcm_bytes": 5574240,
+    "excerpt_start_seconds": 2.0,
+    "normalization_gain": 2.4819818214222065,
+    "processing": "PCM16; trim silence padding; max32s excerpt; 400ms wrap overlap; RMS/peak normalization"
+  },
+  "night": {
+    "source_file": "summer-night-country1.mp3",
+    "source_sha256": "27e97f6fd9e4b24bbde2fefc0b05cd715aa39aedd90bd32c13552ebb0198a6fa",
+    "output_sha256": "8925045abbc359ff79ab70ed24c163194d71f2a655d4456261bd175ce290a0a1",
+    "sample_rate": 44100,
+    "channels": 2,
+    "frames": 1081631,
+    "pcm_bytes": 4326524,
+    "excerpt_start_seconds": 0.0,
+    "normalization_gain": 4.771310337686695,
+    "processing": "PCM16; trim silence padding; max32s excerpt; 400ms wrap overlap; RMS/peak normalization"
+  },
+  "water": {
+    "source_file": "water .mp3",
+    "source_sha256": "fe96b26a9358710dfb047b121ae5ea50f0b8c793e6b05115296c699270cdbef4",
+    "output_sha256": "97217bdab64c4ae23f3bc5fd4c17dd6f2e797c4967d9136c79aaa17f2bc24972",
+    "sample_rate": 44100,
+    "channels": 1,
+    "frames": 1393560,
+    "pcm_bytes": 2787120,
+    "excerpt_start_seconds": 2.0,
+    "normalization_gain": 1.574850163971503,
+    "processing": "PCM16; trim silence padding; max32s excerpt; 400ms wrap overlap; RMS/peak normalization"
+  }
+}

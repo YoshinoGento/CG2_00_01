@@ -1,5 +1,7 @@
 # 水路農業 タイトル演出
 
+タイトルの環境音・Loop Voiceの責務と利用条件は [TitleAudio_20261005.md](TitleAudio_20261005.md) を参照。
+
 ## 目的と範囲
 固定カメラで水源、つながった用水路、段差のある畑、ニンジン・トマト・カボチャを見せる。
 約40秒で朝・昼・夕・夜を巡り、入力時は約0.8秒の黒フェードを経てゲームへ移る。
@@ -32,7 +34,7 @@ Debug virtual1600x900の値を直接比較していた不一致を修正した�
 - TitlePresentationSystem: 時間、風の目標・追従、ステージ用畑、雨粒の発生間隔・中心・寿命、開始の状態遷移。
 - TitleSkyRenderer: カメラ中心の球、空・雲・天体のShader、専用PSO/CBV。
 - TitleFarmRenderer: 既存の地形/作物メッシュ変換、保持したObject3d、光、水面の反射線。
-- TitleView: ロゴと開始表示、開始入力の通知のみ。
+- TitleView: ロゴと開始表示、fadeの描画のみ。開始・音設定の入力通知はTitleAudioSettingsViewが担当。
 - TitleLogoRippleRenderer: glyph maskと専用PSO/Root Signature/固定bufferを保持し、Systemの波紋を描く。
 - TitleScene: 上記の初期化・更新・描画とSceneManagerへの遷移通知。
 
@@ -179,44 +181,34 @@ NASAでは実際のSun/Moonの見かけの大きさは近く、満月は影を�
 
 ### 7. ロゴと開始操作を重ねる
 TitleViewがロゴ、開始表示、黒fadeのSpriteを描く。
-SPACE/ENTER、Gamepad A、開始文字のクリックを開始要求として通知する。
+TitleAudioSettingsViewがSPACE/ENTER、Gamepad A、開始文字のクリックを開始要求として通知する。
 Systemが約0.8秒の退出fadeを管理し、完了時に一度だけ開始通知を返す。
 TitleSceneがSceneManagerへGAMEPLAY遷移を通知する。ViewはSceneを直接切り替えない。
 
-#### 控えめなドット風ロゴ（2026-10-05）
-「水路農業」と開始文字に加え、最新の指定で英字も2px単位の輪郭と塗りに統一。
-既存Noto Sans JPを47pxで228x84のmaskへ描き、alpha128以上を塗りとして二値化。
-Nearest Neighborで456x168へ拡大し、元の位置とサイズで使用する。
-低解像度maskにMaxFilter(3)をかけてから拡大し、輪郭も2pxの階段に揃える。
-新しいpixel fontの導入ではなく、既存fontのraster表現の変更である。
-波紋用glyph maskも同じ字形から生成するため、反射が文字外にはみ出す問題を避ける。
-開始日本語は15px/140x40のmaskから280x80へ拡大する。
-`SUIRO NOGYO` は10px/228x84、`SPACE / ENTER / A` は10px/140x40のmaskから2倍拡大。
-既存fontのweight600で、小さい英字のstrokeを残す。subtitleは(16,130)、キー案内は(140,48)中心揃え。
-キー案内は16px相当から20px相当へ大きくしてslashを判別しやすくした。画像全体のサイズは変えない。
-点滅式(.82+.18*cos、2.5秒周期)、画像サイズ、表示位置、開始領域は変更しない。
-`tools/title/generate_title_text.py --logo-only` でlogoと波紋だけを再生成する。
-`--reflection-only` との同時指定は拒否する。どちらも開始画像には書き込まない。
-文字画像のGPUサイズは変えない。波紋用Textureと描画は次節の通り変更する。
-2px grid/4文字のstroke量/波紋の文字内制限/phaseの連続性/昼夜contrastの素材検査は成功。
-Debug/Release x64 Build、従来の点滅・crop/timing regressionは成功。
-独立Releaseのpixel_logo02.mp4（41.966667秒/1280x720/1211frames）と通常サイズの昼夜画像で、
-文字の判別・階段状の輪郭・波紋が新字形内に収まる表示を確認。
-証拠はgenerated/codex_checks/title_pixel_logo_20261005/、6秒の抜粋はpixel_preview02.mp4。
-上記pixel_logo02はロゴのみを変更した時点の証拠。「はじめる」のドット化は、その後の変更。
-最新の素材検査では、英字も含む画像全体の2px gridと独立生成した英字mask/outline、
-文字boundsと各英字・slashのstroke残存を検査。英字変更時には日本語領域・旧波紋Atlasが不変だった。
-英字変更はPNGとoffline generatorのみ。C++/Shader/Descriptor/Barrier/Fence/DrawCallは変更しない。
-この素材変更では再compile不要。Release Buildも成功。
-独立Releaseの `generated/codex_checks/title_pixel_english_20261005/full01.png` でsubtitleと
-16px相当のキー案内を確認後、slashを判別しやすくするため最終20px相当へ改善した。
-録画は途中で終了（2.533333秒）。原因は未特定。最終20px案内は下記rain01の通常サイズ画像でも確認した。
-古いpixel_logo02およびfull01は最終20px案内の表示証拠ではない。
-別DPI/非整数縮小/Debug dock内のpixel鮮明さは未確認。既存linear samplerは変えていない。
+#### 滑らかな明朝系ロゴ（2026-10-05）
+最新指定で文字のドット化は取りやめた。公式の『都市伝説解体センター』を参考に、
+pixel artの背景と滑らかなロゴを分ける。ただし公式ロゴや専用字形は複製しない。
+「水路農業」はNoto Serif JP weight800/94px、英字・開始・音設定はNoto Sans JP weight600。
+`tools/title/title_text_raster.py` が4倍解像度のmaskを描き、LANCZOSで縮小してAntialiasingする。
+二値化/Nearest2xは使わない。ロゴと開始文字は暗い2px輪郭と明るい塗り。
+音設定は輪郭なしで、既存Atlasの640x320/40px行/24x32数字領域を保つ。
+数字の上端には3px余白を置き、縮小filterが隣の行へにじまないようにする。
+logo456x168/start280x80、位置、Hit Rectは維持する。以前のAlpha .64..1の呼吸表示は、
+点滅が認識できないとの指摘で取りやめた。TitlePresentationSystemが2.5秒周期で、
+1.5秒表示→0.2秒Smooth fade-out→0.6秒非表示→0.2秒Smooth fade-inを計算する。
+TitleViewはFrame.promptAlphaをSpriteへ渡すだけ。画像内のキー案内も同じAlphaで点滅する。
+subtitle(16,130)/20px、キー案内(140,48)/20pxの中心揃えを維持。
+波紋のmaskも同じ明朝字形から生成し、alpha255の内側から64点（各文字16点）を生成する。
+`--logo-only` / `--reflection-only` の排他的な生成範囲は維持。中心Header更新後はC++再buildが必要。
+フォントはoffline生成用。公式Google FontsのOFL 1.1を読み、配布物へlicenseを保持する。
+Shaderの2px波頭計算は演出として維持し、字形とは区別する。GPUサイズ/DrawCall/Descriptorは不変。
+素材テストは独立生成mask/英字輪郭/AA/領域/64点の所属/CPU波頭contrastを検査する。
+旧pixel版の動画は現在の書体の証拠ではない。別DPI/非整数縮小/Debug dock内の表示は未検証。
 
 #### 雨粒風のランダム波紋（2026-10-05）
 固定中心・10秒周期のAtlas演出は取りやめた。雨粒が文字へ落ちるように、中心から外側へ広げる。
-初回は0.9〜1.5秒、その後の発生間隔は2.6〜4.2秒。2回の一様乱数の平均で、極端な間隔を少なめにする。
+初回は0.9〜1.5秒、その後の発生間隔は1.8〜2.8秒（従来2.6〜4.2秒から短縮）。
+2回の一様乱数の平均で極端な間隔を少なめにし、平均は2.3秒。中心位置のランダム性は維持する。
 1波紋の寿命は3.2秒、固定配列2個で最大2波紋まで重なる。寿命<最短間隔*2をstatic_assertする。
 発生時刻まで既存波を進め、空いたslotに新しい波を作り、残りのフレーム時間を進める。
 Frame末尾で先にslotを消す方式では、フレーム時間により選ばれるslotが変わるため、この順序へ修正した。

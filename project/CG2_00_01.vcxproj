@@ -282,6 +282,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\base\SrvManager.cpp" />
     <ClCompile Include="application\scene\TitleScene.cpp" />
     <ClCompile Include="application\title\TitlePresentationSystem.cpp" />
+    <ClCompile Include="application\title\TitleAudioSystem.cpp" />
+    <ClCompile Include="application\title\TitleAudioSettingsSystem.cpp" />
+    <ClCompile Include="application\title\TitleAudioSettingsView.cpp" />
     <ClCompile Include="application\title\TitleSkyRenderer.cpp" />
     <ClCompile Include="application\title\TitleFarmRenderer.cpp" />
     <ClCompile Include="application\title\TitleView.cpp" />
@@ -291,6 +294,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   <ItemGroup>
     <None Include="Resources\fonts\NotoSansJP-VF.ttf" />
     <None Include="Resources\fonts\OFL.txt" />
+    <None Include="Resources\fonts\NotoSerifJP-VF.ttf" />
+    <None Include="Resources\fonts\NotoSerifJP-OFL.txt" />
     <None Include="Resources\shader\LinePS.hlsl">
       <FileType>Document</FileType>
     </None>
@@ -609,6 +614,11 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\base\SrvManager.h" />
     <ClInclude Include="application\scene\TitleScene.h" />
     <ClInclude Include="application\title\TitlePresentationSystem.h" />
+    <ClInclude Include="application\title\TitleAudioSystem.h" />
+    <ClInclude Include="application\title\TitleAudioMix.h" />
+    <ClInclude Include="application\title\TitleAudioSettingsSystem.h" />
+    <ClInclude Include="application\title\TitleAudioSettingsLayout.h" />
+    <ClInclude Include="application\title\TitleAudioSettingsView.h" />
     <ClInclude Include="application\title\TitlePresentationLayout.h" />
     <ClInclude Include="application\title\TitleCropPresentation.h" />
     <ClInclude Include="application\title\TitleSkyRenderer.h" />
@@ -641,7 +651,15 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\title\sky.png" />
     <None Include="Resources\title\logo.png" />
     <None Include="Resources\title\start.png" />
+    <None Include="Resources\title\audio_settings.png" />
     <None Include="Resources\title\ASSET_CREDITS.txt" />
+    <None Include="Resources\title\audio\morning.wav" />
+    <None Include="Resources\title\audio\day.wav" />
+    <None Include="Resources\title\audio\evening.wav" />
+    <None Include="Resources\title\audio\night.wav" />
+    <None Include="Resources\title\audio\water.wav" />
+    <None Include="Resources\title\audio\AUDIO_CREDITS.txt" />
+    <None Include="Resources\title\audio\audio_manifest.json" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
