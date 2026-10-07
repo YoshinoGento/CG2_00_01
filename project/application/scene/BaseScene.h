@@ -21,6 +21,8 @@ public:
 	virtual void PrepareFixedUpdate() {}
 	virtual void FixedUpdate(float fixedDeltaTime) { (void)fixedDeltaTime; }
 	virtual void Update() = 0;
+	// Optional presentation-only update; gameplay/input remain frozen during the cover.
+	virtual void UpdateTransitionPresentation() {}
 	virtual void Draw() = 0;
 
 	// シーンマネージャをセットするSetter（スライド25準拠）

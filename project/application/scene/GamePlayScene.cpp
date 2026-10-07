@@ -607,6 +607,8 @@ void GamePlayScene::Initialize() {
 	if (!farmRuntimeController_.Initialize(framework_->GetSpriteCommon())) {
 		AddLog("Farm runtime menu initialization failed.");
 	}
+	// Build the initial view before reveal; no input or simulation update is needed.
+	farmRuntimeController_.Refresh(*this);
 #endif
 
 }

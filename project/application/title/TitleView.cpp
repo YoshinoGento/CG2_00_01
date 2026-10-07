@@ -23,8 +23,8 @@ void TitleView::Draw(const Frame& frame) {
     reflection_->Draw(frame);
     common_->PreDraw();
     prompt_->SetColor({1,1,1,frame.promptAlpha}); prompt_->Update(); prompt_->Draw();
-    if (frame.fadeAlpha > 0) {
-        fade_->SetColor({0,0,0,frame.fadeAlpha}); fade_->Update(); fade_->Draw();
+    if (frame.entryFadeAlpha > 0) {
+        fade_->SetColor({0,0,0,frame.entryFadeAlpha}); fade_->Update(); fade_->Draw();
     }
 }
 }

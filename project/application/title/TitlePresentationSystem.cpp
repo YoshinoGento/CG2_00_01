@@ -1,5 +1,6 @@
 #include "title/TitlePresentationSystem.h"
 #include "title/TitleLogoRipplePoints.h"
+#include "scene/SceneTransitionSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -115,7 +116,7 @@ void TitlePresentationSystem::Update(float delta) noexcept {
     cloudOffset_.y = std::clamp(cloudOffset_.y + windVelocity_.y*delta,-.025f,.025f);
     cycleTime_ = std::fmod(cycleTime_ + delta, kCycleSeconds);
     entryTime_ = (std::min)(entryTime_ + delta, kFadeSeconds);
-    if (leaving_) leavingTime_ = (std::min)(leavingTime_ + delta, kFadeSeconds);
+    if (leaving_) leavingTime_ = (std::min)(leavingTime_ + delta, scene::kRippleCoverSeconds);
 }
 
 float TitlePresentationSystem::NextWindValue() noexcept {
@@ -161,7 +162,7 @@ void TitlePresentationSystem::RequestStart() noexcept {
 }
 
 bool TitlePresentationSystem::ConsumeStart() noexcept {
-    if (!leaving_ || leavingTime_ < kFadeSeconds || startConsumed_) return false;
+    if (!leaving_ || startConsumed_) return false;
     startConsumed_ = true;
     return true;
 }
@@ -181,7 +182,9 @@ Frame TitlePresentationSystem::GetFrame() const noexcept {
     frame.windAngle = std::sin(cycleTime_ * kTau / 5.0f) * 0.028f;
     frame.skyOffset = std::sin(cycleTime_ * kTau / kCycleSeconds) * 10.0f;
     frame.promptAlpha = PromptAlpha(cycleTime_);
-    frame.fadeAlpha = leaving_ ? Smooth(leavingTime_ / kFadeSeconds) : 1.0f - Smooth(entryTime_ / kFadeSeconds);
+    frame.leaving = leaving_;
+    frame.entryFadeAlpha = 1.0f - Smooth(entryTime_ / kFadeSeconds);
+    frame.fadeAlpha = leaving_ ? Smooth(leavingTime_ / scene::kRippleCoverSeconds) : frame.entryFadeAlpha;
     frame.audio = MakeAudioMix(cycleTime_, frame.fadeAlpha);
     for (std::size_t i = 0; i < frame.crops.size(); ++i) {
         const auto* tile = farm_.GetTile(static_cast<int>(i));

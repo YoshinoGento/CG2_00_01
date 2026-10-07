@@ -13,6 +13,7 @@ public:
 	void Initialize() override;
 	void Finalize() override;
 	void Update() override;
+	void UpdateTransitionPresentation() override { Update(); }
 	void Draw() override;
 	void RequestStart() noexcept { if (!settings_.GetFrame().open) presentation_.RequestStart(); }
 	void SetSettingsViewportInput(const title::AudioSettingsInput& input, bool focused) noexcept {

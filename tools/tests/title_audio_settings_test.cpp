@@ -32,6 +32,10 @@ int main() {
         Check(total<=title::kAmbienceGain*.4f+.00001f && scaled.water<=title::kWaterGain*.4f+.00001f);
     }
     Check(system.Update(Click(640,650)));
+    Check(system.Update(Click(500,610)) && system.Update(Click(780,690)));
+    auto holdStart = Click(640,650); holdStart.pressed = false;
+    Check(!system.Update(holdStart));
+    Check(!system.Update(Click(640,500)));
     Check(!system.Update(Click(1100,60)) && system.GetFrame().open);
     Check(!system.Update(Click(640,650))); // Start rectangle is modal-blocked.
     Check(!system.Update(Click(title::kAudioSliderX,310)) && system.GetFrame().volume[0]==0);

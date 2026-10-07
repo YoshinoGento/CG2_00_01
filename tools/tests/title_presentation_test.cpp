@@ -332,14 +332,26 @@ int main() {
         title::CropFrame{2,true}}) Check(title::BuildTitleCropParts(visual,invalid).count == 0);
     Check(!system.ConsumeStart());
     system.RequestStart();
+    Check(system.IsLeaving() && system.GetFrame().leaving);
+    Check(system.ConsumeStart()); // Manager, not Title, waits for the opaque cover.
+    Check(!system.ConsumeStart());
     system.Update(0.25f);
     system.RequestStart();
     for (int i=0; i<3; ++i) system.Update(0.25f);
-    Check(system.ConsumeStart());
+    Check(!system.ConsumeStart());
     Check(!system.ConsumeStart());
     Check(system.GetFrame().fadeAlpha == 1.0f);
     Check(system.GetFrame().audio.water == 0);
     for (float gain : system.GetFrame().audio.ambience) Check(gain == 0);
+    Check(system.Initialize());
+    system.Update(.125f);
+    const float earlyEntryFade = system.GetFrame().entryFadeAlpha;
+    Check(earlyEntryFade > 0 && earlyEntryFade < 1);
+    system.RequestStart();
+    Check(system.GetFrame().entryFadeAlpha == earlyEntryFade);
+    Check(system.ConsumeStart());
+    system.Update(.125f);
+    Check(system.GetFrame().entryFadeAlpha < earlyEntryFade && system.GetFrame().entryFadeAlpha > 0);
     Check(system.Initialize());
     system.Update(10000.0f);
     Check(system.GetFrame().skyFrom == 0 && system.GetFrame().skyBlend < 0.01f);

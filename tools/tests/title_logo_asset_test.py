@@ -57,7 +57,7 @@ def verify_smooth_english(image,position,text,size,fill,region,anchor="lt"):
     assert sum(alpha > 0 for alpha in mask.tobytes()) > 200
 
 verify_smooth_english(logo,(16,130),"SUIRO NOGYO",20,(245,241,211,255),(0,128,456,168))
-verify_smooth_english(start,(140,48),"SPACE / ENTER / A",20,(232,238,217,255),(0,46,280,80),"mt")
+verify_smooth_english(start,(140,48),"クリック / SPACE / ENTER / A",16,(232,238,217,255),(0,46,280,80),"mt")
 header = (root / "project/application/title/TitleLogoRipplePoints.h").read_text(encoding="utf-8")
 points = [(int(x),int(y)) for x,y in re.findall(r"\{(\d+)\.0f,(\d+)\.0f\}",header)]
 assert len(points) == len(set(points)) == 64

@@ -2,6 +2,10 @@
 #include "AbstractSceneFactory.h"
 #include "2d/TextureManager.h"
 #include <cassert>
+#include "base/Framework.h"
+#include "base/FrameClock.h"
+#include "base/Logger.h"
+#include "io/Input.h"
 
 SceneManager* SceneManager::instance = nullptr;
 
@@ -24,7 +28,7 @@ SceneManager::~SceneManager() {
  * 予約された次のシーン（nextScene_）がある場合、入れ替えを行います。
  */
 void SceneManager::BeginFrame() {
-	if (nextScene_) {
+	if (nextScene_ && (!transition_.IsActive() || transition_.CanSwap())) {
 		if (scene_) {
 			scene_->Finalize();
 			// PostDraw waits for the previous frame fence, so Update is the safe descriptor/resource release boundary.
@@ -37,31 +41,54 @@ void SceneManager::BeginFrame() {
 
 		scene_->SetSceneManager(this);
 		scene_->Initialize();
+		if (transition_.CanSwap()) transition_.BeginReveal();
 	}
 }
 
 void SceneManager::FixedUpdate(float fixedDeltaTime) {
-	if (scene_) {
+	if (scene_ && !transition_.IsActive()) {
 		scene_->FixedUpdate(fixedDeltaTime);
 	}
 }
 
 void SceneManager::PrepareFixedUpdate() {
-	if (scene_) {
+	if (scene_ && !transition_.IsActive()) {
 		scene_->PrepareFixedUpdate();
 	}
 }
 
 void SceneManager::Update() {
 	if (scene_) {
-		scene_->Update();
+		if (!transition_.IsActive()) scene_->Update();
+		else if (transition_.IsCovering()) scene_->UpdateTransitionPresentation();
 	}
+	const auto* framework = Framework::GetInstance();
+	const auto* clock = framework->GetFrameClock();
+	const auto* input = framework->GetInput();
+	const bool released = input && !input->PushKey(InputKey::Enter) && !input->PushKey(InputKey::Space) &&
+		!input->PushMouseButton(InputMouseButton::Left) && !input->PushGamepadButton(InputGamepadButton::A);
+	transition_.Update(clock ? clock->GetRealDeltaSeconds() : 0,released);
 }
 
 void SceneManager::Draw() {
 	if (scene_) {
 		scene_->Draw();
 	}
+	transitionRenderer_.Draw(transition_.GetFrame());
+	transition_.NotifyCoverPresented();
+}
+
+void SceneManager::InitializeTransitions(DirectXCommon* dx) {
+	if (!transitionRenderer_.Initialize(dx)) Logger::Warning("Ripple transition unavailable; direct scene change remains possible.");
+}
+
+bool SceneManager::ChangeSceneWithRipple(const std::string& sceneName) {
+	if (!sceneFactory_ || nextScene_ || transition_.IsActive()) return false;
+	auto next = sceneFactory_->CreateScene(sceneName);
+	if (!next) return false;
+	nextScene_ = std::move(next);
+	if (scene_ && transitionRenderer_.IsReady()) transition_.Begin();
+	return true;
 }
 
 /**

@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Scene" />
     <Filter Include="繧ｽ繝ｼ繧ｹ 繝輔ぃ繧､繝ｫ">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
@@ -737,6 +738,7 @@
     <ClCompile Include="application\title\TitleFarmRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleView.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleLogoRippleRenderer.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\scene\RippleTransitionRenderer.cpp"><Filter>Scene</Filter></ClCompile>
     <ClInclude Include="application\title\TitlePresentationSystem.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleAudioSystem.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleAudioMix.h"><Filter>Title</Filter></ClInclude>
@@ -750,11 +752,15 @@
     <ClInclude Include="application\title\TitleFarmRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleView.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleLogoRippleRenderer.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\scene\SceneTransitionSystem.h"><Filter>Scene</Filter></ClInclude>
+    <ClInclude Include="application\scene\RippleTransitionRenderer.h"><Filter>Scene</Filter></ClInclude>
     <ClInclude Include="application\title\TitleLogoRipplePoints.h"><Filter>Title</Filter></ClInclude>
     <None Include="Resources\shader\TitleSky.hlsli"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleSky.VS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleSky.PS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleLogoRipple.VS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\RippleTransition.VS.hlsl"><Filter>Scene</Filter></None>
+    <None Include="Resources\shader\RippleTransition.PS.hlsl"><Filter>Scene</Filter></None>
     <None Include="Resources\shader\TitleLogoRipple.PS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\title\logo_reflection.png"><Filter>Title</Filter></None>
     <None Include="Resources\title\sky.png"><Filter>Title</Filter></None>

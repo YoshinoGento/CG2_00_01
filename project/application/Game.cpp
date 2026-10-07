@@ -128,6 +128,7 @@ void Game::Initialize() {
 #endif
 
 	sceneFactory_ = std::make_unique<SceneFactory>();
+	SceneManager::GetInstance()->InitializeTransitions(dxCommon_.get());
 	SceneManager::GetInstance()->SetSceneFactory(sceneFactory_.get());
 	SceneManager::GetInstance()->ChangeScene("TITLE");
 }

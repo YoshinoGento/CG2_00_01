@@ -2,6 +2,8 @@
 #include "BaseScene.h"
 #include <string>
 #include <memory>
+#include "SceneTransitionSystem.h"
+#include "RippleTransitionRenderer.h"
 
 class AbstractSceneFactory;
 
@@ -17,6 +19,8 @@ private:
 	std::unique_ptr<BaseScene> scene_;
 	std::unique_ptr<BaseScene> nextScene_;
 	AbstractSceneFactory* sceneFactory_ = nullptr;
+	scene::SceneTransitionSystem transition_;
+	scene::RippleTransitionRenderer transitionRenderer_;
 
 	SceneManager() = default;
 	~SceneManager();
@@ -30,13 +34,15 @@ public:
 	void PrepareFixedUpdate();
 	void FixedUpdate(float fixedDeltaTime);
 	void Draw();
+	void InitializeTransitions(DirectXCommon* dx);
+	bool ChangeSceneWithRipple(const std::string& sceneName);
 
 	// ★追加: 現在実行中のシーンを取得する（GameクラスでのUI表示に必要）
 	BaseScene* GetCurrentScene() const { return scene_.get(); }
 
 	// ★引数を unique_ptr にし、所有権を受け取る（std::move）ように変更
 	void SetNextScene(std::unique_ptr<BaseScene> nextScene) {
-		nextScene_ = std::move(nextScene);
+		if (!transition_.IsActive()) nextScene_ = std::move(nextScene);
 	}
 
 	void ChangeScene(const std::string& sceneName);

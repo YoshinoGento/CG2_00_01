@@ -41,7 +41,7 @@ void TitleScene::Update() {
     renderer_.Update(frame);
     audio_.Update(settings_.Apply(frame.audio));
     // A failed visual asset must not strand the player; start still reaches the game.
-    if (presentation_.ConsumeStart() && sceneManager_) sceneManager_->ChangeScene("GAMEPLAY");
+    if (presentation_.ConsumeStart() && sceneManager_) sceneManager_->ChangeSceneWithRipple("GAMEPLAY");
 }
 
 void TitleScene::Draw() {

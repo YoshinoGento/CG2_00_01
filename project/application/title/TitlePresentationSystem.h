@@ -68,6 +68,8 @@ struct Frame {
     float windAngle = 0.0f;
     float promptAlpha = 1.0f;
     float fadeAlpha = 1.0f;
+    float entryFadeAlpha = 1.0f;
+    bool leaving = false;
     AudioMix audio{};
     std::array<LogoRippleFrame,kLogoRippleCount> logoRipples{};
     std::array<CropFrame, kTitleTileCount> crops{};

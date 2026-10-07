@@ -270,6 +270,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="engine\3d\PrimitiveGenerator.cpp" />
     <ClCompile Include="application\scene\SceneFactory.cpp" />
     <ClCompile Include="application\scene\SceneManager.cpp" />
+    <ClCompile Include="application\scene\RippleTransitionRenderer.cpp" />
     <ClCompile Include="engine\3d\Skybox.cpp" />
     <ClCompile Include="engine\3d\SkyboxManager.cpp" />
     <ClCompile Include="engine\2d\AnimatedSprite.cpp" />
@@ -602,6 +603,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\3d\PrimitiveGenerator.h" />
     <ClInclude Include="application\scene\SceneFactory.h" />
     <ClInclude Include="application\scene\SceneManager.h" />
+    <ClInclude Include="application\scene\SceneTransitionSystem.h" />
+    <ClInclude Include="application\scene\RippleTransitionRenderer.h" />
     <ClInclude Include="engine\3d\Skybox.h" />
     <ClInclude Include="engine\3d\SkyboxManager.h" />
     <ClInclude Include="engine\2d\AnimatedSprite.h" />
@@ -646,6 +649,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\shader\TitleSky.VS.hlsl" />
     <None Include="Resources\shader\TitleSky.PS.hlsl" />
     <None Include="Resources\shader\TitleLogoRipple.VS.hlsl" />
+    <None Include="Resources\shader\RippleTransition.VS.hlsl" />
+    <None Include="Resources\shader\RippleTransition.PS.hlsl" />
     <None Include="Resources\shader\TitleLogoRipple.PS.hlsl" />
     <None Include="Resources\title\logo_reflection.png" />
     <None Include="Resources\title\sky.png" />

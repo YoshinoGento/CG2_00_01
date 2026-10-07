@@ -38,7 +38,7 @@ if not header_path.exists() or header_path.read_text(encoding="utf-8") != header
     temporary.replace(header_path)
 start = Image.new("RGBA", (280,80))
 label(start, (140,2), "はじめる", 30, (255,250,224,255), "mt")
-label(start, (140,48), "SPACE / ENTER / A", 20, (232,238,217,255), "mt")
+label(start, (140,48), "クリック / SPACE / ENTER / A", 16, (232,238,217,255), "mt")
 if not args.reflection_only and not args.logo_only:
     save_asset(start, OUT / "start.png")
 print("PASS title reflection mask/impact points" if args.reflection_only else
