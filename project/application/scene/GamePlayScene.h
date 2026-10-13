@@ -102,6 +102,7 @@ private:
 	struct GameplaySnapshot;
 	void AddLog(const std::string& message);
 	void UpdateSceneDeltaTime();
+	void PrepareRenderFrame(float presentationDeltaTime);
 	void HandleKeyboardMovement();
 	void HandleCameraInput(float deltaTime, bool suppressArrowKeys);
 	void ClampCameraPitch();

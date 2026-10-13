@@ -43,7 +43,7 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
     landscape_->SetTexture(landscapeTexture);
     landscape_->SetSpecularType(Object3d::SpecularType::None);
     landscape_->SetEnableLighting(true);
-    if (!sky_.Initialize(common->GetDxCommon(),textures)) return false;
+    if (!sky_.Initialize(common->GetDxCommon(),textures) || !grass_.Initialize(common,modelManager)) return false;
     common_ = common; lights_ = common->GetLightingSystem();
     previousDirectional_ = lights_->GetDirectionalLight(); previousSpot_ = lights_->GetSpotLight();
     previousShadowStrength_ = common_->GetShadowStrength();
@@ -109,6 +109,7 @@ void TitleFarmRenderer::Finalize() noexcept {
     lights_ = nullptr; common_ = nullptr; ready_ = false;
     objects_.clear(); parts_.clear(); visible_.clear(); crops_.clear();
     landscape_.reset();
+    grass_.Finalize();
     for (auto& glint : glints_) glint.reset();
 }
 
@@ -123,6 +124,7 @@ void TitleFarmRenderer::Update(const Frame& frame) {
     auto spot = previousSpot_; spot.intensity = 0; lights_->SetSpotLight(spot);
     lights_->SetCameraPosition(camera_.GetTranslate());
     sky_.Update(frame,camera_);
+    grass_.Update(frame,camera_);
     landscape_->Update(&camera_,0);
     for (std::size_t i=0; i<parts_.size(); ++i) {
         const auto& part = parts_[i]; auto& object = *objects_[i];
@@ -170,6 +172,7 @@ void TitleFarmRenderer::Draw() {
         landscape_->DrawShadow();
         for (std::size_t i=0; i<parts_.size(); ++i)
             if (visible_[i] && !parts_[i].water) objects_[i]->DrawShadow();
+        grass_.DrawShadow();
         common_->EndShadowPass();
     }
     sky_.Draw();
@@ -177,6 +180,7 @@ void TitleFarmRenderer::Draw() {
     landscape_->Draw();
     for (std::size_t i=0; i<objects_.size(); ++i) if (visible_[i]) objects_[i]->Draw();
     for (const auto& glint : glints_) glint->Draw();
+    grass_.Draw();
     common_->EndObjectPass();
 }
 }

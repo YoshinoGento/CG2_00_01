@@ -2,6 +2,7 @@
 #include "title/TitleAudioMix.h"
 #include "title/TitleAudioSettingsLayout.h"
 #include <string>
+#include <optional>
 
 namespace title {
 inline constexpr int kDefaultTitleVolume = 40;
@@ -24,6 +25,7 @@ public:
     bool Save();
     [[nodiscard]] const AudioSettingsFrame& GetFrame() const noexcept { return frame_; }
     [[nodiscard]] AudioMix Apply(const AudioMix& mix) const noexcept;
+    [[nodiscard]] const std::optional<Vector2>& GetWaterClick() const noexcept { return waterClick_; }
 private:
     void SetVolume(int index, int value) noexcept;
     void Close();
@@ -31,5 +33,6 @@ private:
     std::string path_;
     int dragging_ = -1;
     bool dirty_ = false;
+    std::optional<Vector2> waterClick_;
 };
 }

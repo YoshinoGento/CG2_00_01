@@ -1,5 +1,6 @@
 #include "title/TitlePresentationSystem.h"
 #include "title/TitleLogoRipplePoints.h"
+#include "title/TitleGrassPresentation.h"
 #include "scene/SceneTransitionSystem.h"
 
 #include <algorithm>
@@ -64,6 +65,7 @@ bool TitlePresentationSystem::Initialize(std::uint32_t windSeed, std::uint32_t r
     leaving_ = startConsumed_ = false;
     cloudOffset_ = windVelocity_ = windTarget_ = {};
     windRemaining_ = 0;
+    grassTime_ = 0;
     windSeed_ = windSeed;
     ripples_ = {};
     rippleId_ = 0;
@@ -112,6 +114,8 @@ void TitlePresentationSystem::Update(float delta) noexcept {
     const float response = 1.0f - std::exp(-delta*.45f);
     windVelocity_.x += (windTarget_.x-windVelocity_.x)*response;
     windVelocity_.y += (windTarget_.y-windVelocity_.y)*response;
+    const float waveSpeed = std::clamp(windVelocity_.x/kGrassWaveWindReference,-1.0f,1.0f);
+    grassTime_ = std::fmod(grassTime_+delta*waveSpeed+kGrassFlutterPeriod,kGrassFlutterPeriod);
     cloudOffset_.x = std::fmod(cloudOffset_.x + windVelocity_.x*delta + 1.0f,1.0f);
     cloudOffset_.y = std::clamp(cloudOffset_.y + windVelocity_.y*delta,-.025f,.025f);
     cycleTime_ = std::fmod(cycleTime_ + delta, kCycleSeconds);
@@ -180,6 +184,8 @@ Frame TitlePresentationSystem::GetFrame() const noexcept {
     frame.groundExposure = Mix(kGroundExposure[from], kGroundExposure[to], blend);
     frame.waterPhase = std::fmod(cycleTime_ / 2.0f, 1.0f);
     frame.windAngle = std::sin(cycleTime_ * kTau / 5.0f) * 0.028f;
+    frame.grassWindXZ = GrassWindFromCloudVelocity(windVelocity_);
+    frame.grassPhase = grassTime_*kTau/kGrassFlutterPeriod;
     frame.skyOffset = std::sin(cycleTime_ * kTau / kCycleSeconds) * 10.0f;
     frame.promptAlpha = PromptAlpha(cycleTime_);
     frame.leaving = leaving_;

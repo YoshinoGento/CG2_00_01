@@ -1,5 +1,6 @@
 #pragma once
 #include "title/TitleSkyRenderer.h"
+#include "title/TitleGrassRenderer.h"
 #include "farm/render/FarmMeshLayout.h"
 #include "3d/Camera.h"
 #include "3d/LightingSystem.h"
@@ -40,6 +41,7 @@ private:
     bool ready_ = false;
     Camera camera_;
     TitleSkyRenderer sky_;
+    TitleGrassRenderer grass_;
     // Models/textures are manager-owned; instances and upload buffers are scene-owned.
     std::array<Model*,11> models_{};
     std::vector<farm::FarmMeshPart> parts_;

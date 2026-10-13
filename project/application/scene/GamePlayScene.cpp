@@ -610,7 +610,9 @@ void GamePlayScene::Initialize() {
 	// Build the initial view before reveal; no input or simulation update is needed.
 	farmRuntimeController_.Refresh(*this);
 #endif
-
+	// Reveal can draw before the first input/simulation update.
+	PrepareRenderFrame(0.0f);
+	framework_->GetParticleManager()->Update(camera_.get(), 0.0f);
 }
 
 void GamePlayScene::EmitSpark(const Vector3& position) {
@@ -716,21 +718,54 @@ void GamePlayScene::Update() {
 		HandleFarmDateDebugInput();
 	}
 
-	camera_->SetTranslate(cameraPos_);
-	camera_->SetRotate(cameraRot_);
-	camera_->Update();
-
-	sprite_->SetPosition(spritePos_);
-	sprite_->Update();
 	farmGrowthComparisonSystem_.ObserveBeforeStep(farmGrid_);
 	if (farmProgressionSystem_.IsCleared()) farmGrowthComparisonSystem_.Stop();
 	farmFeedbackSystem_.Update(realDeltaTime_);
 	if (timelineScrubbing_) farmHarvestVisualSystem_.Clear();
 	// Committed harvest feedback must finish even when pause or clear stops world time.
 	farmHarvestVisualSystem_.Update(farmGrid_, realDeltaTime_);
+	PrepareRenderFrame(sceneDeltaTime_);
+
+	// スペースキー入力時の分岐（activeParticleType_ は Game.cpp の ImGui から書き換わる）
+	const bool particleTestInput = !farmGameMode_ && viewportFocused_ &&
+		gpuParticleDebugMode_ != GPUParticleDebugMode::Off;
+	const bool cropBurstInputHandled = particleTestInput && UpdateCropBurstDebugInput();
+	if (!cropBurstInputHandled &&
+		particleTestInput &&
+		framework_->GetInput()->TriggerKey(DIK_SPACE)) {
+		switch (activeParticleType_) {
+		case 0: EmitSpark(spherePos_); break;
+		case 1: EmitRingEffect(spherePos_); break;
+		case 2: EmitCylinderEffect(spherePos_); break; // ★Cylinder単体
+		case 3: // Combined
+			EmitRingEffect(spherePos_);
+			EmitCylinderEffect(spherePos_);
+			break;
+		case 4: // Explosion
+			framework_->GetParticleManager()->Emit("Spark", spherePos_, 20);
+			break;
+		}
+	}
+
+	// Debug input changes particle requests; ParticleManager owns GPU state.
+	SyncGPUParticleDebugModeChange();
+	if (particleTestInput) {
+		HandleGPUParticleDebugModeInput();
+		UpdateCropBurstAutoPlayback(sceneDeltaTime_);
+	}
+
+	framework_->GetParticleManager()->Update(camera_.get(), timelineScrubbing_ ? 0.0f : sceneDeltaTime_);
+}
+
+void GamePlayScene::PrepareRenderFrame(float presentationDeltaTime) {
+	camera_->SetTranslate(cameraPos_);
+	camera_->SetRotate(cameraRot_);
+	camera_->Update();
+	sprite_->SetPosition(spritePos_);
+	sprite_->Update();
 	if (farmHudInitialized_) {
 		farmHud_.SetViewData(BuildFarmHUDViewData());
-		farmHud_.Update(sceneDeltaTime_);
+		farmHud_.Update(presentationDeltaTime);
 	}
 	if (stageClearHudInitialized_) {
 		stageClearHud_.SetVisible(
@@ -776,7 +811,7 @@ void GamePlayScene::Update() {
 			obj->SetEnvironmentCoefficient(0.0f);
 		}
 
-		obj->Update(camera_.get(), timelineScrubbing_ ? 0.0f : sceneDeltaTime_);
+		obj->Update(camera_.get(), timelineScrubbing_ ? 0.0f : presentationDeltaTime);
 		};
 
 	UpdateObjectState(terrainObj_.get(), 0.0f);
@@ -802,35 +837,6 @@ void GamePlayScene::Update() {
 		UpdateObjectState(sphereObj_.get(), 0.5f);
 	}
 
-	// スペースキー入力時の分岐（activeParticleType_ は Game.cpp の ImGui から書き換わる）
-	const bool particleTestInput = !farmGameMode_ && viewportFocused_ &&
-		gpuParticleDebugMode_ != GPUParticleDebugMode::Off;
-	const bool cropBurstInputHandled = particleTestInput && UpdateCropBurstDebugInput();
-	if (!cropBurstInputHandled &&
-		particleTestInput &&
-		framework_->GetInput()->TriggerKey(DIK_SPACE)) {
-		switch (activeParticleType_) {
-		case 0: EmitSpark(spherePos_); break;
-		case 1: EmitRingEffect(spherePos_); break;
-		case 2: EmitCylinderEffect(spherePos_); break; // ★Cylinder単体
-		case 3: // Combined
-			EmitRingEffect(spherePos_);
-			EmitCylinderEffect(spherePos_);
-			break;
-		case 4: // Explosion
-			framework_->GetParticleManager()->Emit("Spark", spherePos_, 20);
-			break;
-		}
-	}
-
-	// Debug input changes particle requests; ParticleManager owns GPU state.
-	SyncGPUParticleDebugModeChange();
-	if (particleTestInput) {
-		HandleGPUParticleDebugModeInput();
-		UpdateCropBurstAutoPlayback(sceneDeltaTime_);
-	}
-
-	framework_->GetParticleManager()->Update(camera_.get(), timelineScrubbing_ ? 0.0f : sceneDeltaTime_);
 }
 
 void GamePlayScene::FixedUpdate(float fixedDeltaTime) {
@@ -2816,6 +2822,10 @@ void GamePlayScene::AddLog(const std::string& message) {
 void GamePlayScene::Finalize()
 {
 	gamePlayEditorBridge_.Unbind();
+	if (framework_ && framework_->GetParticleManager()) {
+		// The shared manager must not retain this scene-owned camera after destruction.
+		framework_->GetParticleManager()->SetCamera(nullptr);
+	}
 	if (framework_ && framework_->GetAudio()) {
 		framework_->GetAudio()->SetGlobalTemporalState(
 			AudioPlaybackDirection::Forward,

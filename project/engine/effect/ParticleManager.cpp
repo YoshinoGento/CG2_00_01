@@ -208,7 +208,7 @@ void ParticleManager::Initialize(DirectXCommon* dxCommon, SrvManager* srvManager
 }
 
 void ParticleManager::Update(Camera* camera, float deltaTime) {
-    camera_ = camera;
+    SetCamera(camera);
 	if (!std::isfinite(deltaTime)) {
 		deltaTime = 0.0f;
 	}
@@ -452,6 +452,7 @@ void ParticleManager::PlayCropBurst(const Vector3& center, CropBurstLevel level)
 }
 
 void ParticleManager::Draw(bool drawDefaultGPUParticles) {
+    if (!camera_) return;
     // CPU側の設定値をGPUバッファに反映
     materialData_->alphaReference = alphaReference_;
 

@@ -736,6 +736,7 @@
     <ClCompile Include="application\title\TitleAudioSettingsView.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleSkyRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleFarmRenderer.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleGrassRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleView.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleLogoRippleRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\scene\RippleTransitionRenderer.cpp"><Filter>Scene</Filter></ClCompile>
@@ -750,6 +751,8 @@
     <ClInclude Include="application\title\TitleSkyRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleCelestialGeometry.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleFarmRenderer.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleGrassRenderer.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleGrassPresentation.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleView.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleLogoRippleRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\scene\SceneTransitionSystem.h"><Filter>Scene</Filter></ClInclude>

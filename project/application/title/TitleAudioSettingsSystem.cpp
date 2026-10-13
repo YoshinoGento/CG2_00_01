@@ -16,6 +16,7 @@ int ReadVolume(const nlohmann::json& json, const char* key) {
 }
 void TitleAudioSettingsSystem::Initialize(const std::string& path) {
     frame_ = {}; dragging_ = -1; dirty_ = false; path_ = path;
+    waterClick_.reset();
     nlohmann::json json;
     if (!JsonFile::Exists(path_) || !JsonFile::Load(path_,json) || !json.is_object() ||
         !json.contains("version") || json["version"] != 1) return;
@@ -29,12 +30,18 @@ void TitleAudioSettingsSystem::SetVolume(int index, int value) noexcept {
 }
 void TitleAudioSettingsSystem::Close() { Save(); frame_.open = false; dragging_ = -1; }
 bool TitleAudioSettingsSystem::Update(const AudioSettingsInput& input) {
+    waterClick_.reset();
     if (input.toggle || (!frame_.open && input.pointerValid && input.pressed &&
         kAudioSettingsButton.Contains(input.pointer))) {
         if (frame_.open) Close(); else { frame_.open = true; frame_.selected = 0; }
         return false;
     }
-    if (!frame_.open) return input.confirm || (input.pointerValid && input.pressed && HitTestStartButton(input.pointer));
+    if (!frame_.open) {
+        if (input.pointerValid && input.pressed && std::isfinite(input.pointer.x) && std::isfinite(input.pointer.y) &&
+            input.pointer.x >= 0 && input.pointer.x <= kWidth && input.pointer.y >= 0 && input.pointer.y <= kHeight)
+            waterClick_ = input.pointer;
+        return input.confirm || (waterClick_ && HitTestStartButton(*waterClick_));
+    }
     if (input.back || input.confirm || (input.pointerValid && input.pressed && kAudioSettingsBack.Contains(input.pointer))) {
         Close(); return false;
     }

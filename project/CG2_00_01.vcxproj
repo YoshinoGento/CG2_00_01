@@ -288,6 +288,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\title\TitleAudioSettingsView.cpp" />
     <ClCompile Include="application\title\TitleSkyRenderer.cpp" />
     <ClCompile Include="application\title\TitleFarmRenderer.cpp" />
+    <ClCompile Include="application\title\TitleGrassRenderer.cpp" />
     <ClCompile Include="application\title\TitleView.cpp" />
     <ClCompile Include="application\title\TitleLogoRippleRenderer.cpp" />
     <ClCompile Include="engine\base\WinApp.cpp" />
@@ -627,6 +628,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\title\TitleSkyRenderer.h" />
     <ClInclude Include="application\title\TitleCelestialGeometry.h" />
     <ClInclude Include="application\title\TitleFarmRenderer.h" />
+    <ClInclude Include="application\title\TitleGrassRenderer.h" />
+    <ClInclude Include="application\title\TitleGrassPresentation.h" />
     <ClInclude Include="application\title\TitleView.h" />
     <ClInclude Include="application\title\TitleLogoRippleRenderer.h" />
     <ClInclude Include="application\title\TitleLogoRipplePoints.h" />
@@ -646,6 +649,13 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\shader\Skybox.hlsli" />
     <None Include="Resources\shader\Sprite2D.hlsli" />
     <None Include="Resources\shader\TitleSky.hlsli" />
+    <None Include="Resources\shader\TitleGrass.hlsli" />
+    <None Include="Resources\shader\TitleGrass.VS.hlsl" />
+    <None Include="Resources\shader\TitleGrass.PS.hlsl" />
+    <None Include="Resources\title\grass_patch.obj" />
+    <None Include="Resources\title\grass_far_patch.obj" />
+    <None Include="Resources\title\grass_layout.json" />
+    <None Include="Resources\title\grass_mesh.json" />
     <None Include="Resources\shader\TitleSky.VS.hlsl" />
     <None Include="Resources\shader\TitleSky.PS.hlsl" />
     <None Include="Resources\shader\TitleLogoRipple.VS.hlsl" />

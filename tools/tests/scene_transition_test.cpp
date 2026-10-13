@@ -21,10 +21,13 @@ int main() {
         Check(system.GetFrame().progress == 0 && !system.CanSwap());
     }
     system.Update(.2f,true);
-    Check(system.GetFrame().progress > 0 && system.GetFrame().progress < 1);
+    Check(system.GetFrame().progress == 0 && system.GetFrame().drops[0].age >= scene::kDropFallSeconds);
     system.NotifyCoverPresented();
     Check(!system.CanSwap());
-    system.Update(.2f,true);
+    for (int i=0; i<3; ++i) system.Update(.2f,true);
+    Check(system.GetFrame().progress > 0 && system.GetFrame().progress < 1);
+    system.NotifyCoverPresented(); Check(!system.CanSwap());
+    for (int i=0; i<2; ++i) system.Update(.2f,true);
     Check(system.GetFrame().progress == 1 && !system.CanSwap());
     system.NotifyCoverPresented();
     Check(system.CanSwap() && system.BeginReveal());
@@ -39,6 +42,25 @@ int main() {
     Check(system.BlocksIncomingUpdate());
     system.Update(0,true);
     Check(!system.IsActive() && !system.BlocksIncomingUpdate());
+    for (std::size_t i=0; i<scene::kMaximumWaterDrops; ++i)
+        Check(system.AddDrop({static_cast<float>(i)*.2f,.3f}));
+    Check(!system.AddDrop({.5f,.5f}) && !system.IsActive());
+    const auto before = system.GetFrame();
+    system.Update(std::numeric_limits<float>::quiet_NaN(),true);
+    Check(system.GetFrame().drops[0].age == before.drops[0].age);
+    for (int i=0; i<12; ++i) system.Update(.25f,true);
+    for (const auto& drop : system.GetFrame().drops) Check(!drop.active);
+    Check(!system.AddDrop({-1,.5f}) && !system.AddDrop({.5f,2}));
+    Check(!system.AddDrop({std::numeric_limits<float>::infinity(),.5f}));
+    Check(system.AddDrop({0,1}));
+    system.ClearDrops(); Check(!system.GetFrame().drops[0].active);
+    Check(system.Begin({.12f,.83f}));
+    Check(system.GetFrame().center.x == .12f && system.GetFrame().center.y == .83f);
+    Check(!system.AddDrop({.5f,.5f}));
+    while (system.GetFrame().progress < 1) system.Update(.25f,true);
+    system.NotifyCoverPresented(); Check(system.BeginReveal());
+    Check(!system.GetFrame().drops[0].active);
+    system.Update(.25f,true); system.Update(.25f,true); system.Update(0,true);
     Check(system.Begin());
     system.Update(10000,true);
     Check(system.GetFrame().progress < 1); // Hitch cannot bypass the bounded cover.
@@ -63,5 +85,7 @@ int main() {
         system.Update(0,true);
         Check(!system.IsActive());
     }
-    std::cout << "Scene transition: presented-cover gate, exact-once swap, bounded progress, held-input gate, 100 repeats PASS\n";
+    Check(system.Begin({-1,2}));
+    Check(system.GetFrame().center.x == 0 && system.GetFrame().center.y == 1);
+    std::cout << "Scene transition: presented-cover, exact-once, held-release, 100 repeats, click center, four-drop cap/lifetime PASS\n";
 }

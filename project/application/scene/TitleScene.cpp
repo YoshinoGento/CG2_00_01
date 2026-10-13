@@ -4,6 +4,7 @@
 #include "base/Logger.h"
 #include "io/Input.h"
 #include "SceneManager.h"
+#include "title/TitlePresentationLayout.h"
 
 void TitleScene::Initialize() {
     auto* framework = Framework::GetInstance();
@@ -34,14 +35,26 @@ void TitleScene::Update() {
         command.held = viewportInput_.held;
         viewportInput_ = {};
 #endif
-        if (settings_.Update(command)) presentation_.RequestStart();
+        const bool start = settings_.Update(command);
+        if (start) presentation_.RequestStart();
+        else if (sceneManager_ && settings_.GetWaterClick()) {
+            const auto point = *settings_.GetWaterClick();
+            sceneManager_->PreviewWaterDrop({point.x/title::kWidth,point.y/title::kHeight});
+        }
     }
     presentation_.Update(clock ? clock->GetRealDeltaSeconds() : 0);
     const auto frame = presentation_.GetFrame();
     renderer_.Update(frame);
     audio_.Update(settings_.Apply(frame.audio));
     // A failed visual asset must not strand the player; start still reaches the game.
-    if (presentation_.ConsumeStart() && sceneManager_) sceneManager_->ChangeSceneWithRipple("GAMEPLAY");
+    if (presentation_.ConsumeStart() && sceneManager_) {
+        scene::RipplePoint origin{};
+        if (settings_.GetWaterClick()) {
+            const auto point = *settings_.GetWaterClick();
+            origin = {point.x/title::kWidth,point.y/title::kHeight};
+        }
+        sceneManager_->ChangeSceneWithRipple("GAMEPLAY",origin);
+    }
 }
 
 void TitleScene::Draw() {

@@ -34,8 +34,9 @@ public:
 	void PrepareFixedUpdate();
 	void FixedUpdate(float fixedDeltaTime);
 	void Draw();
-	void InitializeTransitions(DirectXCommon* dx);
-	bool ChangeSceneWithRipple(const std::string& sceneName);
+	void InitializeTransitions(DirectXCommon* dx, SrvManager* srv);
+	bool ChangeSceneWithRipple(const std::string& sceneName, scene::RipplePoint origin = {});
+	void PreviewWaterDrop(scene::RipplePoint origin) { transition_.AddDrop(origin); }
 
 	// ★追加: 現在実行中のシーンを取得する（GameクラスでのUI表示に必要）
 	BaseScene* GetCurrentScene() const { return scene_.get(); }

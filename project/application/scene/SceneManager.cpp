@@ -42,6 +42,7 @@ void SceneManager::BeginFrame() {
 		scene_->SetSceneManager(this);
 		scene_->Initialize();
 		if (transition_.CanSwap()) transition_.BeginReveal();
+		else transition_.ClearDrops();
 	}
 }
 
@@ -74,20 +75,19 @@ void SceneManager::Draw() {
 	if (scene_) {
 		scene_->Draw();
 	}
-	transitionRenderer_.Draw(transition_.GetFrame());
-	transition_.NotifyCoverPresented();
+	if (transitionRenderer_.Draw(transition_.GetFrame())) transition_.NotifyCoverPresented();
 }
 
-void SceneManager::InitializeTransitions(DirectXCommon* dx) {
-	if (!transitionRenderer_.Initialize(dx)) Logger::Warning("Ripple transition unavailable; direct scene change remains possible.");
+void SceneManager::InitializeTransitions(DirectXCommon* dx, SrvManager* srv) {
+	if (!transitionRenderer_.Initialize(dx,srv)) Logger::Warning("Ripple transition unavailable; direct scene change remains possible.");
 }
 
-bool SceneManager::ChangeSceneWithRipple(const std::string& sceneName) {
+bool SceneManager::ChangeSceneWithRipple(const std::string& sceneName, scene::RipplePoint origin) {
 	if (!sceneFactory_ || nextScene_ || transition_.IsActive()) return false;
 	auto next = sceneFactory_->CreateScene(sceneName);
 	if (!next) return false;
 	nextScene_ = std::move(next);
-	if (scene_ && transitionRenderer_.IsReady()) transition_.Begin();
+	if (scene_ && transitionRenderer_.IsReady()) transition_.Begin(origin);
 	return true;
 }
 

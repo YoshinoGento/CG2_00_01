@@ -32,12 +32,19 @@ int main() {
         Check(total<=title::kAmbienceGain*.4f+.00001f && scaled.water<=title::kWaterGain*.4f+.00001f);
     }
     Check(system.Update(Click(640,650)));
+    Check(system.GetWaterClick() && system.GetWaterClick()->x == 640 && system.GetWaterClick()->y == 650);
     Check(system.Update(Click(500,610)) && system.Update(Click(780,690)));
     auto holdStart = Click(640,650); holdStart.pressed = false;
     Check(!system.Update(holdStart));
+    Check(!system.GetWaterClick());
     Check(!system.Update(Click(640,500)));
+    Check(system.GetWaterClick() && system.GetWaterClick()->y == 500);
+    Check(!system.Update(Click(-1,500)) && !system.GetWaterClick());
+    Check(!system.Update(Click(std::numeric_limits<float>::quiet_NaN(),500)) && !system.GetWaterClick());
     Check(!system.Update(Click(1100,60)) && system.GetFrame().open);
+    Check(!system.GetWaterClick());
     Check(!system.Update(Click(640,650))); // Start rectangle is modal-blocked.
+    Check(!system.GetWaterClick());
     Check(!system.Update(Click(title::kAudioSliderX,310)) && system.GetFrame().volume[0]==0);
     auto drag = Click(2000,310); drag.pressed = false;
     Check(!system.Update(drag) && system.GetFrame().volume[0]==100);
@@ -60,6 +67,7 @@ int main() {
     Check(!restored.Update(Click(1100,60)));
     Check(!restored.Update(title::AudioSettingsInput{.confirm=true}) && !restored.GetFrame().open);
     Check(restored.Update(title::AudioSettingsInput{.confirm=true}));
+    Check(!restored.GetWaterClick()); // Keyboard starts use the transition system's default origin.
     Check(!restored.Update(title::AudioSettingsInput{.toggle=true,.confirm=true}));
     restored.Update(Click(400,500));
     Check(restored.GetFrame().volume==std::array<int,2>{40,40});

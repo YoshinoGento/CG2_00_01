@@ -128,6 +128,7 @@ class ParticleManager {
 public:
     void Initialize(DirectXCommon* dxCommon, SrvManager* srvManager);
 	void Update(Camera* camera, float deltaTime);
+	void SetCamera(Camera* camera) noexcept { camera_ = camera; }
     void Draw(bool drawDefaultGPUParticles = true);
     void InitializeGPUParticleInteraction(const GPUParticleInteractionSettings& settings);
     void UpdateGPUParticleInteraction(const GPUParticleInteractionSettings& settings);
@@ -192,6 +193,7 @@ private:
     // Non-owning services and current-frame context.
     DirectXCommon* dxCommon_ = nullptr;
     SrvManager* srvManager_ = nullptr;
+    // Borrowed; the owning Scene must unbind before destroying its camera.
     Camera* camera_ = nullptr;
 	float frameDeltaTime_ = 1.0f / 60.0f;
 

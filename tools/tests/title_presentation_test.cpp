@@ -2,6 +2,7 @@
 #include "title/TitleCelestialGeometry.h"
 #include "title/TitleCropPresentation.h"
 #include "title/TitleLogoRipplePoints.h"
+#include "title/TitleGrassPresentation.h"
 
 #include <cmath>
 #include <iostream>
@@ -337,7 +338,7 @@ int main() {
     Check(!system.ConsumeStart());
     system.Update(0.25f);
     system.RequestStart();
-    for (int i=0; i<3; ++i) system.Update(0.25f);
+    for (int i=0; i<4; ++i) system.Update(0.25f);
     Check(!system.ConsumeStart());
     Check(!system.ConsumeStart());
     Check(system.GetFrame().fadeAlpha == 1.0f);
@@ -358,12 +359,32 @@ int main() {
     title::TitlePresentationSystem twin, other;
     Check(system.Initialize(123) && twin.Initialize(123) && other.Initialize(456));
     float previousOffset = 0;
+    float previousGrassPhase = 0;
+    const auto positiveGrass = title::GrassWindFromCloudVelocity({.003f,0});
+    const auto negativeGrass = title::GrassWindFromCloudVelocity({-.003f,0});
+    Check(positiveGrass.x > 0 && negativeGrass.x < 0);
+    Check(std::abs(positiveGrass.x+negativeGrass.x)<.00001f && std::abs(positiveGrass.y+negativeGrass.y)<.00001f);
+    Check(title::GrassWindFromCloudVelocity({std::numeric_limits<float>::quiet_NaN(),0}).x == 0);
+    const auto strongGrass = title::GrassWindFromCloudVelocity({1000,0});
+    Check(std::abs(std::hypot(strongGrass.x,strongGrass.y)-title::kGrassMaximumBend)<.00001f);
     for (int i=0; i<4800; ++i) {
         system.Update(.016f); twin.Update(.016f); other.Update(.016f);
         const auto frame = system.GetFrame();
         const float difference = std::abs(frame.skyYaw-previousOffset);
         Check((std::min)(difference,1-difference) < .0001f);
         Check(frame.skyYaw == twin.GetFrame().skyYaw);
+        Check(frame.grassWindXZ.x == twin.GetFrame().grassWindXZ.x && frame.grassWindXZ.y == twin.GetFrame().grassWindXZ.y);
+        Check(frame.grassPhase >= 0 && frame.grassPhase < 2*std::numbers::pi_v<float>);
+        Check(std::hypot(frame.grassWindXZ.x,frame.grassWindXZ.y) <= title::kGrassMaximumBend+.00001f);
+        const float uvStep = std::fmod(frame.skyYaw-previousOffset+1.5f,1.0f)-.5f;
+        const float velocity = uvStep/.016f;
+        const float grassStrength = frame.grassWindXZ.x*std::cos(title::kCameraRotation.y)-frame.grassWindXZ.y*std::sin(title::kCameraRotation.y);
+        const float waveSpeed = std::clamp(velocity/title::kGrassWaveWindReference,-1.0f,1.0f);
+        Check(std::abs(grassStrength-waveSpeed*title::kGrassMaximumBend)<.004f);
+        const float phaseStep = std::remainder(frame.grassPhase-previousGrassPhase,2*std::numbers::pi_v<float>);
+        const float expectedPhaseStep = .016f*waveSpeed*2*std::numbers::pi_v<float>/title::kGrassFlutterPeriod;
+        Check(std::abs(phaseStep-expectedPhaseStep)<.0005f);
+        previousGrassPhase = frame.grassPhase;
         previousOffset = frame.skyYaw;
     }
     Check(std::abs(system.GetFrame().skyYaw-other.GetFrame().skyYaw) > .001f);
@@ -372,6 +393,30 @@ int main() {
     Check(title::CelestialDirection(initial.sun,invalidProjection,cameraWorld).y == -1);
     invalidProjection.m[0][0] = std::numeric_limits<float>::quiet_NaN();
     Check(title::CelestialDirection(initial.sun,invalidProjection,cameraWorld).y == -1);
+    title::TitlePresentationSystem dawn;
+    Check(dawn.Initialize(1,2));
+    float previousLeaf = .25f;
+    bool sawOldAmplification = false;
+    for (int tick=0; tick<8000; ++tick) {
+        const auto frame = dawn.GetFrame();
+        const auto sun = title::CelestialDirection(frame.sun,projection,cameraWorld);
+        const auto moon = title::CelestialDirection(frame.moon,projection,cameraWorld);
+        const auto lighting = title::MakeCelestialLighting(sun,moon,frame.groundExposure);
+        const float leaf = title::GrassExposure(frame.groundExposure);
+        Check(std::isfinite(leaf) && leaf >= 0 && leaf <= 1 && std::abs(leaf-previousLeaf) < .001f);
+        const float lateral = std::abs(lighting.direction.x);
+        sawOldAmplification |= lighting.intensity*(.38f+.62f*lateral) > leaf*1.5f;
+        // Shader response bounds independent of a steeply changing horizon direction or shadow.
+        for (float ndotl : {0.0f,.25f,.75f,1.0f}) for (float visibility : {0.0f,.5f,1.0f}) {
+            const float received = leaf*(.90f+.10f*ndotl*visibility);
+            Check(received >= leaf*.90f-.00001f && received <= leaf+.00001f);
+        }
+        previousLeaf = leaf;
+        dawn.Update(.01f);
+    }
+    Check(sawOldAmplification);
+    Check(title::GrassExposure(-1) == 0 && title::GrassExposure(5) == 1);
+    Check(title::GrassExposure(std::numeric_limits<float>::quiet_NaN()) == 0);
     const auto invalidLighting = title::MakeCelestialLighting({0,std::numeric_limits<float>::quiet_NaN(),0},{0,0,0},.1f);
     Check(invalidLighting.shadowStrength == 0 && invalidLighting.direction.y == -1);
     Check(title::MakeCelestialLighting({0,1,0},{0,-1,0},std::numeric_limits<float>::quiet_NaN()).intensity == 0);

@@ -66,6 +66,8 @@ struct Frame {
     Vector4 waterColor{0.2f, 0.6f, 0.8f, 1.0f};
     float waterPhase = 0.0f;
     float windAngle = 0.0f;
+    Vector2 grassWindXZ{};
+    float grassPhase = 0;
     float promptAlpha = 1.0f;
     float fadeAlpha = 1.0f;
     float entryFadeAlpha = 1.0f;
@@ -98,6 +100,7 @@ private:
     Vector2 windVelocity_{};
     Vector2 windTarget_{};
     float windRemaining_ = 0.0f;
+    float grassTime_ = 0;
     std::uint32_t windSeed_ = 0x5A17u;
     float NextWindValue() noexcept;
     struct RippleState {
