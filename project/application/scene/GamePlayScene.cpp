@@ -1100,6 +1100,11 @@ void GamePlayScene::CreateLevelObjectsFromLevel() {
 	}
 }
 
+void GamePlayScene::OnScreenTransitionCovered() {
+	farmRuntimeController_.CommitScreenTransition(*this);
+	PrepareRenderFrame(0.0f);
+}
+
 void GamePlayScene::PrepareFixedUpdate()
 {
     layoutLibraryFrame_ = layoutLibraryRequested_;

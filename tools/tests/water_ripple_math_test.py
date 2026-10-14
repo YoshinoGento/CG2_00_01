@@ -52,7 +52,39 @@ def main():
         assert all(front > 0 for front in fronts)
         assert fronts[0] > fronts[1] > fronts[2]
         assert abs(slope(fronts[0], age)) > .1
+    for contract in ("lerp(maxRadius,-kWipeMargin,progress)", "WipeRadius()+ring*kRingSpacing",
+                     "color = lerp(color,water,inside)", "radial/max(distanceFromCenter,1)"):
+        assert contract in shader, contract
+    reveal_checks = 0
+    for center in ((0, 0), (1, 1), (.46, .67), (.5, .5)):
+        origin = (center[0] * 1280, center[1] * 720)
+        max_radius = math.hypot(max(center[0], 1-center[0])*1280,
+                                max(center[1], 1-center[1])*720)+32
+        for pixel in (origin, (0, 0), (1280, 0), (0, 720), (1280, 720), (640, 360)):
+            distance = math.hypot(pixel[0]-origin[0], pixel[1]-origin[1])
+            previous_visible = 0
+            for step in range(101):
+                progress = step/100
+                radius = max_radius*(1-progress)-32*progress
+                visible = smoothstep(-3, 3, distance-radius)
+                assert 0 <= visible <= 1 and visible >= previous_visible
+                if distance < radius-3:
+                    assert visible == 0
+                if distance > radius+3:
+                    assert visible == 1
+                assert step != 0 or visible == 0
+                assert step != 100 or visible == 1
+                fade = smoothstep(0, .05, progress)*(1-smoothstep(.85, 1, progress))
+                local = 0
+                for ring in range(3):
+                    d = distance-(radius+ring*38)
+                    local -= math.exp(-d*d/324)*(math.cos(d*.16)-2*d/(324*.16)*math.sin(d*.16))*(.62**ring)*fade
+                assert math.isfinite(local)
+                assert step not in (0, 100) or local == 0
+                previous_visible = visible
+                reveal_checks += 1
     print(f"Water ripple reference: {checks} finite/clamped samples, center/edge/4-drop overlap/lifetime/3 fronts PASS")
+    print(f"Reflected reveal: {reveal_checks} inward-front/outside-visible/monotonic/endpoint samples PASS")
 
 
 if __name__ == "__main__":

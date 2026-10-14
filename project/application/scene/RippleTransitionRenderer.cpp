@@ -5,7 +5,7 @@
 
 namespace scene {
 namespace {
-constexpr std::size_t kShaderConstantCount = 8+kMaximumWaterDrops*4+4;
+constexpr std::size_t kShaderConstantCount = 8+kMaximumWaterDrops*4+4+4;
 constexpr float kWavePixelsPerSecond = 520;
 constexpr float kRefractionPixels = 9;
 constexpr float kBlurPixels = 2.2f;
@@ -93,6 +93,7 @@ bool RippleTransitionRenderer::Draw(const TransitionFrame& frame) {
     if (!IsReady() || (!transitioning && !hasDrops)) return false;
     if (!std::isfinite(frame.progress)) return false;
     auto* source = dx_->GetRenderTextureResource();
+    if (!source || !dx_->GetCommandList()) return false;
     const auto description = snapshot_->GetDesc();
     const auto sourceDescription = source->GetDesc();
     if (description.Width != sourceDescription.Width || description.Height != sourceDescription.Height ||
@@ -110,6 +111,10 @@ bool RippleTransitionRenderer::Draw(const TransitionFrame& frame) {
     values[tuningOffset+1] = kWavePixelsPerSecond;
     values[tuningOffset+2] = kRefractionPixels;
     values[tuningOffset+3] = kBlurPixels;
+    const auto motion = MakeTransitionImageMotion(frame);
+    values[tuningOffset+4] = motion.scale;
+    values[tuningOffset+5] = motion.fade;
+    values[tuningOffset+6] = transitioning && frame.style != TransitionStyle::Ripple ? 1.0f : 0.0f;
     auto* commands = dx_->GetCommandList();
     commands->OMSetRenderTargets(0,nullptr,FALSE,nullptr);
     dx_->TransitionRenderTexture(D3D12_RESOURCE_STATE_COPY_SOURCE);

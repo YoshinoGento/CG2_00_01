@@ -26,11 +26,13 @@ public:
     int HarvestDisplaySelection() const noexcept { return view_.counterSelection; }
     [[nodiscard]] int ResolveHoveredTile(const GamePlayScene& scene) const;
     void Refresh(GamePlayScene& scene) { BuildView(scene); }
+    void CommitScreenTransition(GamePlayScene& scene);
     void OpenLayoutLibrary(GamePlayScene& scene);
     void UpdateFollowCamera(GamePlayScene& scene) { FrameFarm(scene, true); }
 private:
     void BuildView(GamePlayScene& scene);
-    void Execute(GamePlayScene& scene, farmui::Request request);
+    void Execute(GamePlayScene& scene, farmui::Request request, bool allowTransition = true);
+    bool DeferScreenTransition(GamePlayScene& scene, farmui::Request request);
     void EnterObservation(GamePlayScene& scene);
     void EnterTerrain(GamePlayScene& scene);
     void LeaveTerrain(GamePlayScene& scene);
@@ -45,6 +47,8 @@ private:
     Vector2 pointer_{-1, -1};
     farmui::Action pending_ = farmui::Action::None;
     farmui::Request pendingSubmission_{};
+    farmui::Request pendingScreenTransition_{};
+    bool pointerTriggered_ = false;
     int pendingContestDay_ = 0;
     int pendingPlayMode_ = 0;
     farmui::Label status_ = farmui::Label::Ready;

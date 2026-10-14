@@ -75,6 +75,7 @@ public:
 	void Initialize() override;
 	void Finalize() override;
 	void PrepareFixedUpdate() override;
+	void OnScreenTransitionCovered() override;
 	void FixedUpdate(float fixedDeltaTime) override;
 	void Update() override;
 	void Draw() override;

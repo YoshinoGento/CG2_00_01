@@ -11,11 +11,123 @@ void Check(bool value, std::source_location at = std::source_location::current()
 }
 }
 int main() {
+    using scene::TransitionSoundCue;
+    using scene::TransitionSoundTheme;
+    const auto bit = scene::SoundBit;
+    using scene::TransitionStyle;
+    using scene::TransitionPhase;
+    scene::SceneTransitionSystem shop;
+    Check(!shop.Begin({},scene::TransitionTarget::SceneReplacement,TransitionSoundTheme::SeedShop,TransitionStyle::ShopEnter));
+    Check(!shop.Begin({},scene::TransitionTarget::ScreenPresentation,TransitionSoundTheme::SeedShop,static_cast<TransitionStyle>(99)));
+    Check(!shop.IsActive() && shop.ConsumeSoundCues() == 0);
+    for (int run=0; run<100; ++run) {
+        const bool enter = run % 2 == 0;
+        const auto style = enter ? TransitionStyle::ShopEnter : TransitionStyle::ShopExit;
+        const float step = std::array{.016f,.1f,.25f,10000.0f}[static_cast<std::size_t>(run)%4];
+        Check(shop.Begin({},scene::TransitionTarget::ScreenPresentation,
+            enter ? TransitionSoundTheme::SeedShop : TransitionSoundTheme::ReturnToFarm,style));
+        Check(shop.ConsumeSoundCues() == bit(enter ? TransitionSoundCue::ShopEnter : TransitionSoundCue::FarmReturn));
+        Check(shop.GetFrame().style == style);
+        auto motion = scene::MakeTransitionImageMotion(shop.GetFrame());
+        Check(motion.scale == 1 && motion.fade == 0);
+        float previousFade = 0, previousScale = 1, elapsed = 0;
+        while (shop.GetFrame().progress < 1) {
+            Check(!shop.ConsumeScreenChange() && !shop.BeginReveal());
+            shop.NotifyCoverPresented(); Check(!shop.CanSwap());
+            shop.Update(step,false);
+            elapsed += (std::min)(step,scene::kTransitionMaximumDelta);
+            motion = scene::MakeTransitionImageMotion(shop.GetFrame());
+            Check(std::isfinite(motion.scale) && std::isfinite(motion.fade));
+            Check(motion.fade >= previousFade);
+            Check(enter ? motion.scale >= previousScale : motion.scale <= previousScale);
+            previousFade = motion.fade; previousScale = motion.scale;
+            for (const auto& drop : shop.GetFrame().drops) Check(!drop.active);
+            Check(shop.ConsumeSoundCues() == 0 && !shop.AddDrop({}));
+        }
+        Check(elapsed >= scene::kShopCoverSeconds && elapsed < scene::kRippleCoverSeconds);
+        Check(motion.fade == 1 && !shop.ConsumeScreenChange());
+        Check(!shop.Begin({},scene::TransitionTarget::ScreenPresentation));
+        shop.NotifyCoverPresented();
+        Check(shop.ConsumeScreenChange() && !shop.ConsumeScreenChange() && shop.BeginReveal());
+        motion = scene::MakeTransitionImageMotion(shop.GetFrame());
+        Check(motion.fade == 1);
+        Check(motion.scale == (enter ? scene::kShopDistantScale : scene::kFarmApproachScale));
+        previousFade = 1; previousScale = motion.scale;
+        while (shop.GetFrame().phase == TransitionPhase::Revealing) {
+            shop.Update(step,false);
+            motion = scene::MakeTransitionImageMotion(shop.GetFrame());
+            Check(motion.fade <= previousFade);
+            Check(enter ? motion.scale >= previousScale : motion.scale <= previousScale);
+            previousFade = motion.fade; previousScale = motion.scale;
+            Check(shop.ConsumeSoundCues() == 0);
+        }
+        Check(motion.scale == 1 && motion.fade == 0 && shop.BlocksIncomingUpdate());
+        for (int held=0; held<100; ++held) shop.Update(.016f,false);
+        Check(shop.BlocksIncomingUpdate());
+        shop.Update(0,true); Check(!shop.IsActive());
+    }
+    Check(shop.Begin());
+    Check(shop.GetFrame().style == TransitionStyle::Ripple && shop.GetFrame().drops[0].active);
+    scene::TransitionFrame invalidFrame;
+    invalidFrame.phase = TransitionPhase::Covering;
+    invalidFrame.style = TransitionStyle::ShopEnter;
+    invalidFrame.progress = std::numeric_limits<float>::quiet_NaN();
+    Check(scene::MakeTransitionImageMotion(invalidFrame).scale == 1);
+    invalidFrame.progress = .5f;
+    invalidFrame.style = static_cast<TransitionStyle>(99);
+    Check(scene::MakeTransitionImageMotion(invalidFrame).fade == 0);
+    std::cout << "Shop transitions: 100 enter/exit cycles, monotonic motion/fade, opaque-present gate, held input, exact-once audio, ripple reset PASS\n";
+    Check(bit(static_cast<TransitionSoundCue>(99)) == 0);
+    for (float step : {.016f,.1f,.25f,10000.0f}) {
+        scene::SceneTransitionSystem audioTiming;
+        Check(audioTiming.ConsumeSoundCues() == 0);
+        Check(audioTiming.Begin());
+        Check(audioTiming.ConsumeSoundCues() == 0);
+        Check(!audioTiming.Begin({},scene::TransitionTarget::ScreenPresentation,TransitionSoundTheme::SeedShop));
+        float age = 0;
+        unsigned dropCount = 0, sweepCount = 0;
+        while (audioTiming.GetFrame().progress < 1) {
+            const float before = age;
+            age += (std::min)(step,scene::kTransitionMaximumDelta);
+            audioTiming.Update(step,true);
+            const auto cues = audioTiming.ConsumeSoundCues();
+            Check(((cues & bit(TransitionSoundCue::WaterDrop)) != 0) ==
+                (before < scene::kDropFallSeconds && age >= scene::kDropFallSeconds));
+            constexpr float sweep = scene::kDropFallSeconds+scene::kRipplePreviewSeconds;
+            Check(((cues & bit(TransitionSoundCue::WaterSweep)) != 0) == (before < sweep && age >= sweep));
+            if (cues & bit(TransitionSoundCue::WaterDrop)) ++dropCount;
+            if (cues & bit(TransitionSoundCue::WaterSweep)) ++sweepCount;
+            Check(audioTiming.ConsumeSoundCues() == 0);
+        }
+        Check(dropCount == 1 && sweepCount == 1 && !audioTiming.BeginReveal());
+        Check(audioTiming.ConsumeSoundCues() == 0);
+        audioTiming.NotifyCoverPresented();
+        Check(audioTiming.BeginReveal());
+        Check(audioTiming.ConsumeSoundCues() == bit(TransitionSoundCue::WaterReveal));
+        Check(!audioTiming.BeginReveal() && audioTiming.ConsumeSoundCues() == 0);
+    }
+    const std::array themes{TransitionSoundTheme::SeedShop,TransitionSoundTheme::HarvestDisplay,
+        TransitionSoundTheme::ReturnToFarm,TransitionSoundTheme::Ledger};
+    const std::array entryCues{TransitionSoundCue::ShopEnter,TransitionSoundCue::DisplayEnter,
+        TransitionSoundCue::FarmReturn,TransitionSoundCue::Ledger};
+    scene::SceneTransitionSystem reentry;
+    for (int run=0; run<100; ++run) {
+        const auto index = static_cast<std::size_t>(run) % themes.size();
+        Check(reentry.Begin({},scene::TransitionTarget::ScreenPresentation,themes[index]));
+        Check(reentry.ConsumeSoundCues() == bit(entryCues[index]));
+        while (reentry.GetFrame().progress < 1) reentry.Update(.016f,true);
+        Check(reentry.ConsumeSoundCues() == 0);
+        reentry.NotifyCoverPresented(); Check(reentry.ConsumeScreenChange() && reentry.BeginReveal());
+        while (reentry.GetFrame().phase == scene::TransitionPhase::Revealing) reentry.Update(.016f,true);
+        reentry.Update(0,true);
+        Check(reentry.ConsumeSoundCues() == 0);
+    }
     scene::SceneTransitionSystem system;
     Check(!system.IsActive() && !system.CanSwap());
     system.NotifyCoverPresented();
     Check(!system.CanSwap() && !system.BeginReveal());
     Check(system.Begin() && !system.Begin());
+    Check(!system.ConsumeScreenChange());
     for (float invalid : {-1.0f,std::numeric_limits<float>::infinity(),std::numeric_limits<float>::quiet_NaN()}) {
         system.Update(invalid,true);
         Check(system.GetFrame().progress == 0 && !system.CanSwap());
@@ -30,12 +142,15 @@ int main() {
     for (int i=0; i<2; ++i) system.Update(.2f,true);
     Check(system.GetFrame().progress == 1 && !system.CanSwap());
     system.NotifyCoverPresented();
+    Check(!system.ConsumeScreenChange());
     Check(system.CanSwap() && system.BeginReveal());
     Check(!system.CanSwap() && !system.BeginReveal() && !system.Begin());
     Check(system.BlocksIncomingUpdate() && system.GetFrame().progress == 0);
     system.Update(.2f,false);
     Check(system.GetFrame().progress > 0 && system.GetFrame().progress < 1);
     system.Update(.2f,true);
+    Check(system.GetFrame().phase == scene::TransitionPhase::Revealing);
+    while (system.GetFrame().phase == scene::TransitionPhase::Revealing) system.Update(.016f,true);
     Check(system.GetFrame().phase == scene::TransitionPhase::WaitingForRelease);
     Check(system.IsActive() && system.GetFrame().progress == 1);
     for (int i=0; i<100; ++i) system.Update(.016f,false);
@@ -60,12 +175,15 @@ int main() {
     while (system.GetFrame().progress < 1) system.Update(.25f,true);
     system.NotifyCoverPresented(); Check(system.BeginReveal());
     Check(!system.GetFrame().drops[0].active);
-    system.Update(.25f,true); system.Update(.25f,true); system.Update(0,true);
+    while (system.GetFrame().phase == scene::TransitionPhase::Revealing) system.Update(.016f,true);
+    system.Update(0,true);
     Check(system.Begin());
     system.Update(10000,true);
     Check(system.GetFrame().progress < 1); // Hitch cannot bypass the bounded cover.
     for (int run=0; run<100; ++run) {
-        if (!system.IsActive()) Check(system.Begin());
+        const bool screen = run > 0 && run % 2 == 0;
+        if (!system.IsActive()) Check(system.Begin({}, screen ? scene::TransitionTarget::ScreenPresentation : scene::TransitionTarget::SceneReplacement));
+        Check(!system.ConsumeScreenChange());
         float previous = system.GetFrame().progress;
         while (system.GetFrame().progress < 1) {
             system.Update(.016f,true);
@@ -73,8 +191,13 @@ int main() {
             previous = system.GetFrame().progress;
         }
         Check(!system.CanSwap());
+        Check(!system.ConsumeScreenChange());
         system.NotifyCoverPresented();
+        Check(system.ConsumeScreenChange() == screen);
+        Check(!system.ConsumeScreenChange());
+        Check(!system.Begin({}, scene::TransitionTarget::ScreenPresentation));
         Check(system.BeginReveal());
+        Check(!system.ConsumeScreenChange());
         previous = 0;
         while (system.GetFrame().phase == scene::TransitionPhase::Revealing) {
             system.Update(.016f,true);
@@ -87,5 +210,5 @@ int main() {
     }
     Check(system.Begin({-1,2}));
     Check(system.GetFrame().center.x == 0 && system.GetFrame().center.y == 1);
-    std::cout << "Scene transition: presented-cover, exact-once, held-release, 100 repeats, click center, four-drop cap/lifetime PASS\n";
+    std::cout << "Scene transition: scene/screen presented-cover, exact-once consume, held-release, 100 alternating repeats, click center, four-drop cap/lifetime PASS\n";
 }

@@ -109,9 +109,8 @@ void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual,
 		if (!object.SetShearY(part.slope)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		if (!object.SetScale(part.scale)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		object.SetColor(part.color);
-		// Pooled objects can change from a crop to terrain on the next Prepare.
-		object.SetSpecularType(part.surface == FarmMeshSurface::Crop
-			? Object3d::SpecularType::None : Object3d::SpecularType::BlinnPhong);
+		// Soil and canal banks are matte; a unit-strength highlight hides their color.
+		object.SetSpecularType(Object3d::SpecularType::None);
 		object.SetEnableLighting(!part.water && part.surface != FarmMeshSurface::Selection &&
 			part.surface != FarmMeshSurface::Hover);
 		object.Update(camera, 0.0f);

@@ -4,8 +4,10 @@
 #include <memory>
 #include "SceneTransitionSystem.h"
 #include "RippleTransitionRenderer.h"
+#include "TransitionAudioSystem.h"
 
 class AbstractSceneFactory;
+enum class ScreenTransitionResult { Started, Unavailable, Busy };
 
 /**
  * SceneManagerクラス
@@ -21,6 +23,7 @@ private:
 	AbstractSceneFactory* sceneFactory_ = nullptr;
 	scene::SceneTransitionSystem transition_;
 	scene::RippleTransitionRenderer transitionRenderer_;
+	scene::TransitionAudioSystem transitionAudio_;
 
 	SceneManager() = default;
 	~SceneManager();
@@ -34,8 +37,11 @@ public:
 	void PrepareFixedUpdate();
 	void FixedUpdate(float fixedDeltaTime);
 	void Draw();
-	void InitializeTransitions(DirectXCommon* dx, SrvManager* srv);
+	void InitializeTransitions(DirectXCommon* dx, SrvManager* srv, Audio* audio);
 	bool ChangeSceneWithRipple(const std::string& sceneName, scene::RipplePoint origin = {});
+	ScreenTransitionResult BeginScreenTransition(const BaseScene* owner, scene::RipplePoint origin = {},
+		scene::TransitionSoundTheme sound = scene::TransitionSoundTheme::Water,
+		scene::TransitionStyle style = scene::TransitionStyle::Ripple);
 	void PreviewWaterDrop(scene::RipplePoint origin) { transition_.AddDrop(origin); }
 
 	// ★追加: 現在実行中のシーンを取得する（GameクラスでのUI表示に必要）

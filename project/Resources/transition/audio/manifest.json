@@ -1,0 +1,50 @@
+{
+  "provenance": "Original deterministic procedural synthesis; no external samples",
+  "sample_rate": 48000,
+  "channels": 1,
+  "bits": 16,
+  "clips": [
+    {
+      "file": "water_drop.wav",
+      "frames": 15360,
+      "pcm_bytes": 30720,
+      "sha256": "2876a96a110c312a376dccd6ec0af32718d4cde9e2eeaa09bc6c929233da1309"
+    },
+    {
+      "file": "water_sweep.wav",
+      "frames": 26400,
+      "pcm_bytes": 52800,
+      "sha256": "d8add46161b489b8ac15a051d50ae8c975d272bed425374de65b6719fd01cfda"
+    },
+    {
+      "file": "water_reveal.wav",
+      "frames": 31200,
+      "pcm_bytes": 62400,
+      "sha256": "e71fb7a9e0d21fbe629e3d2b3c9f9b354f320045a1da81be9b1a7ae7d48714a9"
+    },
+    {
+      "file": "shop_enter.wav",
+      "frames": 20160,
+      "pcm_bytes": 40320,
+      "sha256": "399f1148338b38ac9d78cea9e63b2a6bf33c721f6b26b63b30be2f343e444cf8"
+    },
+    {
+      "file": "display_enter.wav",
+      "frames": 13440,
+      "pcm_bytes": 26880,
+      "sha256": "c05ff06511baf8a61f1961f3e7f84954db4118518513bbbfa167fad3f2289ebc"
+    },
+    {
+      "file": "farm_return.wav",
+      "frames": 17280,
+      "pcm_bytes": 34560,
+      "sha256": "e488f0be1cb6cf889ce6a67743b6258357637884db2d29e9d41b49276e8f1fb2"
+    },
+    {
+      "file": "ledger.wav",
+      "frames": 14400,
+      "pcm_bytes": 28800,
+      "sha256": "b1733a72607ba66d2f3bf84626c1c36790c30521b82e14b3aba6932eccd17940"
+    }
+  ]
+}

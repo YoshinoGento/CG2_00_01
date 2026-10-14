@@ -756,6 +756,8 @@
     <ClInclude Include="application\title\TitleView.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleLogoRippleRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\scene\SceneTransitionSystem.h"><Filter>Scene</Filter></ClInclude>
+    <ClInclude Include="application\scene\TransitionAudioSystem.h"><Filter>Scene</Filter></ClInclude>
+    <ClInclude Include="application\scene\TransitionSound.h"><Filter>Scene</Filter></ClInclude>
     <ClInclude Include="application\scene\RippleTransitionRenderer.h"><Filter>Scene</Filter></ClInclude>
     <ClInclude Include="application\title\TitleLogoRipplePoints.h"><Filter>Title</Filter></ClInclude>
     <None Include="Resources\shader\TitleSky.hlsli"><Filter>Title</Filter></None>
@@ -778,6 +780,16 @@
     <None Include="Resources\title\audio\evening.wav"><Filter>Title</Filter></None>
     <None Include="Resources\title\audio\night.wav"><Filter>Title</Filter></None>
     <None Include="Resources\title\audio\water.wav"><Filter>Title</Filter></None>
+    <ClCompile Include="application\scene\TransitionAudioSystem.cpp"><Filter>Scene</Filter></ClCompile>
+    <None Include="Resources\transition\audio\water_drop.wav"><Filter>Scene</Filter></None>
+    <None Include="Resources\transition\audio\water_sweep.wav"><Filter>Scene</Filter></None>
+    <None Include="Resources\transition\audio\water_reveal.wav"><Filter>Scene</Filter></None>
+    <None Include="Resources\transition\audio\shop_enter.wav"><Filter>Scene</Filter></None>
+    <None Include="Resources\transition\audio\display_enter.wav"><Filter>Scene</Filter></None>
+    <None Include="Resources\transition\audio\farm_return.wav"><Filter>Scene</Filter></None>
+    <None Include="Resources\transition\audio\ledger.wav"><Filter>Scene</Filter></None>
+    <None Include="Resources\transition\audio\manifest.json"><Filter>Scene</Filter></None>
+    <None Include="Resources\transition\audio\AUDIO_CREDITS.txt"><Filter>Scene</Filter></None>
     <None Include="Resources\title\audio\AUDIO_CREDITS.txt"><Filter>Title</Filter></None>
     <None Include="Resources\title\audio\audio_manifest.json"><Filter>Title</Filter></None>
   </ItemGroup>

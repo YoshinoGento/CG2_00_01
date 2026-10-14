@@ -1,5 +1,6 @@
 #include "farm/system/FarmRuntimeController.h"
 #include "scene/GamePlayScene.h"
+#include "scene/SceneManager.h"
 #include "io/Input.h"
 #include "farm/system/FarmLayoutSystem.h"
 #include "farm/ui/FarmRecordDialog.h"
@@ -328,7 +329,39 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
     if (focusedItem_ >= 0 && focusedItem_ < static_cast<int>(view_.count)) view_.items[focusedItem_].focused = true;
 }
 
-void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
+bool FarmRuntimeController::DeferScreenTransition(GamePlayScene& s, farmui::Request request) {
+    if (pendingScreenTransition_.action != Action::None) return true;
+    if (!s.sceneManager_) return false;
+    scene::RipplePoint origin{};
+    if (pointerTriggered_ && std::isfinite(pointer_.x) && std::isfinite(pointer_.y) &&
+        pointer_.x >= 0 && pointer_.x <= WinApp::kClientWidth && pointer_.y >= 0 && pointer_.y <= WinApp::kClientHeight)
+        origin = {pointer_.x / static_cast<float>(WinApp::kClientWidth), pointer_.y / static_cast<float>(WinApp::kClientHeight)};
+    auto sound = scene::TransitionSoundTheme::Ledger;
+    auto style = scene::TransitionStyle::Ripple;
+    switch (request.action) {
+    case Action::OpenSeedShop:
+        sound = scene::TransitionSoundTheme::SeedShop; style = scene::TransitionStyle::ShopEnter; break;
+    case Action::HarvestDisplay: sound = scene::TransitionSoundTheme::HarvestDisplay; break;
+    case Action::ShopClose:
+        sound = scene::TransitionSoundTheme::ReturnToFarm; style = scene::TransitionStyle::ShopExit; break;
+    case Action::Close: sound = scene::TransitionSoundTheme::ReturnToFarm; break;
+    default: break;
+    }
+    const auto result = s.sceneManager_->BeginScreenTransition(&s, origin, sound, style);
+    if (result == ScreenTransitionResult::Unavailable) return false;
+    if (result == ScreenTransitionResult::Started) pendingScreenTransition_ = request;
+    return true;
+}
+
+void FarmRuntimeController::CommitScreenTransition(GamePlayScene& s) {
+    const auto request = pendingScreenTransition_;
+    pendingScreenTransition_ = {};
+    if (request.action == Action::None) return;
+    Execute(s, request, false);
+    BuildView(s);
+}
+
+void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, bool allowTransition) {
     using C = GamePlayEditorCommandType;
     const auto dispatch = [&](C type) {
         editor::GamePlayEditorCommand command{};
@@ -348,6 +381,8 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
     case Action::ShopCancel:
         shop_.CancelConfirmation(); return;
     case Action::ShopClose:
+        if (!shop_.IsOpen()) return;
+        if (allowTransition && DeferScreenTransition(s, request)) return;
         shop_.Close(); return;
     case Action::ShopConfirm: {
         if (s.farmProgressionSystem_.IsCleared() || s.farmIrrigationPreviewSystem_.IsActive()) { shop_.Close(); return; }
@@ -364,6 +399,7 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
             s.farmProgressionSystem_.IsCleared() || s.farmIrrigationPreviewSystem_.IsActive() ||
             s.farmCropSelectionSystem_.IsOpen()) return;
         if (!s.farmSeedShopRenderer_.IsReady()) { status_ = Label::Failure; return; }
+        if (allowTransition && DeferScreenTransition(s, request)) return;
         shop_.Open(s.farmCropSelectionSystem_.GetSelectedCrop()); open_ = false; focusedItem_ = -1;
         return;
     case Action::ContestDayReview:
@@ -430,8 +466,12 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
         }
         return;
     }
-    case Action::Close: open_ = false; pending_ = Action::None; return;
+    case Action::Close:
+        if (open_ && page_ == kHarvestDisplayPage && pending_ == Action::None &&
+            allowTransition && DeferScreenTransition(s, request)) return;
+        open_ = false; pending_ = Action::None; return;
     case Action::Tab:
+        if (open_ && page_ == kHarvestDisplayPage && allowTransition && DeferScreenTransition(s, request)) return;
         page_ = std::clamp(request.argument, 0, 4); focusedItem_ = -1; status_ = Label::Ready;
         if (terrain_ && page_ != 1) LeaveTerrain(s);
         if (page_ < 3 && observation_) {
@@ -506,6 +546,8 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
     }
     case Action::HarvestDisplay:
         if (pending_ != Action::None || s.farmIrrigationPreviewSystem_.IsActive() || s.timelineScrubbing_ || !s.farmSeedShopRenderer_.IsReady()) return;
+        if (open_ && page_ == kHarvestDisplayPage) return;
+        if (allowTransition && DeferScreenTransition(s, request)) return;
         open_ = true; page_ = kHarvestDisplayPage; harvestDisplay_.Reset(); focusedItem_ = -1; return;
     case Action::HarvestDisplaySelect:
         if (open_ && page_ == kHarvestDisplayPage && pending_ == Action::None)
@@ -517,10 +559,12 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request) {
         }
         return;
     case Action::HarvestInventory:
+        if (open_ && page_ == kHarvestDisplayPage && allowTransition && DeferScreenTransition(s, request)) return;
         open_ = true; page_ = kHarvestInventoryPage; harvestPage_ = 0; focusedItem_ = -1; return;
     case Action::ContestPreview:
         if (!open_ || (page_ != kHarvestDisplayPage && page_ != kHarvestInventoryPage && page_ != kContestPreviewPage && page_ != kContestEntryPage && page_ != kContestResultsPage)) return;
         if (request.argument != 0 && request.argument != 1) return;
+        if (page_ == kHarvestDisplayPage && allowTransition && DeferScreenTransition(s, request)) return;
         page_ = request.argument == 1 ? kContestEntryPage : kContestPreviewPage; focusedItem_ = -1; return;
     case Action::ContestResults:
         if(!open_ || page_!=kContestEntryPage) return;
@@ -816,12 +860,13 @@ bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
     s.ConvertMouseToVirtualScreen(input.GetMousePosition(), pointer_);
     BuildView(s);
     const bool click = input.TriggerMouseButton(InputMouseButton::Left);
+    pointerTriggered_ = click || input.TriggerMouseButton(InputMouseButton::Right);
     const auto hit = view_.Hit(pointer_);
     // Shop input never falls through to farm picking, quick purchases or player movement.
     if (view_.seedShop) {
         if (input.TriggerKey(InputKey::Escape) || input.TriggerMouseButton(InputMouseButton::Right)) {
             if (shop_.GetPhase() == FarmSeedShopSystem::Phase::Confirming) shop_.CancelConfirmation();
-            else shop_.Close();
+            else Execute(s, {Action::ShopClose});
         } else if (click && hit.action != Action::None) Execute(s, hit);
         else {
             if (input.TriggerKey(InputKey::ArrowLeft)) shop_.Select((shop_.Selection() + FarmSeedShopSystem::kProductCount - 1) % FarmSeedShopSystem::kProductCount);
@@ -839,7 +884,7 @@ bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
     }
     if (!contestNotice_ && input.TriggerKey(InputKey::Escape)) {
         if (pending_ != Action::None) pending_ = Action::None;
-        else if (open_) open_ = false;
+        else if (open_) Execute(s, {Action::Close});
         else if (observation_ && pickingSlot_ >= 0) pickingSlot_ = -1;
         else if (s.farmIrrigationPreviewSystem_.IsActive()) { s.farmIrrigationPreviewSystem_.Cancel(); brush_ = 0; }
         else if (terrain_) LeaveTerrain(s);

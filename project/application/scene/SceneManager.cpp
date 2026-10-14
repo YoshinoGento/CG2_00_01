@@ -28,6 +28,10 @@ SceneManager::~SceneManager() {
  * 予約された次のシーン（nextScene_）がある場合、入れ替えを行います。
  */
 void SceneManager::BeginFrame() {
+	if (scene_ && transition_.ConsumeScreenChange()) {
+		scene_->OnScreenTransitionCovered();
+		transition_.BeginReveal();
+	}
 	if (nextScene_ && (!transition_.IsActive() || transition_.CanSwap())) {
 		if (scene_) {
 			scene_->Finalize();
@@ -67,8 +71,11 @@ void SceneManager::Update() {
 	const auto* clock = framework->GetFrameClock();
 	const auto* input = framework->GetInput();
 	const bool released = input && !input->PushKey(InputKey::Enter) && !input->PushKey(InputKey::Space) &&
-		!input->PushMouseButton(InputMouseButton::Left) && !input->PushGamepadButton(InputGamepadButton::A);
+		!input->PushKey(InputKey::Escape) && !input->PushMouseButton(InputMouseButton::Left) &&
+		!input->PushMouseButton(InputMouseButton::Right) && !input->PushGamepadButton(InputGamepadButton::A) &&
+		!input->PushGamepadButton(InputGamepadButton::B);
 	transition_.Update(clock ? clock->GetRealDeltaSeconds() : 0,released);
+	transitionAudio_.PlayCues(transition_.ConsumeSoundCues());
 }
 
 void SceneManager::Draw() {
@@ -78,8 +85,9 @@ void SceneManager::Draw() {
 	if (transitionRenderer_.Draw(transition_.GetFrame())) transition_.NotifyCoverPresented();
 }
 
-void SceneManager::InitializeTransitions(DirectXCommon* dx, SrvManager* srv) {
+void SceneManager::InitializeTransitions(DirectXCommon* dx, SrvManager* srv, Audio* audio) {
 	if (!transitionRenderer_.Initialize(dx,srv)) Logger::Warning("Ripple transition unavailable; direct scene change remains possible.");
+	if (!transitionAudio_.Initialize(audio)) Logger::Warning("Transition SE unavailable; continuing silently.");
 }
 
 bool SceneManager::ChangeSceneWithRipple(const std::string& sceneName, scene::RipplePoint origin) {
@@ -89,6 +97,14 @@ bool SceneManager::ChangeSceneWithRipple(const std::string& sceneName, scene::Ri
 	nextScene_ = std::move(next);
 	if (scene_ && transitionRenderer_.IsReady()) transition_.Begin(origin);
 	return true;
+}
+
+ScreenTransitionResult SceneManager::BeginScreenTransition(const BaseScene* owner, scene::RipplePoint origin,
+    scene::TransitionSoundTheme sound, scene::TransitionStyle style) {
+	if (!owner || owner != scene_.get() || nextScene_ || transition_.IsActive()) return ScreenTransitionResult::Busy;
+	if (!transitionRenderer_.IsReady()) return ScreenTransitionResult::Unavailable;
+	return transition_.Begin(origin, scene::TransitionTarget::ScreenPresentation, sound, style)
+		? ScreenTransitionResult::Started : ScreenTransitionResult::Busy;
 }
 
 /**

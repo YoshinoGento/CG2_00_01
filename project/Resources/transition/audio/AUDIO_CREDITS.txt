@@ -1,0 +1,8 @@
+Transition sound effects: original procedural synthesis for this project.
+Generator: tools/audio/generate_transition_audio.py
+No third-party recordings, samples, asset packs, or training data are used.
+Fixed seeded noise, oscillators, decaying envelopes and offline filtering.
+These are stylized imitations, not field recordings or physical water simulation.
+Files: water_drop, water_sweep, water_reveal, shop_enter, display_enter,
+farm_return, ledger (.wav). Mono PCM16, 48000 Hz.
+Existing title ambience/river assets retain their separate original credits.
