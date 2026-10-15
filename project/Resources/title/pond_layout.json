@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "center": [2.8, -0.29, -1.4],
+  "radii": [5.2, 3.3],
+  "shoreWidth": 0.45,
+  "reflectionLine": 0.59,
+  "outfall": [[0.0, 0.145, 2.64], [0.0, -0.17, 1.52], [0.0, -0.29, 1.15]],
+  "outfallHalfWidth": 0.36
+}

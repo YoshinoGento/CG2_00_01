@@ -11,8 +11,13 @@ class DirectXCommon;
 namespace title {
 class TitleSkyRenderer final {
 public:
+    TitleSkyRenderer() = default;
+    ~TitleSkyRenderer() { Finalize(); }
+    TitleSkyRenderer(const TitleSkyRenderer&) = delete;
+    TitleSkyRenderer& operator=(const TitleSkyRenderer&) = delete;
     bool Initialize(DirectXCommon* dx, TextureManager* textures);
-    void Update(const Frame& frame, const Camera& camera) noexcept;
+    void Finalize() noexcept;
+    void Update(const Frame& frame, const Camera& camera, bool reflection = false) noexcept;
     void Draw() const;
 private:
     struct Constants {

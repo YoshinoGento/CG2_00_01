@@ -3,8 +3,8 @@
   "bladesPerTuft": 5,
   "segmentsPerBlade": 3,
   "trianglesPerPatch": 2400,
-  "instances": 703,
-  "shadowInstances": 94,
+  "instances": 694,
+  "shadowInstances": 86,
   "farTrianglesPerPatch": 864,
   "maximumBladeHeight": 0.46,
   "opaque": true

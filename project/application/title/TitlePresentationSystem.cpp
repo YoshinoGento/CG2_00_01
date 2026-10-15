@@ -81,14 +81,14 @@ bool TitlePresentationSystem::Initialize(std::uint32_t windSeed, std::uint32_t r
         const int row = index / farm_.GetWidth();
         const int column = index % farm_.GetWidth();
         farm::FarmTile tile;
-        tile.heightLevel = row == 0 ? 2 : (row == 1 ? 1 : 0);
+        tile.heightLevel = row >= 2 ? row-1 : 0;
         if (column == 2) {
-            tile.feature = row == 0 ? farm::FarmTileFeature::WaterSource : farm::FarmTileFeature::Canal;
+            tile.feature = row == 3 ? farm::FarmTileFeature::WaterSource : farm::FarmTileFeature::Canal;
             tile.waterAmount = 1.0f;
         } else {
             tile.state = farm::FarmTileState::Planted;
             tile.crop = column < 2 ? farm::CropType::Carrot :
-                (row < 2 ? farm::CropType::Tomato : farm::CropType::Pumpkin);
+                (row >= 2 ? farm::CropType::Tomato : farm::CropType::Pumpkin);
             tile.moisture = 0.65f;
             tile.growth = row == 0 ? 0.55f : 0.95f;
             if (index == 0 || index == 19) {

@@ -38,7 +38,8 @@ public:
 	void FixedUpdate(float fixedDeltaTime);
 	void Draw();
 	void InitializeTransitions(DirectXCommon* dx, SrvManager* srv, Audio* audio);
-	bool ChangeSceneWithRipple(const std::string& sceneName, scene::RipplePoint origin = {});
+    bool ChangeSceneWithRipple(const std::string& sceneName, scene::RipplePoint origin = {},
+        const scene::PondRipplePath& pond = {});
 	ScreenTransitionResult BeginScreenTransition(const BaseScene* owner, scene::RipplePoint origin = {},
 		scene::TransitionSoundTheme sound = scene::TransitionSoundTheme::Water,
 		scene::TransitionStyle style = scene::TransitionStyle::Ripple);

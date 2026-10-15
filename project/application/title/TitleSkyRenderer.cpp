@@ -14,7 +14,7 @@ constexpr float kMoonHeightFraction = 0.085f;
 constexpr float kDiscEdgeFraction = 0.06f;
 }
 bool TitleSkyRenderer::Initialize(DirectXCommon* dx, TextureManager* textures) {
-    if (!dx || !textures || !textures->IsInitialized() ||
+    if (dx_ || !dx || !textures || !textures->IsInitialized() ||
         !std::filesystem::is_regular_file("Resources/title/sky.png")) return false;
     dx_ = dx;
     textures_ = textures;
@@ -50,6 +50,13 @@ bool TitleSkyRenderer::Initialize(DirectXCommon* dx, TextureManager* textures) {
     ib_ = {indices_->GetGPUVirtualAddress(), static_cast<UINT>(sizeof(indices)), DXGI_FORMAT_R32_UINT};
     indexCount_ = static_cast<UINT>(indices.size());
     return CreatePipeline();
+}
+
+void TitleSkyRenderer::Finalize() noexcept {
+    if (constants_ && mapped_) constants_->Unmap(0,nullptr);
+    mapped_ = nullptr;
+    vertices_.Reset(); indices_.Reset(); constants_.Reset(); root_.Reset(); pipeline_.Reset();
+    dx_ = nullptr; textures_ = nullptr; texture_ = {}; vb_ = {}; ib_ = {}; indexCount_ = 0;
 }
 
 bool TitleSkyRenderer::CreatePipeline() {
@@ -99,13 +106,13 @@ bool TitleSkyRenderer::CreatePipeline() {
     return SUCCEEDED(dx_->GetDevice()->CreateGraphicsPipelineState(&pso,IID_PPV_ARGS(&pipeline_)));
 }
 
-void TitleSkyRenderer::Update(const Frame& frame, const Camera& camera) noexcept {
+void TitleSkyRenderer::Update(const Frame& frame, const Camera& camera, bool reflection) noexcept {
     if (!mapped_) return;
     const auto& projection = camera.GetProjectionMatrix();
     const float horizontalScale = projection.m[0][0], verticalScale = projection.m[1][1];
     if (!std::isfinite(horizontalScale) || !std::isfinite(verticalScale) ||
         horizontalScale <= 0 || verticalScale <= 0) return;
-    const auto world = MatrixMath::MakeAffineMatrix({60,60,60},{0,0,0},camera.GetTranslate());
+    const auto world = MatrixMath::MakeAffineMatrix({60,reflection ? -60.0f : 60.0f,60},{0,0,0},camera.GetTranslate());
     mapped_->wvp = MatrixMath::Multiply(world,camera.GetViewProjectionMatrix());
     mapped_->top = frame.skyTop; mapped_->horizon = frame.skyHorizon; mapped_->clouds = frame.cloudColor;
     const auto& cameraWorld = camera.GetWorldMatrix();

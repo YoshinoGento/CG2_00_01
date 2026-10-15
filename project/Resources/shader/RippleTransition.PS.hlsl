@@ -17,6 +17,8 @@ cbuffer TransitionConstants : register(b0) {
     float fadeOpacity;
     float shortFade;
     float reserved;
+    float4 pondFlight; // source UV, pond enabled, reserved
+    float4 pondX, pondZ, pondDivisor;
 };
 static const int kRingCount = 3;
 static const float kRingSpacing = 38;
@@ -26,6 +28,9 @@ static const float kFollowingWaveAttenuation = .62;
 static const float kMaximumDisplacement = 14;
 static const float kWipeMargin = 32;
 static const float kWipeEdge = 3;
+static const float kPondWipeEdge = 16;
+static const float kPondCoverOpacityStart = .20;
+static const float kPondCoverOpacityEnd = .58;
 float WipeRadius() {
     float maxRadius = length(max(center,1-center)*resolution)+kWipeMargin;
     // Reveal returns from the perimeter; its passed (outer) side exposes the next scene.
@@ -39,6 +44,13 @@ float WaveSlope(float distanceFromFront) {
 float3 ReadScene(float2 uv) {
     float2 halfTexel = .5/resolution;
     return sceneImage.SampleLevel(imageSampler,clamp(uv,halfTexel,1-halfTexel),0).rgb;
+}
+float PondMask(float2 uv) {
+    float3 screen = float3(uv,1);
+    float divisor = dot(pondDivisor.xyz,screen);
+    if (divisor >= -.00001) return 0;
+    float2 pond = float2(dot(pondX.xyz,screen),dot(pondZ.xyz,screen))/divisor;
+    return 1-smoothstep(.94,.99,length(pond));
 }
 float4 main(VertexShaderOutput input) : SV_Target0 {
     if (shortFade > .5) {
@@ -61,6 +73,12 @@ float4 main(VertexShaderOutput input) : SV_Target0 {
     float waveAmount = 0;
     float highlight = 0;
     float fallingDrop = 0;
+    float poolBlend = 1;
+    float ellipseScale = 1;
+    if (pondFlight.z > .5 && revealing < .5) {
+        poolBlend = smoothstep(.08,.42,progress);
+        ellipseScale = lerp(.32,1,poolBlend);
+    }
     [unroll] for (int i=0; i<4; ++i) {
         if (drops[i].w < .5) continue;
         float age = drops[i].z;
@@ -68,19 +86,23 @@ float4 main(VertexShaderOutput input) : SV_Target0 {
         float waveAge = age-fallSeconds;
         if (waveAge < 0) {
             float flight = saturate(age/fallSeconds);
-            float2 dropPixel = origin-float2(0,120*(1-flight*flight));
-            float2 ellipse = (pixel-dropPixel)/float2(3,6);
-            fallingDrop += (1-smoothstep(.45,1,length(ellipse)))*sin(flight*3.14159265);
+            float2 dropPixel = pondFlight.z > .5 ?
+                lerp(pondFlight.xy*resolution,origin,flight*flight) : origin-float2(0,120*(1-flight*flight));
+            float2 ellipse = (pixel-dropPixel)/(pondFlight.z > .5 ? float2(6,11) : float2(3,6));
+            float visibility = pondFlight.z > .5 ? .6+.4*sin(flight*3.14159265) : sin(flight*3.14159265);
+            fallingDrop += (1-smoothstep(.45,1,length(ellipse)))*visibility;
             continue;
         }
         float2 radial = pixel-origin;
-        float distanceFromCenter = length(radial);
-        float2 direction = radial/max(distanceFromCenter,1);
+        float2 metric = radial/float2(1,ellipseScale);
+        float distanceFromCenter = length(metric);
+        float2 direction = metric/max(distanceFromCenter,1)*float2(1,ellipseScale);
         float waveLifetime = max(.01,dropLifetime-fallSeconds);
         float fade = (1-smoothstep(waveLifetime*.63,waveLifetime,waveAge))*exp(-waveAge*.55);
         float localSlope = 0;
         [unroll] for (int ring=0; ring<kRingCount; ++ring) {
-            float radius = waveAge*wavePixelsPerSecond-ring*kRingSpacing;
+            // Pond cover follows the same front as its refractive wave, not a second wipe.
+            float radius = (pondFlight.z > .5 ? WipeRadius() : waveAge*wavePixelsPerSecond)-ring*kRingSpacing;
             if (radius <= 0) continue;
             float d = distanceFromCenter-radius;
             // Derivative of a damped radial wave packet drives refraction, not a painted circle.
@@ -90,6 +112,10 @@ float4 main(VertexShaderOutput input) : SV_Target0 {
         displacement += direction*localSlope*refractionPixels;
         waveAmount += abs(localSlope);
         highlight += localSlope*.025;
+    }
+    if (pondFlight.z > .5 && revealing < .5) {
+        float waterOnly = lerp(PondMask(input.texcoord),1,poolBlend);
+        displacement *= waterOnly; waveAmount *= waterOnly; highlight *= waterOnly;
     }
     if (transitioning > .5 && revealing > .5) {
         float2 radial = pixel-center*resolution;
@@ -118,8 +144,15 @@ float4 main(VertexShaderOutput input) : SV_Target0 {
     color = max(0,color+clamp(highlight,-.05,.05));
     color = lerp(color,float3(.65,.82,.85),saturate(fallingDrop)*.75);
     if (transitioning > .5) {
-        float d = length(pixel-center*resolution)-WipeRadius();
-        float inside = 1-smoothstep(-kWipeEdge,kWipeEdge,d);
+        float d = length((pixel-center*resolution)/float2(1,ellipseScale))-WipeRadius();
+        bool pondCover = pondFlight.z > .5 && revealing < .5;
+        float edgeWidth = pondCover ? kPondWipeEdge : kWipeEdge;
+        float inside = 1-smoothstep(-edgeWidth,edgeWidth,d);
+        if (pondCover) {
+            inside *= lerp(PondMask(input.texcoord),1,poolBlend);
+            // Let the reflected image carry the first three fronts before the opaque cover develops.
+            inside *= smoothstep(kPondCoverOpacityStart,kPondCoverOpacityEnd,progress);
+        }
         color = lerp(color,water,inside);
     }
     return float4(color,1);

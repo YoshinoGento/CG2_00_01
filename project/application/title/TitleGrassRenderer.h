@@ -20,6 +20,7 @@ public:
     void Update(const Frame& frame, const Camera& camera) noexcept;
     void DrawShadow();
     void Draw();
+    void DrawReflection(float waterHeight);
     void Finalize() noexcept;
 private:
     static constexpr std::size_t kMaximumPatches = 1024;
@@ -49,10 +50,11 @@ private:
     UINT shadowCount_ = 0;
     bool ready_ = false;
     D3D12_VERTEX_BUFFER_VIEW instancesView_{};
-    Microsoft::WRL::ComPtr<ID3D12Resource> instances_, mainConstants_, shadowConstants_;
+    Microsoft::WRL::ComPtr<ID3D12Resource> instances_, mainConstants_, shadowConstants_, reflectionConstants_;
     Constants* mainMapped_ = nullptr;
     Constants* shadowMapped_ = nullptr;
+    Constants* reflectionMapped_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> root_;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> mainPipeline_, shadowPipeline_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mainPipeline_, shadowPipeline_, reflectionPipeline_;
 };
 }

@@ -736,6 +736,9 @@
     <ClCompile Include="application\title\TitleAudioSettingsView.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleSkyRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleFarmRenderer.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitlePondSystem.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitlePondRenderer.cpp"><Filter>Title</Filter></ClCompile>
+    <ClCompile Include="application\title\TitleReflectionRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleGrassRenderer.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleView.cpp"><Filter>Title</Filter></ClCompile>
     <ClCompile Include="application\title\TitleLogoRippleRenderer.cpp"><Filter>Title</Filter></ClCompile>
@@ -751,6 +754,9 @@
     <ClInclude Include="application\title\TitleSkyRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleCelestialGeometry.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleFarmRenderer.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitlePondSystem.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitlePondRenderer.h"><Filter>Title</Filter></ClInclude>
+    <ClInclude Include="application\title\TitleReflectionRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleGrassRenderer.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleGrassPresentation.h"><Filter>Title</Filter></ClInclude>
     <ClInclude Include="application\title\TitleView.h"><Filter>Title</Filter></ClInclude>
@@ -763,6 +769,15 @@
     <None Include="Resources\shader\TitleSky.hlsli"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleSky.VS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleSky.PS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitlePond.PS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitleReflection.hlsli"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitleReflection.VS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitleReflection.PS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\TitleGrassReflection.PS.hlsl"><Filter>Title</Filter></None>
+    <None Include="Resources\title\reflection_scenery.obj"><Filter>Title</Filter></None>
+    <None Include="Resources\title\pond_layout.json"><Filter>Title</Filter></None>
+    <None Include="Resources\title\pond_shore.obj"><Filter>Title</Filter></None>
+    <None Include="Resources\title\pond_stone.png"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleLogoRipple.VS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\RippleTransition.VS.hlsl"><Filter>Scene</Filter></None>
     <None Include="Resources\shader\RippleTransition.PS.hlsl"><Filter>Scene</Filter></None>

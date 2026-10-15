@@ -7,6 +7,7 @@
 #include "title/TitleAudioSystem.h"
 #include "title/TitleAudioSettingsSystem.h"
 #include "title/TitleAudioSettingsView.h"
+#include "title/TitlePondRenderer.h"
 
 class TitleScene : public BaseScene {
 public:
@@ -15,7 +16,7 @@ public:
 	void Update() override;
 	void UpdateTransitionPresentation() override { Update(); }
 	void Draw() override;
-	void RequestStart() noexcept { if (!settings_.GetFrame().open) presentation_.RequestStart(); }
+    void RequestStart() noexcept;
 	void SetSettingsViewportInput(const title::AudioSettingsInput& input, bool focused) noexcept {
 		viewportInput_ = input; viewportFocused_ = focused;
 	}
@@ -27,7 +28,10 @@ private:
 	title::TitleAudioSystem audio_;
 	title::TitleAudioSettingsSystem settings_;
 	title::TitleAudioSettingsView settingsView_;
+    title::TitlePondSystem pond_;
+    title::TitlePondRenderer pondRenderer_;
 	title::AudioSettingsInput viewportInput_{};
 	bool viewportFocused_ = false;
 	bool ready_ = false;
+    bool pondReady_ = false;
 };

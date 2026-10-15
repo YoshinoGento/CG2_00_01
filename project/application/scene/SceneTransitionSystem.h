@@ -6,6 +6,8 @@
 
 namespace scene {
 inline constexpr float kDropFallSeconds = .18f;
+inline constexpr float kPondDropFallSeconds = .32f;
+inline constexpr float kPondSweepDelaySeconds = .12f;
 inline constexpr float kRipplePreviewSeconds = .55f;
 inline constexpr float kRippleWipeSeconds = .35f;
 inline constexpr float kRippleCoverSeconds = kDropFallSeconds+kRipplePreviewSeconds+kRippleWipeSeconds;
@@ -24,6 +26,11 @@ enum class TransitionPhase { Idle, Covering, Revealing, WaitingForRelease };
 enum class TransitionTarget { SceneReplacement, ScreenPresentation };
 enum class TransitionStyle { Ripple, ShopEnter, ShopExit };
 struct RipplePoint { float x = kRippleCenterX, y = kRippleCenterY; };
+struct PondRipplePath {
+    bool enabled = false;
+    RipplePoint start{}, impact{};
+    std::array<float,9> screenToPond{};
+};
 struct WaterDrop { RipplePoint center{}; float age = 0; bool active = false; };
 struct TransitionFrame {
     TransitionPhase phase = TransitionPhase::Idle;
@@ -31,6 +38,7 @@ struct TransitionFrame {
     RipplePoint center{};
     std::array<WaterDrop,kMaximumWaterDrops> drops{};
     TransitionStyle style = TransitionStyle::Ripple;
+    PondRipplePath pond{};
 };
 struct TransitionImageMotion { float scale = 1, fade = 0; };
 
@@ -51,12 +59,20 @@ inline TransitionImageMotion MakeTransitionImageMotion(const TransitionFrame& fr
 class SceneTransitionSystem final {
 public:
     bool Begin(RipplePoint point = {}, TransitionTarget target = TransitionTarget::SceneReplacement,
-        TransitionSoundTheme sound = TransitionSoundTheme::Water, TransitionStyle style = TransitionStyle::Ripple) noexcept {
+        TransitionSoundTheme sound = TransitionSoundTheme::Water, TransitionStyle style = TransitionStyle::Ripple,
+        const PondRipplePath& pond = {}) noexcept {
         if (IsActive() || (style != TransitionStyle::Ripple && style != TransitionStyle::ShopEnter &&
             style != TransitionStyle::ShopExit) ||
             (style != TransitionStyle::Ripple && target != TransitionTarget::ScreenPresentation)) return false;
+        if (pond.enabled) {
+            if (style != TransitionStyle::Ripple || target != TransitionTarget::SceneReplacement) return false;
+            for (float value : pond.screenToPond) if (!std::isfinite(value)) return false;
+            for (float value : {pond.start.x,pond.start.y,pond.impact.x,pond.impact.y})
+                if (!std::isfinite(value) || value < 0 || value > 1) return false;
+        }
         ClearDrops();
-        center_ = Sanitize(point);
+        pond_ = pond.enabled ? pond : PondRipplePath{};
+        center_ = Sanitize(pond.enabled ? pond.impact : point);
         style_ = style;
         if (style_ == TransitionStyle::Ripple) drops_[0] = {center_,0,true};
         phase_ = TransitionPhase::Covering;
@@ -86,8 +102,8 @@ public:
             const float previous = time_;
             time_ = (std::min)(time_+delta,CoverSeconds());
             if (style_ == TransitionStyle::Ripple && soundTheme_ == TransitionSoundTheme::Water) {
-                if (previous < kDropFallSeconds && time_ >= kDropFallSeconds) Emit(TransitionSoundCue::WaterDrop);
-                constexpr float sweepTime = kDropFallSeconds+kRipplePreviewSeconds;
+                if (previous < FallSeconds() && time_ >= FallSeconds()) Emit(TransitionSoundCue::WaterDrop);
+                const float sweepTime = FallSeconds()+(pond_.enabled ? kPondSweepDelaySeconds : kRipplePreviewSeconds);
                 if (previous < sweepTime && time_ >= sweepTime) Emit(TransitionSoundCue::WaterSweep);
             }
         }
@@ -134,16 +150,19 @@ public:
         float progress = 0;
         if (IsCovering()) {
             if (style_ != TransitionStyle::Ripple) progress = time_/CoverSeconds();
-            else progress = time_ >= kRippleCoverSeconds ? 1.0f :
-                (time_-kDropFallSeconds-kRipplePreviewSeconds)/kRippleWipeSeconds;
+            else if (pond_.enabled) progress = (time_-FallSeconds())/(kRipplePreviewSeconds+kRippleWipeSeconds);
+            else progress = time_ >= CoverSeconds() ? 1.0f :
+                (time_-FallSeconds()-kRipplePreviewSeconds)/kRippleWipeSeconds;
         }
         else if (phase_ == TransitionPhase::Revealing) progress = time_/RevealSeconds();
         else if (phase_ == TransitionPhase::WaitingForRelease) progress = 1;
         progress = std::clamp(progress,0.0f,1.0f);
-        return {phase_,progress*progress*(3-2*progress),center_,drops_,style_};
+        return {phase_,progress*progress*(3-2*progress),center_,drops_,style_,IsActive() ? pond_ : PondRipplePath{}};
     }
 private:
-    [[nodiscard]] float CoverSeconds() const noexcept { return style_ == TransitionStyle::Ripple ? kRippleCoverSeconds : kShopCoverSeconds; }
+    [[nodiscard]] float FallSeconds() const noexcept { return pond_.enabled ? kPondDropFallSeconds : kDropFallSeconds; }
+    [[nodiscard]] float CoverSeconds() const noexcept { return style_ == TransitionStyle::Ripple ?
+        FallSeconds()+kRipplePreviewSeconds+kRippleWipeSeconds : kShopCoverSeconds; }
     [[nodiscard]] float RevealSeconds() const noexcept { return style_ == TransitionStyle::Ripple ? kRippleRevealSeconds : kShopRevealSeconds; }
     void Emit(TransitionSoundCue cue) noexcept { soundCues_ |= SoundBit(cue); }
     static RipplePoint Sanitize(RipplePoint point) noexcept {
@@ -159,6 +178,7 @@ private:
     TransitionSoundTheme soundTheme_ = TransitionSoundTheme::Water;
     TransitionSoundMask soundCues_ = 0;
     RipplePoint center_{};
+    PondRipplePath pond_{};
     std::array<WaterDrop,kMaximumWaterDrops> drops_{};
 };
 }

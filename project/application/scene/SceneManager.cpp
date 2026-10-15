@@ -90,12 +90,14 @@ void SceneManager::InitializeTransitions(DirectXCommon* dx, SrvManager* srv, Aud
 	if (!transitionAudio_.Initialize(audio)) Logger::Warning("Transition SE unavailable; continuing silently.");
 }
 
-bool SceneManager::ChangeSceneWithRipple(const std::string& sceneName, scene::RipplePoint origin) {
+bool SceneManager::ChangeSceneWithRipple(const std::string& sceneName, scene::RipplePoint origin,
+    const scene::PondRipplePath& pond) {
 	if (!sceneFactory_ || nextScene_ || transition_.IsActive()) return false;
 	auto next = sceneFactory_->CreateScene(sceneName);
 	if (!next) return false;
 	nextScene_ = std::move(next);
-	if (scene_ && transitionRenderer_.IsReady()) transition_.Begin(origin);
+    if (scene_ && transitionRenderer_.IsReady()) transition_.Begin(origin,
+        scene::TransitionTarget::SceneReplacement,scene::TransitionSoundTheme::Water,scene::TransitionStyle::Ripple,pond);
 	return true;
 }
 

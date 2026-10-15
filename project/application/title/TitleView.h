@@ -8,6 +8,8 @@ class TitleView final {
 public:
     bool Initialize(SpriteCommon* common);
     void Draw(const Frame& frame);
+    void DrawLogo(const Frame& frame);
+    void DrawPrompt(const Frame& frame);
 private:
     SpriteCommon* common_ = nullptr;
     std::unique_ptr<Sprite> logo_, prompt_, fade_;

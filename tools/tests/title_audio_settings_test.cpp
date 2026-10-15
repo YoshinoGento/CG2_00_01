@@ -37,9 +37,11 @@ int main() {
     auto holdStart = Click(640,650); holdStart.pressed = false;
     Check(!system.Update(holdStart));
     Check(!system.GetWaterClick());
-    Check(!system.Update(Click(640,500)));
+    Check(system.Update(Click(640,500)));
     Check(system.GetWaterClick() && system.GetWaterClick()->y == 500);
     Check(!system.Update(Click(-1,500)) && !system.GetWaterClick());
+    Check(system.Update(Click(0,0)) && system.Update(Click(1280,720)));
+    Check(!system.Update(Click(1281,720)) && !system.GetWaterClick());
     Check(!system.Update(Click(std::numeric_limits<float>::quiet_NaN(),500)) && !system.GetWaterClick());
     Check(!system.Update(Click(1100,60)) && system.GetFrame().open);
     Check(!system.GetWaterClick());

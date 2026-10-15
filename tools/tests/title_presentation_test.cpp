@@ -74,19 +74,19 @@ int main() {
     safe = title::SanitizeAudioMix(malformed);
     for (float gain : safe.ambience) Check(gain == 0);
     Check(safe.water == 0);
-    Check(title::HitTestStartButton(title::kStartCenter));
-    Check(title::HitTestStartButton({500,610}));
-    Check(title::HitTestStartButton({780,690}));
+    Check(title::HitTestTitleCanvas(title::kStartCenter));
+    Check(title::HitTestTitleCanvas({0,0}));
+    Check(title::HitTestTitleCanvas({1280,720}));
     for (const auto resolution : {Vector2{1600,900},Vector2{1280,720},Vector2{1920,1080}}) {
-        Check(title::HitTestStartButtonInViewport({resolution.x*.5f,resolution.y*650/720},resolution));
-        Check(!title::HitTestStartButtonInViewport({resolution.x*.8f,resolution.y*.9f},resolution));
+        Check(title::HitTestTitleCanvasInViewport({resolution.x*.5f,resolution.y*650/720},resolution));
+        Check(title::HitTestTitleCanvasInViewport({resolution.x*.8f,resolution.y*.9f},resolution));
     }
-    Check(!title::HitTestStartButtonInViewport({640,650},{0,720}));
-    Check(!title::HitTestStartButtonInViewport({640,650},{1280,std::numeric_limits<float>::infinity()}));
-    for (const auto point : {Vector2{499,650}, Vector2{781,650}, Vector2{640,609},
-            Vector2{640,691}, Vector2{0,0}, Vector2{640,std::numeric_limits<float>::quiet_NaN()},
+    Check(!title::HitTestTitleCanvasInViewport({640,650},{0,720}));
+    Check(!title::HitTestTitleCanvasInViewport({640,650},{1280,std::numeric_limits<float>::infinity()}));
+    for (const auto point : {Vector2{-1,650}, Vector2{1281,650}, Vector2{640,-1},
+            Vector2{640,721}, Vector2{640,std::numeric_limits<float>::quiet_NaN()},
             Vector2{std::numeric_limits<float>::infinity(),650}}) {
-        Check(!title::HitTestStartButton(point));
+        Check(!title::HitTestTitleCanvas(point));
     }
     const auto cameraWorld = MatrixMath::MakeAffineMatrix({1,1,1},title::kCameraRotation,title::kCameraPosition);
     const auto projection = MatrixMath::MakePerspectiveFovMatrix(title::kCameraFovY,title::kWidth/title::kHeight,.1f,180);
@@ -95,10 +95,10 @@ int main() {
     Check(system.Initialize());
     const auto generation = system.GetFarm().GetGeneration();
     Check(system.GetFarm().GetTileCount() == 20);
-    Check(system.GetFarm().GetTile(2)->feature == farm::FarmTileFeature::WaterSource);
+    Check(system.GetFarm().GetTile(17)->feature == farm::FarmTileFeature::WaterSource);
     for (int row = 1; row < 4; ++row) {
-        const auto* upstream = system.GetFarm().GetTile((row-1)*5+2);
-        const auto* downstream = system.GetFarm().GetTile(row*5+2);
+        const auto* upstream = system.GetFarm().GetTile(row*5+2);
+        const auto* downstream = system.GetFarm().GetTile((row-1)*5+2);
         Check(downstream->feature == farm::FarmTileFeature::Canal);
         Check(upstream->heightLevel >= downstream->heightLevel);
     }

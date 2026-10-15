@@ -10,17 +10,25 @@ bool TitleView::Initialize(SpriteCommon* common) {
     if (!reflection->Initialize(common->GetDxCommon(),TextureManager::GetInstance())) return false;
     common_ = common;
     logo->SetAnchorPoint({.5f,.5f}); logo->SetPosition(kLogoCenter); logo->SetSize(kLogoSize);
-    prompt->SetAnchorPoint({.5f,.5f}); prompt->SetPosition(kStartCenter); prompt->SetSize(kStartSize);
+    prompt->SetAnchorPoint({.5f,.5f}); prompt->SetPosition(kStartCenter);
+    prompt->SetTextureRect({0,0},{280,46}); prompt->SetSize({280,46});
     fade->SetPosition({0,0}); fade->SetSize({kWidth,kHeight});
     logo_ = std::move(logo); prompt_ = std::move(prompt); fade_ = std::move(fade);
     reflection_ = std::move(reflection);
     return true;
 }
 void TitleView::Draw(const Frame& frame) {
+    DrawLogo(frame);
+    DrawPrompt(frame);
+}
+void TitleView::DrawLogo(const Frame& frame) {
     if (!common_) return;
     common_->PreDraw();
     logo_->Update(); logo_->Draw();
     reflection_->Draw(frame);
+}
+void TitleView::DrawPrompt(const Frame& frame) {
+    if (!common_) return;
     common_->PreDraw();
     prompt_->SetColor({1,1,1,frame.promptAlpha}); prompt_->Update(); prompt_->Draw();
     if (frame.entryFadeAlpha > 0) {

@@ -1,5 +1,5 @@
 {
-  "triangles": 3620,
+  "triangles": 4420,
   "sections": {
     "ground": 1280,
     "road": 52,
@@ -7,7 +7,7 @@
     "road_verge": 104,
     "road_posts": 36,
     "forest_trunks": 96,
-    "forest": 2000
+    "forest": 2800
   },
   "materials": [
     0,

@@ -66,14 +66,16 @@ bool TitleGrassRenderer::Initialize(Object3dCommon* common, ModelManager* models
     instances_ = dx->CreateBufferResource(sizeof(Instance)*count);
     mainConstants_ = dx->CreateBufferResource(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
     shadowConstants_ = dx->CreateBufferResource(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-    if (!instances_ || !mainConstants_ || !shadowConstants_) { Finalize(); return false; }
+    reflectionConstants_ = dx->CreateBufferResource(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+    if (!instances_ || !mainConstants_ || !shadowConstants_ || !reflectionConstants_) { Finalize(); return false; }
     const D3D12_RANGE noRead{0,0};
     void* mapped = nullptr;
     if (FAILED(instances_->Map(0,&noRead,&mapped))) { Finalize(); return false; }
     std::memcpy(mapped,instances.data(),sizeof(Instance)*count);
     instances_->Unmap(0,nullptr);
     if (FAILED(mainConstants_->Map(0,&noRead,reinterpret_cast<void**>(&mainMapped_))) ||
-        FAILED(shadowConstants_->Map(0,&noRead,reinterpret_cast<void**>(&shadowMapped_)))) { Finalize(); return false; }
+        FAILED(shadowConstants_->Map(0,&noRead,reinterpret_cast<void**>(&shadowMapped_))) ||
+        FAILED(reflectionConstants_->Map(0,&noRead,reinterpret_cast<void**>(&reflectionMapped_)))) { Finalize(); return false; }
     *mainMapped_ = {}; *shadowMapped_ = {};
     instancesView_ = {instances_->GetGPUVirtualAddress(),static_cast<UINT>(sizeof(Instance)*count),sizeof(Instance)};
     count_ = count;
@@ -87,7 +89,8 @@ bool TitleGrassRenderer::CreatePipelines() {
     auto* dx = common_->GetDxCommon();
     const auto vs = dx->CompileShader(L"Resources/shader/TitleGrass.VS.hlsl",L"vs_6_0");
     const auto ps = dx->CompileShader(L"Resources/shader/TitleGrass.PS.hlsl",L"ps_6_0");
-    if (!vs || !ps) return false;
+    const auto reflectedPS = dx->CompileShader(L"Resources/shader/TitleGrassReflection.PS.hlsl",L"ps_6_0");
+    if (!vs || !ps || !reflectedPS) return false;
     D3D12_DESCRIPTOR_RANGE range{};
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; range.NumDescriptors = 1;
     std::array<D3D12_ROOT_PARAMETER,3> parameters{};
@@ -137,6 +140,9 @@ bool TitleGrassRenderer::CreatePipelines() {
     pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     pso.SampleDesc.Count = 1; pso.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
     if (FAILED(dx->GetDevice()->CreateGraphicsPipelineState(&pso,IID_PPV_ARGS(&mainPipeline_)))) return false;
+    pso.PS = {reflectedPS->GetBufferPointer(),reflectedPS->GetBufferSize()};
+    pso.NumRenderTargets = 1; pso.RTVFormats[1] = DXGI_FORMAT_UNKNOWN;
+    if (FAILED(dx->GetDevice()->CreateGraphicsPipelineState(&pso,IID_PPV_ARGS(&reflectionPipeline_)))) return false;
     pso.PS = {}; pso.NumRenderTargets = 0; pso.RTVFormats[0] = pso.RTVFormats[1] = DXGI_FORMAT_UNKNOWN;
     pso.DSVFormat = DXGI_FORMAT_D32_FLOAT;
     pso.RasterizerState.DepthBias = 1200; pso.RasterizerState.SlopeScaledDepthBias = 1.5f;
@@ -187,13 +193,30 @@ void TitleGrassRenderer::DrawShadow() {
 void TitleGrassRenderer::Draw() {
     if (ready_ && common_->IsObjectPassActive()) BindAndDraw(false);
 }
+void TitleGrassRenderer::DrawReflection(float waterHeight) {
+    if (!ready_ || !std::isfinite(waterHeight)) return;
+    *reflectionMapped_ = *mainMapped_;
+    auto mirror = MatrixMath::MakeIdentity4x4();
+    mirror.m[1][1] = -1; mirror.m[3][1] = 2*waterHeight;
+    reflectionMapped_->viewProjection = MatrixMath::Multiply(mirror,mainMapped_->viewProjection);
+    auto* commands = common_->GetDxCommon()->GetCommandList();
+    commands->SetGraphicsRootSignature(root_.Get()); commands->SetPipelineState(reflectionPipeline_.Get());
+    commands->SetGraphicsRootConstantBufferView(0,reflectionConstants_->GetGPUVirtualAddress());
+    commands->SetGraphicsRootConstantBufferView(1,common_->GetShadowSceneBufferAddress());
+    commands->SetGraphicsRootDescriptorTable(2,common_->GetShadowMapSrvHandle());
+    commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    commands->IASetVertexBuffers(1,1,&instancesView_);
+    // One far-LOD instance draw; reflected grass does not duplicate the detailed near mesh.
+    farModel_->Draw(commands,count_);
+}
 void TitleGrassRenderer::Finalize() noexcept {
     ready_ = false;
     if (mainConstants_ && mainMapped_) mainConstants_->Unmap(0,nullptr);
     if (shadowConstants_ && shadowMapped_) shadowConstants_->Unmap(0,nullptr);
-    mainMapped_ = shadowMapped_ = nullptr;
-    mainConstants_.Reset(); shadowConstants_.Reset(); instances_.Reset();
-    mainPipeline_.Reset(); shadowPipeline_.Reset(); root_.Reset();
+    if (reflectionConstants_ && reflectionMapped_) reflectionConstants_->Unmap(0,nullptr);
+    mainMapped_ = shadowMapped_ = reflectionMapped_ = nullptr;
+    mainConstants_.Reset(); shadowConstants_.Reset(); reflectionConstants_.Reset(); instances_.Reset();
+    mainPipeline_.Reset(); shadowPipeline_.Reset(); reflectionPipeline_.Reset(); root_.Reset();
     model_ = farModel_ = nullptr; common_ = nullptr; count_ = shadowCount_ = 0; instancesView_ = {};
 }
 }

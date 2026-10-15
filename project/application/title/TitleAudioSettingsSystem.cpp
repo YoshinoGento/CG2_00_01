@@ -40,7 +40,7 @@ bool TitleAudioSettingsSystem::Update(const AudioSettingsInput& input) {
         if (input.pointerValid && input.pressed && std::isfinite(input.pointer.x) && std::isfinite(input.pointer.y) &&
             input.pointer.x >= 0 && input.pointer.x <= kWidth && input.pointer.y >= 0 && input.pointer.y <= kHeight)
             waterClick_ = input.pointer;
-        return input.confirm || (waterClick_ && HitTestStartButton(*waterClick_));
+        return input.confirm || waterClick_.has_value();
     }
     if (input.back || input.confirm || (input.pointerValid && input.pressed && kAudioSettingsBack.Contains(input.pointer))) {
         Close(); return false;

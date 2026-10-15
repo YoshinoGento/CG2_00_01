@@ -5,6 +5,7 @@
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
 #include "base/Logger.h"
+#include <algorithm>
 #include <filesystem>
 #include <string>
 
@@ -13,7 +14,7 @@ TitleFarmRenderer::TitleFarmRenderer() = default;
 TitleFarmRenderer::~TitleFarmRenderer() { Finalize(); }
 
 bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelManager,
-    TextureManager* textures, const farm::FarmGrid& grid) {
+    TextureManager* textures, const farm::FarmGrid& grid, const PondLayout* pond) {
     if (common_ || !common || !modelManager || !textures || !common->GetLightingSystem() ||
         grid.GetTileCount() != static_cast<int>(kTitleTileCount)) return false;
     constexpr std::array<const char*,11> paths{"farm/unit_box.obj", "farm/triangle_lower.obj",
@@ -30,11 +31,13 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
     }
     const auto white = textures->LoadTexture2D("Resources/farm/white.png");
     if (!white.IsValid() || white == textures->GetFallback2D()) return false;
+    whiteTexture_ = white;
     if (!std::filesystem::is_regular_file("Resources/title/countryside.obj",error) ||
         !std::filesystem::is_regular_file("Resources/title/countryside_atlas.png",error)) return false;
     modelManager->LoadModel("title/countryside.obj");
     auto* landscapeModel = modelManager->GetModel("title/countryside.obj");
     const auto landscapeTexture = textures->LoadTexture2D("Resources/title/countryside_atlas.png");
+    landscapeTexture_ = landscapeTexture;
     if (!landscapeModel || landscapeModel->HasSkinCluster() ||
         !landscapeTexture.IsValid() || landscapeTexture == textures->GetFallback2D()) return false;
     landscape_ = std::make_unique<Object3d>();
@@ -43,6 +46,16 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
     landscape_->SetTexture(landscapeTexture);
     landscape_->SetSpecularType(Object3d::SpecularType::None);
     landscape_->SetEnableLighting(true);
+    if (!std::filesystem::is_regular_file("Resources/title/pond_shore.obj",error) ||
+        !std::filesystem::is_regular_file("Resources/title/pond_stone.png",error)) return false;
+    modelManager->LoadModel("title/pond_shore.obj");
+    auto* shoreModel = modelManager->GetModel("title/pond_shore.obj");
+    if (!shoreModel || shoreModel->HasSkinCluster()) return false;
+    const auto shoreTexture = textures->LoadTexture2D("Resources/title/pond_stone.png");
+    if (!shoreTexture.IsValid() || shoreTexture == textures->GetFallback2D()) return false;
+    pondShore_ = std::make_unique<Object3d>();
+    pondShore_->Initialize(common); pondShore_->SetModel(shoreModel); pondShore_->SetTexture(shoreTexture);
+    pondShore_->SetEnableLighting(true); pondShore_->SetSpecularType(Object3d::SpecularType::None);
     if (!sky_.Initialize(common->GetDxCommon(),textures) || !grass_.Initialize(common,modelManager)) return false;
     common_ = common; lights_ = common->GetLightingSystem();
     previousDirectional_ = lights_->GetDirectionalLight(); previousSpot_ = lights_->GetSpotLight();
@@ -50,8 +63,19 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
     camera_.SetTranslate(kCameraPosition); camera_.SetRotate(kCameraRotation);
     camera_.SetAspectRatio(kWidth/kHeight); camera_.SetFovY(kCameraFovY);
     camera_.SetNearClip(.1f); camera_.SetFarClip(180); camera_.Update();
+    if (pond) {
+        pond_ = *pond;
+        activeGlintCount_ = kGlintCount;
+        if (std::filesystem::is_regular_file("Resources/title/reflection_scenery.obj",error)) {
+            modelManager->LoadModel("title/reflection_scenery.obj");
+            reflectedScenery_ = modelManager->GetModel("title/reflection_scenery.obj");
+        }
+        if (!reflectedScenery_ || reflectedScenery_->HasSkinCluster() ||
+            !reflection_.Initialize(common->GetDxCommon(),common->GetSrvManager(),textures))
+            Logger::Warning("Title planar reflection unavailable; pond uses the snapshot fallback.");
+    }
     farm::FarmVisualLayout layout;
-    layout.center = {0,0,6}; layout.tileGap = .05f; layout.heightStep = .27f;
+    layout.center = kFarmCenter; layout.tileGap = .05f; layout.heightStep = .27f;
     farm::FarmVisualSystem visual; visual.Initialize(layout);
     parts_.reserve(kMaximumParts);
     crops_.reserve(kTitleTileCount);
@@ -61,7 +85,13 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
         cropVisual.cropStage = farm::FarmCropGrowthStage::Ready;
         const auto crops = farm::BuildFarmCropMeshParts(cropVisual,1.0f);
         if (parts_.size()+terrain.count+crops.count+4 > kMaximumParts) return false;
-        parts_.insert(parts_.end(),terrain.parts.begin(),terrain.parts.begin()+terrain.count);
+        for (std::size_t p=0; p<terrain.count; ++p) {
+            const auto& part = terrain.parts[p];
+            // Open only the staged canal's downhill end; playable Farm geometry is unchanged.
+            const bool outfallBank = pond && index == 2 && part.surface == farm::FarmMeshSurface::CanalBank &&
+                part.position.z < cropVisual.center.z-.5f && part.scale.z < .12f;
+            if (!outfallBank) parts_.push_back(part);
+        }
         if (crops.count) {
             CropInstance instance;
             instance.tileIndex = static_cast<std::size_t>(index);
@@ -74,13 +104,23 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
     }
     for (std::size_t row=0; row<waterCenters_.size(); ++row)
         waterCenters_[row] = visual.GetTileVisualData(grid,static_cast<int>(row)*5+2).waterSurfaceCenter;
-    const auto source = waterCenters_[0];
+    const auto source = waterCenters_.back();
     const Vector4 wood{.37f,.25f,.12f,1};
     for (int side : {-1,1}) parts_.push_back({{source.x+side*.40f,source.y+.26f,source.z},
         {.045f,.28f,.045f},wood});
     parts_.push_back({{source.x,source.y+.48f,source.z},{.50f,.045f,.07f},wood});
+    if (pond) {
+        for (std::size_t i=1; i<pond->outfall.size(); ++i) {
+            const auto a = pond->outfall[i-1], b = pond->outfall[i];
+            const float slope = (a.y-b.y)/(a.z-b.z);
+            parts_.push_back({{a.x,(a.y+b.y)*.5f-.004f,(a.z+b.z)*.5f},
+                {pond->outfallHalfWidth,.004f,(a.z-b.z)*.5f}, {},true,{0,slope}});
+        }
+    }
+    if (parts_.size()>kMaximumParts) return false;
     objects_.reserve(parts_.size());
     visible_.assign(parts_.size(),1);
+    drawColors_.resize(parts_.size());
     for (const auto& part : parts_) {
         const auto shape = static_cast<std::size_t>(part.shape);
         if (shape >= models_.size() || !models_[shape]) return false;
@@ -98,7 +138,7 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
         if (!glint->SetScale({.10f,.002f,.012f})) return false;
         glint->SetEnableLighting(false); glint->SetSpecularType(Object3d::SpecularType::None);
     }
-    Logger::Log("TitleFarmRenderer: retained objects="+std::to_string(objects_.size())+", glints=8.\n");
+    Logger::Log("TitleFarmRenderer: retained objects="+std::to_string(objects_.size())+", glints="+std::to_string(kGlintCount)+".\n");
     ready_ = true;
     return true;
 }
@@ -107,9 +147,13 @@ void TitleFarmRenderer::Finalize() noexcept {
     if (lights_) { lights_->SetDirectionalLight(previousDirectional_); lights_->SetSpotLight(previousSpot_); }
     if (common_) common_->SetShadowStrength(previousShadowStrength_);
     lights_ = nullptr; common_ = nullptr; ready_ = false;
-    objects_.clear(); parts_.clear(); visible_.clear(); crops_.clear();
+    activeGlintCount_ = kCanalGlintCount;
+    reflection_.Finalize(); reflectedScenery_ = nullptr;
+    objects_.clear(); parts_.clear(); visible_.clear(); drawColors_.clear(); crops_.clear();
     landscape_.reset();
+    pondShore_.reset();
     grass_.Finalize();
+    sky_.Finalize();
     for (auto& glint : glints_) glint.reset();
 }
 
@@ -125,11 +169,20 @@ void TitleFarmRenderer::Update(const Frame& frame) {
     lights_->SetCameraPosition(camera_.GetTranslate());
     sky_.Update(frame,camera_);
     grass_.Update(frame,camera_);
+    reflection_.Update(frame,camera_,pond_.center.y,lights_->GetDirectionalLight());
     landscape_->Update(&camera_,0);
+    pondShore_->Update(&camera_,0);
+    // Unlit canal surfaces still follow daylight; otherwise they glow against the night pond.
+    const float waterExposure = .08f+.42f*std::clamp(frame.groundExposure,0.0f,1.0f);
+    const Vector4 canalColor{
+        (.70f*frame.waterColor.x+.30f*frame.skyHorizon.x)*waterExposure,
+        (.70f*frame.waterColor.y+.30f*frame.skyHorizon.y)*waterExposure,
+        (.70f*frame.waterColor.z+.30f*frame.skyHorizon.z)*waterExposure,1};
     for (std::size_t i=0; i<parts_.size(); ++i) {
         const auto& part = parts_[i]; auto& object = *objects_[i];
         if (part.surface == farm::FarmMeshSurface::Crop) continue;
-        object.SetColor(part.water ? frame.waterColor : part.color);
+        drawColors_[i] = part.water ? canalColor : part.color;
+        object.SetColor(drawColors_[i]);
         object.Update(&camera_,0);
     }
     for (const auto& crop : crops_) {
@@ -144,6 +197,7 @@ void TitleFarmRenderer::Update(const Frame& frame) {
                 object.SetPosition(mesh.position);
                 if (!object.SetScale(mesh.scale)) break;
                 object.SetColor(mesh.color);
+                drawColors_[index] = mesh.color;
                 const bool foliage = mesh.shape == farm::FarmMeshShape::CarrotLeaves ||
                     mesh.shape == farm::FarmMeshShape::TomatoStems || mesh.shape == farm::FarmMeshShape::PumpkinVines;
                 object.SetRotation({0,0,foliage ? frame.windAngle : 0});
@@ -153,13 +207,21 @@ void TitleFarmRenderer::Update(const Frame& frame) {
             }
         }
     }
-    for (std::size_t i=0; i<glints_.size(); ++i) {
-        auto position = waterCenters_[i/2];
+    for (std::size_t i=0; i<activeGlintCount_; ++i) {
         const float phase = std::fmod(frame.waterPhase + static_cast<float>(i%2)*.5f,1.0f);
-        position.x += i%2 ? .12f : -.17f;
-        position.z += (phase-.5f)*.64f; position.y += .014f;
+        Vector3 position{};
+        if (i < kCanalGlintCount) {
+            position = waterCenters_[i/2];
+            position.x += i%2 ? .12f : -.17f;
+            position.z -= (phase-.5f)*.64f;
+        } else {
+            const std::size_t segment = (i-kCanalGlintCount)/2;
+            const auto a = pond_.outfall[segment], b = pond_.outfall[segment+1];
+            position = {a.x+(i%2 ? .10f : -.10f),a.y+(b.y-a.y)*phase,a.z+(b.z-a.z)*phase};
+        }
+        position.y += .014f;
         glints_[i]->SetPosition(position);
-        const float brightness = .45f+.38f*std::sin(phase*3.14159265f);
+        const float brightness = (.45f+.38f*std::sin(phase*3.14159265f))*waterExposure;
         glints_[i]->SetColor({brightness*(1-frame.nightAmount*.4f),brightness,brightness,1});
         glints_[i]->Update(&camera_,0);
     }
@@ -167,19 +229,29 @@ void TitleFarmRenderer::Update(const Frame& frame) {
 
 void TitleFarmRenderer::Draw() {
     if (!ready_) return;
-    common_->UpdateDirectionalShadow(lights_->GetDirectionalLight().direction,{0,0,6});
+    common_->UpdateDirectionalShadow(lights_->GetDirectionalLight().direction,kFarmCenter);
     if (common_->BeginShadowPass()) {
         landscape_->DrawShadow();
+        pondShore_->DrawShadow();
         for (std::size_t i=0; i<parts_.size(); ++i)
             if (visible_[i] && !parts_[i].water) objects_[i]->DrawShadow();
         grass_.DrawShadow();
         common_->EndShadowPass();
     }
+    if (reflection_.Begin()) {
+        if (reflectedScenery_) reflection_.Draw(reflectedScenery_,MatrixMath::MakeIdentity4x4(),landscapeTexture_,{1,1,1,1});
+        for (std::size_t i=0; i<objects_.size(); ++i)
+            if (visible_[i] && !parts_[i].water)
+                reflection_.Draw(objects_[i]->GetModel(),objects_[i]->GetWorldMatrix(),whiteTexture_,drawColors_[i]);
+        grass_.DrawReflection(pond_.center.y);
+        reflection_.End();
+    }
     sky_.Draw();
     common_->BeginObjectPass();
     landscape_->Draw();
+    pondShore_->Draw();
     for (std::size_t i=0; i<objects_.size(); ++i) if (visible_[i]) objects_[i]->Draw();
-    for (const auto& glint : glints_) glint->Draw();
+    for (std::size_t i=0; i<activeGlintCount_; ++i) glints_[i]->Draw();
     grass_.Draw();
     common_->EndObjectPass();
 }

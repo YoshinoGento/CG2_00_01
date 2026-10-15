@@ -37,7 +37,11 @@ def patch_layout():
              min(p[2] for p in points)-.1,max(p[2] for p in points)+.1)
             for points,_,_,_,section in landscape_build().triangles
             if section in ("road","road_median","road_verge","road_posts")]
-    forbidden = [FARM_EXCLUSION,*road]
+    pond = json.loads((OUT/"pond_layout.json").read_text(encoding="utf-8"))
+    px,_,pz = pond["center"]
+    rx,rz = pond["radii"]
+    margin = pond["shoreWidth"]+.12
+    forbidden = [FARM_EXCLUSION,*road,(px-rx-margin,px+rx+margin,pz-rz-margin,pz+rz+margin)]
     patches = []
     for zi in range(35):
         for xi in range(38):
@@ -50,11 +54,11 @@ def patch_layout():
                    for a,b,c,d in forbidden):
                 continue
             y = terrain_height(x,z)
-            dx,dy,dz = x-6.5,y-4.6,z+7.5
+            dx,dy,dz = x-6.5,y-1.9,z+7.5
             forward = dx*math.sin(-.45)+dz*math.cos(-.45)
-            depth = forward*math.cos(.16)-dy*math.sin(.16)
+            depth = forward*math.cos(.12)-dy*math.sin(.12)
             right = dx*math.cos(-.45)-dz*math.sin(-.45)
-            up = forward*math.sin(.16)+dy*math.cos(.16)
+            up = forward*math.sin(.12)+dy*math.cos(.12)
             # Offline camera footprint filter only; no runtime camera/scene mutation.
             if depth <= 1 or abs(right) > depth*math.tan(.72/2)*1280/720+extent or \
                up+MAX_HEIGHT < -depth*math.tan(.72/2)-extent:

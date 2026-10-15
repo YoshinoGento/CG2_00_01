@@ -11,7 +11,9 @@ Texture2D<float> shadowMap : register(t0);
 SamplerComparisonState shadowSampler : register(s0);
 struct PixelOutput {
     float4 color : SV_TARGET0;
+#ifndef TITLE_REFLECTION
     float4 normal : SV_TARGET1;
+#endif
 };
 float Visibility(float3 position, float3 normal, float3 direction) {
     if (shadowStrength <= 0) return 1;
@@ -38,6 +40,8 @@ PixelOutput main(GrassOutput input, bool front : SV_IsFrontFace) {
     float illumination = .90+.10*abs(dot(normal,direction))*visibility;
     float waveTint = .80+.20*input.wave;
     output.color = float4(pigment*lightColor.rgb*lightDirectionIntensity.w*illumination*waveTint,1);
+#ifndef TITLE_REFLECTION
     output.normal = float4(normal*.5+.5,1);
+#endif
     return output;
 }

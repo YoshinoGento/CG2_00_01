@@ -5,7 +5,7 @@
 
 namespace scene {
 namespace {
-constexpr std::size_t kShaderConstantCount = 8+kMaximumWaterDrops*4+4+4;
+constexpr std::size_t kShaderConstantCount = 8+kMaximumWaterDrops*4+4+4+4+12;
 constexpr float kWavePixelsPerSecond = 520;
 constexpr float kRefractionPixels = 9;
 constexpr float kBlurPixels = 2.2f;
@@ -100,7 +100,8 @@ bool RippleTransitionRenderer::Draw(const TransitionFrame& frame) {
         description.Format != sourceDescription.Format) return false;
     std::array<float,kShaderConstantCount> values{frame.center.x,frame.center.y,
         std::clamp(frame.progress,0.0f,1.0f),frame.phase == TransitionPhase::Revealing ? 1.0f : 0.0f,
-        static_cast<float>(description.Width),static_cast<float>(description.Height),kDropFallSeconds,transitioning ? 1.0f : 0.0f};
+        static_cast<float>(description.Width),static_cast<float>(description.Height),
+        frame.pond.enabled ? kPondDropFallSeconds : kDropFallSeconds,transitioning ? 1.0f : 0.0f};
     for (std::size_t i=0; i<frame.drops.size(); ++i) {
         const auto& drop = frame.drops[i];
         values[8+i*4] = drop.center.x; values[9+i*4] = drop.center.y;
@@ -115,6 +116,14 @@ bool RippleTransitionRenderer::Draw(const TransitionFrame& frame) {
     values[tuningOffset+4] = motion.scale;
     values[tuningOffset+5] = motion.fade;
     values[tuningOffset+6] = transitioning && frame.style != TransitionStyle::Ripple ? 1.0f : 0.0f;
+    constexpr std::size_t flightOffset = tuningOffset+8;
+    constexpr std::size_t pondMappingOffset = flightOffset+4;
+    values[flightOffset] = frame.pond.start.x; values[flightOffset+1] = frame.pond.start.y;
+    values[flightOffset+2] = frame.pond.enabled ? 1.0f : 0.0f;
+    for (std::size_t row=0; row<3; ++row)
+        for (std::size_t column=0; column<3; ++column)
+            values[pondMappingOffset+row*4+column] = frame.pond.screenToPond[row*3+column];
+    for (float value : values) if (!std::isfinite(value)) return false;
     auto* commands = dx_->GetCommandList();
     commands->OMSetRenderTargets(0,nullptr,FALSE,nullptr);
     dx_->TransitionRenderTexture(D3D12_RESOURCE_STATE_COPY_SOURCE);

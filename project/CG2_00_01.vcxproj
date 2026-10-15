@@ -289,6 +289,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\title\TitleAudioSettingsView.cpp" />
     <ClCompile Include="application\title\TitleSkyRenderer.cpp" />
     <ClCompile Include="application\title\TitleFarmRenderer.cpp" />
+    <ClCompile Include="application\title\TitlePondSystem.cpp" />
+    <ClCompile Include="application\title\TitlePondRenderer.cpp" />
+    <ClCompile Include="application\title\TitleReflectionRenderer.cpp" />
     <ClCompile Include="application\title\TitleGrassRenderer.cpp" />
     <ClCompile Include="application\title\TitleView.cpp" />
     <ClCompile Include="application\title\TitleLogoRippleRenderer.cpp" />
@@ -631,6 +634,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\title\TitleSkyRenderer.h" />
     <ClInclude Include="application\title\TitleCelestialGeometry.h" />
     <ClInclude Include="application\title\TitleFarmRenderer.h" />
+    <ClInclude Include="application\title\TitlePondSystem.h" />
+    <ClInclude Include="application\title\TitlePondRenderer.h" />
+    <ClInclude Include="application\title\TitleReflectionRenderer.h" />
     <ClInclude Include="application\title\TitleGrassRenderer.h" />
     <ClInclude Include="application\title\TitleGrassPresentation.h" />
     <ClInclude Include="application\title\TitleView.h" />
@@ -661,6 +667,15 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\title\grass_mesh.json" />
     <None Include="Resources\shader\TitleSky.VS.hlsl" />
     <None Include="Resources\shader\TitleSky.PS.hlsl" />
+    <None Include="Resources\shader\TitlePond.PS.hlsl" />
+    <None Include="Resources\shader\TitleReflection.hlsli" />
+    <None Include="Resources\shader\TitleReflection.VS.hlsl" />
+    <None Include="Resources\shader\TitleReflection.PS.hlsl" />
+    <None Include="Resources\shader\TitleGrassReflection.PS.hlsl" />
+    <None Include="Resources\title\reflection_scenery.obj" />
+    <None Include="Resources\title\pond_layout.json" />
+    <None Include="Resources\title\pond_shore.obj" />
+    <None Include="Resources\title\pond_stone.png" />
     <None Include="Resources\shader\TitleLogoRipple.VS.hlsl" />
     <None Include="Resources\shader\RippleTransition.VS.hlsl" />
     <None Include="Resources\shader\RippleTransition.PS.hlsl" />
