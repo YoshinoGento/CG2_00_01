@@ -11,6 +11,7 @@ bool RuntimeUI::Initialize(SpriteCommon* common) {
     for (auto& sprite : labels_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
     for (auto& sprite : digits_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
     for (auto& sprite : radarLines_) if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
+    for (auto& sprite : icons_) if (!sprite.Initialize(common, kHUDIconAtlas)) return false;
     for (std::size_t i=0;i<seedPackets_.size();++i)
         if (!seedPackets_[i].Initialize(common, i<2 ? "Resources/ui/farm_seed_packets.png" : "Resources/ui/farm_seed_packets_formal.png")) return false;
     for (std::size_t i=0;i<harvestFigures_.size();++i)
@@ -88,17 +89,24 @@ void RuntimeUI::LabelQuad(Label label, Rect r, Vector4 color) {
     sprite.SetSize({uv.width * scale, uv.height * scale});
     sprite.SetColor(color); sprite.Update(); sprite.Draw();
 }
-void RuntimeUI::ValueText(const std::string& value, Vector2 position, float right, Vector4 color) {
+void RuntimeUI::ValueText(const std::string& value, Vector2 position, float right, Vector4 color, float scale) {
     // Numeric/status identifiers only; Japanese labels use whole-line atlas regions.
     for (const unsigned char c : value) {
-        if (digitCount_ >= digits_.size() || position.x + 24 > right) break;
+        if (digitCount_ >= digits_.size() || position.x + 24 * scale > right) break;
         const int glyph = (c >= 32 && c <= 126 ? c : '?') - 32;
         auto& sprite = digits_[digitCount_++];
         sprite.SetTextureRect({static_cast<float>((glyph % 40) * 32), kAsciiY + (glyph / 40) * 40.0f}, {24, 36});
-        sprite.SetSize({24, 36}); sprite.SetPosition(position);
+        sprite.SetSize({24 * scale, 36 * scale}); sprite.SetPosition(position);
         sprite.SetColor(color); sprite.Update(); sprite.Draw();
-        position.x += 14;
+        position.x += 14 * scale;
     }
+}
+void RuntimeUI::IconQuad(HUDIcon icon, Rect rect, Vector4 color) {
+    if (!IsValidIcon(icon) || iconCount_ >= icons_.size()) return;
+    auto& sprite = icons_[iconCount_++];
+    sprite.SetTextureRect(IconUV(icon), {kHUDIconSize, kHUDIconSize});
+    sprite.SetPosition({rect.x, rect.y}); sprite.SetSize({rect.width, rect.height});
+    sprite.SetColor(color); sprite.Update(); sprite.Draw();
 }
 void RuntimeUI::DrawRadar(const QualityRadar& radar) {
     std::size_t count = 0;
@@ -132,7 +140,10 @@ void RuntimeUI::DrawRadar(const QualityRadar& radar) {
 }
 void RuntimeUI::Draw(const View& view, Vector2 pointer) {
     if (!ready_) return;
-    panelCount_ = labelCount_ = digitCount_ = 0;
+    panelCount_ = labelCount_ = digitCount_ = iconCount_ = 0;
+    const Item* tooltip = nullptr;
+    const Item* selectedTool = nullptr;
+    if (view.compactHUD && view.hotbarVisible) Panel(HUDLayout::tools, {0.025f, 0.035f, 0.032f, 0.93f});
     if (view.seedShop || view.harvestDisplay) {
         Panel({24, 16, 1232, 60}, {0.035f, 0.055f, 0.06f, 0.94f});
         Panel(SeedShopLayout::receipt, {0.035f, 0.055f, 0.06f, 0.97f});
@@ -181,6 +192,28 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
             continue;
         }
         const bool button = item.request.action != Action::None;
+        if (IsValidIcon(item.icon)) {
+            const bool hover = item.rect.Contains(pointer) || item.focused;
+            const Vector4 border = item.selected ? Vector4{0.96f, 0.78f, 0.35f, 1} :
+                hover ? Vector4{0.68f, 0.89f, 0.85f, 1} : Vector4{0.23f, 0.30f, 0.28f, 1};
+            Panel(item.rect, border);
+            Panel({item.rect.x + 3, item.rect.y + 3, item.rect.width - 6, item.rect.height - 6},
+                item.enabled ? Vector4{0.07f, 0.10f, 0.09f, 0.98f} : Vector4{0.045f, 0.05f, 0.05f, 1});
+            const float size = (std::min)(item.rect.width, item.rect.height) - 12;
+            IconQuad(item.icon, {item.rect.x + (item.rect.width-size)*0.5f, item.rect.y+5, size, size},
+                item.enabled ? Vector4{1,1,1,1} : Vector4{0.40f,0.43f,0.42f,1});
+            if (!item.value.empty()) {
+                const float scale = (std::min)(0.58f, (item.rect.width-10) / (14*static_cast<float>(item.value.size())+10));
+                const float width = (14*static_cast<float>(item.value.size())+10)*scale;
+                const float x = item.rect.x+item.rect.width-width-5;
+                const float y = item.rect.y+item.rect.height-36*scale-3;
+                Panel({x-2,y,width+4,36*scale}, {0.025f,0.03f,0.028f,0.94f});
+                ValueText(item.value,{x,y},item.rect.x+item.rect.width-3,{1,1,0.94f,1},scale);
+            }
+            if (item.request.action == Action::Tool && item.selected) selectedTool = &item;
+            if (hover) tooltip = &item;
+            continue;
+        }
         if (button) {
             Vector4 color = item.enabled ? Vector4{0.16f, 0.23f, 0.22f, 1} : Vector4{0.09f, 0.11f, 0.11f, 1};
             if (item.selected) color = {0.40f, 0.32f, 0.10f, 1};
@@ -198,6 +231,15 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
             item.warning ? Vector4{1.0f, 0.72f, 0.32f, 1} : Vector4{0.96f, 0.98f, 0.96f, 1});
         if (!item.value.empty()) ValueText(item.value, {item.rect.x + item.valueOffset, item.rect.y + 1}, item.rect.x + item.rect.width,
             item.darkInk ? darkInk : Vector4{1.0f, 0.87f, 0.50f, 1});
+    }
+    const Item* caption = tooltip ? tooltip : selectedTool;
+    if (caption) {
+        const auto index = static_cast<std::size_t>(caption->label);
+        if (index < kLabels.size()) {
+            const Rect box = IconCaptionRect(*caption);
+            Panel(box, {0.018f,0.026f,0.024f,0.98f});
+            LabelQuad(caption->label,box,{0.97f,0.98f,0.94f,1});
+        }
     }
     if (!view.recordNames[0].empty() && namesReady_) { names_.Update(); names_.Draw(); }
 }

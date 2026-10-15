@@ -710,6 +710,10 @@
     <ClCompile Include="application\farm\system\FarmLayoutSystem.cpp" />
     <ClCompile Include="application\farm\ui\FarmRecordDialog.cpp" />
     <ClInclude Include="application\farm\ui\FarmRuntimeUI.h" />
+    <ClInclude Include="application\farm\ui\FarmHUDLayout.h" />
+    <ClInclude Include="application\farm\ui\FarmHUDIcons.h" />
+    <ClInclude Include="application\farm\ui\FarmHotbarView.h" />
+    <ClInclude Include="application\farm\ui\FarmUIRect.h" />
     <ClInclude Include="application\farm\ui\FarmQualityView.h" />
     <ClInclude Include="application\farm\ui\FarmTerrainView.h" />
     <ClInclude Include="application\farm\ui\FarmObservationView.h" />

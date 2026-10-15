@@ -55,10 +55,7 @@ inline void BuildFieldActionView(View& view, const FarmToolActionResult& evaluat
             request = {Action::Tool, toolIndex}; enabled = true;
         }
     }
-    view.Metric(Label::Selected, {1048, 532, 200, 38}, 106,
-        evaluation.tileIndex >= 0 && evaluation.status != FarmToolActionStatus::InvalidTarget
-            ? std::to_string(evaluation.tileIndex) : "--");
-    view.Add(reason, {1048, 570, 200, 36});
-    view.Add(action, {1048, 606, 200, 38}, request, enabled);
+    view.Add(reason, {964, 590, 216, 36});
+    view.Add(action, {964, 642, 216, 46}, request, enabled);
 }
 }

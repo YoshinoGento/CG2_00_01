@@ -1,4 +1,5 @@
 #include "farm/system/FarmRuntimeController.h"
+#include "farm/ui/FarmHotbarView.h"
 #include "scene/GamePlayScene.h"
 #include "scene/SceneManager.h"
 #include "io/Input.h"
@@ -122,13 +123,16 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             return;
         }
         const auto hud = s.BuildFarmHUDViewData();
-        if (hud.freeFarming) view_.Add(Label::FreeMode, {900, 82, 332, 40});
+        view_.compactHUD = true;
+        view_.selectedTile = hud.selectedTileValid;
+        view_.goalVisible = !hud.freeFarming;
         view_.feedback = hud.feedback != FarmHUDFeedback::None;
-        view_.Add(Label::Menu, {1040, 654, 216, 42}, {Action::Menu});
+        view_.IconButton(Label::Menu, farmui::HUDIcon::Menu, farmui::HUDLayout::UtilitySlot(5), {Action::Menu});
         if (s.farmIrrigationPreviewSystem_.IsActive()) {
             view_.Add(Label::Confirm, {1040, 544, 216, 44}, {Action::Confirm}, s.farmIrrigationPreviewSystem_.CanConfirm(s.farmGrid_));
             view_.Add(Label::Cancel, {1040, 596, 216, 44}, {Action::Cancel});
         } else if (!s.farmCropSelectionSystem_.IsOpen()) {
+            farmui::BuildHotbarView(view_, hud, !s.farmProgressionSystem_.IsCleared());
             farmui::BuildPlayQuickView(view_, paused_, !s.farmProgressionSystem_.IsCleared(),
                 !s.farmProgressionSystem_.IsCleared(), s.farmDateSystem_.GetTimeScale());
             const auto* reserved = s.farmEconomySystem_.GetContestReservation();
@@ -140,14 +144,14 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             farmui::BuildWaterGuidanceView(view_, FarmGrowthSystem::AnalyzeWater(tile, forecast,
                 s.farmIrrigationSystem_.GetWaterStatus(s.farmGrid_, index)), !s.farmProgressionSystem_.IsCleared(),
                 s.farmToolActionSystem_.CanSetIrrigation(s.farmGrid_, index));
-            const bool planted = tile && farm::IsPlantableCrop(tile->crop);
-            const auto quality = planted ? s.farmToolActionSystem_.EvaluateHarvestQuality(*tile) : FarmCropQualityResult{};
             farmui::BuildPlayCropStatusView(view_, hud.feedback != FarmHUDFeedback::None,
                 s.farmEconomySystem_.GetProtectedCropCount(),
-                reserved ? reserved->quality.crop : farm::CropType::None, planted ? &quality.harvestSize : nullptr);
+                reserved ? reserved->quality.crop : farm::CropType::None, nullptr);
             farmui::BuildCameraView(view_, s.usePlayerCamera_, s.levelGameplay_.HasPlayer());
-            view_.Add(Label::ShopTitle, {1040, 376, 216, 44}, {Action::OpenSeedShop}, !s.farmProgressionSystem_.IsCleared());
-            view_.Add(Label::HarvestDisplay, {1040, 324, 216, 44}, {Action::HarvestDisplay}, !s.farmProgressionSystem_.IsCleared());
+            view_.IconButton(Label::ShopTitle, farmui::HUDIcon::Shop, farmui::HUDLayout::UtilitySlot(0),
+                {Action::OpenSeedShop}, !s.farmProgressionSystem_.IsCleared());
+            view_.IconButton(Label::HarvestDisplay, farmui::HUDIcon::Inventory, farmui::HUDLayout::UtilitySlot(1),
+                {Action::HarvestDisplay}, !s.farmProgressionSystem_.IsCleared());
             const auto evaluation = s.farmToolActionSystem_.EvaluateTool(s.farmGrid_,
                 s.farmToolSystem_.GetCurrentTool(), s.farmCropSelectionSystem_.GetSelectedCrop(), &s.farmEconomySystem_);
             farmui::BuildFieldActionView(view_, evaluation, paused_, s.farmProgressionSystem_.IsCleared(),
@@ -650,10 +654,12 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
             s.farmToolSystem_.SetTool(tools[request.argument]); open_ = false; success = true; break;
         }
         case Action::Crop: {
-            if (request.argument < 0 || request.argument > 1) break;
+            if (request.argument < 0 || request.argument >= farm::kFarmCropTypeCount ||
+                !farm::IsPlantableCrop(farm::CropTypeFromSlot(request.argument))) break;
             const auto previous = s.farmCropSelectionSystem_.GetSelectedCrop();
             success = s.farmCropSelectionSystem_.SetSelectedCrop(farm::CropTypeFromSlot(request.argument));
             if (success && previous != s.farmCropSelectionSystem_.GetSelectedCrop()) s.farmDocumentSystem_.MarkDirty();
+            if (success && !open_) s.farmToolSystem_.SetTool(FarmTool::Seed);
             s.farmFeedbackSystem_.ShowCropSelected(s.farmCropSelectionSystem_.GetSelectedCrop()); break;
         }
         case Action::Buy:
@@ -738,7 +744,7 @@ int FarmRuntimeController::ResolveHoveredTile(const GamePlayScene& s) const {
     if (!ready_ || !s.viewportFocused_ || !s.viewportHovered_ || open_ || observation_ ||
         frameCaptured_ || flow_.BlocksSimulation() || s.farmProgressionSystem_.IsCleared() ||
         s.farmIrrigationPreviewSystem_.IsActive() || s.farmCropSelectionSystem_.IsOpen() ||
-        view_.Covers(pointer_) || (!terrain_ && farmui::View::FarmHUDCovers(pointer_))) return -1;
+        view_.Covers(pointer_)) return -1;
     Vector3 origin{}, direction{};
     int index = -1;
     if (!s.TryBuildViewportRay(origin, direction) ||
@@ -935,13 +941,8 @@ bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
     if (terrain_) return UpdateTerrain(s, input, click);
     if (!s.farmCropSelectionSystem_.IsOpen()) {
         if (click) {
-            for (int i = 0; i < 4; ++i) {
-                if (farmui::Rect{408.0f + 148 * i, 622, 140, 58}.Contains(pointer_)) {
-                    Execute(s, {Action::Tool, i}); BuildView(s); frameCaptured_ = true; return true;
-                }
-            }
             // A HUD click must never select or modify a tile hidden behind it.
-            if (farmui::View::FarmHUDCovers(pointer_)) { frameCaptured_ = true; return true; }
+            if (view_.Covers(pointer_)) { frameCaptured_ = true; return true; }
         }
         Action action = Action::None;
         if (input.TriggerKey(InputKey::N)) action = Action::Canal;

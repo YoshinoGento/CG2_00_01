@@ -523,6 +523,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\core\World.h" />
     <ClInclude Include="application\farm\system\FarmToolSystem.h" />
     <ClInclude Include="application\farm\ui\FarmHUD.h" />
+    <ClInclude Include="application\farm\ui\FarmHUDLayout.h" />
+    <ClInclude Include="application\farm\ui\FarmHUDIcons.h" />
+    <ClInclude Include="application\farm\ui\FarmHotbarView.h" />
+    <ClInclude Include="application\farm\ui\FarmUIRect.h" />
     <ClInclude Include="application\farm\ui\FarmRuntimeUI.h" />
     <ClInclude Include="application\farm\ui\FarmQualityView.h" />
     <ClInclude Include="application\farm\ui\FarmTerrainView.h" />

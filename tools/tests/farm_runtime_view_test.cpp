@@ -5,17 +5,382 @@
 #include "farm/ui/FarmCameraView.h"
 #include "farm/ui/FarmQualityView.h"
 #include "farm/ui/FarmTerrainView.h"
+#include "farm/ui/FarmHotbarView.h"
 #include "farm/system/FarmOverviewCamera.h"
 #include <cassert>
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 
+namespace {
+using namespace farmui;
+bool layoutValid = true;
+std::array<bool,kLabels.size()> reportedLabels{};
+
+bool Separated(Rect a, Rect b) {
+    return a.x+a.width <= b.x || b.x+b.width <= a.x ||
+        a.y+a.height <= b.y || b.y+b.height <= a.y;
+}
+
+Vector2 Center(Rect rect) {
+    return {rect.x+rect.width/2, rect.y+rect.height/2};
+}
+
+void AssertReadable(const Item& item) {
+    if (item.icon != HUDIcon::None) {
+        assert(IsValidIcon(item.icon));
+        assert(item.rect.width > 12 && item.rect.height > 12);
+        return; // Icon labels are captions, not text inside the button.
+    }
+    const float space = item.value.empty() ? item.rect.width-20 : item.valueOffset-30;
+    const auto& uv = kLabels[static_cast<std::size_t>(item.label)];
+    const float scale = (std::min)(1.f,space/uv.width);
+    // The atlas has transparent vertical padding; it is not the visible glyph height.
+    const bool fits = scale >= 20.f/26.f &&
+        (item.value.empty() || item.valueOffset+14*(item.value.size()-1)+24 <= item.rect.width);
+    if (!fits && !reportedLabels[static_cast<std::size_t>(item.label)]) {
+        std::cerr << "Label " << static_cast<int>(item.label) << " requires " << uv.width*20.f/26.f
+            << "px but has " << space << "px at " << item.rect.x << ',' << item.rect.y << '\n';
+        reportedLabels[static_cast<std::size_t>(item.label)] = true;
+    }
+    layoutValid &= fits;
+}
+
+void AssertItemsDoNotOverlap(const View& view) {
+    assert(view.count <= View::kCapacity);
+    for (std::size_t i = 0; i < view.count; ++i) {
+        const auto& a = view.items[i].rect;
+        assert(a.width > 0 && a.height > 0);
+        assert(a.x >= 0 && a.y >= 0 && a.x+a.width <= 1280 && a.y+a.height <= 720);
+        for (std::size_t j = i+1; j < view.count; ++j) {
+            if (!Separated(a, view.items[j].rect))
+                std::cerr << "Overlap: items " << i << " and " << j << " (labels "
+                    << static_cast<int>(view.items[i].label) << ", "
+                    << static_cast<int>(view.items[j].label) << ")\n";
+            assert(Separated(a, view.items[j].rect));
+        }
+    }
+}
+
+void AssertHalfOpenControl(const Item& item) {
+    View isolated;
+    isolated.items[0] = item;
+    isolated.count = 1;
+    const Rect r = item.rect;
+    const float right = r.x+r.width, bottom = r.y+r.height;
+    const float insideX = std::nextafter(right, r.x), insideY = std::nextafter(bottom, r.y);
+    const auto expected = item.enabled ? item.request.action : Action::None;
+    for (const auto p : {Vector2{r.x,r.y}, Vector2{insideX,r.y},
+        Vector2{r.x,insideY}, Vector2{insideX,insideY}, Center(r)}) {
+        assert(r.Contains(p) && isolated.Covers(p));
+        const auto hit = isolated.Hit(p);
+        assert(hit.action == expected);
+        if (expected != Action::None) {
+            assert(hit.argument == item.request.argument);
+            assert(hit.inventoryGeneration == item.request.inventoryGeneration);
+        }
+    }
+    for (const auto p : {Vector2{right,r.y}, Vector2{r.x,bottom}, Vector2{right,bottom},
+        Vector2{std::nextafter(r.x,-INFINITY),r.y}, Vector2{r.x,std::nextafter(r.y,-INFINITY)},
+        Vector2{std::numeric_limits<float>::quiet_NaN(),r.y}, Vector2{r.x,INFINITY}}) {
+        assert(!r.Contains(p) && !isolated.Covers(p));
+        assert(isolated.Hit(p).action == Action::None);
+    }
+}
+
+void AssertPanelBounds(const View& view, Rect r, bool covered = true) {
+    for (const auto p : {Vector2{r.x,r.y},
+        Vector2{std::nextafter(r.x+r.width,r.x),std::nextafter(r.y+r.height,r.y)}, Center(r)}) {
+        assert(view.Covers(p) == covered);
+        assert(view.Hit(p).action == Action::None);
+    }
+    for (const auto p : {Vector2{r.x+r.width,r.y}, Vector2{r.x,r.y+r.height},
+        Vector2{std::nextafter(r.x,-INFINITY),r.y}, Vector2{r.x,std::nextafter(r.y,-INFINITY)}})
+        assert(!view.Covers(p));
+}
+
+void TestIconAtlasIndices() {
+    constexpr std::array icons{
+        HUDIcon::Hoe, HUDIcon::WateringCan, HUDIcon::SeedBag, HUDIcon::HarvestBasket,
+        HUDIcon::Carrot, HUDIcon::Tomato, HUDIcon::Pumpkin, HUDIcon::WaterDrop,
+        HUDIcon::Sprout, HUDIcon::Calendar, HUDIcon::Coin, HUDIcon::Terrain,
+        HUDIcon::Pause, HUDIcon::Play, HUDIcon::Overview, HUDIcon::Follow,
+        HUDIcon::Menu, HUDIcon::Shop, HUDIcon::SeedCarrot, HUDIcon::SeedTomato,
+        HUDIcon::SeedPumpkin, HUDIcon::Rank, HUDIcon::Canal, HUDIcon::Source,
+        HUDIcon::Back, HUDIcon::Check, HUDIcon::Undo, HUDIcon::Redo,
+        HUDIcon::Plus, HUDIcon::Minus, HUDIcon::Close, HUDIcon::Inventory};
+    static_assert(icons.size() == 32 && View::kCapacity == 40);
+    assert(kHUDIconSize == 64);
+    for (std::size_t i = 0; i < icons.size(); ++i) {
+        assert(static_cast<int>(icons[i]) == static_cast<int>(i) && IsValidIcon(icons[i]));
+        const auto uv = IconUV(icons[i]);
+        assert(uv.x == static_cast<float>(i%8)*64 && uv.y == static_cast<float>(i/8)*64);
+        assert(uv.x+64 <= 512 && uv.y+64 <= 256);
+    }
+    for (int invalid : {-2,-1,32,33,(std::numeric_limits<int>::max)()}) {
+        const auto icon = static_cast<HUDIcon>(invalid);
+        assert(!IsValidIcon(icon));
+        assert(IconUV(icon).x == 0 && IconUV(icon).y == 0);
+    }
+}
+
+void TestHotbar() {
+    constexpr std::array toolLabels{Label::Hoe,Label::Water,Label::Seed,Label::Harvest};
+    constexpr std::array toolIcons{HUDIcon::Hoe,HUDIcon::WateringCan,HUDIcon::SeedBag,HUDIcon::HarvestBasket};
+    constexpr std::array cropLabels{Label::Carrot,Label::Tomato,Label::Pumpkin};
+    constexpr std::array cropIcons{HUDIcon::SeedCarrot,HUDIcon::SeedTomato,HUDIcon::SeedPumpkin};
+    static_assert(farm::kPlayableCropCount == 3);
+    for (bool enabled : {false,true}) for (int selectedTool : {-1,0,1,2,3,4})
+    for (auto selectedCrop : {farm::CropType::None,farm::CropType::TestCrop,farm::CropType::Carrot,
+        farm::CropType::Tomato,farm::CropType::Pumpkin})
+    for (int seeds : {-1,0,7,(std::numeric_limits<int>::max)()}) {
+        FarmHUDViewData state;
+        state.currentToolIndex = selectedTool;
+        state.selectedSeedCrop = selectedCrop;
+        state.cropSeedCounts = {999,seeds,seeds,seeds};
+        View bar;
+        assert(!bar.hotbarVisible);
+        BuildHotbarView(bar,state,enabled);
+        assert(bar.hotbarVisible && bar.count == 7);
+        AssertItemsDoNotOverlap(bar);
+        int selectedTools = 0, selectedCrops = 0;
+        for (std::size_t i = 0; i < bar.count; ++i) {
+            const auto& item = bar.items[i];
+            const bool tool = i < 4;
+            const auto index = tool ? i : i-4;
+            const auto expectedRect = tool ? HUDLayout::ToolSlot(static_cast<int>(index)) : HUDLayout::SeedSlot(static_cast<int>(index));
+            assert(item.rect.x == expectedRect.x && item.rect.y == expectedRect.y);
+            assert(item.rect.width == expectedRect.width && item.rect.height == expectedRect.height);
+            assert(item.label == (tool ? toolLabels[index] : cropLabels[index]));
+            assert(item.icon == (tool ? toolIcons[index] : cropIcons[index]));
+            assert(item.request.action == (tool ? Action::Tool : Action::Crop));
+            assert(item.request.argument == static_cast<int>(tool ? index : index+1));
+            assert(item.enabled == enabled);
+            assert(item.value == (tool ? "" : std::to_string((std::max)(0,seeds))));
+            if (!tool) {
+                const float glyphWidth = 14*static_cast<float>(item.value.size())+10;
+                const float scale = (std::min)(0.58f,(item.rect.width-10)/glyphWidth);
+                assert(glyphWidth*scale+9 <= item.rect.width+0.001f);
+                assert(36*scale+3 <= item.rect.height);
+            }
+            const bool selected = tool ? selectedTool == static_cast<int>(index) :
+                selectedCrop == farm::PlayableCrop(static_cast<int>(index));
+            assert(item.selected == selected);
+            if (tool) selectedTools += item.selected; else selectedCrops += item.selected;
+            AssertReadable(item);
+            AssertHalfOpenControl(item);
+            assert(item.rect.x >= HUDLayout::tools.x && item.rect.y >= HUDLayout::tools.y);
+            assert(item.rect.x+item.rect.width <= HUDLayout::tools.x+HUDLayout::tools.width);
+            assert(item.rect.y+item.rect.height <= HUDLayout::tools.y+HUDLayout::tools.height);
+            assert(bar.NextActionable(static_cast<int>(i),1) == (enabled ? static_cast<int>((i+1)%7) : -1));
+            assert(bar.NextActionable(static_cast<int>(i),-1) == (enabled ? static_cast<int>((i+6)%7) : -1));
+        }
+        assert(selectedTools == (selectedTool >= 0 && selectedTool < 4 ? 1 : 0));
+        assert(selectedCrops == (farm::ToCropSlot(selectedCrop) >= 1 ? 1 : 0));
+        assert(bar.Hit({452,650}).action == Action::None && !bar.Covers({452,650}));
+        bar.compactHUD = true;
+        assert(bar.Covers({452,650}) && bar.Hit({452,650}).action == Action::None);
+    }
+    for (int available : {0,1,6,7}) {
+        View full;
+        while (full.count < View::kCapacity-static_cast<std::size_t>(available)) full.Add(Label::Ready,{});
+        const auto prefix = full.count;
+        BuildHotbarView(full,{},true);
+        assert(full.count == View::kCapacity);
+        if (prefix > 0) assert(full.items[prefix-1].icon == HUDIcon::None);
+        const auto last = full.items.back();
+        full.IconButton(Label::Menu,HUDIcon::Menu,{}, {Action::Menu},true,true,"999");
+        assert(full.count == View::kCapacity && full.items.back().icon == last.icon);
+        assert(full.items.back().request.action == last.request.action && full.items.back().value == last.value);
+    }
+    std::cout << "PASS: hotbar 4 tools/3 crops, zero seeds, selection, navigation, exact bounds, capacity\n";
+}
+
+void TestCompactPanelCoverage() {
+    for (bool compact : {false,true}) for (bool hotbar : {false,true})
+    for (bool selected : {false,true}) for (bool goal : {false,true}) {
+        View view;
+        view.compactHUD = compact;
+        view.hotbarVisible = hotbar;
+        view.selectedTile = selected;
+        view.goalVisible = goal;
+        for (const auto panel : {HUDLayout::status,HUDLayout::economy})
+            AssertPanelBounds(view,panel,compact);
+        AssertPanelBounds(view,HUDLayout::tools,compact && hotbar);
+        AssertPanelBounds(view,HUDLayout::selected,compact && selected);
+        AssertPanelBounds(view,HUDLayout::goal,compact && goal);
+        for (const auto freed : {Vector2{300,140},Vector2{900,200},Vector2{500,550},
+            Vector2{390,548},Vector2{500,510},Vector2{1100,450},Vector2{1100,550},Vector2{640,300}})
+            assert(!view.Covers(freed) && view.Hit(freed).action == Action::None);
+        view.modal = true;
+        assert(view.Covers({640,300}) && view.Hit({640,300}).action == Action::None);
+    }
+    for (bool enabled : {false,true}) for (bool selected : {false,true}) for (bool compact : {false,true}) {
+        for (int i = 0; i < 4; ++i) {
+            View view;
+            FarmHUDViewData state; state.currentToolIndex = i;
+            BuildHotbarView(view,state,enabled);
+            view.compactHUD = compact;
+            view.items[static_cast<std::size_t>(i)].selected = selected;
+            const auto box = IconCaptionRect(view.items[static_cast<std::size_t>(i)]);
+            View withoutCaption = view;
+            withoutCaption.items[static_cast<std::size_t>(i)].selected = false;
+            // The caption is presentation, never an implicit tool request.
+            for (const auto p : {Center(box),Vector2{box.x,box.y},
+                Vector2{std::nextafter(box.x+box.width,box.x),std::nextafter(box.y+box.height,box.y)},
+                Vector2{box.x+box.width,box.y},Vector2{box.x,box.y+box.height},
+                Vector2{std::nextafter(box.x,-INFINITY),box.y},Vector2{box.x,std::nextafter(box.y,-INFINITY)}}) {
+                assert(view.Covers(p) == (withoutCaption.Covers(p) || (compact && selected && box.Contains(p))));
+                assert(view.Hit(p).action == Action::None);
+            }
+        }
+    }
+    std::cout << "PASS: conditional selected/goal panels, freed HUD regions, selected-tool caption consumption\n";
+}
+
+void TestHotbarVisibilityAcrossCropPopup() {
+    for (bool enabled : {false,true}) {
+        View view;
+        for (int cycle = 0; cycle < 2; ++cycle) {
+            // BuildView starts fresh while the crop pie owns selection input.
+            view = {};
+            view.compactHUD = true;
+            view.selectedTile = view.goalVisible = true;
+            view.IconButton(Label::Menu,HUDIcon::Menu,HUDLayout::UtilitySlot(5),{Action::Menu});
+            assert(!view.hotbarVisible && !view.modal);
+            AssertPanelBounds(view,HUDLayout::tools,false);
+            for (int y = 620; y < 696; ++y) for (int x = 380; x < 900; ++x) {
+                const Vector2 point{static_cast<float>(x),static_cast<float>(y)};
+                assert(!view.Covers(point) && view.Hit(point).action == Action::None);
+            }
+            // At the maximum allowed popup center (640,500), the down/Pumpkin
+            // panel spans (553,578)-(727,704), through the old toolbar area.
+            for (const auto point : {Vector2{640,578},Vector2{640,620},Vector2{640,650},Vector2{640,703}})
+                assert(!view.Covers(point) && view.Hit(point).action == Action::None);
+            assert(view.Covers(Center(HUDLayout::selected)) && view.Covers(Center(HUDLayout::goal)));
+            assert(view.Hit(Center(HUDLayout::UtilitySlot(5))).action == Action::Menu);
+            assert(!view.Covers({640,590}));
+
+            FarmHUDViewData state;
+            state.currentToolIndex = 0;
+            BuildHotbarView(view,state,enabled);
+            assert(view.hotbarVisible && view.count == 8);
+            for (const auto point : {Vector2{380,620},Vector2{452,650},Vector2{899,695}})
+                assert(view.Covers(point) && view.Hit(point).action == Action::None);
+            assert(!view.Covers({900,620}) && !view.Covers({380,696}));
+            const auto tool = view.Hit(Center(HUDLayout::ToolSlot(0)));
+            assert(tool.action == (enabled ? Action::Tool : Action::None));
+            if (enabled) assert(tool.argument == 0);
+            assert(view.Covers({640,590}) && view.Hit({640,590}).action == Action::None);
+        }
+    }
+    std::cout << "PASS: hidden hotbar frees crop-popup bottom area; rebuilding restores controls and caption\n";
+}
+
+void TestComposedHUD() {
+    for (bool selected : {false,true}) for (bool goal : {false,true}) for (bool feedback : {false,true})
+    for (bool enabled : {false,true}) for (bool player : {false,true}) {
+        View view;
+        view.compactHUD = true; view.selectedTile = selected; view.goalVisible = goal;
+        FarmHUDViewData state;
+        state.currentToolIndex = 0;
+        state.selectedSeedCrop = farm::CropType::Carrot;
+        BuildHotbarView(view,state,enabled);
+        BuildPlayQuickView(view,false,enabled,enabled);
+        BuildCameraView(view,true,player);
+        BuildWaterGuidanceView(view,{selected,false,farm::FarmWaterStatus::Available,FarmWaterAdvice::Water},enabled,true);
+        BuildPlayCropStatusView(view,feedback,3,farm::CropType::Pumpkin,nullptr);
+        FarmToolActionResult evaluation; evaluation.status = FarmToolActionStatus::Applied;
+        BuildFieldActionView(view,evaluation,false,!enabled);
+        view.IconButton(Label::Menu,HUDIcon::Menu,HUDLayout::UtilitySlot(5),{Action::Menu});
+        view.IconButton(Label::ShopTitle,HUDIcon::Shop,HUDLayout::UtilitySlot(0),{Action::OpenSeedShop},enabled);
+        view.IconButton(Label::HarvestDisplay,HUDIcon::Inventory,HUDLayout::UtilitySlot(1),{Action::HarvestDisplay},enabled);
+        AssertItemsDoNotOverlap(view);
+        std::size_t panelsUsed = 3+(selected ? 1 : 0); // Hotbar, field actions, one caption, optional water guidance.
+        std::size_t iconsUsed = 0, digitsUsed = 0;
+        for (std::size_t i = 0; i < view.count; ++i) {
+            const auto& item = view.items[i];
+            AssertReadable(item);
+            AssertHalfOpenControl(item);
+            if (IsValidIcon(item.icon)) {
+                ++iconsUsed;
+                panelsUsed += 2+(item.value.empty() ? 0 : 1);
+            } else if (item.request.action != Action::None) ++panelsUsed;
+            digitsUsed += item.value.size();
+        }
+        assert(panelsUsed <= 84 && iconsUsed <= 40 && digitsUsed <= 160);
+        const std::array panels{HUDLayout::status,HUDLayout::economy,HUDLayout::tools,HUDLayout::selected,
+            HUDLayout::goal,HUDLayout::waterGuidance,HUDLayout::fieldActions,View::kFeedbackPanel};
+        const std::array active{true,true,view.hotbarVisible,selected,goal,selected,true,feedback};
+        const auto frame = farm::kFarmOverviewFrame;
+        const Rect safe{frame.left*1280,frame.top*720,(frame.right-frame.left)*1280,(frame.bottom-frame.top)*720};
+        for (std::size_t i = 0; i < panels.size(); ++i)
+            for (std::size_t j = i+1; j < panels.size(); ++j) assert(Separated(panels[i],panels[j]));
+        for (const auto panel : panels) assert(Separated(safe,panel));
+        for (std::size_t i = 0; i < view.count; ++i) for (std::size_t j = 0; j < panels.size(); ++j) {
+            if (!active[j]) continue;
+            const auto panel = panels[j];
+            const auto r = view.items[i].rect;
+            const bool contained = r.x >= panel.x && r.y >= panel.y &&
+                r.x+r.width <= panel.x+panel.width && r.y+r.height <= panel.y+panel.height;
+            assert(contained || Separated(r,panel));
+        }
+        for (const auto freed : {Vector2{300,140},Vector2{900,200},Vector2{500,550},Vector2{1100,550}})
+            assert(!view.Covers(freed));
+    }
+    std::cout << "PASS: composed HUD controls and panel non-overlap across visibility/enabled states\n";
+}
+
+void TestCaptionLayout() {
+    View view;
+    FarmHUDViewData state;
+    BuildHotbarView(view,state,true);
+    BuildCameraView(view,false,true);
+    BuildPlayQuickView(view,false,true);
+    BuildWaterGuidanceView(view,{true,false,farm::FarmWaterStatus::Available,FarmWaterAdvice::Water},true,true);
+    BuildFieldActionView(view,{},false,false);
+    view.IconButton(Label::Menu,HUDIcon::Menu,HUDLayout::UtilitySlot(5),{Action::Menu});
+    view.IconButton(Label::ShopTitle,HUDIcon::Shop,HUDLayout::UtilitySlot(0),{Action::OpenSeedShop});
+    view.IconButton(Label::HarvestDisplay,HUDIcon::Inventory,HUDLayout::UtilitySlot(1),{Action::HarvestDisplay});
+    for (std::size_t i = 0; i < view.count; ++i) {
+        const auto& item = view.items[i];
+        if (!IsValidIcon(item.icon)) continue;
+        const auto caption = IconCaptionRect(item);
+        assert(caption.width > 0 && caption.height > 0);
+        assert(caption.x >= 0 && caption.y >= 0 && caption.x+caption.width <= 1280 && caption.y+caption.height <= 720);
+        for (std::size_t j = 0; j < view.count; ++j) {
+            if (!Separated(caption,view.items[j].rect))
+                std::cerr << "Caption for label " << static_cast<int>(item.label)
+                    << " overlaps label " << static_cast<int>(view.items[j].label) << " at "
+                    << caption.x << ',' << caption.y << " size " << caption.width << 'x' << caption.height << '\n';
+            layoutValid &= Separated(caption,view.items[j].rect);
+        }
+        if (item.request.action == Action::Tool || item.request.action == Action::Crop) {
+            if (!Separated(caption,HUDLayout::tools))
+                std::cerr << "Hotbar caption overlaps tools panel: bottom=" << caption.y+caption.height
+                    << ", panel top=" << HUDLayout::tools.y << '\n';
+            layoutValid &= Separated(caption,HUDLayout::tools);
+        }
+    }
+}
+}
+
 int main() {
+    std::cout << std::unitbuf;
+#ifdef _MSC_VER
+    _set_error_mode(_OUT_TO_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
     using namespace farmui;
     const auto separated = [](Rect a, Rect b) {
         return a.x+a.width<=b.x || b.x+b.width<=a.x || a.y+a.height<=b.y || b.y+b.height<=a.y;
     };
+    TestIconAtlasIndices();
+    TestHotbar();
+    TestCompactPanelCoverage();
+    TestHotbarVisibilityAcrossCropPopup();
+    TestComposedHUD();
     for (const auto grade : {FarmContestRating::Unrated,FarmContestRating::D,FarmContestRating::C,
         FarmContestRating::B,FarmContestRating::A,FarmContestRating::S}) {
         FarmContestSeasonSummary summary{};
@@ -105,8 +470,8 @@ int main() {
             assert(view.Covers({panel.x+panel.width-1,panel.y+panel.height-1}));
             assert(!view.Covers({panel.x+panel.width,panel.y+panel.height}));
             assert(view.Hit({panel.x+10,panel.y+10}).action==Action::None);
-            assert(view.Hit({400,40}).action==Action::TerrainField);
-            assert(view.Hit({650,40}).action==Action::Pause);
+            assert(view.Hit({280,40}).action==Action::TerrainField);
+            assert(view.Hit({350,40}).action==Action::Pause);
         }
         // Each refresh starts a new View, restoring current data rather than cached pre-toast values.
         view = {};
@@ -366,8 +731,8 @@ int main() {
         }
         View quick;
         BuildPlayQuickView(quick, preview, allowed);
-        assert(quick.Hit({400,40}).action == (allowed ? Action::TerrainField : Action::None));
-        assert(quick.Hit({650,40}).action == Action::Pause);
+        assert(quick.Hit({280,40}).action == (allowed ? Action::TerrainField : Action::None));
+        assert(quick.Hit({350,40}).action == Action::Pause);
         assert(quick.items[1].label == (preview ? Label::Play : Label::Pause));
         for (std::size_t i=0; i<quick.count; ++i) {
             const auto& rect = quick.items[i].rect;
@@ -382,11 +747,15 @@ int main() {
         View quick;
         BuildPlayQuickView(quick, paused, canEdit, canControlTime, speed);
         assert(quick.count == 5);
-        assert(quick.Hit({650,40}).action == (canControlTime ? Action::Pause : Action::None));
+        assert(quick.Hit({350,40}).action == (canControlTime ? Action::Pause : Action::None));
+        assert(quick.Hit({280,40}).action == (canEdit ? Action::TerrainField : Action::None));
+        assert(quick.items[0].icon == HUDIcon::Terrain);
+        assert(quick.items[1].icon == (paused ? HUDIcon::Play : HUDIcon::Pause));
         int selected = 0;
         for (std::size_t i = 0; i < quick.count; ++i) {
             const auto& item = quick.items[i];
-            assert((item.rect.width-20)/kLabels[static_cast<std::size_t>(item.label)].width >= 20.f/26.f);
+            AssertReadable(item);
+            AssertHalfOpenControl(item);
             for (const auto& panel : View::kFarmHudPanels) assert(separated(item.rect, panel));
             for (std::size_t j=i+1; j<quick.count; ++j) assert(separated(item.rect,quick.items[j].rect));
             if (i < 2) continue;
@@ -401,9 +770,13 @@ int main() {
             selected += item.selected ? 1 : 0;
         }
         assert(selected == (canControlTime && !paused && (speed==1 || speed==2 || speed==4) ? 1 : 0));
-        assert(quick.Hit({748,40}).action == Action::None);
+        assert(!quick.Covers({650,40}) && quick.Hit({650,40}).action == Action::None);
     }
-    assert(farm::kFarmOverviewFrame.bottom * 720 <= View::kWaterGuidancePanel.y - 8);
+    const Rect farmSafeArea{farm::kFarmOverviewFrame.left*1280, farm::kFarmOverviewFrame.top*720,
+        (farm::kFarmOverviewFrame.right-farm::kFarmOverviewFrame.left)*1280,
+        (farm::kFarmOverviewFrame.bottom-farm::kFarmOverviewFrame.top)*720};
+    assert(separated(farmSafeArea, View::kWaterGuidancePanel));
+    assert(farmSafeArea.x >= View::kWaterGuidancePanel.x+View::kWaterGuidancePanel.width+8);
     for (bool visible : {false,true}) for (bool closed : {false,true}) for (bool editable : {false,true})
     for (bool canSetIntake : {false,true})
     for (auto supply : {farm::FarmWaterStatus::None, farm::FarmWaterStatus::Available,
@@ -414,25 +787,28 @@ int main() {
         View status; BuildWaterGuidanceView(status, {visible,closed,supply,advice}, editable, canSetIntake);
         assert(status.count == (visible ? 3u : 0u));
         assert(status.waterGuidance == visible);
-        assert(status.Hit({500,460}).action == (visible && editable ? Action::TerrainField : Action::None));
-        assert(status.Hit({500,510}).action == Action::None);
-        assert(status.Covers({500,490}) == visible);
-        const auto intake = status.Hit({940,510});
+        assert(status.Hit({100,470}).action == (visible && editable ? Action::TerrainField : Action::None));
+        assert(status.Hit({100,510}).action == Action::None);
+        assert(status.Covers({100,490}) == visible);
+        const auto intake = status.Hit({300,470});
         assert(intake.action == (visible && editable && canSetIntake ? Action::SetIrrigation : Action::None));
         if (intake.action == Action::SetIrrigation) assert(intake.argument == (closed ? 1 : 0));
-        assert(status.Covers({940,510}) == visible);
-        assert(status.Hit({882,510}).action == Action::None);
+        assert(status.Covers({300,470}) == visible);
+        assert(status.Hit({280,470}).action == Action::None);
+        assert(!status.Covers({500,490}) && !status.Covers({940,510}));
         if (visible) {
             assert(status.items[1].warning == (advice == FarmWaterAdvice::CloseIntake || advice == FarmWaterAdvice::AvoidWater));
             assert(status.items[2].label == (closed ? Label::IntakeOn : Label::IntakeOff));
-            assert(status.items[1].rect.x + status.items[1].rect.width <= status.items[2].rect.x);
+            assert(status.items[2].icon == HUDIcon::Canal);
+            AssertItemsDoNotOverlap(status);
         }
-        if (visible && closed) assert(status.items[0].label == Label::IntakeClosed);
+        if (visible && closed) assert(status.items[0].label == Label::IntakeClosedShort);
         for (std::size_t i=0; i<status.count; ++i) {
             const auto& item = status.items[i];
             assert(!View::FarmHUDCovers({item.rect.x,item.rect.y}));
             assert(!View::FarmHUDCovers({item.rect.x+item.rect.width-1,item.rect.y+item.rect.height-1}));
-            assert((item.rect.width-20)/kLabels[static_cast<std::size_t>(item.label)].width >= 20.0f/26.0f);
+            AssertReadable(item);
+            AssertHalfOpenControl(item);
         }
         if (visible) assert(status.items[0].rect.y+status.items[0].rect.height <= status.items[1].rect.y);
     }
@@ -492,10 +868,11 @@ int main() {
             assert(uv.width <= 900 && uv.height <= 38);
         }
     }
-    assert(View::FarmHUDCovers({24,24}) && View::FarmHUDCovers({333.99f,155.99f}));
-    assert(!View::FarmHUDCovers({334,24}) && !View::FarmHUDCovers({24,156}));
-    assert(View::FarmHUDCovers({876,24}) && View::FarmHUDCovers({1255.99f,251.99f}));
-    assert(View::FarmHUDCovers({24,520}) && View::FarmHUDCovers({390,548}));
+    assert(View::FarmHUDCovers({24,24}) && View::FarmHUDCovers({239.99f,79.99f}));
+    assert(!View::FarmHUDCovers({240,24}) && !View::FarmHUDCovers({24,80}));
+    assert(View::FarmHUDCovers({1000,24}) && View::FarmHUDCovers({1255.99f,79.99f}));
+    assert(View::FarmHUDCovers({24,554}) && View::FarmHUDCovers({390,648}));
+    assert(!View::FarmHUDCovers({876,24}) && !View::FarmHUDCovers({24,520}));
     assert(!View::FarmHUDCovers({640,300}) && !View::FarmHUDCovers({1279,719}));
     for (const auto frame : {farm::kFarmOverviewFrame, farm::kObservationOverviewFrame, farm::kTerrainOverviewFrame}) {
         for (float aspect : {4.0f/3, 16.0f/9, 21.0f/9}) {
@@ -568,14 +945,18 @@ int main() {
     for (bool follow : {false,true}) for (bool available : {false,true}) {
         View camera;
         BuildCameraView(camera, follow, available);
-        assert(camera.Hit({1100,450}).action == Action::Overview);
-        assert(camera.Hit({1100,500}).action == (available ? Action::Follow : Action::None));
-        assert(camera.Covers({1100,500}) && !camera.Covers({500,300}));
-        assert(camera.items[1].selected == follow);
+        assert(camera.count == (available ? 2u : 1u));
+        assert(camera.Hit(Center(HUDLayout::UtilitySlot(2))).action == Action::Overview);
+        assert(camera.Hit(Center(HUDLayout::UtilitySlot(3))).action == (available ? Action::Follow : Action::None));
+        assert(camera.Covers(Center(HUDLayout::UtilitySlot(3))) == available);
+        assert(!camera.Covers({1100,450}) && !camera.Covers({1100,500}));
+        assert(camera.items[0].selected == !follow && camera.items[0].icon == HUDIcon::Overview);
+        if (available) assert(camera.items[1].selected == follow && camera.items[1].icon == HUDIcon::Follow);
+        AssertItemsDoNotOverlap(camera);
         for (std::size_t i=0; i<camera.count; ++i) {
             const auto& item = camera.items[i];
-            const auto& uv = kLabels[static_cast<std::size_t>(item.label)];
-            assert((item.rect.width-20)/uv.width >= 20.0f/26.0f);
+            AssertReadable(item);
+            AssertHalfOpenControl(item);
             assert(item.rect.y+item.rect.height < View::kFieldActionsPanel.y);
         }
     }
@@ -584,25 +965,25 @@ int main() {
         FarmToolActionResult evaluation;
         View ended;
         BuildFieldActionView(ended, evaluation, false, true, FarmHUDNextAction::SelectTile, true);
-        assert(ended.items[1].label == Label::SeasonEnded && !ended.items[2].enabled);
+        assert(ended.count == 2 && ended.items[0].label == Label::SeasonEnded && !ended.items[1].enabled);
         View stopped;
         BuildPlayQuickView(stopped, false, false, false);
-        assert(stopped.items[1].label == Label::Paused && stopped.Hit({650,40}).action == Action::None);
+        assert(stopped.items[1].label == Label::Paused && stopped.Hit({350,40}).action == Action::None);
         evaluation.tileIndex = target;
         evaluation.status = target < 0 ? FarmToolActionStatus::InvalidTarget : FarmToolActionStatus::Applied;
         View targetView;
         BuildFieldActionView(targetView, evaluation, false, false);
-        const auto& metric = targetView.items[0];
-        assert(metric.label == Label::Selected && metric.request.action == Action::None);
-        assert(metric.value == (target < 0 ? "--" : std::to_string(target)));
-        assert(targetView.Covers({1100,550}) && targetView.Hit({1100,550}).action == Action::None);
-        assert(metric.valueOffset + 14*(metric.value.size()-1) + 24 <= metric.rect.width);
-        const auto& uv = kLabels[static_cast<std::size_t>(metric.label)];
-        assert((metric.valueOffset-30)/uv.width >= 20.0f/26.0f);
+        assert(targetView.count == 2);
+        const auto& reason = targetView.items[0];
+        assert(reason.label == (target < 0 ? Label::ActionNoTile : Label::ActionReady));
+        assert(reason.request.action == Action::None && reason.value.empty());
+        assert(targetView.Covers(Center(reason.rect)) && targetView.Hit(Center(reason.rect)).action == Action::None);
+        assert(!targetView.Covers({1100,550}));
+        AssertReadable(reason);
         evaluation.status = FarmToolActionStatus::InvalidTarget;
         View invalid;
         BuildFieldActionView(invalid, evaluation, false, false);
-        assert(invalid.items[0].value == "--");
+        assert(invalid.items[0].label == Label::ActionNoTile && invalid.items[0].value.empty());
     }
     for (const auto next : {FarmHUDNextAction::Hoe, FarmHUDNextAction::WaterOrSeed,
         FarmHUDNextAction::Seed, FarmHUDNextAction::Water, FarmHUDNextAction::Harvest, FarmHUDNextAction::BuySeed,
@@ -614,7 +995,7 @@ int main() {
             evaluation.status = FarmToolActionStatus::InvalidState;
             evaluation.tool = next == FarmHUDNextAction::Hoe ? FarmTool::Seed : FarmTool::Hoe;
             BuildFieldActionView(field, evaluation, (blocked & 1) != 0, (blocked & 2) != 0, next);
-            const auto hit = field.Hit({1100, 610});
+            const auto hit = field.Hit({1100, 665});
             const int expectedTool = next == FarmHUDNextAction::Hoe ? 0 :
                 (next == FarmHUDNextAction::Water || next == FarmHUDNextAction::WaterOrSeed) ? 1 :
                 next == FarmHUDNextAction::Seed ? 2 : next == FarmHUDNextAction::Harvest ? 3 : -1;
@@ -622,11 +1003,11 @@ int main() {
             else if (expectedTool >= 0) { assert(hit.action == Action::Tool && hit.argument == expectedTool); }
             else assert(hit.action == (next == FarmHUDNextAction::BuySeed ? Action::OpenSeedShop : Action::None));
             assert(hit.action != Action::ApplyTool); // A next-tool shortcut never farms implicitly.
-            assert(field.Covers({1100, 610}));
+            assert(field.Covers({1100, 665}));
             for (std::size_t i = 0; i < field.count; ++i) {
                 const auto& item = field.items[i];
-                const auto& uv = kLabels[static_cast<std::size_t>(item.label)];
-                assert((item.rect.width - 20) / uv.width >= 20.0f / 26.0f);
+                AssertReadable(item);
+                AssertHalfOpenControl(item);
             }
         }
     }
@@ -635,31 +1016,31 @@ int main() {
     unavailable.status = FarmToolActionStatus::InvalidState;
     unavailable.tool = FarmTool::Hoe;
     BuildFieldActionView(sameTool, unavailable, false, false, FarmHUDNextAction::Hoe);
-    assert(sameTool.Hit({1100, 610}).action == Action::None);
+    assert(sameTool.Hit({1100, 665}).action == Action::None);
     for (const auto status : {FarmToolActionStatus::None, FarmToolActionStatus::Applied,
         FarmToolActionStatus::Harvested, FarmToolActionStatus::InvalidTarget, FarmToolActionStatus::InvalidState,
         FarmToolActionStatus::AlreadyWatered, FarmToolActionStatus::NoSeed, FarmToolActionStatus::NotReady,
-        FarmToolActionStatus::UnsupportedTool}) {
+        FarmToolActionStatus::UnsupportedTool, FarmToolActionStatus::InventoryFull}) {
         for (const auto tool : {FarmTool::Hoe, FarmTool::Water, FarmTool::Seed, FarmTool::Harvest}) {
             for (int blocked = 0; blocked < 4; ++blocked) {
                 View field;
                 FarmToolActionResult evaluation;
                 evaluation.status = status; evaluation.tool = tool;
                 BuildFieldActionView(field, evaluation, (blocked & 1) != 0, (blocked & 2) != 0);
-                field.Add(Label::Menu, {1040, 654, 216, 42}, {Action::Menu});
+                field.IconButton(Label::Menu, HUDIcon::Menu, HUDLayout::UtilitySlot(5), {Action::Menu});
                 const auto expected = (blocked & 2) != 0 ? Action::None : status == FarmToolActionStatus::NoSeed
                     ? Action::OpenSeedShop : evaluation.Succeeded() ? Action::ApplyTool : Action::None;
-                assert(field.Hit({1100, 610}).action == expected);
-                assert(field.Covers({1100, 610}) && field.Covers({1042, 542}));
-                assert(field.Hit({1100, 558}).action == Action::None);
-                assert(field.Hit({1100, 670}).action == Action::Menu);
+                assert(field.Hit({1100, 665}).action == expected);
+                assert(field.Covers({1100, 665}) && field.Covers({958, 586}));
+                assert(field.Hit({1100, 610}).action == Action::None);
+                assert(field.Hit(Center(HUDLayout::UtilitySlot(5))).action == Action::Menu);
                 assert(!field.Covers({640, 300}));
+                AssertItemsDoNotOverlap(field);
                 for (std::size_t i = 0; i < field.count; ++i) {
                     const auto& a = field.items[i].rect;
-                    assert(a.x >= 1020 && a.x+a.width <= 1256 && a.y >= 532 && a.y+a.height <= 696);
-                    const auto& uv = kLabels[static_cast<std::size_t>(field.items[i].label)];
-                    // Keep the source 26px Japanese font at least 20px at 1280x720.
-                    assert((a.width-20) / uv.width >= 20.0f/26.0f);
+                    assert(a.x >= 956 && a.x+a.width <= 1256 && a.y >= 584 && a.y+a.height <= 708);
+                    AssertReadable(field.items[i]);
+                    AssertHalfOpenControl(field.items[i]);
                     for (std::size_t j = i+1; j < field.count; ++j) {
                         const auto& b = field.items[j].rect;
                         assert(a.x+a.width <= b.x || b.x+b.width <= a.x || a.y+a.height <= b.y || b.y+b.height <= a.y);
@@ -758,4 +1139,6 @@ int main() {
         assert(ComparisonIssueLabel(issue) != Label::CompareReady);
     }
     std::cout << "PASS: hit boundaries, disabled actions, navigation, capacity, atlas bounds\n";
+    TestCaptionLayout();
+    assert(layoutValid && "HUD layout/readability regressions reported above");
 }

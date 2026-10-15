@@ -189,6 +189,9 @@ bool FileExistsNoThrow(const std::filesystem::path& path)
 
 struct SelectedTileHUDData {
 	bool valid = false;
+    bool moistureRangeValid = false;
+    float goodMoistureMinimum = 0.0f;
+    float goodMoistureMaximum = 0.0f;
 	int index = -1;
 	int height = 0;
 	int moisturePercent = 0;
@@ -280,6 +283,9 @@ SelectedTileHUDData BuildSelectedTileHUDData(
 		timeScale,
 		irrigationSystem.GetAvailableIrrigationStrength(grid, data.index));
 	data.moistureStatus = ToHUDMoistureStatus(forecast.moistureStatus);
+	data.moistureRangeValid = forecast.moistureValid;
+	data.goodMoistureMinimum = forecast.goodMoistureMinimum;
+	data.goodMoistureMaximum = forecast.goodMoistureMaximum;
 	data.irrigationActive = forecast.irrigationActive;
 	if (selectedTile->state == farm::FarmTileState::Empty) {
 		data.nextAction = FarmHUDNextAction::Hoe;
@@ -1843,12 +1849,16 @@ FarmHUDViewData GamePlayScene::BuildFarmHUDViewData() const {
 	viewData.goalProgress = farmProgressionSystem_.GetProgress(farmEconomySystem_.GetMoney(), farmDateSystem_.GetDay());
 	viewData.goalCleared = farmProgressionSystem_.IsCleared();
 	viewData.contestSeason = farmProgressionSystem_.IsContestSeason();
+	viewData.contestFinalDay = FarmContestEntrySystem::kContestDays.back();
 	viewData.freeFarming = farmProgressionSystem_.IsFreeFarming();
 	const SelectedTileHUDData selectedTileData = BuildSelectedTileHUDData(
 		displayedFarmGrid, displayedIrrigation, farmGrowthSystem_,
 		farmDateSystem_.GetTimeScale(),
 		viewData.selectedSeedCrop, viewData.seedCount);
 	viewData.selectedTileValid = selectedTileData.valid;
+	viewData.selectedTileMoistureRangeValid = selectedTileData.moistureRangeValid;
+	viewData.selectedTileGoodMoistureMinimum = selectedTileData.goodMoistureMinimum;
+	viewData.selectedTileGoodMoistureMaximum = selectedTileData.goodMoistureMaximum;
 	viewData.selectedTileIndex = selectedTileData.index;
 	viewData.selectedTileHeight = selectedTileData.height;
 	viewData.selectedTileMoisturePercent = selectedTileData.moisturePercent;
