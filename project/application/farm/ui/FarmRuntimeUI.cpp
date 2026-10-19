@@ -8,6 +8,7 @@ namespace farmui {
 bool RuntimeUI::Initialize(SpriteCommon* common) {
     if (!common) return false;
     for (auto& sprite : panels_) if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
+    for (auto& sprite : itemIcons_) if (!sprite.Initialize(common, kItemIconPath)) return false;
     for (auto& sprite : labels_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
     for (auto& sprite : digits_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
     for (auto& sprite : radarLines_) if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
@@ -88,6 +89,13 @@ void RuntimeUI::LabelQuad(Label label, Rect r, Vector4 color) {
     sprite.SetSize({uv.width * scale, uv.height * scale});
     sprite.SetColor(color); sprite.Update(); sprite.Draw();
 }
+void RuntimeUI::IconQuad(ItemIcon icon, Rect r, Vector4 color) {
+    if (!ValidIcon(icon) || iconCount_ >= itemIcons_.size()) return;
+    auto& sprite = itemIcons_[iconCount_++];
+    sprite.SetTextureRect(ItemIconOrigin(icon), {kItemIconCell, kItemIconCell});
+    sprite.SetPosition({r.x, r.y}); sprite.SetSize({r.width, r.height});
+    sprite.SetColor(color); sprite.Update(); sprite.Draw();
+}
 void RuntimeUI::ValueText(const std::string& value, Vector2 position, float right, Vector4 color) {
     // Numeric/status identifiers only; Japanese labels use whole-line atlas regions.
     for (const unsigned char c : value) {
@@ -132,7 +140,8 @@ void RuntimeUI::DrawRadar(const QualityRadar& radar) {
 }
 void RuntimeUI::Draw(const View& view, Vector2 pointer) {
     if (!ready_) return;
-    panelCount_ = labelCount_ = digitCount_ = 0;
+    panelCount_ = labelCount_ = digitCount_ = iconCount_ = 0;
+    if (view.itemHotbar) Panel(ItemHotbarLayout::panel, {0.018f, 0.027f, 0.024f, 0.88f});
     if (view.seedShop || view.harvestDisplay) {
         Panel({24, 16, 1232, 60}, {0.035f, 0.055f, 0.06f, 0.94f});
         Panel(SeedShopLayout::receipt, {0.035f, 0.055f, 0.06f, 0.97f});
@@ -163,8 +172,27 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
             figure.SetSize({210, 280}); figure.SetColor({1,1,1,1}); figure.Update(); figure.Draw();
         }
     }
+    const Item* caption = nullptr;
+    const Item* hoveredIcon = nullptr;
     for (std::size_t i = 0; i < (std::min)(view.count, view.items.size()); ++i) {
         const auto& item = view.items[i];
+        if (view.itemHotbar && ValidIcon(item.icon)) {
+            if (item.selected) caption = &item;
+            if (item.focused || item.rect.Contains(pointer)) hoveredIcon = &item;
+            const bool hover = item.enabled && (item.focused || item.rect.Contains(pointer));
+            const auto r = item.rect;
+            Panel(r, item.selected ? Vector4{0.91f, 0.72f, 0.24f, 1} :
+                hover ? Vector4{0.39f, 0.73f, 0.66f, 1} : Vector4{0.23f, 0.30f, 0.27f, 1});
+            Panel({r.x+3,r.y+3,r.width-6,r.height-6}, {0.055f,0.075f,0.066f,1});
+            IconQuad(item.icon, {r.x+8,r.y+4,64,64}, item.enabled ? Vector4{1,1,1,1} : Vector4{.4f,.4f,.4f,1});
+            if (!item.value.empty()) {
+                const float width = 14.0f * static_cast<float>(item.value.size()) + 10;
+                const float x = r.x+r.width-width;
+                Panel({x,r.y+43,width,29},{0.02f,0.035f,0.028f,.96f});
+                ValueText(item.value, {x,r.y+39}, r.x+r.width, {1,1,.88f,1});
+            }
+            continue;
+        }
         if (item.request.action == Action::HarvestDisplaySelect) continue;
         // The physical packet is the button. Do not paint a menu rectangle over it.
         if (item.request.action == Action::ShopSelect && item.rect.y < 544) {
@@ -199,6 +227,8 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
         if (!item.value.empty()) ValueText(item.value, {item.rect.x + item.valueOffset, item.rect.y + 1}, item.rect.x + item.rect.width,
             item.darkInk ? darkInk : Vector4{1.0f, 0.87f, 0.50f, 1});
     }
+    if (hoveredIcon) caption = hoveredIcon;
+    if (caption) LabelQuad(caption->label, ItemHotbarLayout::caption, {0.96f,0.98f,0.92f,1});
     if (!view.recordNames[0].empty() && namesReady_) { names_.Update(); names_.Draw(); }
 }
 }

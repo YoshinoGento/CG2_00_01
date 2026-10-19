@@ -524,6 +524,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\farm\system\FarmToolSystem.h" />
     <ClInclude Include="application\farm\ui\FarmHUD.h" />
     <ClInclude Include="application\farm\ui\FarmRuntimeUI.h" />
+    <ClInclude Include="application\farm\ui\FarmItemIcons.h" />
+    <ClInclude Include="application\farm\ui\FarmItemHotbarView.h" />
     <ClInclude Include="application\farm\ui\FarmQualityView.h" />
     <ClInclude Include="application\farm\ui\FarmTerrainView.h" />
     <ClInclude Include="application\farm\ui\FarmObservationView.h" />
@@ -653,6 +655,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\shader\Line.hlsli">
       <FileType>Document</FileType>
     </None>
+    <None Include="Resources\ui\farm_item_icons.png" />
+    <None Include="Resources\ui\farm_item_icons.json" />
     <None Include="Resources\shader\Object3d.hlsli" />
     <None Include="Resources\shader\Particle.hlsli" />
     <None Include="Resources\shader\Skybox.hlsli" />

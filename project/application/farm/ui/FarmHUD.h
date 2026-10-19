@@ -128,7 +128,7 @@ private:
 	void UpdateCropPieStats();
 	void UpdateCropPieMenu();
 	void UpdateGoalBar();
-	void UpdateToolSelection();
+	void DrawItemIllustrations();
 
 private:
 	FarmHUDViewData viewData_;
@@ -138,16 +138,14 @@ private:
 	Sprite statusPanel_;
 	Sprite economyPanel_;
 	Sprite selectedTilePanel_;
-	Sprite toolPanel_;
 	Sprite feedbackPanel_;
 	Sprite goalBarTrack_;
 	Sprite goalBarFill_;
 	Sprite cropPieCenterPanel_;
 	std::array<Sprite, 3> cropPiePanels_;
-	std::array<Sprite, 4> toolSlotPanels_;
+	std::array<Sprite, 7> itemIllustrations_;
+	std::array<SpriteText, 3> inventoryCounts_;
 	std::array<Sprite, 20> localizedLabels_;
-	std::array<Sprite, 4> localizedToolSlotLabels_;
-	Sprite localizedCurrentTool_;
 	Sprite localizedTileState_;
 	Sprite localizedCropName_;
 	Sprite localizedSelectedSeedCrop_;
@@ -161,7 +159,6 @@ private:
 	Sprite localizedFeedback_;
 	Sprite localizedFeedbackCrop_;
 
-	std::array<Texture2DHandle, 4> currentToolTextureHandles_;
 	std::array<Texture2DHandle, 2> waterLabelTextureHandles_;
 	std::array<Texture2DHandle, 2> toolGuideTextureHandles_;
 	std::array<Texture2DHandle, 11> tileStateTextureHandles_;

@@ -1,5 +1,6 @@
 #pragma once
 #include "farm/ui/FarmRuntimeLabels.h"
+#include "farm/ui/FarmItemIcons.h"
 #include "2d/Sprite.h"
 #include <array>
 #include <algorithm>
@@ -18,13 +19,22 @@ enum class Action {
     HarvestInventory, HarvestPage, ProtectHarvest, UnprotectHarvest, ReserveContestHarvest, CancelContestReservation,
     ContestPreview, SubmitContest, ContestResults, ContestDayReview, ContestDayPrepare, ContestDayResume, ChangePlayMode,
     ShopSelect, ShopQuantity, ShopReview, ShopConfirm, ShopCancel, ShopClose,
-    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage
+    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage, EquipSeed
 };
 struct Request { Action action = Action::None; int argument = 0; std::uint64_t inventoryGeneration = 0; };
 struct Rect {
     float x = 0, y = 0, width = 0, height = 0;
     [[nodiscard]] bool Contains(Vector2 p) const noexcept {
         return p.x >= x && p.y >= y && p.x < x + width && p.y < y + height;
+    }
+};
+struct ItemHotbarLayout {
+    inline static constexpr Rect panel{408, 576, 592, 120};
+    inline static constexpr Rect caption{420, 578, 568, 32};
+    inline static constexpr std::size_t slotCount = 6;
+    [[nodiscard]] static constexpr Rect Slot(std::size_t index) noexcept {
+        if (index >= slotCount) return {};
+        return {430.0f + 90.0f * static_cast<float>(index) + (index >= 3 ? 16.0f : 0.0f), 616, 80, 72};
     }
 };
 struct Item {
@@ -38,6 +48,7 @@ struct Item {
     float valueOffset = 540;
     bool darkInk = false;
     bool warning = false;
+    ItemIcon icon = ItemIcon::None;
 };
 struct QualityRadar {
     bool visible = false;
@@ -73,6 +84,7 @@ struct View {
     bool fieldActions = false;
     bool feedback = false;
     bool waterGuidance = false;
+    bool itemHotbar = false;
     QualityRadar radar{};
     inline static constexpr Rect kFeedbackPanel{352, 82, 504, 92};
     inline static constexpr Rect kFieldActionsPanel{1040, 532, 216, 112};
@@ -82,7 +94,7 @@ struct View {
     inline static constexpr Rect kTerrainTop{16, 16, 1248, 96};
     inline static constexpr Rect kTerrainBottom{16, 520, 1248, 184};
     inline static constexpr std::array<Rect, 4> kFarmHudPanels{{
-        {24, 24, 310, 132}, {876, 24, 380, 228}, {24, 520, 350, 176}, {390, 548, 628, 148}
+        {24, 24, 310, 132}, {876, 24, 380, 228}, {24, 520, 350, 176}, ItemHotbarLayout::panel
     }};
     std::array<std::string, 2> recordNames{};
     void Add(Label label, Rect rect, Request request = {}, bool enabled = true, bool selected = false) {
@@ -100,7 +112,8 @@ struct View {
             (terrain && (kTerrainTop.Contains(point) || kTerrainBottom.Contains(point))) ||
             (fieldActions && kFieldActionsPanel.Contains(point)) ||
             (waterGuidance && kWaterGuidancePanel.Contains(point)) ||
-            (feedback && kFeedbackPanel.Contains(point))) return true;
+            (feedback && kFeedbackPanel.Contains(point)) ||
+            (itemHotbar && ItemHotbarLayout::panel.Contains(point))) return true;
         // Disabled controls and labels still own their screen area.
         for (std::size_t i = 0; i < count && i < items.size(); ++i)
             if (items[i].rect.Contains(point)) return true;
@@ -140,7 +153,9 @@ private:
     void LabelQuad(Label label, Rect rect, Vector4 color);
     void ValueText(const std::string& value, Vector2 position, float right, Vector4 color = {1.0f, 0.87f, 0.50f, 1});
     void DrawRadar(const QualityRadar& radar);
-    std::array<Sprite, 42> panels_{};
+    void IconQuad(ItemIcon icon, Rect rect, Vector4 color);
+    std::array<Sprite, 64> panels_{};
+    std::array<Sprite, ItemHotbarLayout::slotCount> itemIcons_{};
     std::array<Sprite, 40> labels_{};
     std::array<Sprite, 160> digits_{};
     std::array<Sprite, 28> radarLines_{};
@@ -150,7 +165,7 @@ private:
     Sprite names_;
     std::array<std::string, 2> cachedNames_{};
     bool namesReady_ = false;
-    std::size_t panelCount_ = 0, labelCount_ = 0, digitCount_ = 0;
+    std::size_t panelCount_ = 0, labelCount_ = 0, digitCount_ = 0, iconCount_ = 0;
     bool ready_ = false;
 };
 }

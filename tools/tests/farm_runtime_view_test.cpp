@@ -5,6 +5,7 @@
 #include "farm/ui/FarmCameraView.h"
 #include "farm/ui/FarmQualityView.h"
 #include "farm/ui/FarmTerrainView.h"
+#include "farm/ui/FarmItemHotbarView.h"
 #include "farm/system/FarmOverviewCamera.h"
 #include <cassert>
 #include <cmath>
@@ -13,6 +14,44 @@
 
 int main() {
     using namespace farmui;
+    {
+        FarmHUDViewData data;
+        for (int tool : {-1, 0, 1, 2, 3}) for (int seed = 0; seed < 3; ++seed) {
+            data.currentToolIndex = tool;
+            data.selectedSeedCrop = farm::PlayableCrop(seed);
+            data.cropSeedCounts = {0, 0, 5, 2147483647};
+            View bar; BuildItemHotbarView(bar, data, true);
+            assert(bar.itemHotbar && bar.count == 6);
+            int selected = 0;
+            for (std::size_t i = 0; i < bar.count; ++i) {
+                const auto& item = bar.items[i];
+                selected += item.selected ? 1 : 0;
+                assert(ValidIcon(item.icon));
+                const auto r = ItemHotbarLayout::Slot(i);
+                const auto hit = bar.Hit({r.x+1,r.y+1});
+                assert(hit.action == (i < 3 ? Action::Tool : Action::EquipSeed));
+                if (i >= 3) assert(hit.argument == static_cast<int>(i)-2);
+                assert(bar.Hit({r.x+r.width,r.y}).action == Action::None);
+                assert(bar.Covers({r.x,r.y}));
+            }
+            assert(selected == (tool >= 0 ? 1 : 0));
+            assert(bar.items[3].value == "0" && bar.items[5].value == "999+");
+            assert(bar.Covers({ItemHotbarLayout::caption.x,ItemHotbarLayout::caption.y}));
+            assert(bar.Hit({ItemHotbarLayout::caption.x,ItemHotbarLayout::caption.y}).action == Action::None);
+        }
+        View locked; BuildItemHotbarView(locked,data,false);
+        assert(locked.Covers({450,640}) && locked.Hit({450,640}).action == Action::None);
+        for (int hidden = 0; hidden < 7; ++hidden) {
+            View view; data.cropPieOpen = hidden == 0; data.irrigationPreviewActive = hidden == 1;
+            view.modal = hidden == 2; view.terrain = hidden == 3; view.observation = hidden == 4;
+            view.seedShop = hidden == 5; view.harvestDisplay = hidden == 6;
+            BuildItemHotbarView(view,data,true); assert(!view.itemHotbar && view.count == 0);
+        }
+        assert(!ValidIcon(CropItemIcon(farm::CropType::None)));
+        assert(!ValidIcon(CropItemIcon(farm::CropType::TestCrop)));
+        assert(!ValidIcon(static_cast<ItemIcon>(999)));
+        assert(ItemHotbarLayout::Slot(99).width == 0);
+    }
     const auto separated = [](Rect a, Rect b) {
         return a.x+a.width<=b.x || b.x+b.width<=a.x || a.y+a.height<=b.y || b.y+b.height<=a.y;
     };

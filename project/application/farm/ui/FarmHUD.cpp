@@ -21,8 +21,6 @@ constexpr Vector2 kEconomyPanelPosition{ 876.0f, 24.0f };
 constexpr Vector2 kEconomyPanelSize{ 380.0f, 228.0f };
 constexpr Vector2 kSelectedPanelPosition{ 24.0f, 520.0f };
 constexpr Vector2 kSelectedPanelSize{ 350.0f, 176.0f };
-constexpr Vector2 kToolPanelPosition{ 390.0f, 548.0f };
-constexpr Vector2 kToolPanelSize{ 628.0f, 148.0f };
 // Leave the center for StageClearHUD (title/retry), and keep the bottom tools clear.
 // Keep harvest feedback above the field and between the date/economy panels.
 constexpr Vector2 kFeedbackPanelPosition{ farmui::View::kFeedbackPanel.x, farmui::View::kFeedbackPanel.y };
@@ -31,10 +29,6 @@ constexpr float kFeedbackPadding = 16.0f;
 constexpr float kFeedbackMetricsScale = 0.90f;
 constexpr Vector2 kGoalTrackPosition{ 900.0f, 136.0f };
 constexpr Vector2 kGoalTrackSize{ 332.0f, 12.0f };
-constexpr Vector2 kToolSlotSize{ 140.0f, 58.0f };
-constexpr float kToolSlotStartX = 408.0f;
-constexpr float kToolSlotY = 622.0f;
-constexpr float kToolSlotStepX = 148.0f;
 
 constexpr Vector2 kDayPosition{ 118.0f, 40.0f };
 constexpr Vector2 kRankPosition{ 166.0f, 88.0f };
@@ -69,8 +63,6 @@ constexpr Vector4 kPanelSecondaryColor{ 0.025f, 0.045f, 0.038f, 0.86f };
 constexpr Vector4 kFeedbackPanelColor{ 0.035f, 0.044f, 0.038f, 0.94f };
 constexpr Vector4 kTrackColor{ 0.12f, 0.15f, 0.13f, 0.95f };
 constexpr Vector4 kGoalFillColor{ 0.36f, 0.78f, 0.42f, 1.0f };
-constexpr Vector4 kToolSlotColor{ 0.09f, 0.12f, 0.11f, 0.96f };
-constexpr Vector4 kToolSlotSelectedColor{ 0.88f, 0.62f, 0.08f, 1.0f };
 constexpr Vector4 kTextColor{ 0.96f, 0.97f, 0.94f, 1.0f };
 constexpr Vector4 kMutedTextColor{ 0.68f, 0.76f, 0.70f, 1.0f };
 constexpr Vector4 kAccentColor{ 1.0f, 0.82f, 0.18f, 1.0f };
@@ -141,20 +133,6 @@ constexpr std::array<Vector2, 20> kLocalizedLabelPositions = {
 	Vector2{ 42.0f, 610.0f }, Vector2{ 180.0f, 610.0f },
 	Vector2{ 42.0f, 650.0f }, Vector2{ 412.0f, 560.0f },
 	Vector2{ 706.0f, 562.0f },
-};
-
-constexpr std::array<const char*, 4> kLocalizedToolSlotPaths = {
-	"Resources/generated/text/hud_tool_slot_hoe.png",
-	"Resources/generated/text/hud_tool_slot_water.png",
-	"Resources/generated/text/hud_tool_slot_seed.png",
-	"Resources/generated/text/hud_tool_slot_harvest.png",
-};
-
-constexpr std::array<const char*, 4> kCurrentToolPaths = {
-	"Resources/generated/text/hud_tool_hoe.png",
-	"Resources/generated/text/hud_tool_water.png",
-	"Resources/generated/text/hud_tool_seed.png",
-	"Resources/generated/text/hud_tool_harvest.png",
 };
 
 constexpr std::array<const char*, 11> kTileStatePaths = {
@@ -419,6 +397,15 @@ bool FarmHUD::Initialize(SpriteCommon* spriteCommon) {
 	selectedTileMetricsText_.Initialize(spriteCommon, &font_);
 	selectedTileGrowthText_.Initialize(spriteCommon, &font_);
 	feedbackMetricsText_.Initialize(spriteCommon, &font_);
+	for (std::size_t i = 0; i < inventoryCounts_.size(); ++i) {
+		auto& text = inventoryCounts_[i];
+		text.Initialize(spriteCommon, &font_);
+		text.SetText("999+");
+		ConfigureText(text, {946.0f + 110.0f * static_cast<float>(i), 200}, 0.68f, -7, kTextColor);
+	}
+	for (auto& icon : itemIllustrations_) {
+		if (!icon.Initialize(spriteCommon, farmui::kItemIconPath)) return false;
+	}
 	for (SpriteText& statsText : cropPieStatsText_) {
 		statsText.Initialize(spriteCommon, &font_);
 		statsText.SetText("999 / 999");
@@ -458,13 +445,7 @@ bool FarmHUD::InitializeLocalizedSprites(SpriteCommon* spriteCommon) {
 			return false;
 		}
 	}
-	for (std::size_t i = 0; i < localizedToolSlotLabels_.size(); ++i) {
-		if (!localizedToolSlotLabels_[i].Initialize(spriteCommon, kLocalizedToolSlotPaths[i])) {
-			return false;
-		}
-	}
-	return localizedCurrentTool_.Initialize(spriteCommon, kCurrentToolPaths[0]) &&
-		localizedTileState_.Initialize(spriteCommon, kTileStatePaths[0]) &&
+	return localizedTileState_.Initialize(spriteCommon, kTileStatePaths[0]) &&
 		localizedCropName_.Initialize(spriteCommon, kCropPaths[0]) &&
 		localizedSelectedSeedCrop_.Initialize(spriteCommon, kCropPaths[1]) &&
 		localizedCropPieNames_[0].Initialize(spriteCommon, kCropPaths[2]) &&
@@ -491,8 +472,7 @@ bool FarmHUD::LoadLocalizedTextureHandles() {
 		"Resources/generated/text/hud_water_label.png",
 		"Resources/generated/text/hud_stored_water_label.png"
 	};
-	return LoadTextureHandles(currentToolTextureHandles_, kCurrentToolPaths) &&
-		LoadTextureHandles(toolGuideTextureHandles_, toolGuidePaths) &&
+	return LoadTextureHandles(toolGuideTextureHandles_, toolGuidePaths) &&
 		LoadTextureHandles(waterLabelTextureHandles_, waterPaths) &&
 		LoadTextureHandles(tileStateTextureHandles_, kTileStatePaths) &&
 		LoadTextureHandles(cropTextureHandles_, kCropPaths) &&
@@ -508,17 +488,11 @@ bool FarmHUD::InitializePanels(SpriteCommon* spriteCommon) {
 		return sprite.Initialize(spriteCommon, kPanelTexturePath);
 	};
 	if (!initialize(statusPanel_) || !initialize(economyPanel_) ||
-		!initialize(selectedTilePanel_) || !initialize(toolPanel_) ||
+		!initialize(selectedTilePanel_) ||
 		!initialize(feedbackPanel_) || !initialize(goalBarTrack_) ||
 		!initialize(goalBarFill_) || !initialize(cropPieCenterPanel_)) {
 		Logger::Log("FarmHUD::Initialize failed. HUD panel texture is unavailable.");
 		return false;
-	}
-	for (Sprite& panel : toolSlotPanels_) {
-		if (!initialize(panel)) {
-			Logger::Log("FarmHUD::Initialize failed. Tool slot panel is unavailable.");
-			return false;
-		}
 	}
 	for (Sprite& panel : cropPiePanels_) {
 		if (!initialize(panel)) {
@@ -696,9 +670,6 @@ void FarmHUD::SetViewData(const FarmHUDViewData& viewData) {
 	if (rankChanged) UpdateRankText();
 	if (cropChanged) UpdateCropCountText();
 	if (timeScaleChanged) UpdateTimeScaleText();
-	if (toolChanged) {
-		UpdateToolSelection();
-	}
 	if (goalChanged) {
 		UpdateGoalText();
 		UpdateGoalBar();
@@ -722,13 +693,9 @@ void FarmHUD::Update(float deltaTime) {
 	statusPanel_.Update();
 	economyPanel_.Update();
 	selectedTilePanel_.Update();
-	toolPanel_.Update();
 	goalBarTrack_.Update();
 	if (viewData_.goalProgress > 0.0f) goalBarFill_.Update();
-	for (Sprite& panel : toolSlotPanels_) panel.Update();
 	for (Sprite& label : localizedLabels_) label.Update();
-	for (Sprite& label : localizedToolSlotLabels_) label.Update();
-	localizedCurrentTool_.Update();
 	localizedTileState_.Update();
 	localizedCropName_.Update();
 	localizedSelectedSeedCrop_.Update();
@@ -789,20 +756,17 @@ void FarmHUD::Draw() {
 	statusPanel_.Draw();
 	economyPanel_.Draw();
 	selectedTilePanel_.Draw();
-	toolPanel_.Draw();
 	if (!viewData_.freeFarming) goalBarTrack_.Draw();
 	if (viewData_.goalProgress > 0.0f) goalBarFill_.Draw();
-	for (Sprite& panel : toolSlotPanels_) panel.Draw();
 	for (std::size_t i=0; i<localizedLabels_.size(); ++i) {
+		if (i == kSeedCountLabel || i == kSelectedSeedLabel || i == kBuySeedLabel ||
+			i == kSellLabel || i == kToolLabel || i == kToolGuideLabel || i == kCropLabel) continue;
 		if ((viewData_.contestSeason || viewData_.freeFarming) && (i==kNeedLabel || i==kNeedSuffixLabel)) continue;
 		if (viewData_.freeFarming && i==kGoalLabel) continue;
 		localizedLabels_[i].Draw();
 	}
-	for (Sprite& label : localizedToolSlotLabels_) label.Draw();
-	localizedCurrentTool_.Draw();
 	localizedTileState_.Draw();
 	localizedCropName_.Draw();
-	localizedSelectedSeedCrop_.Draw();
 	localizedNextAction_.Draw();
 	if (viewData_.selectedTileValid &&
 		viewData_.selectedTileMoistureStatus != FarmHUDMoistureStatus::None &&
@@ -821,7 +785,6 @@ void FarmHUD::Draw() {
 		cropPieCenterPanel_.Draw();
 		for (Sprite& panel : cropPiePanels_) panel.Draw();
 		for (Sprite& name : localizedCropPieNames_) name.Draw();
-		for (Sprite& trait : localizedCropPieTraits_) trait.Draw();
 		for (SpriteText& statsText : cropPieStatsText_) statsText.Draw();
 		for (SpriteText& valueText : cropPieValueText_) valueText.Draw();
 		localizedCropPieGuide_.Draw();
@@ -841,8 +804,6 @@ void FarmHUD::Draw() {
 	moneyText_.Draw();
 	rankText_.Draw();
 	cropCountText_.Draw();
-	seedCountText_.Draw();
-	seedPriceText_.Draw();
 	timeScaleText_.Draw();
 	goalText_.Draw();
 	goalNeedText_.Draw();
@@ -850,32 +811,20 @@ void FarmHUD::Draw() {
 	selectedTileTitleText_.Draw();
 	selectedTileMetricsText_.Draw();
 	selectedTileGrowthText_.Draw();
+	DrawItemIllustrations();
 }
 
 void FarmHUD::ApplyLayout() {
 	ConfigurePanel(statusPanel_, kStatusPanelPosition, kStatusPanelSize, kPanelColor);
 	ConfigurePanel(economyPanel_, kEconomyPanelPosition, kEconomyPanelSize, kPanelColor);
 	ConfigurePanel(selectedTilePanel_, kSelectedPanelPosition, kSelectedPanelSize, kPanelSecondaryColor);
-	ConfigurePanel(toolPanel_, kToolPanelPosition, kToolPanelSize, kPanelColor);
 	ConfigurePanel(feedbackPanel_, kFeedbackPanelPosition, kFeedbackPanelSize, kFeedbackPanelColor);
 	ConfigurePanel(goalBarTrack_, kGoalTrackPosition, kGoalTrackSize, kTrackColor);
 	ConfigurePanel(goalBarFill_, kGoalTrackPosition, { 0.0f, kGoalTrackSize.y }, kGoalFillColor);
-	for (std::size_t i = 0; i < toolSlotPanels_.size(); ++i) {
-		ConfigurePanel(toolSlotPanels_[i],
-			{ kToolSlotStartX + static_cast<float>(i) * kToolSlotStepX, kToolSlotY },
-			kToolSlotSize, kToolSlotColor);
-	}
 	for (std::size_t i = 0; i < localizedLabels_.size(); ++i) {
 		localizedLabels_[i].SetPosition(kLocalizedLabelPositions[i]);
 		ScaleSprite(localizedLabels_[i], 0.72f);
 	}
-	for (std::size_t i = 0; i < localizedToolSlotLabels_.size(); ++i) {
-		localizedToolSlotLabels_[i].SetPosition({
-			kToolSlotStartX + 12.0f + static_cast<float>(i) * kToolSlotStepX,
-			kToolSlotY + 10.0f });
-		ScaleSprite(localizedToolSlotLabels_[i], 0.78f);
-	}
-	localizedCurrentTool_.SetPosition({ 482.0f, 558.0f });
 	localizedTileState_.SetPosition({ 238.0f, 530.0f });
 	localizedCropName_.SetPosition({ 108.0f, 570.0f });
 	localizedSelectedSeedCrop_.SetPosition({ 988.0f, 188.0f });
@@ -946,7 +895,6 @@ void FarmHUD::RefreshAllText() {
 	UpdateCropPieStats();
 	UpdateCropPieMenu();
 	UpdateGoalBar();
-	UpdateToolSelection();
 }
 
 void FarmHUD::UpdateDayText() {
@@ -1023,12 +971,6 @@ void FarmHUD::UpdateLocalizedSelections() {
 		viewData_.currentToolIndex == 1 ? 1 : 0], 0.72f);
 	SetLocalizedTexture(localizedLabels_[kWaterLabel], waterLabelTextureHandles_[
 		viewData_.selectedTileFeature == farm::FarmTileFeature::None ? 0 : 1], 0.72f);
-	const std::size_t currentToolIndex = viewData_.currentToolIndex >= 0
-		? static_cast<std::size_t>(viewData_.currentToolIndex) : 0;
-	SetLocalizedTexture(
-		localizedCurrentTool_,
-		currentToolTextureHandles_[(std::min)(currentToolIndex, currentToolTextureHandles_.size() - 1)],
-		0.75f);
 	SetLocalizedTexture(
 		localizedTileState_, tileStateTextureHandles_[GetTileStateTextureIndex(viewData_)], 0.75f);
 	SetLocalizedTexture(
@@ -1160,10 +1102,25 @@ void FarmHUD::UpdateGoalBar() {
 	goalBarFill_.SetColor(viewData_.goalCleared ? kAccentColor : kGoalFillColor);
 }
 
-void FarmHUD::UpdateToolSelection() {
-	for (std::size_t i = 0; i < toolSlotPanels_.size(); ++i) {
-		const bool selected = static_cast<int>(i) == viewData_.currentToolIndex;
-		toolSlotPanels_[i].SetColor(selected ? kToolSlotSelectedColor : kToolSlotColor);
-		localizedToolSlotLabels_[i].SetColor(selected ? kSelectedSlotTextColor : kTextColor);
+void FarmHUD::DrawItemIllustrations() {
+	const auto draw = [&](std::size_t index, farmui::ItemIcon icon, Vector2 position, float size) {
+		if (index >= itemIllustrations_.size() || !farmui::ValidIcon(icon)) return;
+		auto& sprite = itemIllustrations_[index];
+		sprite.SetTextureRect(farmui::ItemIconOrigin(icon), {farmui::kItemIconCell, farmui::kItemIconCell});
+		sprite.SetPosition(position); sprite.SetSize({size,size});
+		sprite.SetColor({1,1,1,1}); sprite.Update(); sprite.Draw();
+	};
+	draw(0, farmui::CropItemIcon(viewData_.selectedTileCrop), {42,566}, 48);
+	for (std::size_t i = 0; i < inventoryCounts_.size(); ++i) {
+		const auto crop = farm::PlayableCrop(static_cast<int>(i));
+		draw(i+1, farmui::CropItemIcon(crop), {898.0f+110.0f*static_cast<float>(i),186}, 48);
+		const int count = (std::max)(0, viewData_.cropInventoryCounts[farm::ToCropSlot(crop)]);
+		auto& text = inventoryCounts_[i];
+		text.SetText(count > 999 ? "999+" : std::to_string(count));
+		text.Update(); text.Draw();
+		if (viewData_.cropPieOpen) {
+			const auto position = cropPiePanels_[i].GetPosition();
+			draw(i+4, farmui::CropItemIcon(crop, true), {position.x+66,position.y+40}, 40);
+		}
 	}
 }
