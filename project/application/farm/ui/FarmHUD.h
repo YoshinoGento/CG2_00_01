@@ -1,6 +1,7 @@
 #pragma once
 
 #include "2d/BitmapFont.h"
+#include "base/InitializationTask.h"
 #include "2d/Sprite.h"
 #include "farm/core/FarmTypes.h"
 #include "farm/ui/FarmUIRect.h"
@@ -111,6 +112,7 @@ struct FarmHUDViewData {
 class FarmHUD final {
 public:
 	bool Initialize(SpriteCommon* spriteCommon);
+	InitializationTask InitializeIncrementally(SpriteCommon* spriteCommon);
 	void SetViewData(const FarmHUDViewData& viewData);
 	void Update(float deltaTime);
 	void Draw();
@@ -118,7 +120,7 @@ public:
 private:
 	// Fixed after initialization; each live glyph owns distinct GPU constants.
 	struct TextRun {
-		bool Initialize(SpriteCommon* common, const BitmapFont& font, std::size_t capacity);
+		InitializationTask Initialize(SpriteCommon* common, const BitmapFont& font, std::size_t capacity);
 		void Set(const BitmapFont& font, std::string_view value, farmui::Rect bounds,
 			float maximumScale, const Vector4& color);
 		void Update();
@@ -128,10 +130,10 @@ private:
 		std::size_t count = 0;
 	};
 
-	bool InitializePanels(SpriteCommon* spriteCommon);
-	bool InitializeText(SpriteCommon* spriteCommon);
+	InitializationTask InitializePanels(SpriteCommon* spriteCommon);
+	InitializationTask InitializeText(SpriteCommon* spriteCommon);
 	bool InitializeLocalizedSprites(SpriteCommon* spriteCommon);
-	bool LoadLocalizedTextureHandles();
+	InitializationTask LoadLocalizedTextureHandles();
 	void ApplyLayout();
 	void UpdateStatus();
 	void UpdateGoal();

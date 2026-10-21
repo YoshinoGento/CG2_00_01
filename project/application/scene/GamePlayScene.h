@@ -32,6 +32,7 @@
 #include "farm/system/FarmToolSystem.h"
 #include "farm/system/FarmVisualSystem.h"
 #include "farm/render/FarmRenderer.h"
+#include "farm/render/FarmArrivalRenderer.h"
 #include "farm/render/FarmSeedShopRenderer.h"
 #include "farm/ui/FarmHUD.h"
 #include "level/ui/StageClearHUD.h"
@@ -73,6 +74,7 @@ public:
 	~GamePlayScene() override;
 
 	void Initialize() override;
+    InitializationTask InitializeIncrementally() override;
 	void Finalize() override;
 	void PrepareFixedUpdate() override;
 	void OnScreenTransitionCovered() override;
@@ -133,7 +135,7 @@ private:
 	level::LevelGameplaySystem::GroundHeightQuery BuildPlayerGroundQuery() const;
 	bool TryBuildViewportRay(Vector3& outOrigin, Vector3& outDirection) const;
 	bool TrySelectFarmTileFromViewport();
-	void InitializeFarmHUD();
+	InitializationTask InitializeFarmHUD();
 	void InitializeStageClearHUD();
 	void InitializeSkyboxIfNeeded();
 	void LoadSceneLevel();
@@ -292,6 +294,7 @@ private:
 	editor::GamePlayEditorBridge gamePlayEditorBridge_;
 	FarmHUD farmHud_;
 	FarmRuntimeController farmRuntimeController_;
+    FarmArrivalRenderer farmArrivalRenderer_;
 	bool farmHudInitialized_ = false;
 	StageClearHUD stageClearHud_;
 	bool stageClearHudInitialized_ = false;

@@ -1,6 +1,7 @@
 #include "title/TitleFarmRenderer.h"
 #include "title/TitleCelestialGeometry.h"
 #include "title/TitleCropPresentation.h"
+#include "farm/render/FarmMaterialStyle.h"
 #include "3d/ModelManager.h"
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
@@ -15,8 +16,12 @@ TitleFarmRenderer::~TitleFarmRenderer() { Finalize(); }
 
 bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelManager,
     TextureManager* textures, const farm::FarmGrid& grid, const PondLayout* pond) {
+    return InitializeIncrementally(common,modelManager,textures,grid,pond).Complete();
+}
+InitializationTask TitleFarmRenderer::InitializeIncrementally(Object3dCommon* common, ModelManager* modelManager,
+    TextureManager* textures, const farm::FarmGrid& grid, const PondLayout* pond) {
     if (common_ || !common || !modelManager || !textures || !common->GetLightingSystem() ||
-        grid.GetTileCount() != static_cast<int>(kTitleTileCount)) return false;
+        grid.GetTileCount() != static_cast<int>(kTitleTileCount)) co_return false;
     constexpr std::array<const char*,11> paths{"farm/unit_box.obj", "farm/triangle_lower.obj",
         "farm/triangle_upper.obj", "farm/crop_turnip.obj", "farm/crop_carrot.obj",
         "farm/crop_turnip_leaves.obj", "farm/crop_carrot_leaves.obj", "farm/crop_tomato.obj",
@@ -25,21 +30,23 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
     for (std::size_t i=0; i<paths.size(); ++i) {
         // Turnip is not displayed by the staged farm; avoid loading an excluded submission asset.
         if (i == 3 || i == 5) continue;
-        if (!std::filesystem::is_regular_file(std::filesystem::path("Resources")/paths[i],error)) return false;
+        if (!std::filesystem::is_regular_file(std::filesystem::path("Resources")/paths[i],error)) co_return false;
         modelManager->LoadModel(paths[i]); models_[i] = modelManager->GetModel(paths[i]);
-        if (!models_[i] || models_[i]->HasSkinCluster()) return false;
+        if (!models_[i] || models_[i]->HasSkinCluster()) co_return false;
+        co_await std::suspend_always{};
     }
     const auto white = textures->LoadTexture2D("Resources/farm/white.png");
-    if (!white.IsValid() || white == textures->GetFallback2D()) return false;
+    if (!white.IsValid() || white == textures->GetFallback2D()) co_return false;
     whiteTexture_ = white;
     if (!std::filesystem::is_regular_file("Resources/title/countryside.obj",error) ||
-        !std::filesystem::is_regular_file("Resources/title/countryside_atlas.png",error)) return false;
+        !std::filesystem::is_regular_file("Resources/title/countryside_atlas.png",error)) co_return false;
     modelManager->LoadModel("title/countryside.obj");
+    co_await std::suspend_always{};
     auto* landscapeModel = modelManager->GetModel("title/countryside.obj");
     const auto landscapeTexture = textures->LoadTexture2D("Resources/title/countryside_atlas.png");
     landscapeTexture_ = landscapeTexture;
     if (!landscapeModel || landscapeModel->HasSkinCluster() ||
-        !landscapeTexture.IsValid() || landscapeTexture == textures->GetFallback2D()) return false;
+        !landscapeTexture.IsValid() || landscapeTexture == textures->GetFallback2D()) co_return false;
     landscape_ = std::make_unique<Object3d>();
     landscape_->Initialize(common);
     landscape_->SetModel(landscapeModel);
@@ -47,16 +54,21 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
     landscape_->SetSpecularType(Object3d::SpecularType::None);
     landscape_->SetEnableLighting(true);
     if (!std::filesystem::is_regular_file("Resources/title/pond_shore.obj",error) ||
-        !std::filesystem::is_regular_file("Resources/title/pond_stone.png",error)) return false;
+        !std::filesystem::is_regular_file("Resources/title/pond_stone.png",error)) co_return false;
     modelManager->LoadModel("title/pond_shore.obj");
+    co_await std::suspend_always{};
     auto* shoreModel = modelManager->GetModel("title/pond_shore.obj");
-    if (!shoreModel || shoreModel->HasSkinCluster()) return false;
+    if (!shoreModel || shoreModel->HasSkinCluster()) co_return false;
     const auto shoreTexture = textures->LoadTexture2D("Resources/title/pond_stone.png");
-    if (!shoreTexture.IsValid() || shoreTexture == textures->GetFallback2D()) return false;
+    if (!shoreTexture.IsValid() || shoreTexture == textures->GetFallback2D()) co_return false;
     pondShore_ = std::make_unique<Object3d>();
     pondShore_->Initialize(common); pondShore_->SetModel(shoreModel); pondShore_->SetTexture(shoreTexture);
     pondShore_->SetEnableLighting(true); pondShore_->SetSpecularType(Object3d::SpecularType::None);
-    if (!sky_.Initialize(common->GetDxCommon(),textures) || !grass_.Initialize(common,modelManager)) return false;
+    co_await std::suspend_always{};
+    if (!sky_.Initialize(common->GetDxCommon(),textures)) co_return false;
+    co_await std::suspend_always{};
+    if (!grass_.Initialize(common,modelManager)) co_return false;
+    co_await std::suspend_always{};
     common_ = common; lights_ = common->GetLightingSystem();
     previousDirectional_ = lights_->GetDirectionalLight(); previousSpot_ = lights_->GetSpotLight();
     previousShadowStrength_ = common_->GetShadowStrength();
@@ -68,12 +80,14 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
         activeGlintCount_ = kGlintCount;
         if (std::filesystem::is_regular_file("Resources/title/reflection_scenery.obj",error)) {
             modelManager->LoadModel("title/reflection_scenery.obj");
+            co_await std::suspend_always{};
             reflectedScenery_ = modelManager->GetModel("title/reflection_scenery.obj");
         }
         if (!reflectedScenery_ || reflectedScenery_->HasSkinCluster() ||
             !reflection_.Initialize(common->GetDxCommon(),common->GetSrvManager(),textures))
             Logger::Warning("Title planar reflection unavailable; pond uses the snapshot fallback.");
     }
+    co_await std::suspend_always{};
     farm::FarmVisualLayout layout;
     layout.center = kFarmCenter; layout.tileGap = .05f; layout.heightStep = .27f;
     farm::FarmVisualSystem visual; visual.Initialize(layout);
@@ -84,7 +98,7 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
         auto cropVisual = visual.GetTileVisualData(grid,index);
         cropVisual.cropStage = farm::FarmCropGrowthStage::Ready;
         const auto crops = farm::BuildFarmCropMeshParts(cropVisual,1.0f);
-        if (parts_.size()+terrain.count+crops.count+4 > kMaximumParts) return false;
+        if (parts_.size()+terrain.count+crops.count+4 > kMaximumParts) co_return false;
         for (std::size_t p=0; p<terrain.count; ++p) {
             const auto& part = terrain.parts[p];
             // Open only the staged canal's downhill end; playable Farm geometry is unchanged.
@@ -117,30 +131,36 @@ bool TitleFarmRenderer::Initialize(Object3dCommon* common, ModelManager* modelMa
                 {pond->outfallHalfWidth,.004f,(a.z-b.z)*.5f}, {},true,{0,slope}});
         }
     }
-    if (parts_.size()>kMaximumParts) return false;
+    if (parts_.size()>kMaximumParts) co_return false;
     objects_.reserve(parts_.size());
     visible_.assign(parts_.size(),1);
     drawColors_.resize(parts_.size());
     for (const auto& part : parts_) {
         const auto shape = static_cast<std::size_t>(part.shape);
-        if (shape >= models_.size() || !models_[shape]) return false;
+        if (shape >= models_.size() || !models_[shape]) co_return false;
         auto object = std::make_unique<Object3d>(); object->Initialize(common_);
         object->SetModel(models_[shape]); object->SetTexture(white);
         object->SetPosition(part.position);
-        if (!object->SetScale(part.scale) || !object->SetShearY(part.slope)) return false;
-        object->SetSpecularType(Object3d::SpecularType::None);
+        if (!object->SetScale(part.scale) || !object->SetShearY(part.slope)) co_return false;
+        const auto material = farm::BuildFarmMaterialStyle(part);
+        object->SetSpecularType(material.detail.x > 0.0f ?
+            Object3d::SpecularType::BlinnPhong : Object3d::SpecularType::None);
+        object->SetShininess(material.shininess);
+        if (!object->SetSurfaceDetail(material.detail)) co_return false;
         object->SetEnableLighting(!part.water);
         objects_.push_back(std::move(object));
+        co_await std::suspend_always{};
     }
     for (auto& glint : glints_) {
         glint = std::make_unique<Object3d>(); glint->Initialize(common_);
         glint->SetModel(models_[0]); glint->SetTexture(white);
-        if (!glint->SetScale({.10f,.002f,.012f})) return false;
+        if (!glint->SetScale({.10f,.002f,.012f})) co_return false;
         glint->SetEnableLighting(false); glint->SetSpecularType(Object3d::SpecularType::None);
+        co_await std::suspend_always{};
     }
     Logger::Log("TitleFarmRenderer: retained objects="+std::to_string(objects_.size())+", glints="+std::to_string(kGlintCount)+".\n");
     ready_ = true;
-    return true;
+    co_return true;
 }
 
 void TitleFarmRenderer::Finalize() noexcept {

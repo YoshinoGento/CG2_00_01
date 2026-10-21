@@ -261,6 +261,12 @@ labels.extend([
     ["WaterAdviceSupplyShort", "給水経路を確認"], ["WaterAdviceCloseShort", "過湿：給水を止める"],
     ["WaterAdviceAvoidShort", "過湿：水やりを控える"], ["WaterAdviceMonitorShort", "水分は適量です"],
 ])
+labels.extend([
+    ["StartSource", "水源"], ["StartCanal", "水路"], ["StartFarm", "農場"],
+    ["StartSkip", "スキップ"],
+    ["ReturnTitle", "タイトルへ戻る"],
+    ["ReturnTitleConfirm", "タイトルへ戻ります。未保存の変更は失われます"],
+])
 ascii_y = ((len(labels) + columns - 1) // columns) * cell_h
 height = ascii_y + 128
 assert height <= 4096, "Split the label atlas before adding more rows"

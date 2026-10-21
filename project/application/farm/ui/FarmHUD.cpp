@@ -105,14 +105,15 @@ constexpr std::array<const char*, 19> kFeedbackPaths = {
 };
 
 template <std::size_t Size>
-bool LoadTextureHandles(std::array<Texture2DHandle, Size>& handles, const std::array<const char*, Size>& paths) {
+InitializationTask LoadTextureHandles(std::array<Texture2DHandle, Size>& handles, const std::array<const char*, Size>& paths) {
     auto* manager = TextureManager::GetInstance();
-    if (manager == nullptr || !manager->IsInitialized()) return false;
+    if (manager == nullptr || !manager->IsInitialized()) co_return false;
     for (std::size_t i = 0; i < Size; ++i) {
         handles[i] = manager->LoadTexture2D(paths[i]);
-        if (!handles[i].IsValid()) return false;
+        if (!handles[i].IsValid()) co_return false;
+        co_await std::suspend_always{};
     }
-    return true;
+    co_return true;
 }
 
 bool HasCrop(const FarmHUDViewData& data) {
@@ -207,18 +208,19 @@ void SetLocalizedTexture(Sprite& sprite, Texture2DHandle handle, Rect bounds, fl
 }
 }
 
-bool FarmHUD::TextRun::Initialize(SpriteCommon* common, const BitmapFont& font, std::size_t maximum) {
+InitializationTask FarmHUD::TextRun::Initialize(SpriteCommon* common, const BitmapFont& font, std::size_t maximum) {
     count = capacity = 0;
     glyphs.reset(new (std::nothrow) Sprite[maximum]);
-    if (!glyphs || !font.GetTextureHandle().IsValid()) return false;
+    if (!glyphs || !font.GetTextureHandle().IsValid()) co_return false;
     for (std::size_t i = 0; i < maximum; ++i) {
         if (!glyphs[i].Initialize(common, font.GetTexturePath())) {
             glyphs.reset();
-            return false;
+            co_return false;
         }
+        co_await std::suspend_always{};
     }
     capacity = maximum;
-    return true;
+    co_return true;
 }
 void FarmHUD::TextRun::Set(const BitmapFont& font, std::string_view value, Rect bounds,
     float maximumScale, const Vector4& color) {
@@ -245,16 +247,19 @@ void FarmHUD::TextRun::Update() { for (std::size_t i = 0; i < count; ++i) glyphs
 void FarmHUD::TextRun::Draw() { for (std::size_t i = 0; i < count; ++i) glyphs[i].Draw(); }
 
 bool FarmHUD::Initialize(SpriteCommon* common) {
+    return InitializeIncrementally(common).Complete();
+}
+InitializationTask FarmHUD::InitializeIncrementally(SpriteCommon* common) {
     initialized_ = false;
     auto* textures = TextureManager::GetInstance();
-    if (common == nullptr || textures == nullptr || !textures->IsInitialized()) return false;
+    if (common == nullptr || textures == nullptr || !textures->IsInitialized()) co_return false;
     if (!font_.InitializeFromJson(common, kFontConfigPath) ||
         !textures->LoadTexture2D(kPanelTexturePath).IsValid() ||
         !textures->LoadTexture2D(farmui::kHUDIconAtlas).IsValid() ||
-        !LoadLocalizedTextureHandles() || !InitializePanels(common) ||
-        !InitializeLocalizedSprites(common) || !InitializeText(common)) {
+        !co_await LoadLocalizedTextureHandles() || !co_await InitializePanels(common) ||
+        !InitializeLocalizedSprites(common) || !co_await InitializeText(common)) {
         Logger::Log("FarmHUD::Initialize failed. Required textures or retained Sprite pools are unavailable.");
-        return false;
+        co_return false;
     }
     ApplyLayout();
     initialized_ = true;
@@ -264,38 +269,44 @@ bool FarmHUD::Initialize(SpriteCommon* common) {
     UpdateIrrigationPreview();
     UpdateFeedback();
     UpdateCropPieMenu();
-    return true;
+    co_return true;
 }
-bool FarmHUD::InitializeText(SpriteCommon* common) {
+InitializationTask FarmHUD::InitializeText(SpriteCommon* common) {
     // Full decimal int values, including signs/separators, fit these fixed capacities.
-    if (!dayText_.Initialize(common, font_, 10) || !rankText_.Initialize(common, font_, 10) ||
-        !moneyText_.Initialize(common, font_, 10) || !cropCountText_.Initialize(common, font_, 10) ||
-        !goalText_.Initialize(common, font_, 28) || !irrigationPreviewCountText_.Initialize(common, font_, 4) ||
-        !selectedTileHeightText_.Initialize(common, font_, 12) || !selectedTileWaterText_.Initialize(common, font_, 4) ||
-        !selectedTileGrowthText_.Initialize(common, font_, 4) || !feedbackMetricsText_.Initialize(common, font_, 26)) return false;
-    for (auto& text : cropPieStatsText_) if (!text.Initialize(common, font_, 23)) return false;
-    for (auto& text : cropPieValueText_) if (!text.Initialize(common, font_, 11)) return false;
-    return true;
+    if (!co_await dayText_.Initialize(common, font_, 10) || !co_await rankText_.Initialize(common, font_, 10) ||
+        !co_await moneyText_.Initialize(common, font_, 10) || !co_await cropCountText_.Initialize(common, font_, 10) ||
+        !co_await goalText_.Initialize(common, font_, 28) || !co_await irrigationPreviewCountText_.Initialize(common, font_, 4) ||
+        !co_await selectedTileHeightText_.Initialize(common, font_, 12) || !co_await selectedTileWaterText_.Initialize(common, font_, 4) ||
+        !co_await selectedTileGrowthText_.Initialize(common, font_, 4) || !co_await feedbackMetricsText_.Initialize(common, font_, 26)) co_return false;
+    for (auto& text : cropPieStatsText_) if (!co_await text.Initialize(common, font_, 23)) co_return false;
+    for (auto& text : cropPieValueText_) if (!co_await text.Initialize(common, font_, 11)) co_return false;
+    co_return true;
 }
-bool FarmHUD::InitializePanels(SpriteCommon* common) {
+InitializationTask FarmHUD::InitializePanels(SpriteCommon* common) {
     for (Sprite* panel : {&statusPanel_, &economyPanel_, &selectedTilePanel_, &goalPanel_,
         &feedbackPanel_, &goalBarTrack_, &goalBarFill_, &waterBarTrack_, &waterBarFill_,
         &waterRangeBand_, &waterPointer_, &growthBarTrack_, &growthBarFill_, &cropPieCenterPanel_}) {
-        if (!panel->Initialize(common, kPanelTexturePath)) return false;
+        if (!panel->Initialize(common, kPanelTexturePath)) co_return false;
+        co_await std::suspend_always{};
     }
-    for (auto& panel : cropPiePanels_) if (!panel.Initialize(common, kPanelTexturePath)) return false;
-    for (Sprite* icon : {&dayIcon_, &rankIcon_, &moneyIcon_, &inventoryIcon_, &selectedIcon_, &waterIcon_, &growthIcon_})
-        if (!icon->Initialize(common, farmui::kHUDIconAtlas)) return false;
-    return true;
+    for (auto& panel : cropPiePanels_) {
+        if (!panel.Initialize(common, kPanelTexturePath)) co_return false;
+        co_await std::suspend_always{};
+    }
+    for (Sprite* icon : {&dayIcon_, &rankIcon_, &moneyIcon_, &inventoryIcon_, &selectedIcon_, &waterIcon_, &growthIcon_}) {
+        if (!icon->Initialize(common, farmui::kHUDIconAtlas)) co_return false;
+        co_await std::suspend_always{};
+    }
+    co_return true;
 }
-bool FarmHUD::LoadLocalizedTextureHandles() {
-    return LoadTextureHandles(tileStateTextureHandles_, kTileStatePaths) &&
-        LoadTextureHandles(cropTextureHandles_, kCropPaths) &&
-        LoadTextureHandles(cropPieTraitTextureHandles_, kCropPieTraitPaths) &&
-        LoadTextureHandles(moistureStatusTextureHandles_, kMoistureStatusPaths) &&
-        LoadTextureHandles(irrigationStatusTextureHandles_, kIrrigationStatusPaths) &&
-        LoadTextureHandles(irrigationPreviewTextureHandles_, kIrrigationPreviewPaths) &&
-        LoadTextureHandles(feedbackTextureHandles_, kFeedbackPaths);
+InitializationTask FarmHUD::LoadLocalizedTextureHandles() {
+    co_return co_await LoadTextureHandles(tileStateTextureHandles_, kTileStatePaths) &&
+        co_await LoadTextureHandles(cropTextureHandles_, kCropPaths) &&
+        co_await LoadTextureHandles(cropPieTraitTextureHandles_, kCropPieTraitPaths) &&
+        co_await LoadTextureHandles(moistureStatusTextureHandles_, kMoistureStatusPaths) &&
+        co_await LoadTextureHandles(irrigationStatusTextureHandles_, kIrrigationStatusPaths) &&
+        co_await LoadTextureHandles(irrigationPreviewTextureHandles_, kIrrigationPreviewPaths) &&
+        co_await LoadTextureHandles(feedbackTextureHandles_, kFeedbackPaths);
 }
 bool FarmHUD::InitializeLocalizedSprites(SpriteCommon* common) {
     cropPieGuideTextureHandle_ = TextureManager::GetInstance()->LoadTexture2D(kCropPieGuidePath);

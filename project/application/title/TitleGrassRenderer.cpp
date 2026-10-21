@@ -25,13 +25,13 @@ bool ReadFloats(const nlohmann::json& object, const char* name, float* output, s
     return true;
 }
 }
-bool TitleGrassRenderer::Initialize(Object3dCommon* common, ModelManager* models) {
+bool TitleGrassRenderer::Initialize(Object3dCommon* common, ModelManager* models, const char* layoutPath) {
     if (common_ || !common || !models || !common->GetDxCommon() || !common->GetLightingSystem() ||
         !common->GetSrvManager() || !common->IsShadowReady() ||
         !std::filesystem::is_regular_file("Resources/title/grass_patch.obj") ||
         !std::filesystem::is_regular_file("Resources/title/grass_far_patch.obj")) return false;
     nlohmann::json layout;
-    if (!JsonFile::Load("Resources/title/grass_layout.json",layout) || !layout.is_object() ||
+    if (!layoutPath || !JsonFile::Load(layoutPath,layout) || !layout.is_object() ||
         !layout.contains("version") || layout["version"] != 1 || !layout.contains("patches") ||
         !layout["patches"].is_array() || layout["patches"].empty() || layout["patches"].size() > kMaximumPatches ||
         !layout.contains("shadowCount") || !layout["shadowCount"].is_number_unsigned() ||

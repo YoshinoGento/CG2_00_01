@@ -1,4 +1,5 @@
 #pragma once
+#include "base/InitializationTask.h"
 
 // 前方宣言
 class SceneManager;
@@ -17,6 +18,7 @@ public:
 
 	// 各シーンで必ず実装する関数
 	virtual void Initialize() = 0;
+    virtual InitializationTask InitializeIncrementally() { Initialize(); co_return true; }
 	virtual void Finalize() = 0;
 	virtual void PrepareFixedUpdate() {}
 	virtual void FixedUpdate(float fixedDeltaTime) { (void)fixedDeltaTime; }

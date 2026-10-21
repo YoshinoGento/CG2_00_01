@@ -1,4 +1,5 @@
 #include "scene/GamePlayScene.h"
+#include "scene/SceneManager.h"
 #include "base/Framework.h"
 #include "base/FrameClock.h"
 #include "2d/Sprite.h"
@@ -470,6 +471,10 @@ void GamePlayScene::SetDemoCameraPreset() {
  * Initialize: シーン開始時に一度だけ呼ばれるセットアップ関数
  */
 void GamePlayScene::Initialize() {
+    (void)InitializeIncrementally().Complete();
+}
+
+InitializationTask GamePlayScene::InitializeIncrementally() {
 	framework_ = Framework::GetInstance();
 	if (framework_ && framework_->GetAudio()) {
 		framework_->GetAudio()->SetGlobalTemporalState(
@@ -503,6 +508,7 @@ void GamePlayScene::Initialize() {
 	gamePlayEditorBridge_.Bind(
 		*this, farmGrid_, farmToolActionSystem_, farmIrrigationSystem_,
 		farmDocumentSystem_);
+    co_await std::suspend_always{};
 
 	// ログ記録：UIと外部出力の両方に行われます
 	AddLog("Scene: GamePlay Initialized.");
@@ -519,23 +525,28 @@ void GamePlayScene::Initialize() {
 	if (!farmRenderer_.Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager(), levelWhiteTextureHandle_)) {
 		AddLog("Farm placeholder OBJ unavailable; keeping debug-line rendering.");
 	}
+    co_await std::suspend_always{};
 	Texture2DHandle circle2Handle = TextureManager::GetInstance()->LoadTexture2D("Resources/farm/particle_circle.png");
 	ringTexHandle_ = TextureManager::GetInstance()->LoadTexture2D("Resources/farm/particle_ring.png");
+    co_await std::suspend_always{};
 
 	// ---------------------------------------------------------
 	// 2. システム・環境の初期化
 	// ---------------------------------------------------------
 	camera_ = std::make_unique<Camera>();
 	LineDrawer::GetInstance()->Initialize(framework_->GetDxCommon());
+    co_await std::suspend_always{};
 
 	skeletonDebugger_ = std::make_unique<SkeletonDebugger>();
 	skeletonDebugger_->Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager());
+    co_await std::suspend_always{};
 
 	fieldManager_ = std::make_unique<FieldManager>();
 	fieldManager_->Initialize(framework_);
 	cropBurstSelectedIndex_ = 1;
 	cropBurstEffectPosition_ = fieldManager_->GetDemoFieldWorldPosition(cropBurstSelectedIndex_);
 	fieldManager_->TrySelectTileByWorldPosition(cropBurstEffectPosition_);
+    co_await std::suspend_always{};
 
 	// ---------------------------------------------------------
 	// 3. モデルデータのロード
@@ -544,6 +555,7 @@ void GamePlayScene::Initialize() {
 	framework_->GetModelManager()->LoadModel(terrainPath);
 	Model* tModel = framework_->GetModelManager()->GetModel(terrainPath);
 	if (tModel) { tModel->LoadTextures(); }
+    co_await std::suspend_always{};
 
 	Model* planeModel = tModel;
 
@@ -565,6 +577,7 @@ void GamePlayScene::Initialize() {
 			// テクスチャをSpriteCommonにロードする
 			m->LoadTextures();
 		}
+        co_await std::suspend_always{};
 	}
 
 #endif
@@ -584,11 +597,13 @@ void GamePlayScene::Initialize() {
 	// The human animation is assigned to the level PLAYER object, not shown as a separate sample object.
 	showAnimModel_ = false;
 	LoadSceneLevel();
+    co_await std::suspend_always{};
 
 	sprite_ = std::make_unique<Sprite>();
 	sprite_->Initialize(framework_->GetSpriteCommon(), "Resources/" + textureNames[0]);
 
 	CreateSphere(sphereRadius_);
+    co_await std::suspend_always{};
 
 	ringModel_ = PrimitiveGenerator::CreateRing(framework_->GetModelManager(), 0.8f, 1.0f, 32);
 	// 円柱：メンバ変数のパラメータで生成（ImGuiから変更可能）
@@ -597,6 +612,7 @@ void GamePlayScene::Initialize() {
 		cylTopRadius_ ,cylBottomRadius_, cylHeight_,
 		static_cast<uint32_t>(cylSegments_),
 		static_cast<uint32_t>(cylVertDivisions_));
+    co_await std::suspend_always{};
 	// ---------------------------------------------------------
 	// 5. パーティクルの設定
 	// ---------------------------------------------------------
@@ -604,21 +620,29 @@ void GamePlayScene::Initialize() {
 	framework_->GetParticleManager()->CreateParticleGroup("RingEffect", ringTexHandle_, ringModel_.get());
 	framework_->GetParticleManager()->CreateParticleGroup("CylinderEffect", ringTexHandle_, cylinderModel_.get());
 
-	InitializeFarmHUD();
+	if (!co_await InitializeFarmHUD()) co_return false;
+    co_await std::suspend_always{};
 	InitializeStageClearHUD();
+    co_await std::suspend_always{};
 #ifndef USE_IMGUI
 	if (!farmSeedShopRenderer_.Initialize(framework_->GetObject3dCommon(), framework_->GetModelManager(), levelWhiteTextureHandle_)) {
 		AddLog("Farm seed shop presentation initialization failed.");
 	}
-	if (!farmRuntimeController_.Initialize(framework_->GetSpriteCommon())) {
+    co_await std::suspend_always{};
+	if (!co_await farmRuntimeController_.InitializeIncrementally(framework_->GetSpriteCommon())) {
 		AddLog("Farm runtime menu initialization failed.");
 	}
+    if (!co_await farmArrivalRenderer_.InitializeIncrementally(framework_->GetObject3dCommon(), framework_->GetModelManager(),
+        TextureManager::GetInstance())) AddLog("Arrival scenery unavailable; using the safe farm overview.");
+    farmRuntimeController_.InitializeArrivalAudio(framework_->GetAudio());
+    co_await std::suspend_always{};
 	// Build the initial view before reveal; no input or simulation update is needed.
 	farmRuntimeController_.Refresh(*this);
 #endif
 	// Reveal can draw before the first input/simulation update.
 	PrepareRenderFrame(0.0f);
 	framework_->GetParticleManager()->Update(camera_.get(), 0.0f);
+    co_return true;
 }
 
 void GamePlayScene::EmitSpark(const Vector3& position) {
@@ -1133,6 +1157,10 @@ void GamePlayScene::PrepareFixedUpdate()
 	if (input) {
 		viewportMousePosition_ = input->GetMousePosition();
 		keyboardCaptured = farmRuntimeController_.Update(*this, *input) || keyboardCaptured;
+		if (farmRuntimeController_.RequestsTitle()) {
+			if (sceneManager_) sceneManager_->ChangeSceneWithRipple("TITLE");
+			return;
+		}
 	}
 #endif
 	const bool controlHeld = input && (input->PushKey(DIK_LCONTROL) || input->PushKey(DIK_RCONTROL));
@@ -1630,15 +1658,20 @@ void GamePlayScene::Draw() {
 	const farm::FarmIrrigationSystem* previewIrrigation = farmIrrigationPreviewSystem_.GetPreviewIrrigation();
 	const bool irrigationPreviewActive = previewGrid != nullptr && previewIrrigation != nullptr;
 	const farm::FarmGrid& displayedFarmGrid = irrigationPreviewActive ? *previewGrid : farmGrid_;
+    const bool arrivalScenery = farmGameMode_ && farmArrivalRenderer_.IsReady() &&
+        displayedFarmGrid.GetWidth()==5 && displayedFarmGrid.GetHeight()==4;
+    farmArrivalRenderer_.Prepare(camera_.get(),farmRuntimeController_.StartFrame(),arrivalScenery,realDeltaTime_);
 	const farm::FarmIrrigationSystem& displayedIrrigation = irrigationPreviewActive ? *previewIrrigation : farmIrrigationSystem_;
 	farmRenderer_.Prepare(displayedFarmGrid, farmVisualSystem_, camera_.get(),
-		farmRuntimeController_.ResolveHoveredTile(*this), irrigationPreviewActive ? nullptr : &farmHarvestVisualSystem_);
+		farmRuntimeController_.ResolveHoveredTile(*this), irrigationPreviewActive ? nullptr : &farmHarvestVisualSystem_,
+        !farmRuntimeController_.PresentsIntroduction());
 
 	auto DrawLevelObjects = [&]() {
 		if (!showLevelObjects_) {
 			return;
 		}
 		for (const LevelObjectRuntime& levelObject : levelObjects_) {
+			if (arrivalScenery && levelObject.gameplayRole == kGroundRoleName) continue;
 			if (levelObject.visible && levelObject.object) {
 				levelObject.object->Draw();
 			}
@@ -1649,6 +1682,7 @@ void GamePlayScene::Draw() {
 			return;
 		}
 		for (const LevelObjectRuntime& levelObject : levelObjects_) {
+			if (arrivalScenery && levelObject.gameplayRole == kGroundRoleName) continue;
 			if (levelObject.visible && levelObject.object) {
 				levelObject.object->DrawShadow();
 			}
@@ -1662,7 +1696,7 @@ void GamePlayScene::Draw() {
 			? levelGameplay_.GetPlayerPosition()
 			: Vector3{ 0.0f, 0.0f, 0.0f };
 		shadowFocus.y += 4.0f;
-		objCommon->UpdateDirectionalShadow(lightDirection_, shadowFocus);
+		objCommon->UpdateDirectionalShadow(framework_->GetLightingSystem()->GetDirectionalLight().direction, shadowFocus);
 		if (objCommon->BeginShadowPass()) {
 			if (showTerrain_ && terrainObj_) terrainObj_->DrawShadow();
 			if (showSphere_ && sphereObj_) sphereObj_->DrawShadow();
@@ -1670,6 +1704,7 @@ void GamePlayScene::Draw() {
 			if (showAnimModel_ && animObj_) animObj_->DrawShadow();
 			DrawLevelObjectShadows();
 			farmRenderer_.DrawShadow();
+            farmArrivalRenderer_.DrawShadow();
 			objCommon->EndShadowPass();
 		}
 	}
@@ -1716,6 +1751,7 @@ void GamePlayScene::Draw() {
 	}
 
 	if (modelPriority_ == 0) {
+        farmArrivalRenderer_.DrawSky();
 		objCommon->BeginObjectPass();
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
@@ -1723,6 +1759,7 @@ void GamePlayScene::Draw() {
 		if (showAnimModel_ && animObj_) animObj_->Draw();
 		DrawLevelObjects();
 		farmRenderer_.Draw();
+        farmArrivalRenderer_.Draw();
 		objCommon->EndObjectPass();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
@@ -1737,6 +1774,7 @@ void GamePlayScene::Draw() {
 		spriteCommon->PreDraw();
 		if (showSprite_) sprite_->Draw();
 
+        farmArrivalRenderer_.DrawSky();
 		objCommon->BeginObjectPass();
 		if (showTerrain_ && terrainObj_) terrainObj_->Draw();
 		if (showSphere_ && sphereObj_)   sphereObj_->Draw();
@@ -1744,6 +1782,7 @@ void GamePlayScene::Draw() {
 		if (showAnimModel_ && animObj_) animObj_->Draw();
 		DrawLevelObjects();
 		farmRenderer_.Draw();
+        farmArrivalRenderer_.Draw();
 		objCommon->EndObjectPass();
 		if (skyboxEnabled_ && skybox_) skybox_->Draw();
 
@@ -2153,14 +2192,15 @@ bool GamePlayScene::TrySelectFarmTileFromViewport()
 		farmGrid_.SetSelectedIndex(tileIndex);
 }
 
-void GamePlayScene::InitializeFarmHUD() {
-	farmHudInitialized_ = farmHud_.Initialize(framework_->GetSpriteCommon());
+InitializationTask GamePlayScene::InitializeFarmHUD() {
+	farmHudInitialized_ = co_await farmHud_.InitializeIncrementally(framework_->GetSpriteCommon());
 	if (!farmHudInitialized_) {
 		AddLog("FarmHUD initialization failed.");
-		return;
+		co_return false;
 	}
 
 	farmHud_.SetViewData(BuildFarmHUDViewData());
+	co_return true;
 }
 
 void GamePlayScene::InitializeStageClearHUD() {
@@ -2836,6 +2876,7 @@ void GamePlayScene::AddLog(const std::string& message) {
 
 void GamePlayScene::Finalize()
 {
+    farmRuntimeController_.FinalizeArrivalAudio();
 	gamePlayEditorBridge_.Unbind();
 	if (framework_ && framework_->GetParticleManager()) {
 		// The shared manager must not retain this scene-owned camera after destruction.

@@ -24,7 +24,7 @@ void TitleView::Draw(const Frame& frame) {
 void TitleView::DrawLogo(const Frame& frame) {
     if (!common_) return;
     common_->PreDraw();
-    logo_->Update(); logo_->Draw();
+    logo_->SetColor({1,1,1,frame.uiAlpha}); logo_->Update(); logo_->Draw();
     reflection_->Draw(frame);
 }
 void TitleView::DrawPrompt(const Frame& frame) {

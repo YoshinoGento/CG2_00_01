@@ -419,7 +419,7 @@ int main() {
         for(int mode : {0,1,2}) {
             View entry; FarmHUDViewData data; data.contestSeason=mode==1; data.freeFarming=mode==2;
             BuildPlayFlowView(entry,FarmPlayFlow::Phase::Briefing,data);
-            const auto change=entry.Hit({850,570});
+            const auto change=entry.Hit({300,660});
             assert(change.action==Action::ChangePlayMode && change.argument==(mode==2 ? 1 : 2));
             if (mode==2) assert(entry.items[0].label==Label::FreeMode);
             for(std::size_t i=0;i<entry.count;++i) {
@@ -1049,15 +1049,39 @@ int main() {
             }
         }
     }
+    for (int mode : {0,1,2}) for (bool skip : {false,true}) {
+        FarmHUDViewData data; data.day=2147483647; data.goalMoney=2147483647;
+        data.contestSeason=mode==1; data.freeFarming=mode==2;
+        FarmStartPresentationSystem::Frame frame;
+        frame.canSkip=skip; frame.showGoal=true;
+        View intro; BuildFarmStartView(intro,frame,data);
+        assert(intro.starting && intro.modal && intro.Covers({640,360}));
+        assert((intro.Hit({1100,675}).action==Action::StartSkip)==skip);
+        for(std::size_t i=0;i<intro.count;++i) {
+            const auto& a=intro.items[i];
+            const float width=a.value.empty()?a.rect.width-20:a.valueOffset-30;
+            assert(width/kLabels[static_cast<std::size_t>(a.label)].width>=20.f/26.f);
+            if(!a.value.empty()) assert(a.valueOffset+14*(a.value.size()-1)+24<=a.rect.width);
+            for(std::size_t j=i+1;j<intro.count;++j) assert(separated(a.rect,intro.items[j].rect));
+        }
+    }
     for (const auto phase : {FarmPlayFlow::Phase::Briefing, FarmPlayFlow::Phase::Result}) {
         View entry;
         FarmHUDViewData data;
         data.money = 300; data.goalMoney = 540;
         BuildPlayFlowView(entry, phase, data);
         assert(entry.modal && entry.Covers({640, 300}));
-        assert(entry.Hit({200, 510}).action == Action::FlowContinue);
-        assert(entry.Hit({700, 510}).action == Action::Restart);
-        assert(entry.Hit({200, 570}).action == Action::FlowRecords);
+        if (phase == FarmPlayFlow::Phase::Briefing) {
+            assert(entry.briefing);
+            assert(entry.Hit({200, 590}).action == Action::FlowContinue);
+            assert(entry.Hit({700, 660}).action == Action::Restart);
+            assert(entry.Hit({700, 590}).action == Action::FlowRecords);
+            assert(entry.Hit({600, 300}).action == Action::None);
+        } else {
+            assert(entry.Hit({200, 510}).action == Action::FlowContinue);
+            assert(entry.Hit({700, 510}).action == Action::Restart);
+            assert(entry.Hit({200, 570}).action == Action::FlowRecords);
+        }
         for (std::size_t i = 0; i < entry.count; ++i) {
             const auto& a = entry.items[i].rect;
             assert(a.x >= 0 && a.x+a.width <= 1280 && a.y >= 0 && a.y+a.height <= 688);

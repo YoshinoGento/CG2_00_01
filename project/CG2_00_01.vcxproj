@@ -182,6 +182,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClCompile Include="application\farm\system\FarmVisualSystem.cpp" />
 	<ClCompile Include="application\farm\system\FarmTerrainQuerySystem.cpp" />
 	<ClCompile Include="application\farm\render\FarmRenderer.cpp" />
+    <ClCompile Include="application\farm\render\FarmArrivalRenderer.cpp" />
+    <ClCompile Include="application\farm\system\FarmArrivalAudioSystem.cpp" />
 	<ClCompile Include="application\farm\render\FarmSeedShopRenderer.cpp" />
 	<ClCompile Include="engine\command\CommandHistory.cpp" />
     <ClCompile Include="engine\core\Component.cpp" />
@@ -516,6 +518,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\ui\FarmHarvestDisplayView.h" />
 	<ClInclude Include="application\farm\system\FarmHarvestDisplaySystem.h" />
     <ClInclude Include="application\farm\render\FarmMeshLayout.h" />
+    <ClInclude Include="application\farm\render\FarmMaterialStyle.h" />
     <ClInclude Include="application\farm\render\FarmSoilSurface.h" />
 	<ClInclude Include="engine\command\CommandHistory.h" />
     <ClInclude Include="engine\core\Component.h" />
@@ -537,6 +540,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\farm\system\FarmOverviewCamera.h" />
     <ClInclude Include="engine\io\MouseButtonEdges.h" />
     <ClInclude Include="application\farm\system\FarmPlayFlow.h" />
+    <ClInclude Include="application\farm\system\FarmStartPresentationSystem.h" />
+    <ClInclude Include="application\farm\system\FarmArrivalPresentation.h" />
+    <ClInclude Include="application\farm\system\FarmArrivalAudioSystem.h" />
+    <ClInclude Include="application\farm\render\FarmArrivalRenderer.h" />
     <ClInclude Include="application\farm\ui\FarmRuntimeLabels.h" />
     <ClInclude Include="application\farm\system\FarmRuntimeController.h" />
     <ClInclude Include="application\farm\system\FarmLayoutSystem.h" />
@@ -564,6 +571,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\math\Transform.h" />
     <ClInclude Include="engine\base\Framework.h" />
 	<ClInclude Include="engine\base\FrameClock.h" />
+    <ClInclude Include="engine\base\InitializationTask.h" />
 	<ClInclude Include="application\editor\CG5DemoWindow.h" />
 	<ClInclude Include="application\demo\PostEffectSubmissionDemo.h" />
 	<ClInclude Include="application\demo\PostEffectSubmissionHUD.h" />
@@ -613,6 +621,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\scene\SceneFactory.h" />
     <ClInclude Include="application\scene\SceneManager.h" />
     <ClInclude Include="application\scene\SceneTransitionSystem.h" />
+    <ClInclude Include="application\scene\SceneLoadSystem.h" />
     <ClInclude Include="application\scene\TransitionAudioSystem.h" />
     <ClInclude Include="application\scene\TransitionSound.h" />
     <ClInclude Include="application\scene\RippleTransitionRenderer.h" />

@@ -2,6 +2,7 @@
 #include "farm/system/FarmIrrigationSystem.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/render/FarmMeshLayout.h"
+#include "farm/render/FarmMaterialStyle.h"
 #include "farm/system/FarmHarvestVisualSystem.h"
 #include "3d/LineDrawer.h"
 #include <cassert>
@@ -23,6 +24,27 @@ void LineDrawer::DrawWireCube(const Vector3&, float, const Vector4&) {}
 void LineDrawer::DrawWireSphere(const Vector3& p, float r, const Vector4&, uint32_t) { sphereCenter=p; sphereRadius=r; }
 
 int main() {
+    {
+        farm::FarmGrid field; assert(field.Initialize(1,1));
+        farm::FarmVisualSystem visual; visual.Initialize({});
+        for (auto state : {farm::FarmTileState::Empty, farm::FarmTileState::Tilled}) {
+            for (float moisture : {0.0f,0.5f,1.0f}) {
+                farm::FarmTile tile; tile.state=state; tile.moisture=moisture;
+                assert(field.SetTile(0,tile));
+                const auto parts=farm::BuildFarmTileMeshParts(field,0,visual);
+                assert(parts.count==(state==farm::FarmTileState::Empty ? 6u : 5u));
+                const auto top=state==farm::FarmTileState::Empty ?
+                    farm::FarmMeshSurface::Grass : farm::FarmMeshSurface::Soil;
+                assert(parts.parts[0].surface==farm::FarmMeshSurface::Earth);
+                assert(parts.parts[1].surface==top && Near(parts.parts[1].wetness,moisture));
+                const auto material=farm::BuildFarmMaterialStyle(parts.parts[1]);
+                assert(material.detail.z>0.0f);
+                if(state==farm::FarmTileState::Tilled && moisture>0.0f) assert(material.detail.x>0.0f);
+                assert(field.GetTile(0)->moisture==moisture && field.GetTile(0)->state==state);
+            }
+        }
+        std::cout << "PASS: material surface tags, wetness snapshot, unchanged mesh budget and simulation\n";
+    }
     // Presentation progresses with real time even while world time is zero (pause or clear).
     for(auto crop : {farm::CropType::TestCrop, farm::CropType::Carrot, farm::CropType::Tomato, farm::CropType::Pumpkin}) {
         farm::FarmGrid field; assert(field.Initialize(1,1));

@@ -17,6 +17,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 UI = ROOT / "project/application/farm/ui"
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(ROOT / "tools/ui"))
 
 ICON_NAMES = (
     ("Hoe", "hoe"), ("WateringCan", "watering_can"),
@@ -178,7 +179,7 @@ class HUDIconTests(unittest.TestCase):
         self.assertIn('"DAY %d / ?", viewData_.day', goal)
 
     def test_goal_glyph_capacity_covers_full_int_range(self):
-        initialize = self.hud.split("bool FarmHUD::InitializeText(", 1)[1].split("bool FarmHUD::", 1)[0]
+        initialize = self.hud.split("InitializationTask FarmHUD::InitializeText(", 1)[1].split("InitializationTask FarmHUD::", 1)[0]
         capacities = {
             name: int(size) for name, size in re.findall(
                 r"(\w+Text_)\.Initialize\(common,\s*font_,\s*(\d+)\)", initialize
@@ -190,13 +191,30 @@ class HUDIconTests(unittest.TestCase):
         for run, capacity in (("cropPieStatsText_", 23), ("cropPieValueText_", 11)):
             self.assertRegex(
                 initialize,
-                rf"for\s*\(auto& text\s*:\s*{run}\)\s*if\s*\(!text\.Initialize\(common,\s*font_,\s*{capacity}\)\)",
+                rf"for\s*\(auto& text\s*:\s*{run}\)\s*if\s*\(!co_await text\.Initialize\(common,\s*font_,\s*{capacity}\)\)",
             )
         self.assertEqual(sum(capacities.values()) + 3 * (23 + 11), 220)
         goal = self.hud.split("void FarmHUD::UpdateGoal()", 1)[1].split("void FarmHUD::UpdateSelectedTile()", 1)[0]
         buffer = re.search(r"char value\[(\d+)\]", goal)
         self.assertIsNotNone(buffer)
         self.assertGreaterEqual(int(buffer.group(1)), 28)
+
+    def test_menu_atlas_policy_is_opt_in_and_cached_separately(self):
+        texture_header = source(ROOT / "project/engine/2d/TextureManager.h")
+        texture_source = source(ROOT / "project/engine/2d/TextureManager.cpp")
+        self.assertIn("MipPolicy mipPolicy = MipPolicy::GenerateIfMissing", texture_header)
+        self.assertIn('if (mipPolicy == MipPolicy::PreserveFile) key += L"|preserve-mips";', texture_source)
+        self.assertIn("LoadImage(path, TextureKind::Texture2D, image, mipPolicy)", texture_source)
+        self.assertIn("if (mipPolicy == MipPolicy::GenerateIfMissing && expectedKind", texture_source)
+        self.assertIn("TextureManager::Lifetime::Scene, TextureManager::MipPolicy::PreserveFile", self.renderer)
+        self.assertEqual(self.renderer.count("sprite.Initialize(common, atlas.Index())"), 2)
+        self.assertEqual(self.renderer.count('"Resources/ui/farm_runtime_menu.png"'), 1)
+
+    def test_glyph_initialization_yields_before_publishing_capacity(self):
+        initialize = self.hud.split("InitializationTask FarmHUD::TextRun::Initialize(", 1)[1].split("void FarmHUD::TextRun::", 1)[0]
+        self.assertIn("count = capacity = 0;", initialize)
+        self.assertLess(initialize.index("co_await std::suspend_always{};"), initialize.index("capacity = maximum;"))
+        self.assertIn("co_await InitializeFarmHUD()", self.scene)
 
     def test_growth_stage_refresh_and_unknown_fallback(self):
         changed = re.search(r"const bool selectedChanged\s*=([^;]+);", self.hud)

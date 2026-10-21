@@ -6,19 +6,47 @@
 
 namespace farmui {
 bool RuntimeUI::Initialize(SpriteCommon* common) {
-    if (!common) return false;
-    for (auto& sprite : panels_) if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
-    for (auto& sprite : labels_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
-    for (auto& sprite : digits_) if (!sprite.Initialize(common, "Resources/ui/farm_runtime_menu.png")) return false;
-    for (auto& sprite : radarLines_) if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
-    for (auto& sprite : icons_) if (!sprite.Initialize(common, kHUDIconAtlas)) return false;
-    for (std::size_t i=0;i<seedPackets_.size();++i)
-        if (!seedPackets_[i].Initialize(common, i<2 ? "Resources/ui/farm_seed_packets.png" : "Resources/ui/farm_seed_packets_formal.png")) return false;
-    for (std::size_t i=0;i<harvestFigures_.size();++i)
-        if (!harvestFigures_[i].Initialize(common, i%4<2 ? "Resources/ui/farm_harvest_display.png" : "Resources/ui/farm_harvest_formal.png")) return false;
-    if (!names_.Initialize(common, "Resources/ui/hud_panel_fill.png")) return false;
+    return InitializeIncrementally(common).Complete();
+}
+InitializationTask RuntimeUI::InitializeIncrementally(SpriteCommon* common) {
+    if (!common) co_return false;
+    for (auto& sprite : panels_) {
+        if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) co_return false;
+        co_await std::suspend_always{};
+    }
+    // Screen-space atlas: keep the source level instead of building a full mip chain during entry.
+    auto* textures = TextureManager::GetInstance();
+    const auto atlas = textures->LoadTexture2D("Resources/ui/farm_runtime_menu.png",
+        TextureManager::Lifetime::Scene, TextureManager::MipPolicy::PreserveFile);
+    if (!atlas.IsValid() || atlas == textures->GetFallback2D()) co_return false;
+    co_await std::suspend_always{};
+    for (auto& sprite : labels_) {
+        if (!sprite.Initialize(common, atlas.Index())) co_return false;
+        co_await std::suspend_always{};
+    }
+    for (auto& sprite : digits_) {
+        if (!sprite.Initialize(common, atlas.Index())) co_return false;
+        co_await std::suspend_always{};
+    }
+    for (auto& sprite : radarLines_) {
+        if (!sprite.Initialize(common, "Resources/ui/hud_panel_fill.png")) co_return false;
+        co_await std::suspend_always{};
+    }
+    for (auto& sprite : icons_) {
+        if (!sprite.Initialize(common, kHUDIconAtlas)) co_return false;
+        co_await std::suspend_always{};
+    }
+    for (std::size_t i=0;i<seedPackets_.size();++i) {
+        if (!seedPackets_[i].Initialize(common, i<2 ? "Resources/ui/farm_seed_packets.png" : "Resources/ui/farm_seed_packets_formal.png")) co_return false;
+        co_await std::suspend_always{};
+    }
+    for (std::size_t i=0;i<harvestFigures_.size();++i) {
+        if (!harvestFigures_[i].Initialize(common, i%4<2 ? "Resources/ui/farm_harvest_display.png" : "Resources/ui/farm_harvest_formal.png")) co_return false;
+        co_await std::suspend_always{};
+    }
+    if (!names_.Initialize(common, "Resources/ui/hud_panel_fill.png")) co_return false;
     ready_ = true;
-    return true;
+    co_return true;
 }
 void RuntimeUI::PrepareNames(const View& view) {
     if (!ready_ || view.recordNames[0].empty() || cachedNames_ == view.recordNames) return;
@@ -73,12 +101,14 @@ void RuntimeUI::PrepareNames(const View& view) {
 }
 
 void RuntimeUI::Panel(Rect r, Vector4 color) {
+    color.w *= opacity_;
     if (panelCount_ >= panels_.size()) return;
     auto& sprite = panels_[panelCount_++];
     sprite.SetPosition({r.x, r.y}); sprite.SetSize({r.width, r.height});
     sprite.SetColor(color); sprite.Update(); sprite.Draw();
 }
 void RuntimeUI::LabelQuad(Label label, Rect r, Vector4 color) {
+    color.w *= opacity_;
     const auto index = static_cast<std::size_t>(label);
     if (index >= kLabels.size() || labelCount_ >= labels_.size()) return;
     const auto& uv = kLabels[index];
@@ -90,6 +120,7 @@ void RuntimeUI::LabelQuad(Label label, Rect r, Vector4 color) {
     sprite.SetColor(color); sprite.Update(); sprite.Draw();
 }
 void RuntimeUI::ValueText(const std::string& value, Vector2 position, float right, Vector4 color, float scale) {
+    color.w *= opacity_;
     // Numeric/status identifiers only; Japanese labels use whole-line atlas regions.
     for (const unsigned char c : value) {
         if (digitCount_ >= digits_.size() || position.x + 24 * scale > right) break;
@@ -102,6 +133,7 @@ void RuntimeUI::ValueText(const std::string& value, Vector2 position, float righ
     }
 }
 void RuntimeUI::IconQuad(HUDIcon icon, Rect rect, Vector4 color) {
+    color.w *= opacity_;
     if (!IsValidIcon(icon) || iconCount_ >= icons_.size()) return;
     auto& sprite = icons_[iconCount_++];
     sprite.SetTextureRect(IconUV(icon), {kHUDIconSize, kHUDIconSize});
@@ -141,10 +173,18 @@ void RuntimeUI::DrawRadar(const QualityRadar& radar) {
 void RuntimeUI::Draw(const View& view, Vector2 pointer) {
     if (!ready_) return;
     panelCount_ = labelCount_ = digitCount_ = iconCount_ = 0;
+    opacity_ = view.starting ? std::clamp(view.cinematicBars, 0.0f, 1.0f) : 1.0f;
     const Item* tooltip = nullptr;
     const Item* selectedTool = nullptr;
     if (view.compactHUD && view.hotbarVisible) Panel(HUDLayout::tools, {0.025f, 0.035f, 0.032f, 0.93f});
-    if (view.seedShop || view.harvestDisplay) {
+    if (view.starting) {
+        const float height = 84.0f * std::clamp(view.cinematicBars, 0.0f, 1.0f);
+        Panel({0, 0, 1280, height}, {0.015f, 0.025f, 0.026f, 0.90f});
+        Panel({0, 720-height, 1280, height}, {0.015f, 0.025f, 0.026f, 0.90f});
+    } else if (view.briefing) {
+        Panel({0, 0, 1280, 96}, {0.035f, 0.055f, 0.06f, 0.94f});
+        Panel({0, 496, 1280, 224}, {0.035f, 0.055f, 0.06f, 0.97f});
+    } else if (view.seedShop || view.harvestDisplay) {
         Panel({24, 16, 1232, 60}, {0.035f, 0.055f, 0.06f, 0.94f});
         Panel(SeedShopLayout::receipt, {0.035f, 0.055f, 0.06f, 0.97f});
         Panel(SeedShopLayout::footer, {0.035f, 0.055f, 0.06f, 0.97f});
@@ -242,5 +282,9 @@ void RuntimeUI::Draw(const View& view, Vector2 pointer) {
         }
     }
     if (!view.recordNames[0].empty() && namesReady_) { names_.Update(); names_.Draw(); }
+    if (view.starting && view.cinematicCover > 0) {
+        opacity_=1;
+        Panel({0,0,1280,720},{.01f,.015f,.012f,std::clamp(view.cinematicCover,0.0f,1.0f)});
+    }
 }
 }

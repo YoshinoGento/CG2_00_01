@@ -69,6 +69,7 @@ struct Frame {
     Vector2 grassWindXZ{};
     float grassPhase = 0;
     float promptAlpha = 1.0f;
+    float uiAlpha = 1.0f;
     float fadeAlpha = 1.0f;
     float entryFadeAlpha = 1.0f;
     bool leaving = false;
@@ -83,6 +84,8 @@ class TitlePresentationSystem final {
 public:
     bool Initialize(std::uint32_t windSeed = 0x5A17u, std::uint32_t rippleSeed = 0);
     void Update(float realDeltaSeconds) noexcept;
+    // A scene-replacement cover already hides entry; do not run a second black fade.
+    void CompleteEntryFade() noexcept { entryTime_ = kFadeSeconds; }
     void RequestStart() noexcept;
     bool ConsumeStart() noexcept;
     [[nodiscard]] Frame GetFrame() const noexcept;

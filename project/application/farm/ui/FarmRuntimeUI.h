@@ -1,4 +1,5 @@
 #pragma once
+#include "base/InitializationTask.h"
 #include "farm/ui/FarmRuntimeLabels.h"
 #include "farm/ui/FarmHUDLayout.h"
 #include "farm/ui/FarmHUDIcons.h"
@@ -13,14 +14,14 @@ namespace farmui {
 enum class Action {
     None, Menu, Close, Tab, Tool, Crop, Buy, Sell, SellAll,
     Raise, Lower, Canal, Source, Path, RemovePath, Confirm, Cancel, Undo, Redo, SetIrrigation,
-    Save, SaveCopy, Load, Previous, Next, Restart, Accept,
+    Save, SaveCopy, Load, Previous, Next, Restart, Accept, ReturnTitle,
     PinA, PinB, Start, Stop, Clear, Pause, Speed, Follow, Overview, Exit, LayoutLibrary,
     ObserveField, ObserveExit, PickSlot, JumpSlot, FlowContinue, FlowRecords,
     ApplyTool, OpenSeedShop, BuyAndReturn, SoilCare, Compost, Quality, TerrainField, TerrainExit,
     HarvestInventory, HarvestPage, ProtectHarvest, UnprotectHarvest, ReserveContestHarvest, CancelContestReservation,
     ContestPreview, SubmitContest, ContestResults, ContestDayReview, ContestDayPrepare, ContestDayResume, ChangePlayMode,
     ShopSelect, ShopQuantity, ShopReview, ShopConfirm, ShopCancel, ShopClose,
-    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage
+    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage, StartSkip
 };
 struct Request { Action action = Action::None; int argument = 0; std::uint64_t inventoryGeneration = 0; };
 struct Item {
@@ -68,6 +69,10 @@ struct View {
     std::array<Item, kCapacity> items{};
     std::size_t count = 0;
     bool modal = false;
+    bool briefing = false;
+    bool starting = false;
+    float cinematicBars = 1.0f;
+    float cinematicCover = 0.0f;
     bool seedShop = false;
     bool harvestDisplay = false;
     int counterSelection = -1;
@@ -151,6 +156,7 @@ struct View {
 class RuntimeUI final {
 public:
     bool Initialize(SpriteCommon* common);
+    InitializationTask InitializeIncrementally(SpriteCommon* common);
     void PrepareNames(const View& view);
     void Draw(const View& view, Vector2 pointer);
 private:
@@ -173,5 +179,6 @@ private:
     bool namesReady_ = false;
     std::size_t panelCount_ = 0, labelCount_ = 0, digitCount_ = 0, iconCount_ = 0;
     bool ready_ = false;
+    float opacity_ = 1.0f;
 };
 }

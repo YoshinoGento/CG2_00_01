@@ -1,4 +1,5 @@
 #pragma once
+#include "base/InitializationTask.h"
 #include "title/TitleSkyRenderer.h"
 #include "title/TitleGrassRenderer.h"
 #include "title/TitleReflectionRenderer.h"
@@ -21,6 +22,8 @@ public:
     TitleFarmRenderer();
     ~TitleFarmRenderer();
     bool Initialize(Object3dCommon* common, ModelManager* models, TextureManager* textures,
+        const farm::FarmGrid& farm, const PondLayout* pond = nullptr);
+    InitializationTask InitializeIncrementally(Object3dCommon* common, ModelManager* models, TextureManager* textures,
         const farm::FarmGrid& farm, const PondLayout* pond = nullptr);
     void Finalize() noexcept;
     void Update(const Frame& frame);

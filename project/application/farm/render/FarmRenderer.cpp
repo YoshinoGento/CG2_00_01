@@ -2,6 +2,7 @@
 
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmHarvestVisualSystem.h"
+#include "farm/render/FarmMaterialStyle.h"
 #include "3d/Object3d.h"
 #include "3d/ModelManager.h"
 #include <filesystem>
@@ -49,7 +50,7 @@ bool FarmRenderer::Initialize(Object3dCommon* common, ModelManager* models, Text
 }
 
 void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual, Camera* camera,
-	int hoveredTileIndex, const FarmHarvestVisualSystem* harvest) {
+	int hoveredTileIndex, const FarmHarvestVisualSystem* harvest, bool showSelection) {
 	parts_.clear();
 	lastDrawTileCount_ = 0;
 	limitExceeded_ = false;
@@ -76,10 +77,11 @@ void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual,
 			parts_.insert(parts_.end(), effect.parts.begin(), effect.parts.begin() + effect.count);
 		}
 	}
-	const auto selection = BuildFarmSelectionMeshParts(grid, grid.GetSelectedIndex(), visual);
+	const int selectedIndex = showSelection ? grid.GetSelectedIndex() : -1;
+	const auto selection = BuildFarmSelectionMeshParts(grid, selectedIndex, visual);
 	static_assert(selection.parts.size() * 2 == kMaximumTargetParts);
 	parts_.insert(parts_.end(), selection.parts.begin(), selection.parts.begin() + selection.count);
-	if (hoveredTileIndex != grid.GetSelectedIndex()) {
+	if (showSelection && hoveredTileIndex != selectedIndex) {
 		const auto hover = BuildFarmHoverMeshParts(grid, hoveredTileIndex, visual);
 		parts_.insert(parts_.end(), hover.parts.begin(), hover.parts.begin() + hover.count);
 	}
@@ -109,8 +111,11 @@ void FarmRenderer::Prepare(const FarmGrid& grid, const FarmVisualSystem& visual,
 		if (!object.SetShearY(part.slope)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		if (!object.SetScale(part.scale)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		object.SetColor(part.color);
-		// Soil and canal banks are matte; a unit-strength highlight hides their color.
-		object.SetSpecularType(Object3d::SpecularType::None);
+		const auto material = BuildFarmMaterialStyle(part);
+		object.SetSpecularType(material.detail.x > 0.0f ?
+			Object3d::SpecularType::BlinnPhong : Object3d::SpecularType::None);
+		object.SetShininess(material.shininess);
+		if (!object.SetSurfaceDetail(material.detail)) { parts_.clear(); lastDrawTileCount_ = 0; return; }
 		object.SetEnableLighting(!part.water && part.surface != FarmMeshSurface::Selection &&
 			part.surface != FarmMeshSurface::Hover);
 		object.Update(camera, 0.0f);

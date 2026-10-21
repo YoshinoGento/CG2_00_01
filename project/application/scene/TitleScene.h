@@ -12,6 +12,7 @@
 class TitleScene : public BaseScene {
 public:
 	void Initialize() override;
+    InitializationTask InitializeIncrementally() override;
 	void Finalize() override;
 	void Update() override;
 	void UpdateTransitionPresentation() override { Update(); }

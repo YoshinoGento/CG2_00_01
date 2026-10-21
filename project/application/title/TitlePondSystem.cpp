@@ -8,12 +8,8 @@ namespace title {
 namespace {
 constexpr float kMaximumDeltaSeconds = .25f;
 constexpr float kAnimationPeriodSeconds = 60;
-constexpr float kImpactMaximumRadius = .78f;
-constexpr float kImpactViewportInset = .03f;
-constexpr float kImpactMaximumY = .96f;
-constexpr int kImpactContractionAttempts = 12;
-constexpr float kImpactContraction = .75f;
-constexpr float kMinimumFlightPixels = 32;
+constexpr float kWaterHitRadius = .994f; // Visible water ends at .995 in TitlePond.PS.
+constexpr int kVerticalSearchSteps = 720;
 constexpr float kMinimumFlightHeightUV = .06f;
 }
 bool TitlePondSystem::Initialize(const std::string& path) {
@@ -121,24 +117,25 @@ bool TitlePondSystem::RequestStart(std::optional<Vector2> pointer) noexcept {
         if (!HitTestTitleCanvas(*pointer)) return false;
         start = {pointer->x/kWidth,pointer->y/kHeight};
     }
-    Vector2 point{(start.x-.5f)*1.4f,.1f};
-    if (auto intersection = MapToPond(start)) point = *intersection;
-    const float radius = std::hypot(point.x,point.y);
-    if (radius > kImpactMaximumRadius) {
-        point.x *= kImpactMaximumRadius/radius; point.y *= kImpactMaximumRadius/radius;
+    const auto isWater = [&](Vector2 uv) {
+        const auto point=MapToPond(uv);
+        return uv.x>0 && uv.x<1 && uv.y>0 && uv.y<1 && point &&
+            std::hypot(point->x,point->y)<kWaterHitRadius;
+    };
+    Vector2 impact=start;
+    if (!isWater(impact)) {
+        // Off-water clicks can fall only vertically. Never redirect them toward a preset center.
+        bool found=false;
+        for (int step=1; step<kVerticalSearchSteps; ++step) {
+            const float y=static_cast<float>(step)/kVerticalSearchSteps;
+            if (y<start.y+kMinimumFlightHeightUV) continue;
+            if (isWater({start.x,y})) { impact={start.x,y}; found=true; break; }
+        }
+        if (!found) return false;
+    } else {
+        // The clicked water pixel is the impact, not the airborne drop's initial position.
+        start.y=(std::max)(0.0f,impact.y-kMinimumFlightHeightUV);
     }
-    auto impact = ProjectPondPoint(point);
-    // Keep extreme clicks on a visible part of this fixed-camera pond, not beyond the viewport.
-    for (int attempt=0; attempt<kImpactContractionAttempts && (impact.x < kImpactViewportInset ||
-            impact.x > 1-kImpactViewportInset || impact.y < kImpactViewportInset || impact.y > kImpactMaximumY); ++attempt) {
-        point.x *= kImpactContraction; point.y *= kImpactContraction;
-        impact = ProjectPondPoint(point);
-    }
-    if (!std::isfinite(impact.x) || !std::isfinite(impact.y) || impact.x <= 0 || impact.x >= 1 ||
-        impact.y <= 0 || impact.y >= 1) return false;
-    // A click on water still needs a short visible fall above the water plane.
-    if (std::hypot((start.x-impact.x)*kWidth,(start.y-impact.y)*kHeight) < kMinimumFlightPixels)
-        start.y = (std::max)(0.0f,impact.y-kMinimumFlightHeightUV);
     path_.enabled = true;
     path_.start = {start.x,start.y}; path_.impact = {impact.x,impact.y};
     path_.screenToPond = frame_.screenToPond;

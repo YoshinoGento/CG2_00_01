@@ -10,10 +10,11 @@ constexpr float kWavePixelsPerSecond = 520;
 constexpr float kRefractionPixels = 9;
 constexpr float kBlurPixels = 2.2f;
 static_assert(kMaximumWaterDrops == 4, "Must match the Shader drop array.");
-static_assert(kShaderConstantCount+1 <= 64, "Root signature DWORD budget.");
+static_assert(kShaderConstantCount+2 <= 64, "Root signature DWORD budget.");
 }
 RippleTransitionRenderer::~RippleTransitionRenderer() {
     if (srv_ && srv_->IsAllocated(snapshotSrv_)) srv_->Release(snapshotSrv_);
+    if (srv_ && srv_->IsAllocated(outgoingSrv_)) srv_->Release(outgoingSrv_);
 }
 bool RippleTransitionRenderer::Initialize(DirectXCommon* dx, SrvManager* srv) {
     if (dx_ || !dx || !dx->GetDevice() || !dx->GetRenderTextureResource() || !srv) return false;
@@ -22,7 +23,7 @@ bool RippleTransitionRenderer::Initialize(DirectXCommon* dx, SrvManager* srv) {
     const auto vs = dx_->CompileShader(L"Resources/shader/RippleTransition.VS.hlsl",L"vs_6_0");
     const auto ps = dx_->CompileShader(L"Resources/shader/RippleTransition.PS.hlsl",L"ps_6_0");
     if (!vs || !ps) return false;
-    std::array<D3D12_ROOT_PARAMETER,2> parameters{};
+    std::array<D3D12_ROOT_PARAMETER,3> parameters{};
     parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     parameters[0].Constants.Num32BitValues = static_cast<UINT>(kShaderConstantCount);
     parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -33,6 +34,10 @@ bool RippleTransitionRenderer::Initialize(DirectXCommon* dx, SrvManager* srv) {
     parameters[1].DescriptorTable.NumDescriptorRanges = 1;
     parameters[1].DescriptorTable.pDescriptorRanges = &range;
     parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    D3D12_DESCRIPTOR_RANGE historyRange = range;
+    historyRange.BaseShaderRegister = 1;
+    parameters[2] = parameters[1];
+    parameters[2].DescriptorTable.pDescriptorRanges = &historyRange;
     D3D12_STATIC_SAMPLER_DESC sampler{};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
     sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -85,11 +90,20 @@ bool RippleTransitionRenderer::Initialize(DirectXCommon* dx, SrvManager* srv) {
     snapshotSrv_ = srv_->Allocate();
     if (snapshotSrv_ == SrvManager::kInvalidIndex) { snapshot_.Reset(); return false; }
     srv_->CreateSRVforTexture2D(snapshotSrv_,snapshot_.Get(),description.Format,1);
+    if (FAILED(dx_->GetDevice()->CreateCommittedResource(&heap,D3D12_HEAP_FLAG_NONE,&description,
+        outgoingState_,nullptr,IID_PPV_ARGS(&outgoing_)))) return false;
+    outgoing_->SetName(L"Water mirror outgoing scene history");
+    if (srv_->GetAllocatedCount() >= SrvManager::kMaxSRVCount) { outgoing_.Reset(); return false; }
+    outgoingSrv_ = srv_->Allocate();
+    if (outgoingSrv_ == SrvManager::kInvalidIndex) { outgoing_.Reset(); return false; }
+    srv_->CreateSRVforTexture2D(outgoingSrv_,outgoing_.Get(),description.Format,1);
     return true;
 }
 bool RippleTransitionRenderer::Draw(const TransitionFrame& frame) {
     const bool transitioning = frame.phase == TransitionPhase::Covering || frame.phase == TransitionPhase::Revealing;
     const bool hasDrops = std::any_of(frame.drops.begin(),frame.drops.end(),[](const auto& drop) { return drop.active; });
+    if (!transitioning || frame.style != TransitionStyle::Ripple ||
+        (frame.phase == TransitionPhase::Covering && frame.progress < 1)) outgoingValid_ = false;
     if (!IsReady() || (!transitioning && !hasDrops)) return false;
     if (!std::isfinite(frame.progress)) return false;
     auto* source = dx_->GetRenderTextureResource();
@@ -116,6 +130,7 @@ bool RippleTransitionRenderer::Draw(const TransitionFrame& frame) {
     values[tuningOffset+4] = motion.scale;
     values[tuningOffset+5] = motion.fade;
     values[tuningOffset+6] = transitioning && frame.style != TransitionStyle::Ripple ? 1.0f : 0.0f;
+    values[tuningOffset+7] = frame.presentationTime;
     constexpr std::size_t flightOffset = tuningOffset+8;
     constexpr std::size_t pondMappingOffset = flightOffset+4;
     values[flightOffset] = frame.pond.start.x; values[flightOffset+1] = frame.pond.start.y;
@@ -126,19 +141,32 @@ bool RippleTransitionRenderer::Draw(const TransitionFrame& frame) {
     for (float value : values) if (!std::isfinite(value)) return false;
     auto* commands = dx_->GetCommandList();
     commands->OMSetRenderTargets(0,nullptr,FALSE,nullptr);
-    dx_->TransitionRenderTexture(D3D12_RESOURCE_STATE_COPY_SOURCE);
-    const auto transitionSnapshot = [&](D3D12_RESOURCE_STATES after) {
-        if (snapshotState_ == after) return;
+    const bool heldMirror = frame.style == TransitionStyle::Ripple &&
+        frame.phase == TransitionPhase::Covering && frame.progress >= 1 && outgoingValid_;
+    const auto transitionTexture = [&](ID3D12Resource* texture, D3D12_RESOURCE_STATES& state,
+        D3D12_RESOURCE_STATES after) {
+        if (state == after) return;
         D3D12_RESOURCE_BARRIER barrier{};
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition = {snapshot_.Get(),D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,snapshotState_,after};
+        barrier.Transition = {texture,D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,state,after};
         commands->ResourceBarrier(1,&barrier);
-        snapshotState_ = after;
+        state = after;
     };
-    transitionSnapshot(D3D12_RESOURCE_STATE_COPY_DEST);
-    commands->CopyResource(snapshot_.Get(),source);
+    // No scene is drawn during incremental loading. Keep the last defined snapshot.
+    if (!heldMirror) {
+        dx_->TransitionRenderTexture(D3D12_RESOURCE_STATE_COPY_SOURCE);
+        transitionTexture(snapshot_.Get(),snapshotState_,D3D12_RESOURCE_STATE_COPY_DEST);
+        commands->CopyResource(snapshot_.Get(),source);
+    }
+    if (frame.style == TransitionStyle::Ripple && frame.phase == TransitionPhase::Covering &&
+        frame.progress >= 1 && !outgoingValid_) {
+        transitionTexture(outgoing_.Get(),outgoingState_,D3D12_RESOURCE_STATE_COPY_DEST);
+        commands->CopyResource(outgoing_.Get(),source);
+        transitionTexture(outgoing_.Get(),outgoingState_,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        outgoingValid_ = true;
+    }
     dx_->TransitionRenderTexture(D3D12_RESOURCE_STATE_RENDER_TARGET);
-    transitionSnapshot(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    transitionTexture(snapshot_.Get(),snapshotState_,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     dx_->SetSceneRenderTarget();
     const D3D12_VIEWPORT viewport{0,0,values[4],values[5],0,1};
     const D3D12_RECT scissor{0,0,static_cast<LONG>(description.Width),static_cast<LONG>(description.Height)};
@@ -150,6 +178,9 @@ bool RippleTransitionRenderer::Draw(const TransitionFrame& frame) {
     // Sample the separate snapshot, never the bound output RT.
     commands->SetGraphicsRoot32BitConstants(0,static_cast<UINT>(values.size()),values.data(),0);
     commands->SetGraphicsRootDescriptorTable(1,srv_->GetGPUDescriptorHandle(snapshotSrv_));
+    // Bind a defined image even before history exists; never sample an uninitialized texture.
+    const auto mirrorSrv = outgoingValid_ ? outgoingSrv_ : snapshotSrv_;
+    commands->SetGraphicsRootDescriptorTable(2,srv_->GetGPUDescriptorHandle(mirrorSrv));
     commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commands->DrawInstanced(3,1,0,0);
     return true;

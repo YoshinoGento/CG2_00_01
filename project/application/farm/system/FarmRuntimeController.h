@@ -2,6 +2,8 @@
 #include "farm/ui/FarmRuntimeUI.h"
 #include "farm/system/FarmGrowthComparisonSystem.h"
 #include "farm/system/FarmPlayFlow.h"
+#include "farm/system/FarmStartPresentationSystem.h"
+#include "farm/system/FarmArrivalAudioSystem.h"
 #include "farm/system/FarmSeedShopSystem.h"
 #include "farm/system/FarmHarvestDisplaySystem.h"
 
@@ -12,14 +14,26 @@ class Input;
 class FarmRuntimeController final {
 public:
     bool Initialize(SpriteCommon* common) { ready_ = ui_.Initialize(common); return ready_; }
+    InitializationTask InitializeIncrementally(SpriteCommon* common) {
+        ready_ = co_await ui_.InitializeIncrementally(common);
+        co_return ready_;
+    }
     bool Update(GamePlayScene& scene, const Input& input);
+    void InitializeArrivalAudio(Audio* audio) { (void)arrivalAudio_.Initialize(audio); }
+    void FinalizeArrivalAudio() { arrivalAudio_.Finalize(); }
+    FarmStartPresentationSystem::Frame StartFrame() const noexcept {
+        return flow_.GetPhase()==FarmPlayFlow::Phase::Starting ? startPresentation_.GetFrame() : FarmStartPresentationSystem::Frame{};
+    }
     void Draw() { ui_.Draw(view_, pointer_); }
     bool BlocksSimulation() const noexcept { return shop_.IsOpen() || contestNotice_ || open_ || paused_ || terrain_ || frameCaptured_ || (ready_ && flow_.BlocksSimulation()); }
     bool ConsumesInput() const noexcept { return shop_.IsOpen() || contestNotice_ || open_ || paused_ || terrain_ || observation_ || frameCaptured_ || (ready_ && flow_.BlocksSimulation()); }
     bool IsOpen() const noexcept { return open_; }
+    bool RequestsTitle() const noexcept { return flow_.RequestsTitle(); }
     bool PresentsFarmResult() const noexcept { return ready_ &&
         (flow_.GetPhase() == FarmPlayFlow::Phase::Result || flow_.GetPhase() == FarmPlayFlow::Phase::Review); }
     bool HidesFarmHUD() const noexcept { return shop_.IsOpen() || contestNotice_ || open_ || observation_ || terrain_ || (ready_ && flow_.BlocksSimulation()); }
+    bool PresentsIntroduction() const noexcept { return ready_ &&
+        (flow_.GetPhase() == FarmPlayFlow::Phase::Briefing || flow_.GetPhase() == FarmPlayFlow::Phase::Starting); }
     bool ShowsSeedShop() const noexcept { return view_.seedShop; }
     int SeedShopSelection() const noexcept { return shop_.Selection(); }
     bool ShowsHarvestDisplay() const noexcept { return view_.harvestDisplay; }
@@ -37,10 +51,15 @@ private:
     void EnterTerrain(GamePlayScene& scene);
     void LeaveTerrain(GamePlayScene& scene);
     bool UpdateTerrain(GamePlayScene& scene, const Input& input, bool click);
-    bool FrameFarm(GamePlayScene& scene, bool followPlayer = false);
+    bool FrameFarm(GamePlayScene& scene, bool followPlayer = false, bool briefing = false);
+    void BeginFarmStart(GamePlayScene& scene);
+    void ApplyStartCamera(GamePlayScene& scene);
     bool UpdateObservation(GamePlayScene& scene, const Input& input, bool click);
     farmui::RuntimeUI ui_;
     FarmPlayFlow flow_;
+    FarmStartPresentationSystem startPresentation_;
+    FarmArrivalAudioSystem arrivalAudio_;
+    bool arrivalSeen_ = false;
     FarmSeedShopSystem shop_;
     FarmHarvestDisplaySystem harvestDisplay_;
     farmui::View view_;
