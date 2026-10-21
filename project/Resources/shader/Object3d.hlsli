@@ -15,6 +15,7 @@ struct Material
     int specularType;
     float4x4 uvTransform;
     float4 surfaceDetail;
+    float4 outdoorAmbient;
 };
 
 struct DirectionalLight

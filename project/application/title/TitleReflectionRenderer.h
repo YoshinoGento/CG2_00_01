@@ -25,7 +25,7 @@ public:
     void End();
     [[nodiscard]] std::uint32_t GetSrv() const noexcept { return srvIndex_; }
 private:
-    static constexpr UINT kWidth = 640, kHeight = 360, kRootConstants = 48;
+    static constexpr UINT kWidth = 640, kHeight = 360, kRootConstants = 52;
     static_assert(kRootConstants+1 <= 64);
     bool CreatePipeline();
     void Transition(D3D12_RESOURCE_STATES after);
@@ -39,6 +39,7 @@ private:
     TitleSkyRenderer sky_;
     Matrix4x4 viewProjection_{};
     LightingSystem::DirectionalLight light_{};
+    Vector4 outdoorAmbient_{};
     float waterHeight_ = 0;
     std::uint32_t srvIndex_ = UINT32_MAX;
     D3D12_RESOURCE_STATES state_ = D3D12_RESOURCE_STATE_RENDER_TARGET;

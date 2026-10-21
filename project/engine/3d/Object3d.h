@@ -59,6 +59,8 @@ public:
 	void SetSpecularType(SpecularType type) { materialData_->specularType = static_cast<int32_t>(type); }
 	// x: specular gain, y: grain contrast, z: cells/world-unit, w: normal variation.
 	bool SetSurfaceDetail(const Vector4& detail);
+	// RGB: sky-fill tint, W: opt-in blend. Zero preserves legacy lighting.
+	bool SetOutdoorAmbient(const Vector4& skyTint);
 
 
 	// 平行光源の設定
@@ -109,9 +111,11 @@ private:
 		int32_t specularType;
 		Matrix4x4 uvTransform;
 		Vector4 surfaceDetail;
+		Vector4 outdoorAmbient;
 	};
 	static_assert(offsetof(Material, surfaceDetail) == 96);
-	static_assert(sizeof(Material) == 112);
+	static_assert(offsetof(Material, outdoorAmbient) == 112);
+	static_assert(sizeof(Material) == 128);
 
 	// GPUに送るための頂点スキンデータ
 	struct VertexShaderSkinning

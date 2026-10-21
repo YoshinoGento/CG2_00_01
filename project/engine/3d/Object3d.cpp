@@ -44,6 +44,7 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	materialData_->specularType = static_cast<int32_t>(Object3d::SpecularType::BlinnPhong);
 	materialData_->uvTransform = MatrixMath::MakeIdentity4x4();
 	materialData_->surfaceDetail = {1.0f, 0.0f, 0.0f, 0.0f};
+	materialData_->outdoorAmbient = {};
 
 	transformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
 	transformationMatrixResource_->Map(0, nullptr, (void**)&transformationMatrixData_);
@@ -53,6 +54,14 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	*transformationMatrixData_ = { identity, identity, identity };
 	*shadowTransformationMatrixData_ = { identity, identity, identity };
 
+}
+
+bool Object3d::SetOutdoorAmbient(const Vector4& skyTint) {
+	if (!materialData_ || !std::isfinite(skyTint.x) || !std::isfinite(skyTint.y) ||
+		!std::isfinite(skyTint.z) || !std::isfinite(skyTint.w)) return false;
+	materialData_->outdoorAmbient = {std::clamp(skyTint.x,0.0f,1.0f),
+		std::clamp(skyTint.y,0.0f,1.0f),std::clamp(skyTint.z,0.0f,1.0f),std::clamp(skyTint.w,0.0f,1.0f)};
+	return true;
 }
 
 bool Object3d::SetSurfaceDetail(const Vector4& detail) {

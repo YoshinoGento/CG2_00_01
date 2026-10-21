@@ -4,6 +4,7 @@ from pathlib import Path
 import json
 import math
 import random
+from voxel_scenery import append_volume, FOLIAGE_CELL
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "project/Resources/title"
@@ -58,19 +59,35 @@ class Mesh:
             self.quad(points, material, section)
 
     def crown(self, x, y, z, rx, ry, rz):
-        segments = 10
-        rings = ((-.85,.35),(-.48,.84),(0,1),(.52,.78),(.88,.32))
-        def point(h, r, i):
-            angle = math.tau*i/segments
-            return (x+rx*r*math.cos(angle),y+ry*h,z+rz*r*math.sin(angle))
-        for ring, ((ha,ra),(hb,rb)) in enumerate(zip(rings,rings[1:])):
-            for i in range(segments):
-                uv = ((i/segments,1-ring/4),(i/segments,1-(ring+1)/4),
-                      ((i+1)/segments,1-(ring+1)/4),((i+1)/segments,1-ring/4))
-                self.quad((point(ha,ra,i),point(hb,rb,i),point(hb,rb,i+1),point(ha,ra,i+1)),FOLIAGE,"forest",uv)
-        for i in range(segments):
-            self.triangle(((x,y-ry,z),point(*rings[0],i),point(*rings[0],i+1)),((.5,.5),(0,1),(1,1)),FOLIAGE,"forest")
-            self.triangle(((x,y+ry,z),point(*rings[-1],i+1),point(*rings[-1],i)),((.5,.5),(1,1),(0,1)),FOLIAGE,"forest")
+        self.canopy((((x,y,z),(rx,ry,rz)),))
+
+    def branch(self, start, end, radius, tip_radius, section="forest_trunks"):
+        direction = tuple(b-a for a, b in zip(start, end))
+        length = math.sqrt(sum(v*v for v in direction))
+        if not math.isfinite(length) or length < .001 or not 0 < tip_radius <= radius < 1:
+            raise ValueError("Invalid branch")
+        axis = tuple(v/length for v in direction)
+        helper = (1,0,0) if abs(axis[0]) < .8 else (0,0,1)
+        def cross(a, b):
+            return (a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0])
+        u = cross(axis, helper)
+        norm = math.sqrt(sum(v*v for v in u))
+        u = tuple(v/norm for v in u)
+        v = cross(axis, u)
+        def ring(center, size):
+            return [tuple(center[i]+size*(a*u[i]+b*v[i]) for i in range(3))
+                    for a, b in ((-1,-1),(1,-1),(1,1),(-1,1))]
+        base, tip = ring(start, radius), ring(end, tip_radius)
+        for i in range(4):
+            j = (i+1) % 4
+            self.quad((base[i],base[j],tip[j],tip[i]), WOOD, section)
+        self.quad(tuple(reversed(base)), WOOD, section)
+        self.quad(tuple(tip), WOOD, section)
+
+    def canopy(self, volumes):
+        rooted = tuple(((x,y-GROUND_Y,z),radii) for (x,y,z),radii in volumes)
+        append_volume(self, rooted, FOLIAGE_CELL, FOLIAGE, "forest",
+                      origin=(0,GROUND_Y,0), flat_color=True)
 
     def save(self, name="countryside", metadata=True):
         assert len(self.triangles) <= MAX_TRIANGLES
@@ -132,9 +149,11 @@ def build():
         y = ground_height(x,z)
         height = rng.uniform(4.8,6.2)
         mesh.box(x,y+height*.36,z,.14,height*.36,.14,WOOD,"forest_trunks")
-        mesh.crown(x,y+height*.78,z,rng.uniform(1.6,2.1),height*.22,1.55)
-        mesh.crown(x-.85,y+height*.64,z-.2,1.5,height*.27,1.2)
-        mesh.crown(x+.95,y+height*.70,z+.25,1.3,height*.23,1.1)
+        for side in (-1,1):
+            mesh.branch((x,y+height*.43,z),(x+side*.85,y+height*.69,z+side*.2),.11,.055)
+        mesh.canopy((((x,y+height*.78,z),(rng.uniform(1.6,2.1),height*.22,1.55)),
+                     ((x-.85,y+height*.64,z-.2),(1.5,height*.27,1.2)),
+                     ((x+.95,y+height*.70,z+.25),(1.3,height*.23,1.1))))
     for x,z in BUSH_POSITIONS:
         mesh.crown(x,ground_height(x,z)+.55,z,.85,.55,.65)
     return mesh

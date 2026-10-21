@@ -1,5 +1,6 @@
 """Original arrival props/scenery; reuse the existing countryside OBJ export contract."""
 from pathlib import Path
+import argparse
 import json
 import math
 import random
@@ -49,9 +50,7 @@ def cylinder(mesh, start, end, radius, material, section, segments=12):
         mesh.triangle((end,ring(end,i),ring(end,i+1)),((.5,.5),(0,0),(1,1)),material,section)
 
 
-def build():
-    OUT.mkdir(parents=True, exist_ok=True)
-    counts = {}
+def build_scenery():
     mesh = Mesh()
     # Match the title grass shader's triangulated terrain, including distant roots.
     for x in range(-50,50,5):
@@ -64,8 +63,15 @@ def build():
     mesh.rectangle(8.35,8.95,-15,24,-.227,landscape.DIRT,"road",1)
     for x,z in ((-13,22),(-22,36),(6,30),(18,25),(28,42)):
         mesh.box(x,.55,z,.14,.80,.14,landscape.WOOD,"trunk")
+        for side in (-1,1):
+            mesh.branch((x,.8,z),(x+side*.6,2.2,z+side*.15),.09,.045,"trunk")
         mesh.crown(x,2.4,z,1.6,1.9,1.45)
-    counts["scenery"] = save(mesh,"scenery")
+    return mesh
+
+
+def build():
+    OUT.mkdir(parents=True, exist_ok=True)
+    counts = {"scenery": save(build_scenery(),"scenery")}
 
     leaf = Mesh()
     # All blades grow upward from one rooted clump. The hero tip droops without folding back in X.
@@ -160,4 +166,15 @@ def build():
 
 
 if __name__ == '__main__':
-    build()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--scenery-only', action='store_true')
+    args = parser.parse_args()
+    if args.scenery_only:
+        count = save(build_scenery(), 'scenery')
+        path = OUT/'manifest.json'
+        manifest = json.loads(path.read_text(encoding='ascii'))
+        manifest['triangles']['scenery'] = count
+        path.write_text(json.dumps(manifest,indent=2)+'\n',encoding='ascii')
+        print(f'PASS arrival scenery: {count} triangles; other assets untouched')
+    else:
+        build()

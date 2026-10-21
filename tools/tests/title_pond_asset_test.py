@@ -18,7 +18,7 @@ rx,rz = config["radii"]
 shore = config["shoreWidth"]
 mesh = pond.build()
 assert mesh.triangles == pond.build().triangles
-assert 2500 <= len(mesh.triangles) <= 4000
+assert 2500 <= len(mesh.triangles) <= pond.MAX_SHORE_TRIANGLES
 assert pz+rz+shore < landscape.FARM_EXCLUSION[2]
 assert -1 < wy < landscape.GROUND_Y
 vertices,faces = [],[]

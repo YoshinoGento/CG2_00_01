@@ -3,9 +3,11 @@ from pathlib import Path
 import importlib.util
 import json
 import math
+import sys
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT/"tools/title"))
 spec = importlib.util.spec_from_file_location("landscape", ROOT/"tools/title/generate_title_landscape.py")
 generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
