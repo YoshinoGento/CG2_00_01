@@ -1,12 +1,15 @@
 #pragma once
 
 #include "2d/BitmapFont.h"
+#include "base/InitializationTask.h"
 #include "2d/Sprite.h"
-#include "2d/SpriteText.h"
 #include "farm/core/FarmTypes.h"
+#include "farm/ui/FarmUIRect.h"
 
 #include <array>
 #include <cstdint>
+#include <memory>
+#include <string_view>
 
 class SpriteCommon;
 
@@ -66,6 +69,7 @@ struct FarmHUDViewData {
 	int cropsNeeded = 0;
 	int goalMoney = 1;
 	bool contestSeason = false;
+	int contestFinalDay = 0;
 	bool freeFarming = false;
 	int currentToolIndex = -1;
 	float goalProgress = 0.0f;
@@ -90,6 +94,9 @@ struct FarmHUDViewData {
 	farm::CropType selectedTileCrop = farm::CropType::None;
 	farm::FarmCropGrowthStage selectedTileGrowthStage = farm::FarmCropGrowthStage::None;
 	FarmHUDMoistureStatus selectedTileMoistureStatus = FarmHUDMoistureStatus::None;
+	bool selectedTileMoistureRangeValid = false;
+	float selectedTileGoodMoistureMinimum = 0.0f;
+	float selectedTileGoodMoistureMaximum = 0.0f;
 	bool cropPieOpen = false;
 	farm::CropType cropPieHovered = farm::CropType::None;
 	Vector2 cropPieCenter{};
@@ -105,30 +112,35 @@ struct FarmHUDViewData {
 class FarmHUD final {
 public:
 	bool Initialize(SpriteCommon* spriteCommon);
+	InitializationTask InitializeIncrementally(SpriteCommon* spriteCommon);
 	void SetViewData(const FarmHUDViewData& viewData);
 	void Update(float deltaTime);
 	void Draw();
 
 private:
-	bool InitializePanels(SpriteCommon* spriteCommon);
+	// Fixed after initialization; each live glyph owns distinct GPU constants.
+	struct TextRun {
+		InitializationTask Initialize(SpriteCommon* common, const BitmapFont& font, std::size_t capacity);
+		void Set(const BitmapFont& font, std::string_view value, farmui::Rect bounds,
+			float maximumScale, const Vector4& color);
+		void Update();
+		void Draw();
+		std::unique_ptr<Sprite[]> glyphs;
+		std::size_t capacity = 0;
+		std::size_t count = 0;
+	};
+
+	InitializationTask InitializePanels(SpriteCommon* spriteCommon);
+	InitializationTask InitializeText(SpriteCommon* spriteCommon);
 	bool InitializeLocalizedSprites(SpriteCommon* spriteCommon);
-	bool LoadLocalizedTextureHandles();
+	InitializationTask LoadLocalizedTextureHandles();
 	void ApplyLayout();
-	void RefreshAllText();
-	void UpdateDayText();
-	void UpdateMoneyText();
-	void UpdateRankText();
-	void UpdateCropCountText();
-	void UpdateTimeScaleText();
-	void UpdateGoalText();
-	void UpdateIrrigationPreviewText();
-	void UpdateSelectedTileText();
-	void UpdateLocalizedSelections();
-	void UpdateFeedbackDetails();
-	void UpdateCropPieStats();
+	void UpdateStatus();
+	void UpdateGoal();
+	void UpdateIrrigationPreview();
+	void UpdateSelectedTile();
+	void UpdateFeedback();
 	void UpdateCropPieMenu();
-	void UpdateGoalBar();
-	void DrawItemIllustrations();
 
 private:
 	FarmHUDViewData viewData_;
@@ -138,52 +150,55 @@ private:
 	Sprite statusPanel_;
 	Sprite economyPanel_;
 	Sprite selectedTilePanel_;
+	Sprite goalPanel_;
 	Sprite feedbackPanel_;
 	Sprite goalBarTrack_;
 	Sprite goalBarFill_;
+	Sprite waterBarTrack_;
+	Sprite waterBarFill_;
+	Sprite waterRangeBand_;
+	Sprite waterPointer_;
+	Sprite growthBarTrack_;
+	Sprite growthBarFill_;
+	Sprite dayIcon_;
+	Sprite rankIcon_;
+	Sprite moneyIcon_;
+	Sprite inventoryIcon_;
+	Sprite selectedIcon_;
+	Sprite waterIcon_;
+	Sprite growthIcon_;
 	Sprite cropPieCenterPanel_;
 	std::array<Sprite, 3> cropPiePanels_;
-	std::array<Sprite, 7> itemIllustrations_;
-	std::array<SpriteText, 3> inventoryCounts_;
-	std::array<Sprite, 20> localizedLabels_;
+	Sprite localizedSelectedName_;
 	Sprite localizedTileState_;
-	Sprite localizedCropName_;
-	Sprite localizedSelectedSeedCrop_;
 	std::array<Sprite, 3> localizedCropPieNames_;
 	std::array<Sprite, 3> localizedCropPieTraits_;
 	Sprite localizedCropPieGuide_;
-	Sprite localizedNextAction_;
 	Sprite localizedMoistureStatus_;
 	Sprite localizedIrrigationStatus_;
 	Sprite localizedIrrigationPreview_;
 	Sprite localizedFeedback_;
 	Sprite localizedFeedbackCrop_;
 
-	std::array<Texture2DHandle, 2> waterLabelTextureHandles_;
-	std::array<Texture2DHandle, 2> toolGuideTextureHandles_;
 	std::array<Texture2DHandle, 11> tileStateTextureHandles_;
 	std::array<Texture2DHandle, 5> cropTextureHandles_;
-	std::array<Texture2DHandle, 11> nextActionTextureHandles_;
+	std::array<Texture2DHandle, 3> cropPieTraitTextureHandles_;
+	Texture2DHandle cropPieGuideTextureHandle_{};
 	std::array<Texture2DHandle, 4> moistureStatusTextureHandles_;
 	std::array<Texture2DHandle, 5> irrigationStatusTextureHandles_;
 	std::array<Texture2DHandle, 2> irrigationPreviewTextureHandles_;
 	std::array<Texture2DHandle, 19> feedbackTextureHandles_;
 
-	SpriteText dayText_;
-	SpriteText moneyText_;
-	SpriteText rankText_;
-	SpriteText cropCountText_;
-	SpriteText seedCountText_;
-	SpriteText seedPriceText_;
-	SpriteText timeScaleText_;
-	SpriteText goalText_;
-	SpriteText goalNeedText_;
-	SpriteText saleText_;
-	SpriteText irrigationPreviewCountText_;
-	SpriteText selectedTileTitleText_;
-	SpriteText selectedTileMetricsText_;
-	SpriteText selectedTileGrowthText_;
-	SpriteText feedbackMetricsText_;
-	std::array<SpriteText, farm::kPlayableCropCount> cropPieStatsText_;
-	std::array<SpriteText, farm::kPlayableCropCount> cropPieValueText_;
+	TextRun dayText_;
+	TextRun moneyText_;
+	TextRun rankText_;
+	TextRun cropCountText_;
+	TextRun goalText_;
+	TextRun irrigationPreviewCountText_;
+	TextRun selectedTileHeightText_;
+	TextRun selectedTileWaterText_;
+	TextRun selectedTileGrowthText_;
+	TextRun feedbackMetricsText_;
+	std::array<TextRun, farm::kPlayableCropCount> cropPieStatsText_;
+	std::array<TextRun, farm::kPlayableCropCount> cropPieValueText_;
 };

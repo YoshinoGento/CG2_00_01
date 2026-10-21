@@ -9,7 +9,8 @@
 namespace farm {
 enum class FarmMeshShape { Box, TriangleLower, TriangleUpper, Turnip, Carrot, Leaves, CarrotLeaves,
     Tomato, TomatoStems, Pumpkin, PumpkinVines };
-enum class FarmMeshSurface { None, CanalBed, CanalBank, SoilBoundary, Selection, Hover, Crop };
+enum class FarmMeshSurface { None, CanalBed, CanalBank, SoilBoundary, Selection, Hover, Crop,
+	Earth, Soil, Grass };
 struct FarmMeshPart {
 	Vector3 position{};
 	Vector3 scale{1.0f, 1.0f, 1.0f}; // Box: half-size. Crop: radius/height in its base-anchored OBJ space.
@@ -18,6 +19,7 @@ struct FarmMeshPart {
 	Vector2 slope{}; // dY/dX and dY/dZ before rotation, applied after scale.
 	FarmMeshShape shape = FarmMeshShape::Box;
 	FarmMeshSurface surface = FarmMeshSurface::None;
+	float wetness = 0.0f; // Presentation snapshot, never written back to the simulation.
 };
 struct FarmTileMeshParts {
 	// Soil: at most 26 patches plus either three ridges or four boundary strips.
@@ -151,7 +153,8 @@ inline FarmTileMeshParts BuildFarmTileMeshParts(
 			!std::isfinite(position.y) || !std::isfinite(position.z) || !std::isfinite(scale.x) ||
 			!std::isfinite(scale.y) || !std::isfinite(scale.z) || !std::isfinite(slope.x) || !std::isfinite(slope.y) ||
 			scale.x < 0.0001f || scale.y < 0.0001f || scale.z < 0.0001f) { return; }
-		result.parts[result.count++] = {position, scale, color, water, slope, shape, surface};
+		result.parts[result.count++] = {position, scale, color, water, slope, shape, surface,
+			visual.soilWetness};
 	};
 	if (visual.feature == FarmTileFeature::None) {
 		const float wetness = visual.soilWetness;
@@ -159,6 +162,7 @@ inline FarmTileMeshParts BuildFarmTileMeshParts(
 			? Vector4{0.27f - 0.08f * wetness, 0.57f - 0.15f * wetness, 0.13f, 1.0f}
 			: Vector4{0.52f - 0.28f * wetness, 0.32f - 0.18f * wetness, 0.16f - 0.09f * wetness, 1.0f};
 		const Vector4 earth{0.43f - 0.16f * wetness, 0.24f - 0.10f * wetness, 0.10f, 1.0f};
+		const auto topSurface = tile->state == FarmTileState::Empty ? FarmMeshSurface::Grass : FarmMeshSurface::Soil;
 		const auto surface = BuildFarmSoilSurface(grid, index, visualSystem);
 		if (!surface.valid) { return {}; }
 		bool flat = true;
@@ -166,9 +170,9 @@ inline FarmTileMeshParts BuildFarmTileMeshParts(
 		if (flat) {
 			const float bodyTop = visual.center.y - kTopThickness;
 			add({visual.center.x, (groundBottom + bodyTop) * 0.5f, visual.center.z},
-				{cellHalf, (bodyTop - groundBottom) * 0.5f, cellHalf}, earth);
+				{cellHalf, (bodyTop - groundBottom) * 0.5f, cellHalf}, earth, false, {}, FarmMeshShape::Box, FarmMeshSurface::Earth);
 			add({visual.center.x, visual.center.y - kTopThickness * 0.5f, visual.center.z},
-				{cellHalf, kTopThickness * 0.5f, cellHalf}, soil);
+				{cellHalf, kTopThickness * 0.5f, cellHalf}, soil, false, {}, FarmMeshShape::Box, topSurface);
 		} else {
 			// Each triangle retains a buried earth body; no high full-tile block hides the ramp.
 			const float bodyHalfDepth = (visual.center.y - groundBottom + 2.0f * layout.heightStep) * 0.5f;
@@ -186,9 +190,9 @@ inline FarmTileMeshParts BuildFarmTileMeshParts(
 					const float top = anchor.y + slope.x * (centerX-anchor.x) + slope.y * (centerZ-anchor.z);
 					const auto shape = planar ? FarmMeshShape::Box : (upper ? FarmMeshShape::TriangleUpper : FarmMeshShape::TriangleLower);
 					add({centerX, top - kTopThickness - bodyHalfDepth, centerZ},
-						{(d.x-a.x)*0.5f,bodyHalfDepth,(d.z-a.z)*0.5f},earth,false,slope,shape);
+						{(d.x-a.x)*0.5f,bodyHalfDepth,(d.z-a.z)*0.5f},earth,false,slope,shape,FarmMeshSurface::Earth);
 					add({centerX, top - kTopThickness*0.5f, centerZ},
-						{(d.x-a.x)*0.5f,kTopThickness*0.5f,(d.z-a.z)*0.5f},soil,false,slope,shape);
+						{(d.x-a.x)*0.5f,kTopThickness*0.5f,(d.z-a.z)*0.5f},soil,false,slope,shape,topSurface);
 				}
 			}
 		}
@@ -207,14 +211,14 @@ inline FarmTileMeshParts BuildFarmTileMeshParts(
 		} else {
 			for (int ridge = -1; ridge <= 1; ++ridge) {
 				add({visual.center.x + ridge * half * 0.52f, visual.center.y + 0.012f, visual.center.z},
-					{half * 0.12f, 0.012f, half * 0.83f}, soil);
+					{half * 0.12f, 0.012f, half * 0.83f}, soil, false, {}, FarmMeshShape::Box, FarmMeshSurface::Soil);
 			}
 		}
 		return result;
 	}
 	const float bottom = visual.center.y + layout.waterBottomOffset;
 	const float rimHeight = layout.waterMaxDepth + kRimFreeboard;
-	const Vector4 stone{0.45f, 0.34f, 0.20f, 1.0f};
+	const Vector4 stone{0.43f, 0.44f, 0.39f, 1.0f};
 	const int width = grid.GetWidth();
 	const int column = index % width;
 	const int row = index / width;

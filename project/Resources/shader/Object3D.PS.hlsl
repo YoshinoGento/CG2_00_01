@@ -145,6 +145,27 @@ float EvaluateDirectionalShadow(float3 worldPosition, float3 normal, float3 ligh
     return lerp(1.0f, visibility, saturate(gShadowScene.strength));
 }
 
+float3 CellVariation(float3 cell)
+{
+    float3 seed = frac(cell * float3(0.1031f, 0.1030f, 0.0973f));
+    seed += dot(seed, seed.yxz + 33.33f);
+    return frac((seed.xxy + seed.yxx) * seed.zyx) * 2.0f - 1.0f;
+}
+
+void ApplySurfaceDetail(float3 worldPosition, inout float3 normal, inout float3 albedo)
+{
+    // Static world cells keep soil seams continuous. Moving crops opt out of grain.
+    if (gMaterial.surfaceDetail.z <= 0.0f ||
+        (gMaterial.surfaceDetail.y <= 0.0f && gMaterial.surfaceDetail.w <= 0.0f)) return;
+    float3 p = worldPosition * gMaterial.surfaceDetail.z;
+    float footprint = max(length(ddx(p)), length(ddy(p)));
+    float visibility = 1.0f - smoothstep(0.35f, 0.85f, footprint);
+    float3 variation = CellVariation(floor(p));
+    albedo *= 1.0f + variation.x * gMaterial.surfaceDetail.y * visibility;
+    float3 tangentVariation = variation - normal * dot(variation, normal);
+    normal = SafeNormalize(normal + tangentVariation * gMaterial.surfaceDetail.w * visibility, normal);
+}
+
 PixelShaderOutput main(VertexShaderOutput input)
 {
     PixelShaderOutput output;
@@ -159,18 +180,23 @@ PixelShaderOutput main(VertexShaderOutput input)
         return output;
     }
 
+    float3 geometricNormal = N;
+    float3 baseColor = gMaterial.color.rgb * textureColor.rgb;
+    ApplySurfaceDetail(input.worldPosition, N, baseColor);
+    output.normal = float4(N * 0.5f + 0.5f, 1.0f);
+    float specularGain = saturate(gMaterial.surfaceDetail.x);
+
     // --- 準備 ---
     float3 V = SafeNormalize(gCamera.worldPosition - input.worldPosition, N);
 
     // --- 1. 平行光源 ---
     float3 L_dir = SafeNormalize(-gDirectionalLight.direction, float3(0.0f, 1.0f, 0.0f));
     float NdotL_dir = saturate(dot(N, L_dir));
-    float directionalShadow = EvaluateDirectionalShadow(input.worldPosition, N, L_dir);
-    float3 baseColor = gMaterial.color.rgb * textureColor.rgb;
+    float directionalShadow = EvaluateDirectionalShadow(input.worldPosition, geometricNormal, L_dir);
     float3 ambient_dir = baseColor * gDirectionalLight.color.rgb * 0.18f * gDirectionalLight.intensity;
     float3 diffuse_dir = baseColor * gDirectionalLight.color.rgb * (NdotL_dir * 0.82f) * gDirectionalLight.intensity * directionalShadow;
     float spec_dir = EvaluateSpecular(N, L_dir, V, gMaterial.shininess);
-    float3 specular_dir = gDirectionalLight.color.rgb * gDirectionalLight.intensity * spec_dir * directionalShadow;
+    float3 specular_dir = gDirectionalLight.color.rgb * gDirectionalLight.intensity * spec_dir * directionalShadow * specularGain;
 
     // --- 2. スポットライト ---
     float3 lightVec = input.worldPosition - gSpotLight.position;
@@ -186,8 +212,8 @@ PixelShaderOutput main(VertexShaderOutput input)
     
     float spotFactor = gSpotLight.intensity * distAtten * angleAtten;
     float NdotL_spot = saturate(dot(N, L_spot));
-    float3 diffuse_spot = gMaterial.color.rgb * textureColor.rgb * gSpotLight.color.rgb * NdotL_spot * spotFactor;
-    float3 specular_spot = gSpotLight.color.rgb * spotFactor * EvaluateSpecular(N, L_spot, V, gMaterial.shininess);
+    float3 diffuse_spot = baseColor * gSpotLight.color.rgb * NdotL_spot * spotFactor;
+    float3 specular_spot = gSpotLight.color.rgb * spotFactor * EvaluateSpecular(N, L_spot, V, gMaterial.shininess) * specularGain;
     
      // --- 3. 環境マップ (★追加) ---
     // カメラから点への入射ベクトルを法線で反射させる

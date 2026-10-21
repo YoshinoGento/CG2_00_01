@@ -28,6 +28,37 @@ def slope(distance, age):
 
 def main():
     shader = Path("project/Resources/shader/RippleTransition.PS.hlsl").read_text(encoding="utf-8")
+    for contract in ("outgoingImage : register(t1)", "float presentationTime;",
+                     "WaterMirror(input.texcoord,0)", "WaterMirror(input.texcoord,displacement)",
+                     "clamp(uv,halfTexel,1-halfTexel)"):
+        assert contract in shader, contract
+    assert "const float3 water =" not in shader
+    renderer = Path("project/application/scene/RippleTransitionRenderer.cpp").read_text(encoding="utf-8")
+    for contract in ("kShaderConstantCount+2 <= 64", "historyRange.BaseShaderRegister = 1",
+                     "frame.progress >= 1 && !outgoingValid_", "CopyResource(outgoing_.Get(),source)",
+                     "outgoingValid_ ? outgoingSrv_ : snapshotSrv_", "values[tuningOffset+7] = frame.presentationTime",
+                     "if (!heldMirror)"):
+        assert contract in renderer, contract
+    # Independent bound checks for the extra mirror UV drift, including tiny and wide viewports.
+    mirror_checks = 0
+    for width,height in ((320,180),(1280,720),(2560,1080)):
+        for t in (0,.32,1.08,1.22,1.7,2.12,3,10,4095):
+            for u,v in ((0,0),(1,1),(.5,.5),(.05,.9)):
+                drift = (math.sin(v*32+t*2.3)*3+math.sin(v*71-t*1.7),
+                         math.sin(u*27-t*1.4)*1.8)
+                assert abs(drift[0]) <= 4 and abs(drift[1]) <= 1.8
+                radial = ((u-.46)*width,(v-.67)*height)
+                distance = math.hypot(*radial)
+                wave = math.sin(distance*.06-t*6)*3/(1+distance*.001)
+                drift = tuple(value + axis/max(distance,1)*wave for value,axis in zip(drift,radial))
+                assert abs(drift[0]) <= 7 and abs(drift[1]) <= 4.8
+                for coordinate,offset,extent in zip((u,v),drift,(width,height)):
+                    for ripple in (-14,0,14):
+                        for blur in (-3.5,0,3.5):
+                            sample = min(1-.5/extent,max(.5/extent,coordinate+(offset+ripple+blur)/extent))
+                            assert math.isfinite(sample) and .5/extent <= sample <= 1-.5/extent
+                            mirror_checks += 1
+    print(f"Water mirror: {mirror_checks} clamped drift/blur samples; history binding/layout contracts PASS")
     for contract in ("float4 drops[4]", "kRingCount = 3", "kRingSpacing = 38", "kPacketWidth = 18",
                      "kWaveFrequency = .16", "kFollowingWaveAttenuation = .62", "kMaximumDisplacement = 14"):
         assert contract in shader, contract

@@ -187,7 +187,9 @@ Frame TitlePresentationSystem::GetFrame() const noexcept {
     frame.grassWindXZ = GrassWindFromCloudVelocity(windVelocity_);
     frame.grassPhase = grassTime_*kTau/kGrassFlutterPeriod;
     frame.skyOffset = std::sin(cycleTime_ * kTau / kCycleSeconds) * 10.0f;
-    frame.promptAlpha = PromptAlpha(cycleTime_);
+    constexpr float kDepartureUiSeconds = 0.25f;
+    frame.uiAlpha = leaving_ ? 1.0f - Smooth(std::clamp(leavingTime_ / kDepartureUiSeconds, 0.0f, 1.0f)) : 1.0f;
+    frame.promptAlpha = PromptAlpha(cycleTime_) * frame.uiAlpha;
     frame.leaving = leaving_;
     frame.entryFadeAlpha = 1.0f - Smooth(entryTime_ / kFadeSeconds);
     frame.fadeAlpha = leaving_ ? Smooth(leavingTime_ / scene::kRippleCoverSeconds) : frame.entryFadeAlpha;
@@ -223,7 +225,7 @@ Frame TitlePresentationSystem::GetFrame() const noexcept {
             kLogoRippleEchoDistance+3*kLogoRippleWidth);
         const float entry = Smooth(std::clamp(ripple.age/kReflectionEdgeSeconds,0.0f,1.0f));
         const float exit = Smooth(std::clamp((kLogoRippleLifetime-ripple.age)/kReflectionEdgeSeconds,0.0f,1.0f));
-        output.alpha = Mix(kReflectionDayAlpha,kReflectionNightAlpha,night)*entry*exit;
+        output.alpha = Mix(kReflectionDayAlpha,kReflectionNightAlpha,night)*entry*exit*frame.uiAlpha;
     }
     const float orbit = cycleTime_ * kTau / kCycleSeconds;
     frame.skyYaw = cloudOffset_.x;

@@ -7,22 +7,32 @@
 #include "title/TitlePresentationLayout.h"
 
 void TitleScene::Initialize() {
+    (void)InitializeIncrementally().Complete();
+}
+
+InitializationTask TitleScene::InitializeIncrementally() {
     auto* framework = Framework::GetInstance();
     const bool pondLayoutReady = pond_.Initialize();
-    const bool worldReady = presentation_.Initialize() && renderer_.Initialize(framework->GetObject3dCommon(),
+    const bool worldReady = presentation_.Initialize() && co_await renderer_.InitializeIncrementally(framework->GetObject3dCommon(),
         framework->GetModelManager(),framework->GetTextureManager(),presentation_.GetFarm(),
         pondLayoutReady ? &pond_.GetLayout() : nullptr);
     ready_ = view_.Initialize(framework->GetSpriteCommon());
+    co_await std::suspend_always{};
     settings_.Initialize();
     pondReady_ = pondLayoutReady && worldReady &&
         pondRenderer_.Initialize(framework->GetDxCommon(),framework->GetSrvManager(),framework->GetTextureManager());
     if (!pondReady_)
         Logger::Warning("Title pond unavailable; start remains accessible with the original ripple.");
+    co_await std::suspend_always{};
     if (!settingsView_.Initialize(framework->GetSpriteCommon())) Logger::Warning("Title settings view unavailable; keyboard controls remain active.");
+    co_await std::suspend_always{};
     if (!audio_.Initialize(framework->GetAudio())) Logger::Warning("Title audio unavailable; continuing without sound.");
+    co_await std::suspend_always{};
     if (!worldReady || !ready_) Logger::Log("TitleScene initialization failed: required title resources unavailable.\n");
+    if (sceneManager_ && sceneManager_->IsTransitionCoverPresented()) presentation_.CompleteEntryFade();
     renderer_.Update(presentation_.GetFrame());
     pond_.Update(0,presentation_.GetFrame());
+    co_return worldReady && ready_;
 }
 
 void TitleScene::Finalize() {
@@ -32,8 +42,7 @@ void TitleScene::Finalize() {
 
 void TitleScene::RequestStart() noexcept {
     if (settings_.GetFrame().open || presentation_.IsLeaving()) return;
-    if (pondReady_) pond_.RequestStart();
-    presentation_.RequestStart();
+    if (!pondReady_ || pond_.RequestStart()) presentation_.RequestStart();
 }
 
 void TitleScene::Update() {
@@ -53,8 +62,7 @@ void TitleScene::Update() {
 #endif
         const bool start = settings_.Update(command);
         if (start) {
-            if (pondReady_) pond_.RequestStart(settings_.GetWaterClick());
-            presentation_.RequestStart();
+            if (!pondReady_ || pond_.RequestStart(settings_.GetWaterClick())) presentation_.RequestStart();
         }
     }
     presentation_.Update(clock ? clock->GetRealDeltaSeconds() : 0);

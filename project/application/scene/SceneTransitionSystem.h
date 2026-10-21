@@ -15,6 +15,7 @@ inline constexpr float kRippleRevealSeconds = .9f;
 inline constexpr float kDropLifetimeSeconds = 2.4f;
 inline constexpr std::size_t kMaximumWaterDrops = 4;
 inline constexpr float kTransitionMaximumDelta = .25f;
+inline constexpr float kWaterClockPeriod = 4096.0f;
 inline constexpr float kRippleCenterX = .46f;
 inline constexpr float kRippleCenterY = .67f;
 inline constexpr float kShopCoverSeconds = .18f;
@@ -39,6 +40,7 @@ struct TransitionFrame {
     std::array<WaterDrop,kMaximumWaterDrops> drops{};
     TransitionStyle style = TransitionStyle::Ripple;
     PondRipplePath pond{};
+    float presentationTime = 0;
 };
 struct TransitionImageMotion { float scale = 1, fade = 0; };
 
@@ -77,6 +79,7 @@ public:
         if (style_ == TransitionStyle::Ripple) drops_[0] = {center_,0,true};
         phase_ = TransitionPhase::Covering;
         time_ = 0;
+        presentationTime_ = 0;
         coveredPresented_ = false;
         target_ = target;
         screenChangeConsumed_ = false;
@@ -94,6 +97,8 @@ public:
     void Update(float delta, bool startInputsReleased) noexcept {
         if (!std::isfinite(delta) || delta < 0) return;
         delta = (std::min)(delta, kTransitionMaximumDelta);
+        if (IsCovering() || phase_ == TransitionPhase::Revealing)
+            presentationTime_ = std::fmod(presentationTime_+delta,kWaterClockPeriod);
         for (auto& drop : drops_) if (drop.active) {
             drop.age = (std::min)(drop.age+delta,kDropLifetimeSeconds);
             if (drop.age >= kDropLifetimeSeconds) drop.active = false;
@@ -157,7 +162,10 @@ public:
         else if (phase_ == TransitionPhase::Revealing) progress = time_/RevealSeconds();
         else if (phase_ == TransitionPhase::WaitingForRelease) progress = 1;
         progress = std::clamp(progress,0.0f,1.0f);
-        return {phase_,progress*progress*(3-2*progress),center_,drops_,style_,IsActive() ? pond_ : PondRipplePath{}};
+        // Keep the water phase continuous when the old scene is replaced at full cover.
+        const float presentationTime = phase_ == TransitionPhase::Idle ? 0 : presentationTime_;
+        return {phase_,progress*progress*(3-2*progress),center_,drops_,style_,
+            IsActive() ? pond_ : PondRipplePath{},presentationTime};
     }
 private:
     [[nodiscard]] float FallSeconds() const noexcept { return pond_.enabled ? kPondDropFallSeconds : kDropFallSeconds; }
@@ -171,6 +179,7 @@ private:
     }
     TransitionPhase phase_ = TransitionPhase::Idle;
     float time_ = 0;
+    float presentationTime_ = 0;
     bool coveredPresented_ = false;
     TransitionTarget target_ = TransitionTarget::SceneReplacement;
     TransitionStyle style_ = TransitionStyle::Ripple;

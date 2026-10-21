@@ -2,12 +2,44 @@
 #include "farm/ui/FarmRuntimeUI.h"
 #include "farm/ui/FarmHUD.h"
 #include "farm/system/FarmPlayFlow.h"
+#include "farm/system/FarmStartPresentationSystem.h"
 #include <cstdio>
 
 namespace farmui {
+inline void BuildFarmStartView(View& view, const FarmStartPresentationSystem::Frame& frame, const FarmHUDViewData& data) {
+    view.modal = view.starting = true;
+    view.cinematicBars = frame.bars;
+    view.cinematicCover = frame.cover;
+    using Subject = FarmStartPresentationSystem::Subject;
+    if (!frame.arrival) view.Add(frame.subject == Subject::Source ? Label::StartSource :
+        frame.subject == Subject::Canal ? Label::StartCanal : Label::StartFarm, {40, 22, 760, 42});
+    if (!frame.arrival || frame.showGoal) view.Metric(Label::TrialDay,
+        frame.arrival ? Rect{490, 130, 332, 42} : Rect{900, 22, 332, 42}, 170, std::to_string(data.day));
+    if (frame.showGoal) {
+        if (data.freeFarming || data.contestSeason)
+            view.Add(data.freeFarming ? Label::FreeGoal : Label::SeasonGoal, {40, 658, 960, 42});
+        else view.Metric(Label::TrialGoal, {40, 658, 960, 42}, 650, std::to_string(data.goalMoney) + "G");
+    }
+    view.Add(Label::StartSkip, {1024, 652, 216, 48}, {Action::StartSkip}, frame.canSkip);
+}
 inline void BuildPlayFlowView(View& view, FarmPlayFlow::Phase phase, const FarmHUDViewData& data) {
     view.modal = true;
     const bool result = phase == FarmPlayFlow::Phase::Result;
+    if (phase == FarmPlayFlow::Phase::Briefing) {
+        view.briefing = true;
+        view.Add(data.freeFarming ? Label::FreeMode : data.contestSeason ? Label::SeasonMode : Label::TrialStart,
+            {40, 28, 810, 44});
+        view.Metric(Label::TrialDay, {900, 28, 332, 44}, 170, std::to_string(data.day));
+        if (data.freeFarming || data.contestSeason)
+            view.Add(data.freeFarming ? Label::FreeGoal : Label::SeasonGoal, {40, 510, 1184, 42});
+        else view.Metric(Label::TrialGoal, {40, 510, 1184, 42}, 650, std::to_string(data.goalMoney) + "G");
+        view.Add(Label::TrialBegin, {40, 572, 570, 48}, {Action::FlowContinue});
+        view.Add(Label::Records, {630, 572, 602, 48}, {Action::FlowRecords});
+        view.Add(data.freeFarming ? Label::SeasonMode : Label::FreeMode, {40, 636, 570, 48},
+            {Action::ChangePlayMode, data.freeFarming ? 1 : 2});
+        view.Add(Label::Restart, {630, 636, 602, 48}, {Action::Restart});
+        return;
+    }
     view.Add(data.freeFarming ? Label::FreeMode : data.contestSeason ? Label::SeasonMode : result ? Label::TrialComplete : Label::TrialStart, {166, 66, 940, 52});
     view.Add(data.freeFarming ? Label::FreeGoal : data.contestSeason ? Label::SeasonGoal : Label::TrialGoal, {166, 130, 940, 42});
     char text[64]{};

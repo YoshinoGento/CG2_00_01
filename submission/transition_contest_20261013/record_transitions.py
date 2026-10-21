@@ -2,6 +2,7 @@
 import argparse
 import json
 from pathlib import Path
+import re
 import subprocess
 import time
 
@@ -15,9 +16,12 @@ def main():
     parser.add_argument("pid", type=int)
     parser.add_argument("--take", default="recording01")
     parser.add_argument("--seconds", type=int, default=90)
+    parser.add_argument("--window-exe", default="TransitionContestCapture.exe")
     args = parser.parse_args()
     if not 30 <= args.seconds <= 115 or Path(args.take).name != args.take:
         parser.error("Use a simple take name and 30..115 seconds (audio helper limit: 120)")
+    if re.fullmatch(r"[A-Za-z0-9_-]+\.exe", args.window_exe) is None:
+        parser.error("Use a simple ASCII executable name")
     work = OUT / args.take
     work.mkdir(exist_ok=False)
     with (work / "audio.log").open("w") as audio_log, (work / "video.log").open("w") as video_log:
@@ -35,7 +39,7 @@ def main():
             audio_start = int(values[0].split("=")[1]) / int(values[1].split("=")[1])
             video_launch = time.perf_counter()
             video = subprocess.Popen(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "warning", "-f", "lavfi",
-                "-i", "gfxcapture=window_exe=TransitionContestCapture.exe:capture_cursor=0:capture_border=0:max_framerate=30",
+                "-i", f"gfxcapture=window_exe={args.window_exe}:capture_cursor=0:capture_border=0:max_framerate=30",
                 "-vf", "hwdownload,format=bgra", "-t", str(args.seconds), "-an", "-c:v", "libx264", "-preset", "veryfast",
                 "-crf", "21", "-pix_fmt", "yuv420p", "-r", "30", "-fps_mode", "cfr", str(work / "video.mp4")],
                 stdout=video_log, stderr=subprocess.STDOUT)

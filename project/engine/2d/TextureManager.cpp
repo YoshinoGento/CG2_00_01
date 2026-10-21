@@ -127,7 +127,7 @@ void TextureManager::Finalize() {
     initialized_ = false;
 }
 
-Texture2DHandle TextureManager::LoadTexture2D(const std::string& filePath, Lifetime lifetime) {
+Texture2DHandle TextureManager::LoadTexture2D(const std::string& filePath, Lifetime lifetime, MipPolicy mipPolicy) {
     if (!initialized_ || !IsOwnerThread()) {
         Logger::Log("TextureManager::LoadTexture2D rejected. Manager is unavailable or called from a non-owner thread.");
         assert(initialized_ && IsOwnerThread());
@@ -139,7 +139,9 @@ Texture2DHandle TextureManager::LoadTexture2D(const std::string& filePath, Lifet
     }
 
     const std::filesystem::path path = std::filesystem::path(filePath).lexically_normal();
-    const std::wstring key = MakeCacheKey(path);
+    std::wstring key = MakeCacheKey(path);
+    // '|' is invalid in a Windows file name; policies cannot alias an actual path.
+    if (mipPolicy == MipPolicy::PreserveFile) key += L"|preserve-mips";
     if (const auto found = texture2DCache_.find(key); found != texture2DCache_.end()) {
 		if (TextureRecord* record = FindRecord(
 			found->second.Index(), found->second.Generation(), TextureKind::Texture2D);
@@ -150,7 +152,7 @@ Texture2DHandle TextureManager::LoadTexture2D(const std::string& filePath, Lifet
     }
 
     DirectX::ScratchImage image;
-    if (!LoadImage(path, TextureKind::Texture2D, image)) {
+    if (!LoadImage(path, TextureKind::Texture2D, image, mipPolicy)) {
         Logger::Log("TextureManager::LoadTexture2D used the fallback: " + filePath);
         return fallback2D_;
     }
@@ -381,7 +383,8 @@ std::wstring TextureManager::MakeCacheKey(const std::filesystem::path& filePath)
 bool TextureManager::LoadImage(
     const std::filesystem::path& filePath,
     TextureKind expectedKind,
-    DirectX::ScratchImage& outImage) const {
+    DirectX::ScratchImage& outImage,
+    MipPolicy mipPolicy) const {
     std::error_code error;
     if (!std::filesystem::is_regular_file(filePath, error) || error) {
         Logger::Log("TextureManager could not find a texture file: " + filePath.generic_string());
@@ -415,7 +418,8 @@ bool TextureManager::LoadImage(
         return false;
     }
 
-    if (expectedKind == TextureKind::Texture2D && metadata.mipLevels == 1 && metadata.width > 1 && metadata.height > 1) {
+    if (mipPolicy == MipPolicy::GenerateIfMissing && expectedKind == TextureKind::Texture2D &&
+        metadata.mipLevels == 1 && metadata.width > 1 && metadata.height > 1) {
         DirectX::ScratchImage mipChain;
         hr = DirectX::GenerateMipMaps(
             outImage.GetImages(),

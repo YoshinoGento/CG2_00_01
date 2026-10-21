@@ -16,6 +16,39 @@ int main() {
     const auto bit = scene::SoundBit;
     using scene::TransitionStyle;
     using scene::TransitionPhase;
+    for (bool pondEnabled : {false,true}) {
+        scene::SceneTransitionSystem mirror;
+        scene::PondRipplePath pond;
+        pond.enabled = pondEnabled;
+        for (int cycle=0; cycle<100; ++cycle) {
+            Check(mirror.GetFrame().presentationTime == 0);
+            Check(mirror.Begin({},scene::TransitionTarget::SceneReplacement,
+                TransitionSoundTheme::Water,TransitionStyle::Ripple,pond));
+            float previousTime = 0;
+            while (mirror.GetFrame().progress < 1) {
+                mirror.Update(.016f,false);
+                Check(mirror.GetFrame().presentationTime >= previousTime);
+                previousTime = mirror.GetFrame().presentationTime;
+            }
+            for (int wait=0; wait<10; ++wait) mirror.Update(.1f,false);
+            Check(mirror.GetFrame().presentationTime > previousTime+.9f);
+            Check(mirror.GetFrame().progress == 1);
+            previousTime = mirror.GetFrame().presentationTime;
+            Check(!mirror.BeginReveal());
+            mirror.NotifyCoverPresented();
+            Check(mirror.BeginReveal());
+            Check(mirror.GetFrame().presentationTime == previousTime);
+            mirror.Update(std::numeric_limits<float>::quiet_NaN(),false);
+            Check(mirror.GetFrame().presentationTime == previousTime);
+            while (mirror.GetFrame().phase == TransitionPhase::Revealing) {
+                mirror.Update(.016f,false);
+                Check(mirror.GetFrame().presentationTime >= previousTime);
+                previousTime = mirror.GetFrame().presentationTime;
+            }
+            mirror.Update(0,true);
+        }
+    }
+    std::cout << "Water mirror: 200 pond/screen cycles, continuous replacement time, held cover and reset PASS\n";
     scene::SceneTransitionSystem shop;
     Check(!shop.Begin({},scene::TransitionTarget::SceneReplacement,TransitionSoundTheme::SeedShop,TransitionStyle::ShopEnter));
     Check(!shop.Begin({},scene::TransitionTarget::ScreenPresentation,TransitionSoundTheme::SeedShop,static_cast<TransitionStyle>(99)));

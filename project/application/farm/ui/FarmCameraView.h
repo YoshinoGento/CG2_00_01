@@ -3,7 +3,8 @@
 
 namespace farmui {
 inline void BuildCameraView(View& view, bool followsPlayer, bool playerAvailable) {
-    view.Add(Label::Overview, {1040, 428, 216, 44}, {Action::Overview});
-    view.Add(Label::Follow, {1040, 480, 216, 44}, {Action::Follow}, playerAvailable, followsPlayer);
+    view.IconButton(Label::Overview, HUDIcon::Overview, HUDLayout::UtilitySlot(2), {Action::Overview}, true, !followsPlayer);
+    if (playerAvailable)
+        view.IconButton(Label::Follow, HUDIcon::Follow, HUDLayout::UtilitySlot(3), {Action::Follow}, true, followsPlayer);
 }
 }

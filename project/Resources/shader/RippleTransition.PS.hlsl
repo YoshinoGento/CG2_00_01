@@ -1,5 +1,6 @@
 #include "Sprite2D.hlsli"
 Texture2D<float4> sceneImage : register(t0);
+Texture2D<float4> outgoingImage : register(t1);
 SamplerState imageSampler : register(s0);
 cbuffer TransitionConstants : register(b0) {
     float2 center;
@@ -16,7 +17,7 @@ cbuffer TransitionConstants : register(b0) {
     float imageScale;
     float fadeOpacity;
     float shortFade;
-    float reserved;
+    float presentationTime;
     float4 pondFlight; // source UV, pond enabled, reserved
     float4 pondX, pondZ, pondDivisor;
 };
@@ -31,6 +32,11 @@ static const float kWipeEdge = 3;
 static const float kPondWipeEdge = 16;
 static const float kPondCoverOpacityStart = .20;
 static const float kPondCoverOpacityEnd = .58;
+static const float kMirrorBlurPixels = 3.5;
+static const float kMirrorTint = .10;
+static const float kMirrorRipplePixels = 3;
+static const float kMirrorRippleFrequency = .06;
+static const float kMirrorRippleSpeed = 6;
 float WipeRadius() {
     float maxRadius = length(max(center,1-center)*resolution)+kWipeMargin;
     // Reveal returns from the perimeter; its passed (outer) side exposes the next scene.
@@ -44,6 +50,27 @@ float WaveSlope(float distanceFromFront) {
 float3 ReadScene(float2 uv) {
     float2 halfTexel = .5/resolution;
     return sceneImage.SampleLevel(imageSampler,clamp(uv,halfTexel,1-halfTexel),0).rgb;
+}
+float3 ReadMirror(float2 uv) {
+    float2 halfTexel = .5/resolution;
+    return outgoingImage.SampleLevel(imageSampler,clamp(uv,halfTexel,1-halfTexel),0).rgb;
+}
+float3 WaterMirror(float2 uv, float2 rippleDisplacement) {
+    // Screen-space water, not a physical reflection camera; retain the outgoing view at the seam.
+    float2 drift = float2(sin(uv.y*32+presentationTime*2.3)*3+sin(uv.y*71-presentationTime*1.7),
+        sin(uv.x*27-presentationTime*1.4)*1.8);
+    // Residual radial waves keep travelling while the scene-load gate holds the wipe at full cover.
+    float2 radial = (uv-center)*resolution;
+    float distanceFromCenter = length(radial);
+    drift += radial/max(distanceFromCenter,1)*sin(distanceFromCenter*kMirrorRippleFrequency-
+        presentationTime*kMirrorRippleSpeed)*kMirrorRipplePixels/(1+distanceFromCenter*.001);
+    float2 sampleUv = uv+(drift+rippleDisplacement)/resolution;
+    float2 offset = kMirrorBlurPixels/resolution;
+    float3 reflection = ReadMirror(sampleUv)*.4+
+        (ReadMirror(sampleUv+float2(offset.x,0))+ReadMirror(sampleUv-float2(offset.x,0))+
+         ReadMirror(sampleUv+float2(0,offset.y))+ReadMirror(sampleUv-float2(0,offset.y)))*.15;
+    // Multiplicative tint preserves night/day luminance instead of adding a bright blue veil.
+    return lerp(reflection,reflection*float3(.78,.96,1),kMirrorTint);
 }
 float PondMask(float2 uv) {
     float3 screen = float3(uv,1);
@@ -62,10 +89,9 @@ float4 main(VertexShaderOutput input) : SV_Target0 {
         const float3 image = any(uv < 0) || any(uv > 1) ? fadeColor : ReadScene(uv);
         return float4(lerp(image,fadeColor,opacity),1);
     }
-    const float3 water = float3(.012,.028,.035);
-    // These endpoints must be opaque across scene resource replacement.
+    // Alpha stays opaque; retained scene pixels replace the old solid-color cover.
     if (transitioning > .5 && ((revealing < .5 && progress >= 1) || (revealing > .5 && progress <= 0)))
-        return float4(water,1);
+        return float4(WaterMirror(input.texcoord,0),1);
     if (transitioning > .5 && revealing > .5 && progress >= 1)
         return float4(ReadScene(input.texcoord),1);
     float2 pixel = input.texcoord*resolution;
@@ -153,6 +179,7 @@ float4 main(VertexShaderOutput input) : SV_Target0 {
             // Let the reflected image carry the first three fronts before the opaque cover develops.
             inside *= smoothstep(kPondCoverOpacityStart,kPondCoverOpacityEnd,progress);
         }
+        float3 water = WaterMirror(input.texcoord,displacement);
         color = lerp(color,water,inside);
     }
     return float4(color,1);

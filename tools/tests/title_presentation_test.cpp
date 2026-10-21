@@ -334,14 +334,18 @@ int main() {
     Check(!system.ConsumeStart());
     system.RequestStart();
     Check(system.IsLeaving() && system.GetFrame().leaving);
+    Check(system.GetFrame().uiAlpha == 1.0f);
     Check(system.ConsumeStart()); // Manager, not Title, waits for the opaque cover.
     Check(!system.ConsumeStart());
     system.Update(0.25f);
+    Check(system.GetFrame().uiAlpha == 0.0f && system.GetFrame().promptAlpha == 0.0f);
     system.RequestStart();
     for (int i=0; i<4; ++i) system.Update(0.25f);
     Check(!system.ConsumeStart());
     Check(!system.ConsumeStart());
     Check(system.GetFrame().fadeAlpha == 1.0f);
+    Check(system.GetFrame().uiAlpha == 0.0f);
+    for (const auto& ripple : system.GetFrame().logoRipples) Check(ripple.alpha == 0.0f);
     Check(system.GetFrame().audio.water == 0);
     for (float gain : system.GetFrame().audio.ambience) Check(gain == 0);
     Check(system.Initialize());
@@ -356,6 +360,16 @@ int main() {
     Check(system.Initialize());
     system.Update(10000.0f);
     Check(system.GetFrame().skyFrom == 0 && system.GetFrame().skyBlend < 0.01f);
+    Check(system.Initialize(1,2));
+    const auto initialTitle = system.GetFrame();
+    Check(initialTitle.entryFadeAlpha == 1);
+    system.CompleteEntryFade();
+    system.CompleteEntryFade();
+    const auto restoredTitle = system.GetFrame();
+    Check(restoredTitle.entryFadeAlpha == 0 && restoredTitle.fadeAlpha == 0);
+    Check(restoredTitle.skyBlend == initialTitle.skyBlend && restoredTitle.promptAlpha == initialTitle.promptAlpha);
+    Check(restoredTitle.grassPhase == initialTitle.grassPhase && !system.IsLeaving());
+    Check(system.Initialize(1,2) && system.GetFrame().entryFadeAlpha == 1);
     title::TitlePresentationSystem twin, other;
     Check(system.Initialize(123) && twin.Initialize(123) && other.Initialize(456));
     float previousOffset = 0;

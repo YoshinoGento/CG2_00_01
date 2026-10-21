@@ -1,0 +1,21 @@
+{
+  "triangles": {
+    "scenery": 2028,
+    "leaf": 192,
+    "drop": 200,
+    "wet": 32,
+    "tools_wood": 84,
+    "tools_metal": 476,
+    "packet_carrot": 2,
+    "packet_tomato": 2,
+    "packet_pumpkin": 2
+  },
+  "grassInstances": 384,
+  "plotKeepout": [
+    -4,
+    4,
+    4.7,
+    11.3
+  ],
+  "authorship": "Original procedural geometry and impact sound; existing project countryside/packet textures and grass models reused."
+}

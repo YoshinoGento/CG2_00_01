@@ -39,13 +39,27 @@ int main() {
     int clicks = 0;
     for (int y=0; y<=12; ++y) for (int x=0; x<=16; ++x) {
         Check(system.Initialize(path));
-        Check(system.RequestStart(Vector2{x*80.0f,y*60.0f}));
+        const Vector2 pointer{x*80.0f,y*60.0f};
+        if (!system.RequestStart(pointer)) {
+            Check(!system.GetStartPath().enabled);
+            // No visible water below this pixel: ignore, do not bend the flight sideways.
+            for(int row=y*60; row<720; ++row) {
+                const auto p=system.MapToPond({pointer.x/1280,row/720.0f});
+                Check(x==0 || x==16 || !p || std::hypot(p->x,p->y)>=.994f);
+            }
+            continue;
+        }
         const auto& route = system.GetStartPath();
         Check(route.enabled);
         const Vector2 hit{route.impact.x,route.impact.y};
         Check(hit.x>0 && hit.x<1 && hit.y>0 && hit.y<1);
         const auto water = system.MapToPond(hit);
-        Check(water && std::hypot(water->x,water->y)<.80f);
+        Check(water && std::hypot(water->x,water->y)<.995f);
+        Check(route.start.x==route.impact.x && route.start.y<route.impact.y);
+        Check(std::abs(route.impact.x-pointer.x/1280)<.00001f);
+        const auto clicked=system.MapToPond({pointer.x/1280,pointer.y/720});
+        if(clicked && std::hypot(clicked->x,clicked->y)<.994f)
+            Check(std::abs(route.impact.y-pointer.y/720)<.00001f);
         Check(!system.RequestStart(Vector2{640,360}));
         scene::SceneTransitionSystem transition;
         Check(transition.Begin({},scene::TransitionTarget::SceneReplacement,
@@ -72,6 +86,19 @@ int main() {
         ++clicks;
     }
     Check(system.Initialize(path) && system.RequestStart());
+    int exactHits=0;
+    for(int y=1;y<72;++y) for(int x=1;x<128;++x) {
+        Check(system.Initialize(path));
+        const Vector2 uv{x/128.0f,y/72.0f};
+        const auto p=system.MapToPond(uv);
+        if(!p || std::hypot(p->x,p->y)>=.994f) continue;
+        Check(system.RequestStart(Vector2{uv.x*1280,uv.y*720}));
+        const auto hit=system.GetStartPath().impact;
+        Check(std::abs(hit.x-uv.x)<.00001f && std::abs(hit.y-uv.y)<.00001f);
+        ++exactHits;
+    }
+    Check(exactHits>100);
+    Check(system.Initialize(path));
     title::Frame frame;
     frame.nightAmount = 1;
     system.Update(.25f,frame);

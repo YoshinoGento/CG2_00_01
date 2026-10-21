@@ -19,6 +19,7 @@ void SceneManager::DeleteInstance() {
 }
 
 SceneManager::~SceneManager() {
+    loading_.Cancel();
 	if (scene_) scene_->Finalize();
 	// unique_ptr なので手動の delete は不要です
 }
@@ -28,6 +29,24 @@ SceneManager::~SceneManager() {
  * 予約された次のシーン（nextScene_）がある場合、入れ替えを行います。
  */
 void SceneManager::BeginFrame() {
+    if (loading_.GetStatus() == scene::SceneLoadSystem::Status::Loading) {
+        loading_.Advance();
+        if (loading_.GetStatus() == scene::SceneLoadSystem::Status::Loading) return;
+        const auto& metrics = loading_.GetMetrics();
+        Logger::Log("SceneLoad: frames=" + std::to_string(metrics.frames) +
+            ", steps=" + std::to_string(metrics.steps) + ", workMs=" + std::to_string(metrics.workMs) +
+            ", longestStepMs=" + std::to_string(metrics.longestStepMs) + "\n");
+        for (const auto& sample : metrics.slowest) {
+            if (sample.index) Logger::Log("SceneLoad step=" + std::to_string(sample.index) +
+                ", ms=" + std::to_string(sample.milliseconds) + "\n");
+        }
+        if (loading_.GetStatus() == scene::SceneLoadSystem::Status::Failed) {
+            Logger::Warning("Scene initialization failed; closing before exposing partial resources.");
+            PostQuitMessage(1);
+            return;
+        }
+        transition_.BeginReveal();
+    }
 	if (scene_ && transition_.ConsumeScreenChange()) {
 		scene_->OnScreenTransitionCovered();
 		transition_.BeginReveal();
@@ -44,26 +63,29 @@ void SceneManager::BeginFrame() {
 		nextScene_ = nullptr;
 
 		scene_->SetSceneManager(this);
-		scene_->Initialize();
-		if (transition_.CanSwap()) transition_.BeginReveal();
-		else transition_.ClearDrops();
+        if (transition_.CanSwap()) {
+            loading_.Begin(scene_->InitializeIncrementally());
+        } else {
+            scene_->Initialize();
+            transition_.ClearDrops();
+        }
 	}
 }
 
 void SceneManager::FixedUpdate(float fixedDeltaTime) {
-	if (scene_ && !transition_.IsActive()) {
+	if (GetCurrentScene() && !transition_.IsActive()) {
 		scene_->FixedUpdate(fixedDeltaTime);
 	}
 }
 
 void SceneManager::PrepareFixedUpdate() {
-	if (scene_ && !transition_.IsActive()) {
+	if (GetCurrentScene() && !transition_.IsActive()) {
 		scene_->PrepareFixedUpdate();
 	}
 }
 
 void SceneManager::Update() {
-	if (scene_) {
+	if (GetCurrentScene()) {
 		if (!transition_.IsActive()) scene_->Update();
 		else if (transition_.IsCovering()) scene_->UpdateTransitionPresentation();
 	}
@@ -79,7 +101,7 @@ void SceneManager::Update() {
 }
 
 void SceneManager::Draw() {
-	if (scene_) {
+	if (GetCurrentScene()) {
 		scene_->Draw();
 	}
 	if (transitionRenderer_.Draw(transition_.GetFrame())) transition_.NotifyCoverPresented();

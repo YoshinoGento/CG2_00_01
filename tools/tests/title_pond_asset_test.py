@@ -89,8 +89,8 @@ assert "pondFlight.z > .5 ? WipeRadius()" in shader
 assert "inside *= smoothstep(kPondCoverOpacityStart,kPondCoverOpacityEnd,progress)" in shader
 scene = (ROOT/"project/application/scene/TitleScene.cpp").read_text()
 assert "pondReady_ = pondLayoutReady && worldReady" in scene
-assert "if (pondReady_) pond_.RequestStart();" in scene
-assert "if (pondReady_) pond_.RequestStart(settings_.GetWaterClick());" in scene
+assert "if (!pondReady_ || pond_.RequestStart()) presentation_.RequestStart();" in scene
+assert "if (!pondReady_ || pond_.RequestStart(settings_.GetWaterClick())) presentation_.RequestStart();" in scene
 assert "if (pondReady_) pondRenderer_.Draw(pond_.GetFrame(),renderer_.GetReflectionSrv());" in scene
 for name in ("TitleReflectionRenderer.cpp","TitleReflectionRenderer.h","TitleReflection.hlsli","TitleReflection.VS.hlsl","TitleReflection.PS.hlsl","TitleGrassReflection.PS.hlsl","reflection_scenery.obj"):
     assert sum(p.endswith(name) for p in entries)==1

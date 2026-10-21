@@ -61,13 +61,13 @@ inline void BuildTerrainView(View& view, const TerrainViewState& state) {
 
 inline void BuildPlayQuickView(View& view, bool paused, bool canEdit, bool canControlTime = true,
     float timeScale = 1.0f) {
-    view.Add(Label::Terrain, {350, 24, 178, 44}, {Action::TerrainField}, canEdit);
-    view.Add(!canControlTime ? Label::Paused : paused ? Label::Play : Label::Pause,
-        {536, 24, 146, 44}, {Action::Pause}, canControlTime);
+    view.IconButton(Label::Terrain, HUDIcon::Terrain, {260, 24, 52, 52}, {Action::TerrainField}, canEdit);
+    view.IconButton(!canControlTime ? Label::Paused : paused ? Label::Play : Label::Pause,
+        paused ? HUDIcon::Play : HUDIcon::Pause, {328, 24, 52, 52}, {Action::Pause}, canControlTime);
     constexpr std::array labels{Label::SpeedCompact1, Label::SpeedCompact2, Label::SpeedCompact4};
     constexpr std::array speeds{1, 2, 4};
     for (std::size_t i = 0; i < speeds.size(); ++i)
-        view.Add(labels[i], {690.0f + static_cast<float>(i) * 60.0f, 24, 56, 44},
+        view.Add(labels[i], {392.0f + static_cast<float>(i) * 60.0f, 30, 56, 40},
             {Action::Speed, speeds[i]}, canControlTime,
             canControlTime && !paused && timeScale == static_cast<float>(speeds[i]));
 }
@@ -76,32 +76,32 @@ inline void BuildWaterGuidanceView(View& view, const FarmWaterGuidance& state, b
     bool canSetIrrigation = false) {
     if (!state.visible) return;
     view.waterGuidance = true;
-    Label supply = Label::SupplyNone;
-    if (state.intakeClosed) supply = Label::IntakeClosed;
+    Label supply = Label::SupplyNoneShort;
+    if (state.intakeClosed) supply = Label::IntakeClosedShort;
     else switch (state.supply) {
-    case farm::FarmWaterStatus::Available: supply = Label::SupplyAvailable; break;
-    case farm::FarmWaterStatus::Retained: supply = Label::SupplyRetained; break;
-    case farm::FarmWaterStatus::Waiting: supply = Label::SupplyWaiting; break;
-    case farm::FarmWaterStatus::Dry: supply = Label::SupplyDry; break;
+    case farm::FarmWaterStatus::Available: supply = Label::SupplyAvailableShort; break;
+    case farm::FarmWaterStatus::Retained: supply = Label::SupplyRetainedShort; break;
+    case farm::FarmWaterStatus::Waiting: supply = Label::SupplyWaitingShort; break;
+    case farm::FarmWaterStatus::Dry: supply = Label::SupplyDryShort; break;
     default: break;
     }
-    Label advice = Label::WaterAdviceUnknown;
+    Label advice = Label::WaterAdviceUnknownShort;
     switch (state.advice) {
-    case FarmWaterAdvice::Till: advice = Label::WaterAdviceTill; break;
-    case FarmWaterAdvice::Plant: advice = Label::WaterAdvicePlant; break;
-    case FarmWaterAdvice::Harvest: advice = Label::WaterAdviceHarvest; break;
-    case FarmWaterAdvice::Water: advice = Label::WaterAdviceWater; break;
-    case FarmWaterAdvice::CheckSupply: advice = Label::WaterAdviceSupply; break;
-    case FarmWaterAdvice::CloseIntake: advice = Label::WaterAdviceClose; break;
-    case FarmWaterAdvice::AvoidWater: advice = Label::WaterAdviceAvoid; break;
-    case FarmWaterAdvice::Monitor: advice = Label::WaterAdviceMonitor; break;
+    case FarmWaterAdvice::Till: advice = Label::WaterAdviceTillShort; break;
+    case FarmWaterAdvice::Plant: advice = Label::WaterAdvicePlantShort; break;
+    case FarmWaterAdvice::Harvest: advice = Label::WaterAdviceHarvestShort; break;
+    case FarmWaterAdvice::Water: advice = Label::WaterAdviceWaterShort; break;
+    case FarmWaterAdvice::CheckSupply: advice = Label::WaterAdviceSupplyShort; break;
+    case FarmWaterAdvice::CloseIntake: advice = Label::WaterAdviceCloseShort; break;
+    case FarmWaterAdvice::AvoidWater: advice = Label::WaterAdviceAvoidShort; break;
+    case FarmWaterAdvice::Monitor: advice = Label::WaterAdviceMonitorShort; break;
     default: break;
     }
-    view.Add(supply, {390, 448, 628, 38}, {Action::TerrainField}, canEdit);
+    view.Add(supply, {24, 460, 252, 38}, {Action::TerrainField}, canEdit);
     const auto adviceIndex = view.count;
-    view.Add(advice, {390, 496, 486, 38});
+    view.Add(advice, {24, 502, 314, 38});
     if (view.count > adviceIndex) view.items[adviceIndex].warning = state.HasExcessMoisture();
-    view.Add(state.intakeClosed ? Label::IntakeOn : Label::IntakeOff, {888, 496, 130, 38},
+    view.IconButton(state.intakeClosed ? Label::IntakeOn : Label::IntakeOff, HUDIcon::Canal, {284, 460, 54, 38},
         {Action::SetIrrigation, state.intakeClosed ? 1 : 0}, canEdit && canSetIrrigation,
         state.advice == FarmWaterAdvice::CloseIntake);
 }

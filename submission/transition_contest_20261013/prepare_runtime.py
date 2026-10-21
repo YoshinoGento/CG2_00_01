@@ -32,7 +32,7 @@ def build():
     pinned.main()
 
 
-def package():
+def package(document_root=None):
     require(not TARGET.exists() and not ARCHIVE.exists() and not QA.exists(), "Refusing overwrite")
     before = original_saves()
     prep.write_json(OUT / "original_saves.json", before)
@@ -83,7 +83,7 @@ def package():
     notices["binaries"] = {p.name: prep.digest(p) for p in TARGET.iterdir() if p.suffix in {".exe", ".dll"}}
     prep.write_json(TARGET / "Licenses/SOURCES.json", notices)
     for name in ("README.txt", "CREDITS.txt", "StartGame.cmd"):
-        prep.copy_file(Path(__file__).parent / name, TARGET / name)
+        prep.copy_file((document_root or Path(__file__).parent) / name, TARGET / name)
     clips = json.loads((TARGET / "Resources/transition/audio/manifest.json").read_text())
     require(len(clips["clips"]) == 7, "All transition cues required")
     for clip in clips["clips"]:

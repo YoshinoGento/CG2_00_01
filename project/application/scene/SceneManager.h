@@ -5,6 +5,7 @@
 #include "SceneTransitionSystem.h"
 #include "RippleTransitionRenderer.h"
 #include "TransitionAudioSystem.h"
+#include "SceneLoadSystem.h"
 
 class AbstractSceneFactory;
 enum class ScreenTransitionResult { Started, Unavailable, Busy };
@@ -24,6 +25,7 @@ private:
 	scene::SceneTransitionSystem transition_;
 	scene::RippleTransitionRenderer transitionRenderer_;
 	scene::TransitionAudioSystem transitionAudio_;
+    scene::SceneLoadSystem loading_;
 
 	SceneManager() = default;
 	~SceneManager();
@@ -44,9 +46,10 @@ public:
 		scene::TransitionSoundTheme sound = scene::TransitionSoundTheme::Water,
 		scene::TransitionStyle style = scene::TransitionStyle::Ripple);
 	void PreviewWaterDrop(scene::RipplePoint origin) { transition_.AddDrop(origin); }
+    [[nodiscard]] bool IsTransitionCoverPresented() const noexcept { return transition_.CanSwap(); }
 
 	// ★追加: 現在実行中のシーンを取得する（GameクラスでのUI表示に必要）
-	BaseScene* GetCurrentScene() const { return scene_.get(); }
+	BaseScene* GetCurrentScene() const { return loading_.BlocksScene() ? nullptr : scene_.get(); }
 
 	// ★引数を unique_ptr にし、所有権を受け取る（std::move）ように変更
 	void SetNextScene(std::unique_ptr<BaseScene> nextScene) {

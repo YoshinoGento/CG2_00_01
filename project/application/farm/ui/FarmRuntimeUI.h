@@ -1,6 +1,8 @@
 #pragma once
+#include "base/InitializationTask.h"
 #include "farm/ui/FarmRuntimeLabels.h"
-#include "farm/ui/FarmItemIcons.h"
+#include "farm/ui/FarmHUDLayout.h"
+#include "farm/ui/FarmHUDIcons.h"
 #include "2d/Sprite.h"
 #include <array>
 #include <algorithm>
@@ -12,31 +14,16 @@ namespace farmui {
 enum class Action {
     None, Menu, Close, Tab, Tool, Crop, Buy, Sell, SellAll,
     Raise, Lower, Canal, Source, Path, RemovePath, Confirm, Cancel, Undo, Redo, SetIrrigation,
-    Save, SaveCopy, Load, Previous, Next, Restart, Accept,
+    Save, SaveCopy, Load, Previous, Next, Restart, Accept, ReturnTitle,
     PinA, PinB, Start, Stop, Clear, Pause, Speed, Follow, Overview, Exit, LayoutLibrary,
     ObserveField, ObserveExit, PickSlot, JumpSlot, FlowContinue, FlowRecords,
     ApplyTool, OpenSeedShop, BuyAndReturn, SoilCare, Compost, Quality, TerrainField, TerrainExit,
     HarvestInventory, HarvestPage, ProtectHarvest, UnprotectHarvest, ReserveContestHarvest, CancelContestReservation,
     ContestPreview, SubmitContest, ContestResults, ContestDayReview, ContestDayPrepare, ContestDayResume, ChangePlayMode,
     ShopSelect, ShopQuantity, ShopReview, ShopConfirm, ShopCancel, ShopClose,
-    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage, EquipSeed
+    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage, StartSkip
 };
 struct Request { Action action = Action::None; int argument = 0; std::uint64_t inventoryGeneration = 0; };
-struct Rect {
-    float x = 0, y = 0, width = 0, height = 0;
-    [[nodiscard]] bool Contains(Vector2 p) const noexcept {
-        return p.x >= x && p.y >= y && p.x < x + width && p.y < y + height;
-    }
-};
-struct ItemHotbarLayout {
-    inline static constexpr Rect panel{408, 576, 592, 120};
-    inline static constexpr Rect caption{420, 578, 568, 32};
-    inline static constexpr std::size_t slotCount = 6;
-    [[nodiscard]] static constexpr Rect Slot(std::size_t index) noexcept {
-        if (index >= slotCount) return {};
-        return {430.0f + 90.0f * static_cast<float>(index) + (index >= 3 ? 16.0f : 0.0f), 616, 80, 72};
-    }
-};
 struct Item {
     Label label = Label::Menu;
     Rect rect{};
@@ -48,8 +35,15 @@ struct Item {
     float valueOffset = 540;
     bool darkInk = false;
     bool warning = false;
-    ItemIcon icon = ItemIcon::None;
+    HUDIcon icon = HUDIcon::None;
 };
+[[nodiscard]] inline Rect IconCaptionRect(const Item& item) noexcept {
+    const auto index = static_cast<std::size_t>(item.label);
+    if (index >= kLabels.size()) return {};
+    const float width = (std::min)(360.0f, kLabels[index].width * 0.78f + 24);
+    // One reserved caption line keeps hover names off the field and other controls.
+    return {640.0f-width*0.5f, 576, width, 38};
+}
 struct QualityRadar {
     bool visible = false;
     std::array<float, 4> values{};
@@ -75,6 +69,10 @@ struct View {
     std::array<Item, kCapacity> items{};
     std::size_t count = 0;
     bool modal = false;
+    bool briefing = false;
+    bool starting = false;
+    float cinematicBars = 1.0f;
+    float cinematicCover = 0.0f;
     bool seedShop = false;
     bool harvestDisplay = false;
     int counterSelection = -1;
@@ -84,21 +82,29 @@ struct View {
     bool fieldActions = false;
     bool feedback = false;
     bool waterGuidance = false;
-    bool itemHotbar = false;
+    bool compactHUD = false;
+    bool hotbarVisible = false;
+    bool selectedTile = false;
+    bool goalVisible = false;
     QualityRadar radar{};
     inline static constexpr Rect kFeedbackPanel{352, 82, 504, 92};
-    inline static constexpr Rect kFieldActionsPanel{1040, 532, 216, 112};
-    inline static constexpr Rect kWaterGuidancePanel{390, 448, 628, 86};
+    inline static constexpr Rect kFieldActionsPanel = HUDLayout::fieldActions;
+    inline static constexpr Rect kWaterGuidancePanel = HUDLayout::waterGuidance;
     inline static constexpr Rect kObservationTop{16, 16, 1248, 52};
     inline static constexpr Rect kObservationBottom{16, 408, 1248, 280};
     inline static constexpr Rect kTerrainTop{16, 16, 1248, 96};
     inline static constexpr Rect kTerrainBottom{16, 520, 1248, 184};
-    inline static constexpr std::array<Rect, 4> kFarmHudPanels{{
-        {24, 24, 310, 132}, {876, 24, 380, 228}, {24, 520, 350, 176}, ItemHotbarLayout::panel
-    }};
+    inline static constexpr auto kFarmHudPanels = HUDLayout::panels;
     std::array<std::string, 2> recordNames{};
     void Add(Label label, Rect rect, Request request = {}, bool enabled = true, bool selected = false) {
         if (count < items.size()) items[count++] = {label, rect, request, enabled, selected, {}};
+    }
+    void IconButton(Label label, HUDIcon icon, Rect rect, Request request,
+        bool enabled = true, bool selected = false, std::string badge = {}) {
+        if (count >= items.size()) return;
+        Add(label, rect, request, enabled, selected);
+        items[count - 1].icon = icon;
+        items[count - 1].value = std::move(badge);
     }
     void Value(Label label, float y, std::string value) {
         if (count < items.size()) items[count++] = {label, {176, y, 900, 38}, {}, true, false, std::move(value)};
@@ -108,15 +114,19 @@ struct View {
         items[count++] = {label, rect, {}, true, false, std::move(value), false, offset};
     }
     [[nodiscard]] bool Covers(Vector2 point) const noexcept {
+        if (compactHUD && (HUDLayout::status.Contains(point) || HUDLayout::economy.Contains(point) ||
+            (hotbarVisible && HUDLayout::tools.Contains(point)) || (selectedTile && HUDLayout::selected.Contains(point)) ||
+            (goalVisible && HUDLayout::goal.Contains(point)))) return true;
         if (modal || (observation && (kObservationTop.Contains(point) || kObservationBottom.Contains(point))) ||
             (terrain && (kTerrainTop.Contains(point) || kTerrainBottom.Contains(point))) ||
             (fieldActions && kFieldActionsPanel.Contains(point)) ||
             (waterGuidance && kWaterGuidancePanel.Contains(point)) ||
-            (feedback && kFeedbackPanel.Contains(point)) ||
-            (itemHotbar && ItemHotbarLayout::panel.Contains(point))) return true;
+            (feedback && kFeedbackPanel.Contains(point))) return true;
         // Disabled controls and labels still own their screen area.
         for (std::size_t i = 0; i < count && i < items.size(); ++i)
-            if (items[i].rect.Contains(point)) return true;
+            if (items[i].rect.Contains(point) ||
+                (compactHUD && items[i].selected && items[i].request.action == Action::Tool &&
+                    IsValidIcon(items[i].icon) && IconCaptionRect(items[i]).Contains(point))) return true;
         return false;
     }
     [[nodiscard]] Request Hit(Vector2 point) const noexcept {
@@ -146,19 +156,21 @@ struct View {
 class RuntimeUI final {
 public:
     bool Initialize(SpriteCommon* common);
+    InitializationTask InitializeIncrementally(SpriteCommon* common);
     void PrepareNames(const View& view);
     void Draw(const View& view, Vector2 pointer);
 private:
     void Panel(Rect rect, Vector4 color);
     void LabelQuad(Label label, Rect rect, Vector4 color);
-    void ValueText(const std::string& value, Vector2 position, float right, Vector4 color = {1.0f, 0.87f, 0.50f, 1});
+    void ValueText(const std::string& value, Vector2 position, float right,
+        Vector4 color = {1.0f, 0.87f, 0.50f, 1}, float scale = 1.0f);
+    void IconQuad(HUDIcon icon, Rect rect, Vector4 color);
     void DrawRadar(const QualityRadar& radar);
-    void IconQuad(ItemIcon icon, Rect rect, Vector4 color);
-    std::array<Sprite, 64> panels_{};
-    std::array<Sprite, ItemHotbarLayout::slotCount> itemIcons_{};
+    std::array<Sprite, 84> panels_{};
     std::array<Sprite, 40> labels_{};
     std::array<Sprite, 160> digits_{};
     std::array<Sprite, 28> radarLines_{};
+    std::array<Sprite, View::kCapacity> icons_{};
     std::array<Sprite, 4> seedPackets_{};
     // Distinct per displayed slot: do not rewrite a submitted Sprite constant buffer.
     std::array<Sprite, 8> harvestFigures_{};
@@ -167,5 +179,6 @@ private:
     bool namesReady_ = false;
     std::size_t panelCount_ = 0, labelCount_ = 0, digitCount_ = 0, iconCount_ = 0;
     bool ready_ = false;
+    float opacity_ = 1.0f;
 };
 }

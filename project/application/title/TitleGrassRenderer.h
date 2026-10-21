@@ -16,7 +16,8 @@ public:
     ~TitleGrassRenderer() { Finalize(); }
     TitleGrassRenderer(const TitleGrassRenderer&) = delete;
     TitleGrassRenderer& operator=(const TitleGrassRenderer&) = delete;
-    bool Initialize(Object3dCommon* common, ModelManager* models);
+    bool Initialize(Object3dCommon* common, ModelManager* models,
+        const char* layoutPath = "Resources/title/grass_layout.json");
     void Update(const Frame& frame, const Camera& camera) noexcept;
     void DrawShadow();
     void Draw();

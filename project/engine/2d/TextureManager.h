@@ -57,6 +57,7 @@ private:
 
 class TextureManager final {
 public:
+	enum class MipPolicy : uint8_t { GenerateIfMissing, PreserveFile };
 	enum class Lifetime : uint8_t {
 		Scene,
 		Global,
@@ -82,7 +83,8 @@ public:
 
     [[nodiscard]] Texture2DHandle LoadTexture2D(
 		const std::string& filePath,
-		Lifetime lifetime = Lifetime::Scene);
+		Lifetime lifetime = Lifetime::Scene,
+		MipPolicy mipPolicy = MipPolicy::GenerateIfMissing);
     [[nodiscard]] TextureCubeHandle LoadTextureCube(
 		const std::string& filePath,
 		Lifetime lifetime = Lifetime::Scene);
@@ -127,7 +129,8 @@ private:
     [[nodiscard]] bool LoadImage(
         const std::filesystem::path& filePath,
         TextureKind expectedKind,
-        DirectX::ScratchImage& outImage) const;
+        DirectX::ScratchImage& outImage,
+        MipPolicy mipPolicy = MipPolicy::GenerateIfMissing) const;
     [[nodiscard]] bool CreateFallbackTextures();
     [[nodiscard]] bool RegisterTexture(
         DirectX::ScratchImage& image,

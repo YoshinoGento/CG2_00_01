@@ -43,6 +43,7 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	materialData_->environmentCoefficient = 0.0f;
 	materialData_->specularType = static_cast<int32_t>(Object3d::SpecularType::BlinnPhong);
 	materialData_->uvTransform = MatrixMath::MakeIdentity4x4();
+	materialData_->surfaceDetail = {1.0f, 0.0f, 0.0f, 0.0f};
 
 	transformationMatrixResource_ = dxCommon->CreateBufferResource(sizeof(TransformationMatrix));
 	transformationMatrixResource_->Map(0, nullptr, (void**)&transformationMatrixData_);
@@ -52,6 +53,15 @@ void Object3d::Initialize(Object3dCommon* object3dCommon) {
 	*transformationMatrixData_ = { identity, identity, identity };
 	*shadowTransformationMatrixData_ = { identity, identity, identity };
 
+}
+
+bool Object3d::SetSurfaceDetail(const Vector4& detail) {
+	if (!materialData_ || !std::isfinite(detail.x) || !std::isfinite(detail.y) ||
+		!std::isfinite(detail.z) || !std::isfinite(detail.w)) { return false; }
+	materialData_->surfaceDetail = {
+		std::clamp(detail.x, 0.0f, 1.0f), std::clamp(detail.y, 0.0f, 0.5f),
+		std::clamp(detail.z, 0.0f, 64.0f), std::clamp(detail.w, 0.0f, 0.3f)};
+	return true;
 }
 
 void Object3d::Update(Camera* camera) {

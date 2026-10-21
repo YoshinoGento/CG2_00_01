@@ -6,6 +6,7 @@
 #include "3d/Skeleton.h"
 #include "2d/TextureManager.h"
 #include <cstdint>
+#include <cstddef>
 #include <optional>
 #include <wrl.h>
 #include <d3d12.h>
@@ -56,6 +57,8 @@ public:
 	void SetCullMode(int cullMode);
 	void SetShininess(float shininess) { materialData_->shininess = shininess; }
 	void SetSpecularType(SpecularType type) { materialData_->specularType = static_cast<int32_t>(type); }
+	// x: specular gain, y: grain contrast, z: cells/world-unit, w: normal variation.
+	bool SetSurfaceDetail(const Vector4& detail);
 
 
 	// 平行光源の設定
@@ -105,8 +108,10 @@ private:
 		float environmentCoefficient;
 		int32_t specularType;
 		Matrix4x4 uvTransform;
+		Vector4 surfaceDetail;
 	};
-	static_assert(sizeof(Material) == 96);
+	static_assert(offsetof(Material, surfaceDetail) == 96);
+	static_assert(sizeof(Material) == 112);
 
 	// GPUに送るための頂点スキンデータ
 	struct VertexShaderSkinning
