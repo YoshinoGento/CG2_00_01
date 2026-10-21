@@ -46,7 +46,8 @@ if (!$VerifyOnly) {
     Copy-Item -LiteralPath (Join-Path $root 'generated/outputs/Release/CG2_00_01.exe') -Destination $exe -Force
     Copy-Item -LiteralPath (Join-Path $root 'project/Resources/shader') -Destination (Join-Path $runtime 'Resources') -Recurse -Force
     foreach ($path in @('title/countryside.obj','title/reflection_scenery.obj','title/pond_shore.obj',
-        'title/countryside_mesh.json','farm/arrival/scenery.obj','farm/arrival/manifest.json')) {
+        'title/countryside_mesh.json','farm/arrival/scenery.obj','farm/arrival/manifest.json',
+        'farm/arrival/grass_layout.json')) {
         Copy-Item -LiteralPath (Join-Path $root "project/Resources/$path") -Destination (Join-Path $runtime "Resources/$path") -Force
     }
 }

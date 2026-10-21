@@ -1,13 +1,13 @@
 {
-  "triangles": 10214,
+  "triangles": 9656,
   "sections": {
     "ground": 1280,
     "road": 52,
     "road_median": 52,
     "road_verge": 104,
     "road_posts": 36,
-    "forest_trunks": 288,
-    "forest": 8402
+    "forest_trunks": 1056,
+    "forest": 7076
   },
   "materials": [
     0,

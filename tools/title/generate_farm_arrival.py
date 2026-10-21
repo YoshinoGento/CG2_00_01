@@ -7,10 +7,48 @@ import random
 import struct
 import wave
 import generate_title_landscape as landscape
+import generate_title_grass as grass
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "project/Resources/farm/arrival"
 Mesh = landscape.Mesh
+TREE_POSITIONS = ((-13,22),(-22,36),(6,30),(18,25),(28,42))
+GRASS_SEED = 71893
+SHADOW_PATCHES = 60
+GRASS_BOUNDS = (-30,30,-14,46)
+GRASS_JITTER = .06
+GRASS_SCALE = (.95,1.05)
+# Runtime plot, two-track road, tool bench and close-up leaf, before wind/patch expansion.
+GRASS_KEEPOUTS = ((-4,4,4.7,11.3),(7.1,8.95,-15,24),
+                 (-5.65,-3.60,6.5,7.7),(-5.6,-4.35,2.35,3.25))
+
+
+def build_grass_layout():
+    rng = random.Random(GRASS_SEED)
+    patches = []
+    x0,x1,z0,z1 = GRASS_BOUNDS
+    for zi in range(int((z1-z0)/grass.PATCH_SPACING)+1):
+        for xi in range(int((x1-x0)/grass.PATCH_SPACING)+1):
+            x = x0+xi*grass.PATCH_SPACING+rng.uniform(-GRASS_JITTER,GRASS_JITTER)
+            z = z0+zi*grass.PATCH_SPACING+rng.uniform(-GRASS_JITTER,GRASS_JITTER)
+            scale = rng.uniform(*GRASS_SCALE)
+            extent = (scale*(grass.PATCH_RADIUS+grass.MAX_LEAN+grass.MAX_WIDTH/2)
+                      +grass.MAX_WIND*(grass.MAX_HEIGHT*scale)**2/grass.BEND_HEIGHT)
+            if any(x+extent >= a and x-extent <= b and z+extent >= c and z-extent <= d
+                   for a,b,c,d in GRASS_KEEPOUTS):
+                continue
+            patches.append({"position":[x,grass.terrain_height(x,z),z],"scale":scale,
+                            "yaw":0,"tint":[.40,.55,.22,1]})
+    patches.sort(key=lambda p: math.hypot(p["position"][0],p["position"][2]-8))
+    if not 0 < len(patches) <= grass.MAX_PATCHES:
+        raise ValueError("Arrival grass instance budget exceeded")
+    return {"version":1,"shadowCount":min(SHADOW_PATCHES,len(patches)),"patches":patches}
+
+
+def save_grass():
+    layout = build_grass_layout()
+    (OUT/"grass_layout.json").write_text(json.dumps(layout),encoding="ascii")
+    return len(layout["patches"])
 
 
 def save(mesh, name, raw_uv=False):
@@ -52,20 +90,13 @@ def cylinder(mesh, start, end, radius, material, section, segments=12):
 
 def build_scenery():
     mesh = Mesh()
-    # Match the title grass shader's triangulated terrain, including distant roots.
-    for x in range(-50,50,5):
-        for z in range(-74,86,5):
-            points=tuple((a,landscape.ground_height(a,b),b) for a,b in ((x,z),(x,z+5),(x+5,z+5),(x+5,z)))
-            mesh.quad(points,landscape.GRASS,"ground")
+    mesh.ground()
     # Below all legal terrain levels (minimum=0); replaces only the flat ground draw.
     mesh.rectangle(-4,4,4.7,11.3,-.225,landscape.DIRT,"under_plot",2)
     mesh.rectangle(7.1,7.7,-15,24,-.227,landscape.DIRT,"road",1)
     mesh.rectangle(8.35,8.95,-15,24,-.227,landscape.DIRT,"road",1)
-    for x,z in ((-13,22),(-22,36),(6,30),(18,25),(28,42)):
-        mesh.box(x,.55,z,.14,.80,.14,landscape.WOOD,"trunk")
-        for side in (-1,1):
-            mesh.branch((x,.8,z),(x+side*.6,2.2,z+side*.15),.09,.045,"trunk")
-        mesh.crown(x,2.4,z,1.6,1.9,1.45)
+    for index,(x,z) in enumerate(TREE_POSITIONS):
+        mesh.tree(x,z,4.3,1.45,20261041+index,"trunk")
     return mesh
 
 
@@ -132,18 +163,7 @@ def build():
                     ((slot*.5,1),(slot*.5,0),((slot+1)*.5,0),((slot+1)*.5,1)))
         counts[name]=save(packet,name,True)
 
-    rng=random.Random(71893)
-    patches=[]
-    for z in range(-14,48,3):
-        for x in range(-30,31,3):
-            px,pz=x+rng.uniform(-.4,.4),z+rng.uniform(-.4,.4)
-            # A patch reaches ~1.5 units: reserve the plot, props, macro leaf and road.
-            if -6.8<px<5.8 and 1.8<pz<13.2 or 5.4<px<10.8 or px<-3 and px>-7 and 1<pz<9:
-                continue
-            patches.append({"position":[round(px,4),-.235,round(pz,4)],"scale":rng.uniform(.75,1.1),
-                            "yaw":rng.uniform(-math.pi,math.pi),"tint":[.40,.55,.22,1]})
-    patches.sort(key=lambda p: math.hypot(p["position"][0],p["position"][2]-8))
-    (OUT/"grass_layout.json").write_text(json.dumps({"version":1,"shadowCount":min(60,len(patches)),"patches":patches}),encoding="ascii")
+    grass_count = save_grass()
     # Authored, quiet damp impact: no external sound acquisition or redistribution.
     rate=48000
     noise=random.Random(32)
@@ -160,14 +180,16 @@ def build():
         with wave.open(str(OUT/'morning.wav'),'wb') as target:
             target.setparams(source.getparams())
             target.writeframes(source.readframes(source.getframerate()*16))
-    (OUT/"manifest.json").write_text(json.dumps({"triangles":counts,"grassInstances":len(patches),
+    (OUT/"manifest.json").write_text(json.dumps({"triangles":counts,"grassInstances":grass_count,
         "plotKeepout":[-4,4,4.7,11.3],"authorship":"Original procedural geometry and impact sound; existing project countryside/packet textures and grass models reused."},indent=2)+'\n',encoding="ascii")
-    print(json.dumps(counts),len(patches),"grass instances")
+    print(json.dumps(counts),grass_count,"grass instances")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scenery-only', action='store_true')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--scenery-only', action='store_true')
+    group.add_argument('--grass-only', action='store_true')
     args = parser.parse_args()
     if args.scenery_only:
         count = save(build_scenery(), 'scenery')
@@ -176,5 +198,12 @@ if __name__ == '__main__':
         manifest['triangles']['scenery'] = count
         path.write_text(json.dumps(manifest,indent=2)+'\n',encoding='ascii')
         print(f'PASS arrival scenery: {count} triangles; other assets untouched')
+    elif args.grass_only:
+        count = save_grass()
+        path = OUT/'manifest.json'
+        manifest = json.loads(path.read_text(encoding='ascii'))
+        manifest['grassInstances'] = count
+        path.write_text(json.dumps(manifest,indent=2)+'\n',encoding='ascii')
+        print(f'PASS arrival grass: {count} instances; other assets untouched')
     else:
         build()
