@@ -1,4 +1,5 @@
 #include "farm/render/FarmArrivalRenderer.h"
+#include "farm/render/FarmOutdoorLighting.h"
 #include "3d/ModelManager.h"
 #include "3d/Object3dCommon.h"
 #include "3d/LightingSystem.h"
@@ -104,7 +105,11 @@ void FarmArrivalRenderer::Prepare(Camera* camera, const FarmStartPresentationSys
             impact.z+(.5f-std::abs(x))*splashTime}, {.012f,.018f,.012f},{.65f,.85f,.87f,1});
         visible_[Splash1+i]=frame.arrival && splashTime>=0 && splashTime<.26f;
     }
-    for(std::size_t i=0;i<Count;++i) if(visible_[i]) objects_[i].Update(camera,0);
+    const auto ambient=farm::BuildOutdoorAmbientTint(atmosphere.skyTop,atmosphere.skyHorizon);
+    for(std::size_t i=0;i<Count;++i) if(visible_[i]) {
+        objects_[i].SetOutdoorAmbient(ambient);
+        objects_[i].Update(camera,0);
+    }
 }
 void FarmArrivalRenderer::DrawSky() { if(visibleScene_) sky_.Draw(); }
 void FarmArrivalRenderer::Draw() {

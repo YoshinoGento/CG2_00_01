@@ -500,6 +500,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmContestDaySystem.h" />
 	<ClInclude Include="application\farm\system\FarmTimeAdvanceSystem.h" />
 	<ClInclude Include="application\farm\system\FarmContestSeasonSystem.h" />
+	<ClInclude Include="application\farm\system\FarmStageAccessSystem.h" />
+	<ClInclude Include="application\farm\system\FarmContestGoalSystem.h" />
 	<ClInclude Include="application\farm\system\FarmHarvestVisualSystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthSystem.h" />
     <ClInclude Include="application\farm\system\FarmSoilSystem.h" />
@@ -519,6 +521,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmHarvestDisplaySystem.h" />
     <ClInclude Include="application\farm\render\FarmMeshLayout.h" />
     <ClInclude Include="application\farm\render\FarmMaterialStyle.h" />
+    <ClInclude Include="application\farm\render\FarmOutdoorLighting.h" />
     <ClInclude Include="application\farm\render\FarmSoilSurface.h" />
 	<ClInclude Include="engine\command\CommandHistory.h" />
     <ClInclude Include="engine\core\Component.h" />
@@ -667,6 +670,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <FileType>Document</FileType>
     </None>
     <None Include="Resources\shader\Object3d.hlsli" />
+    <None Include="Resources\shader\OutdoorLighting.hlsli" />
     <None Include="Resources\shader\Particle.hlsli" />
     <None Include="Resources\shader\Skybox.hlsli" />
     <None Include="Resources\shader\Sprite2D.hlsli" />

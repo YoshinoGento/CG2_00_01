@@ -39,7 +39,7 @@ bool IsUnusedTile(const FarmTile& tile) noexcept
 bool TryBuildCandidateTile(
 	const FarmTile& source,
 	FarmIrrigationPreviewOperation operation,
-	FarmTile& output) noexcept
+	FarmTile& output, int maximumHeight) noexcept
 {
 	output = source;
 	switch (operation) {
@@ -66,7 +66,7 @@ bool TryBuildCandidateTile(
 		}
 		return false;
 	case FarmIrrigationPreviewOperation::RaiseTerrain:
-		if (source.heightLevel >= FarmToolActionSystem::kMaximumHeightLevel) {
+		if (source.heightLevel >= maximumHeight) {
 			return false;
 		}
 		++output.heightLevel;
@@ -115,7 +115,7 @@ bool FarmIrrigationPreviewSystem::Begin(
 	}
 
 	FarmTile candidateTile{};
-	if (!TryBuildCandidateTile(*sourceTile, operation, candidateTile)) {
+	if (!TryBuildCandidateTile(*sourceTile, operation, candidateTile, MaximumAllowedHeight())) {
 		return false;
 	}
 
@@ -170,7 +170,7 @@ bool FarmIrrigationPreviewSystem::AppendCanalPathTile(
 	const FarmTile* sourceTile = sourceGrid.GetTile(tileIndex);
 	FarmTile candidateTile{};
 	if (sourceTile == nullptr || !TryBuildCandidateTile(
-		*sourceTile, operation_, candidateTile)) {
+		*sourceTile, operation_, candidateTile, MaximumAllowedHeight())) {
 		return false;
 	}
 	if (!previewGrid_.SetTile(tileIndex, candidateTile) ||
@@ -250,7 +250,7 @@ bool FarmIrrigationPreviewSystem::ExtendCanalPathTo(const FarmGrid& sourceGrid, 
 		const FarmTile* source = sourceGrid.GetTile(index);
 		FarmTile candidate{};
 		if (source == nullptr || IsTileChanged(index) ||
-			!TryBuildCandidateTile(*source, operation_, candidate)) {
+			!TryBuildCandidateTile(*source, operation_, candidate, MaximumAllowedHeight())) {
 			pathIssue_ = FarmCanalPathIssue::BlockedTile;
 			blockedTileIndex_ = index;
 			return false;
@@ -308,7 +308,7 @@ bool FarmIrrigationPreviewSystem::VisitTerrainTile(const FarmGrid& sourceGrid, i
 		if (!IsTileChanged(index)) {
 			FarmTile candidate{};
 			const auto* source = sourceGrid.GetTile(index);
-			if (!source || !TryBuildCandidateTile(*source, operation_, candidate)) {
+			if (!source || !TryBuildCandidateTile(*source, operation_, candidate, MaximumAllowedHeight())) {
 				pathIssue_ = FarmCanalPathIssue::BlockedTile;
 				blockedTileIndex_ = index;
 				return false;
@@ -323,7 +323,7 @@ bool FarmIrrigationPreviewSystem::VisitTerrainTile(const FarmGrid& sourceGrid, i
 	changedTileIndices_.reserve(changedTileIndices_.size() + additions.size());
 	for (const int index : additions) {
 		FarmTile candidate{};
-		if (!TryBuildCandidateTile(*sourceGrid.GetTile(index), operation_, candidate) ||
+		if (!TryBuildCandidateTile(*sourceGrid.GetTile(index), operation_, candidate, MaximumAllowedHeight()) ||
 			!previewGrid_.SetTile(index, candidate)) {
 			Cancel();
 			return false;
@@ -366,6 +366,12 @@ bool FarmIrrigationPreviewSystem::CanConfirm(const FarmGrid& sourceGrid) const n
 {
 	if (!active_) {
 		return false;
+	}
+	if (operation_ == FarmIrrigationPreviewOperation::RaiseTerrain && stageAccess_) {
+		for (int index : changedTileIndices_) {
+			const auto* candidate = previewGrid_.GetTile(index);
+			if (!candidate || candidate->heightLevel > stageAccess_->Get().maximumHeight) return false;
+		}
 	}
 	if (sourceGrid.GetGeneration() != sourceGeneration_ ||
 		sourceGrid.GetWidth() != sourceSnapshot_.width ||

@@ -202,6 +202,7 @@ FarmSeedPurchaseResult FarmEconomySystem::BuySeed(
 		result.status = FarmSeedPurchaseStatus::InvalidQuantity;
 		return result;
 	}
+	if (!IsCropUnlocked(crop)) { result.status = FarmSeedPurchaseStatus::Locked; return result; }
 	if (seedPrices_[slot] <= 0) {
 		result.status = FarmSeedPurchaseStatus::Unavailable;
 		return result;

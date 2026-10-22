@@ -14,6 +14,7 @@ public:
         int quantity = 0, price = 0, owned = 0, money = 0;
         long long total = 0;
         bool available = false;
+        int unlockDay = 0;
         bool operator==(const Quote&) const = default;
     };
     [[nodiscard]] static farm::CropType Product(int index) noexcept {
@@ -44,7 +45,8 @@ public:
         quote.crop = Product(selection_); quote.quantity = quantity_;
         quote.price = economy.GetSeedPrice(quote.crop); quote.owned = economy.GetSeedCount(quote.crop);
         quote.money = economy.GetMoney(); quote.total = static_cast<long long>(quote.price) * quantity_;
-        quote.available = farm::IsPlantableCrop(quote.crop) && quote.price > 0 && quantity_ >= 1 && quantity_ <= kMaxQuantity &&
+        quote.unlockDay = economy.IsCropUnlocked(quote.crop) ? 0 : FarmStageAccessSystem::UnlockDay(quote.crop);
+        quote.available = economy.IsCropUnlocked(quote.crop) && quote.price > 0 && quantity_ >= 1 && quantity_ <= kMaxQuantity &&
             quote.total <= (std::numeric_limits<int>::max)() && quote.total <= quote.money &&
             quote.owned <= (std::numeric_limits<int>::max)() - quantity_;
         return quote;

@@ -1,4 +1,5 @@
 #include "farm/render/FarmMaterialStyle.h"
+#include "farm/render/FarmOutdoorLighting.h"
 #include <cassert>
 #include <iostream>
 #include <limits>
@@ -41,4 +42,19 @@ int main() {
 		previous = style;
 	}
 	std::cout << "PASS: " << cases << " material cases, 1000 wetness steps; GPU visuals separate\n";
+	for (float top : {-1.0f, 0.0f, .5f, 1.0f, 2.0f,
+		std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()}) {
+		for (float horizon : {0.0f, .5f, 1.0f, std::numeric_limits<float>::quiet_NaN()}) {
+			const auto tint = BuildOutdoorAmbientTint({top,top,top,0},{horizon,horizon,horizon,0});
+			assert(tint.x >= .75f && tint.x <= 1.0f && tint.x == tint.y && tint.y == tint.z && tint.w == 1);
+		}
+	}
+	auto previousTint = BuildOutdoorAmbientTint({0,0,0,1},{0,0,0,1});
+	for (int i=1; i<=1000; ++i) {
+		const float value = static_cast<float>(i)/1000;
+		const auto tint = BuildOutdoorAmbientTint({value,value,value,1},{value,value,value,1});
+		assert(tint.x >= previousTint.x && tint.x-previousTint.x < .0003f);
+		previousTint = tint;
+	}
+	std::cout << "PASS: outdoor tint finite/range guards and 1000 continuous sky steps\n";
 }

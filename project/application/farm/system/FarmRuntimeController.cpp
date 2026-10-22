@@ -37,6 +37,7 @@ constexpr int kContestPreviewPage = 9;
 constexpr int kContestEntryPage = 10;
 constexpr int kContestResultsPage = 11;
 constexpr int kHarvestDisplayPage = 12;
+constexpr int kStageGuidePage = 13;
 template<class... Args> std::string Numbers(const char* format, Args... args) {
     char buffer[96]{};
     std::snprintf(buffer, sizeof(buffer), format, args...);
@@ -62,8 +63,10 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         if (flow_.GetPhase() == FarmPlayFlow::Phase::Briefing) FrameFarm(s, false, true);
         if (s.farmProgressionSystem_.IsContestSeason() && flow_.GetPhase()==FarmPlayFlow::Phase::Result)
             farmui::BuildSeasonEndView(view_, s.farmEconomySystem_.GetContestResults(),
-                FarmContestSeasonSystem::Evaluate(s.farmDateSystem_.GetDay(),s.farmEconomySystem_.GetContestResults()));
-        else farmui::BuildPlayFlowView(view_, flow_.GetPhase(), s.BuildFarmHUDViewData());
+                FarmContestSeasonSystem::Evaluate(s.farmDateSystem_.GetDay(),s.farmEconomySystem_.GetContestResults()),
+                FarmContestGoalSystem::Evaluate(s.farmDateSystem_.GetDay(), s.farmEconomySystem_.GetContestResults(),
+                    s.farmProgressionSystem_.StagePolicy().enabled));
+        else farmui::BuildPlayFlowView(view_, flow_.GetPhase(), s.BuildFarmHUDViewData(), s.farmProgressionSystem_.StagePolicy().enabled);
         if (focusedItem_ >= 0 && focusedItem_ < static_cast<int>(view_.count)) view_.items[focusedItem_].focused = true;
         return;
     }
@@ -89,7 +92,7 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             farmui::TerrainViewState state;
             state.preview = preview.IsActive();
             state.canConfirm = preview.CanConfirm(s.farmGrid_);
-            state.canRaise = unlocked && tile && tile->heightLevel < FarmToolActionSystem::kMaximumHeightLevel;
+            state.canRaise = unlocked && tile && tile->heightLevel < s.farmToolActionSystem_.MaximumAllowedHeight();
             state.canLower = unlocked && tile && tile->heightLevel > FarmToolActionSystem::kMinimumHeightLevel;
             state.canCanal = unlocked && s.farmToolActionSystem_.CanToggleCanal(s.farmGrid_, index);
             state.canSource = unlocked && s.farmToolActionSystem_.CanToggleWaterSource(s.farmGrid_, index);
@@ -213,9 +216,10 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         button(Label::QualityOpen, Action::Quality);
         view_.Value(Label::Money, 482, Numbers("%dG / %dG", hud.money, hud.seedPrice));
         view_.Value(Label::Inventory, 528, Numbers("%d / %d / %dG", hud.seedCount, s.farmEconomySystem_.GetCropCount(crop), s.farmEconomySystem_.PreviewSale(crop).earnedMoney));
-        view_.Add(Label::HarvestDisplay, {176,574,920,42}, {Action::HarvestDisplay});
+        view_.Add(Label::HarvestDisplay, {176,574,450,42}, {Action::HarvestDisplay});
+        view_.Add(Label::StageGuide, {646,574,450,42}, {Action::StageGuide});
     } else if (page_ == 1) {
-        button(Label::Raise, Action::Raise, 0, unlocked && tile && tile->heightLevel < FarmToolActionSystem::kMaximumHeightLevel);
+        button(Label::Raise, Action::Raise, 0, unlocked && tile && tile->heightLevel < s.farmToolActionSystem_.MaximumAllowedHeight());
         button(Label::Lower, Action::Lower, 0, unlocked && tile && tile->heightLevel > FarmToolActionSystem::kMinimumHeightLevel);
         button(Label::Canal, Action::Canal, 0, unlocked && s.farmToolActionSystem_.CanToggleCanal(s.farmGrid_, hud.selectedTileIndex));
         button(Label::Source, Action::Source, 0, unlocked && s.farmToolActionSystem_.CanToggleWaterSource(s.farmGrid_, hud.selectedTileIndex));
@@ -228,6 +232,8 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         button(Label::Overview, Action::TerrainField, 0, !s.farmProgressionSystem_.IsCleared());
         view_.Value(Label::Tile, 478, Numbers("%d / H%d / %d / %d", hud.selectedTileIndex, hud.selectedTileHeight, hud.selectedTileMoisturePercent, hud.selectedTileGrowthPercent));
         view_.Value(Label::WaterStats, 524, Numbers("%d / %d", s.farmIrrigationSystem_.GetSuppliedCanalCount(), s.farmIrrigationSystem_.GetIrrigationRangeTileCount()));
+        view_.Metric(Label::StageHeight, {176,574,450,38}, 240, "H" + std::to_string(s.farmToolActionSystem_.MaximumAllowedHeight()));
+        view_.Add(Label::StageGuide, {646,574,450,38}, {Action::StageGuide});
     } else if (page_ == 2) {
         const auto& docs = s.farmDocumentSystem_.GetDocuments();
         documentIndex_ = std::clamp(documentIndex_, 0, (std::max)(0, static_cast<int>(docs.size()) - 1));
@@ -263,6 +269,8 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             const auto quality = s.farmToolActionSystem_.EvaluateHarvestQuality(*tile);
             view_.Value(Label::NutrientQuality, 590, Numbers("%.0f / 100", quality.nutrientBalance * 100));
         }
+    } else if (page_ == kStageGuidePage) {
+        farmui::BuildStageGuideView(view_, s.farmStageAccessSystem_.Get());
     } else if (page_ == kContestPreviewPage) {
         farmui::BuildContestJudgeView(view_, FarmContestJudgeSystem::Evaluate(s.farmEconomySystem_.GetContestReservation()));
     } else if (page_ == kContestEntryPage) {
@@ -272,7 +280,9 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             {Action::SubmitContest,s.farmEconomySystem_.GetContestReservationId(),s.farmEconomySystem_.GetInventoryGeneration()});
     } else if (page_ == kContestResultsPage) {
         farmui::BuildContestResultsView(view_,s.farmEconomySystem_.GetContestResults(),
-            FarmContestSeasonSystem::Evaluate(s.farmDateSystem_.GetDay(),s.farmEconomySystem_.GetContestResults()));
+            FarmContestSeasonSystem::Evaluate(s.farmDateSystem_.GetDay(),s.farmEconomySystem_.GetContestResults()),
+            FarmContestGoalSystem::Evaluate(s.farmDateSystem_.GetDay(), s.farmEconomySystem_.GetContestResults(),
+                s.farmProgressionSystem_.StagePolicy().enabled));
     } else if (page_ == kHarvestInventoryPage) {
         const auto& economy = s.farmEconomySystem_;
         farmui::HarvestInventoryViewState state;
@@ -485,6 +495,9 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         if (open_ && page_ == kHarvestDisplayPage && pending_ == Action::None &&
             allowTransition && DeferScreenTransition(s, request)) return;
         open_ = false; pending_ = Action::None; return;
+    case Action::StageGuide:
+        if (pending_ != Action::None) return;
+        open_ = true; page_ = kStageGuidePage; focusedItem_ = -1; return;
     case Action::Tab:
         if (open_ && page_ == kHarvestDisplayPage && allowTransition && DeferScreenTransition(s, request)) return;
         page_ = std::clamp(request.argument, 0, 4); focusedItem_ = -1; status_ = Label::Ready;
@@ -559,7 +572,6 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         }
         if (success) {
             s.farmGrowthComparisonSystem_.Reset(); s.InitializeTimeline();
-            arrivalSeen_ = action != Action::Restart;
             flow_.Reset(); open_ = false; observation_ = false; terrain_ = false; pickingSlot_ = -1; paused_ = false;
             status_ = action == Action::Restart ? Label::Success : Label::Loaded;
         }
@@ -733,15 +745,9 @@ void FarmRuntimeController::BeginFarmStart(GamePlayScene& s) {
     if (!FrameFarm(s)) { flow_.Continue(); return; }
     const farm::OverviewPose final{s.cameraPos_, s.cameraRot_};
     const auto& grid = std::as_const(s.farmGrid_);
-    bool pristine = !arrivalSeen_ && s.farmArrivalRenderer_.IsReady() && grid.GetWidth()==5 && grid.GetHeight()==4 &&
-        s.farmDateSystem_.GetDay()==1 && s.farmDateSystem_.GetElapsedSecondsInDay()==0;
-    for(int i=0; pristine && i<grid.GetTileCount(); ++i) {
-        const auto* tile=grid.GetTile(i);
-        pristine=tile && tile->feature==farm::FarmTileFeature::None && tile->state==farm::FarmTileState::Empty &&
-            tile->crop==farm::CropType::None && tile->heightLevel==0 && tile->moisture==0 && tile->growth==0;
-    }
-    if(pristine && startPresentation_.BeginArrival(final)) {
-        arrivalSeen_=true; flow_.BeginStart(); ApplyStartCamera(s); return;
+    if (s.farmArrivalRenderer_.IsReady() && FarmStartPresentationSystem::SupportsArrival(grid) &&
+        startPresentation_.BeginArrival(final)) {
+        flow_.BeginStart(); ApplyStartCamera(s); return;
     }
     s.farmIrrigationSystem_.Rebuild(grid);
     std::array<FarmStartPresentationSystem::Cell, FarmStartPresentationSystem::kMaximumCells> cells{};
@@ -915,7 +921,7 @@ void FarmRuntimeController::OpenLayoutLibrary(GamePlayScene& s) {
         }
         if (result.selected < 0 || result.selected >= static_cast<int>(layouts.Entries().size())) continue;
         if (!farmui::ConfirmLayoutReplacement(owner)) continue;
-        if (!layouts.Load(layouts.Entries()[result.selected].id, s.farmGrid_)) {
+        if (!layouts.Load(layouts.Entries()[result.selected].id, s.farmGrid_, s.farmToolActionSystem_.MaximumAllowedHeight())) {
             farmui::RecordNotice(owner, layouts.Error()); continue;
         }
         s.farmToolActionSystem_.ClearHistory();

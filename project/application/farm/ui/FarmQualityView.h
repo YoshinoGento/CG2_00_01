@@ -5,6 +5,7 @@
 #include "farm/system/FarmContestEntrySystem.h"
 #include "farm/system/FarmContestSubmissionSystem.h"
 #include "farm/system/FarmContestSeasonSystem.h"
+#include "farm/system/FarmContestGoalSystem.h"
 #include <cstdio>
 
 namespace farmui {
@@ -193,7 +194,7 @@ inline Label ContestEventLabel(FarmContestEventStatus status) noexcept {
 }
 
 inline void BuildContestResultsView(View& view, const FarmEconomySystem::ContestResults& results,
-    const FarmContestSeasonSummary& summary) {
+    const FarmContestSeasonSummary& summary, const FarmContestGoals& goals = {}) {
     view.Add(summary.finalized ? Label::ContestSeasonFinal : Label::ContestResults, {176,130,550,42});
     view.Add(Label::ContestPeriod, {766,130,330,42}, {Action::ContestPreview,1});
     view.Add(Label::ContestResultColumns, {176,184,920,38});
@@ -211,8 +212,18 @@ inline void BuildContestResultsView(View& view, const FarmEconomySystem::Contest
                 {176,y,920,38},220,value);
             std::snprintf(value,sizeof(value),"%d / %.2fx",result.harvest.harvestedDay,
                 static_cast<double>(result.harvest.quality.harvestSize.multiplier));
-            view.Add(Label::ContestEntered,{176,y+40,190,32});
-            view.Metric(Label::ContestResultHarvest,{376,y+40,720,32},340,value);
+            if (goals[i].status == FarmContestGoalStatus::Unknown) {
+                view.Add(Label::ContestEntered,{176,y+40,190,32});
+                view.Metric(Label::ContestResultHarvest,{376,y+40,720,32},340,value);
+            }
+        }
+        if (goals[i].status != FarmContestGoalStatus::Unknown) {
+            const bool passed = goals[i].status == FarmContestGoalStatus::Passed;
+            const bool failed = goals[i].status == FarmContestGoalStatus::Failed;
+            view.Metric(passed ? Label::StagePassed : failed ? Label::StageFailed : Label::StageThreshold,
+                {176,y+40,450,32}, 240, std::to_string(goals[i].target) + " pt");
+            if (failed) view.Metric(Label::StageShortfall, {646,y+40,450,32}, 250,
+                std::to_string(goals[i].shortfall) + " pt");
         }
     }
     char aggregate[64]{};
@@ -236,13 +247,34 @@ inline void BuildContestResultsView(View& view, const FarmEconomySystem::Contest
 }
 
 inline void BuildSeasonEndView(View& view, const FarmEconomySystem::ContestResults& results,
-    const FarmContestSeasonSummary& summary) {
+    const FarmContestSeasonSummary& summary, const FarmContestGoals& goals = {}) {
     view.modal = true;
-    BuildContestResultsView(view, results, summary);
+    BuildContestResultsView(view, results, summary, goals);
     view.items[1].label = Label::Records;
     view.items[1].request = {Action::FlowRecords};
     view.Add(Label::SeasonReview,{176,620,450,42},{Action::FlowContinue});
     view.Add(Label::Restart,{646,620,450,42},{Action::Restart});
+}
+
+inline void BuildStageGuideView(View& view, const FarmStageAccess& access) {
+    view.Add(Label::StageGuide, {176,130,920,42});
+    if (!access.restricted) {
+        view.Add(Label::StageLegacy, {176,220,920,42});
+        return;
+    }
+    view.Metric(Label::StageCurrent, {176,184,450,38}, 220, std::to_string(access.stage + 1));
+    view.Metric(Label::StageHeight, {646,184,450,38}, 250, "H" + std::to_string(access.maximumHeight));
+    view.Add(Label::StageGuideColumns, {376,236,720,32});
+    for (std::size_t i = 0; i < kFarmStageRulesV1.size(); ++i) {
+        const auto& rule = kFarmStageRulesV1[i];
+        char value[64]{};
+        std::snprintf(value, sizeof(value), "%d / %d / %d pt / H%d", rule.firstDay, rule.contestDay, rule.passingPoints, rule.maximumHeight);
+        view.Metric(CropLabel(rule.unlockedCrop), {176,278+static_cast<float>(i)*52,920,40}, 240, value);
+    }
+    view.Add(Label::StageCropChoice, {176,444,920,38});
+    view.Add(Label::StageBasicTools, {176,492,920,38});
+    view.Add(Label::StageDateUnlock, {176,540,920,38});
+    view.Add(Label::ContestResults, {176,584,920,32}, {Action::ContestResults});
 }
 
 inline Label QualityHintLabel(FarmQualityFocus focus, bool harvested) noexcept {

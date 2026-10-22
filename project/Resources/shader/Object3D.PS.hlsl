@@ -1,4 +1,5 @@
 #include "Object3d.hlsli"
+#include "OutdoorLighting.hlsli"
 
 // 定数バッファのバインド (RootSignature の index と register を一致させる)
 cbuffer cbMaterial : register(b0) // Index 0
@@ -193,7 +194,8 @@ PixelShaderOutput main(VertexShaderOutput input)
     float3 L_dir = SafeNormalize(-gDirectionalLight.direction, float3(0.0f, 1.0f, 0.0f));
     float NdotL_dir = saturate(dot(N, L_dir));
     float directionalShadow = EvaluateDirectionalShadow(input.worldPosition, geometricNormal, L_dir);
-    float3 ambient_dir = baseColor * gDirectionalLight.color.rgb * 0.18f * gDirectionalLight.intensity;
+    float3 ambient_dir = baseColor * EvaluateAmbientLight(geometricNormal,
+        gDirectionalLight.color.rgb, gDirectionalLight.intensity, gMaterial.outdoorAmbient);
     float3 diffuse_dir = baseColor * gDirectionalLight.color.rgb * (NdotL_dir * 0.82f) * gDirectionalLight.intensity * directionalShadow;
     float spec_dir = EvaluateSpecular(N, L_dir, V, gMaterial.shininess);
     float3 specular_dir = gDirectionalLight.color.rgb * gDirectionalLight.intensity * spec_dir * directionalShadow * specularGain;

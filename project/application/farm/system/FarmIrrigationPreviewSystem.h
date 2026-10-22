@@ -3,6 +3,7 @@
 #include "farm/core/FarmGrid.h"
 #include "farm/data/FarmRules.h"
 #include "farm/system/FarmIrrigationSystem.h"
+#include "farm/system/FarmStageAccessSystem.h"
 
 #include <cstdint>
 #include <vector>
@@ -29,6 +30,7 @@ enum class FarmCanalPathIssue : std::uint8_t {
 class FarmIrrigationPreviewSystem final {
 public:
 	void Initialize(const FarmRules& rules = {}) noexcept;
+	void BindStageAccess(const FarmStageAccessSystem& access) noexcept { stageAccess_=&access; }
 	[[nodiscard]] bool Begin(
 		const FarmGrid& sourceGrid,
 		int tileIndex,
@@ -76,6 +78,10 @@ public:
 	}
 
 private:
+	const FarmStageAccessSystem* stageAccess_ = nullptr;
+	[[nodiscard]] int MaximumAllowedHeight() const noexcept {
+		return stageAccess_ ? stageAccess_->Get().maximumHeight : kFarmStageRulesV1.back().maximumHeight;
+	}
 	[[nodiscard]] bool ExtendCanalPathTo(const FarmGrid& sourceGrid, int tileIndex);
 	FarmRules rules_{};
 	FarmGrid previewGrid_{};

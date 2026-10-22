@@ -37,6 +37,7 @@ int IdealHeight(farm::CropType crop) {
 }
 
 struct Outcome {
+    std::array<int,3> eventPoints{};
     int money = 0;
     int minimumMoney = 0;
     int seedSpent = 0;
@@ -66,11 +67,16 @@ struct Outcome {
 // Scripted inputs only. Never assign growth, moisture, date, quality, size or inventory directly.
 class SeasonRun {
 public:
-    SeasonRun(farm::CropType crop, Care care, float speed) : crop_(crop), care_(care) {
+    SeasonRun(farm::CropType crop, Care care, float speed, bool staged=false, int sampleSeconds=0)
+        : crop_(crop), care_(care), staged_(staged), sampleSeconds_(sampleSeconds) {
         Require(grid_.Initialize(5, 4), "grid init");
         economy_.Initialize(); tools_.Initialize(); growth_.Initialize(); water_.Initialize(); date_.Initialize();
         outcome_.minimumMoney = economy_.GetMoney();
         progression_.Initialize({}, FarmProgressionMode::ContestSeason);
+        if (staged_) {
+            access_.Bind(date_,progression_.StagePolicy());
+            economy_.BindStageAccess(access_); tools_.BindStageAccess(access_);
+        }
         date_.SetTimeScale(speed);
         if (UsesCanal()) {
             Require(grid_.SelectTile(0), "source select");
@@ -89,6 +95,18 @@ public:
     Outcome Run(bool skipLast) {
         for (int period = 0; period < 3; ++period) {
             AdvanceTo(1 + period * 10);
+            if (staged_) {
+                crop_ = farm::PlayableCrop(period);
+                Require(economy_.IsCropUnlocked(crop_), "period crop locked");
+                const int height = care_ == Care::Dry ? 0 : IdealHeight(crop_);
+                for (int tile : {0,1,kField}) {
+                    Require(grid_.SelectTile(tile), "stage layout select");
+                    const int target = tile != kField && period > 0 && UsesCanal() ? 2 : height;
+                    while (grid_.GetSelectedTile()->heightLevel < target) Require(tools_.RaiseSelectedTile(grid_), "stage raise");
+                    while (grid_.GetSelectedTile()->heightLevel > target) Require(tools_.LowerSelectedTile(grid_), "stage lower");
+                }
+                Require(grid_.SelectTile(kField), "stage field select");
+            }
             const int candidate = GrowAndHarvest();
             Require(tools_.CommitHarvestProtection(economy_, candidate, true, economy_.GetInventoryGeneration()), "protect");
             Require(tools_.CommitContestReservation(economy_, candidate, true, economy_.GetInventoryGeneration()), "reserve");
@@ -114,6 +132,8 @@ public:
             const auto generation = economy_.GetInventoryGeneration();
             Require(!tools_.CommitContestSubmission(economy_, contestDay, candidate, generation - 1), "stale submit accepted");
             Require(tools_.CommitContestSubmission(economy_, contestDay, candidate, generation), "submit");
+            const auto& entry=economy_.GetContestResults()[period];
+            outcome_.eventPoints[period]=entry.qualityPoints+entry.sizePoints;
             Require(!tools_.CommitContestSubmission(economy_, contestDay, candidate, economy_.GetInventoryGeneration()), "duplicate submit");
             Require(economy_.GetTotalCropCount() == 0 && economy_.GetMoney() == moneyBefore, "submission ledger");
             Observe();
@@ -151,6 +171,7 @@ private:
     }
     bool UsesCanal() const noexcept { return care_ == Care::Canal || ControlsIntake(); }
     int ObservationTicks() const noexcept {
+        if (sampleSeconds_ > 0) return sampleSeconds_*kTicksPerSecond;
         if (care_ == Care::IntakeHalfSecond) return kTicksPerSecond / 2;
         if (care_ == Care::IntakeTwoSeconds) return kTicksPerSecond * 2;
         return kTicksPerSecond;
@@ -279,6 +300,8 @@ private:
     }
     farm::CropType crop_;
     Care care_;
+    bool staged_=false;
+    int sampleSeconds_=0;
     farm::FarmGrid grid_;
     FarmEconomySystem economy_;
     FarmToolActionSystem tools_;
@@ -287,6 +310,7 @@ private:
     FarmDateSystem date_;
     FarmContestDaySystem notice_;
     FarmProgressionSystem progression_;
+    FarmStageAccessSystem access_;
     Outcome outcome_;
     int spent_ = 0, earned_ = 0, ticks_ = 0;
 };
@@ -355,6 +379,31 @@ int main() {
         }
         Require(cases == 144, "scenario coverage");
         std::cout << "PASS: 144 full-season System scenarios; automated evidence, not a human playthrough\n";
+        int stagedCases = 0;
+        std::cout << "stage_care,sample_seconds,speed,day10,day20,day30,minimum_money\n";
+        for (const auto care : {Care::Managed, Care::Dry, Care::Canal, Care::IntakeOneSecond}) {
+            for (const int seconds : {1, 2, 3}) {
+                if (care != Care::IntakeOneSecond && seconds != 1) continue;
+                for (const float speed : {1.0f, 2.0f, 4.0f}) {
+                    SeasonRun run(farm::CropType::Carrot, care, speed, true, seconds);
+                    const auto result = run.Run(false);
+                    Require(result.harvested == 6 && result.minimumMoney >= 0, "staged core loop");
+                    for (std::size_t period = 0; period < result.eventPoints.size(); ++period) {
+                        const int target = kFarmStageRulesV1[period].passingPoints;
+                        if (care == Care::Managed || (care == Care::IntakeOneSecond && seconds <= 2 && speed <= 2))
+                            Require(result.eventPoints[period] >= target + 8, "managed route has insufficient score margin");
+                        if (care == Care::Dry || care == Care::Canal)
+                            Require(result.eventPoints[period] < target, "neglect meets staged target");
+                    }
+                    std::cout << "stage_" << kCareNames[static_cast<std::size_t>(care)] << ',' << seconds << ',' << speed;
+                    for (const auto points : result.eventPoints) std::cout << ',' << points;
+                    std::cout << ',' << result.minimumMoney << '\n';
+                    ++stagedCases;
+                }
+            }
+        }
+        Require(stagedCases == 18, "staged coverage");
+        std::cout << "PASS: 18 restricted mixed-crop seasons\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';

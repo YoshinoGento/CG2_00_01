@@ -23,7 +23,7 @@
 #include <utility>
 
 namespace {
-constexpr int kSchemaVersion = 17;
+constexpr int kSchemaVersion = 18;
 constexpr int kMinimumSupportedSchemaVersion = 1;
 constexpr int kCatalogSchemaVersion = 1;
 constexpr int kMaximumGridDimension = 128;
@@ -925,8 +925,12 @@ bool FarmDocumentSystem::Initialize(
 			ParseSnapshot(legacyDocument, grid.GetWidth(), grid.GetHeight(), legacySnapshot, error)) {
 			for (auto& tile : legacySnapshot.tiles)
 				if (tile.crop == farm::CropType::TestCrop) tile.crop = farm::CropType::Carrot;
-			if (grid.RestoreSnapshot(legacySnapshot))
+			if (grid.RestoreSnapshot(legacySnapshot)) {
+				auto legacyProgression = Progression().CaptureSnapshot();
+				legacyProgression.stagedUnlocks = false;
+				static_cast<void>(Progression().RestoreSnapshot(legacyProgression));
 				return SaveAs("Legacy Farm", grid, economySystem, cropSelectionSystem);
+			}
 		}
 		Logger::Log("FarmDocumentSystem: legacy Farm document was not imported: " + error);
 	}
@@ -1022,6 +1026,16 @@ bool FarmDocumentSystem::Load(
 		if (document["playMode"] == "FreeFarming") mode = FarmProgressionMode::FreeFarming;
 	}
 
+	bool stagedUnlocks = false;
+	if (document["schemaVersion"].get<int>() >= 18) {
+		if (!document.contains("stagedUnlocks") || !document["stagedUnlocks"].is_boolean()) {
+			SetError("Invalid or missing stage policy."); return false;
+		}
+		stagedUnlocks = document["stagedUnlocks"].get<bool>();
+		if (stagedUnlocks && mode != FarmProgressionMode::ContestSeason) {
+			SetError("Staged unlocks require ContestSeason."); return false;
+		}
+	}
 	bool migratedLegacyCrops = false;
 	if (!MigrateLegacyCrops(snapshot, economySnapshot, cropSelectionSnapshot, migratedLegacyCrops)) {
 		SetError("Legacy crop migration exceeds inventory limits or has invalid records.");
@@ -1053,6 +1067,9 @@ bool FarmDocumentSystem::Load(
 	static_cast<void>(Date().RestoreSnapshot(dateSnapshot)); // Already validated before any state mutation.
 	static_cast<void>(Progression().SetMode(mode, economySnapshot.money,
 		FarmContestSeasonSystem::Evaluate(dateSnapshot.day, economySnapshot.contestResults)));
+	auto loadedProgression = Progression().CaptureSnapshot();
+	loadedProgression.stagedUnlocks = stagedUnlocks;
+	static_cast<void>(Progression().RestoreSnapshot(loadedProgression));
 
 	activeDocumentId_ = metadata.id;
 	displayName_ = metadata.displayName;
@@ -1247,6 +1264,9 @@ bool FarmDocumentSystem::Reset(
 		return false;
 	}
 	Date().Initialize();
+	auto progressionRules = farm::FarmRules{};
+	progressionRules.clearMoneyTarget = Progression().GetTargetMoney();
+	Progression().Initialize(progressionRules, defaultMode_);
 	static_cast<void>(Progression().SetMode(defaultMode_, economySystem.GetMoney(),
 		FarmContestSeasonSystem::Evaluate(Date().GetDay(), economySystem.GetContestResults())));
 	activeDocumentId_.clear();
@@ -1377,6 +1397,7 @@ bool FarmDocumentSystem::SaveToDocument(
 	auto document = BuildJson(snapshot, economySnapshot, cropSelectionSnapshot, documentId, displayName, savedAt);
 	document["playMode"] = Progression().IsFreeFarming() ? "FreeFarming" :
 		Progression().IsContestSeason() ? "ContestSeason" : "Trial";
+	document["stagedUnlocks"] = Progression().StagePolicy().enabled;
 	document["date"] = {{"day", dateSnapshot.day}, {"elapsedSecondsInDay", dateSnapshot.elapsedSecondsInDay},
 		{"timeScale", dateSnapshot.timeScale}};
 	const std::filesystem::path documentPath =

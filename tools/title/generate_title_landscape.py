@@ -4,6 +4,8 @@ from pathlib import Path
 import json
 import math
 import random
+from voxel_scenery import append_volume, FOLIAGE_CELL
+from tree_scenery import make_tree_shape, MAX_TREE_TRIANGLES
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "project/Resources/title"
@@ -43,6 +45,16 @@ class Mesh:
         for indexes in ((0,1,2), (0,2,3)):
             self.triangle(tuple(points[i] for i in indexes), tuple(uv[i] for i in indexes), material, section)
 
+    def ground(self):
+        # Mirror adjacent atlas patches: both sides of each shared edge read identical texels.
+        for ix, x in enumerate(range(-50,50,5)):
+            for iz, z in enumerate(range(-74,86,5)):
+                points = tuple((a,ground_height(a,b),b) for a,b in
+                               ((x,z),(x,z+5),(x+5,z+5),(x+5,z)))
+                uv = tuple((1-u if ix%2 else u,1-v if iz%2 else v)
+                           for u,v in ((0,0),(0,1),(1,1),(1,0)))
+                self.quad(points,GRASS,"ground",uv)
+
     def rectangle(self, x0, x1, z0, z1, y, material, section, tile=2):
         nx, nz = math.ceil((x1-x0)/tile), math.ceil((z1-z0)/tile)
         for ix in range(nx):
@@ -58,19 +70,49 @@ class Mesh:
             self.quad(points, material, section)
 
     def crown(self, x, y, z, rx, ry, rz):
-        segments = 10
-        rings = ((-.85,.35),(-.48,.84),(0,1),(.52,.78),(.88,.32))
-        def point(h, r, i):
-            angle = math.tau*i/segments
-            return (x+rx*r*math.cos(angle),y+ry*h,z+rz*r*math.sin(angle))
-        for ring, ((ha,ra),(hb,rb)) in enumerate(zip(rings,rings[1:])):
-            for i in range(segments):
-                uv = ((i/segments,1-ring/4),(i/segments,1-(ring+1)/4),
-                      ((i+1)/segments,1-(ring+1)/4),((i+1)/segments,1-ring/4))
-                self.quad((point(ha,ra,i),point(hb,rb,i),point(hb,rb,i+1),point(ha,ra,i+1)),FOLIAGE,"forest",uv)
-        for i in range(segments):
-            self.triangle(((x,y-ry,z),point(*rings[0],i),point(*rings[0],i+1)),((.5,.5),(0,1),(1,1)),FOLIAGE,"forest")
-            self.triangle(((x,y+ry,z),point(*rings[-1],i+1),point(*rings[-1],i)),((.5,.5),(1,1),(0,1)),FOLIAGE,"forest")
+        self.canopy((((x,y,z),(rx,ry,rz)),))
+
+    def branch(self, start, end, radius, tip_radius, section="forest_trunks"):
+        direction = tuple(b-a for a, b in zip(start, end))
+        length = math.sqrt(sum(v*v for v in direction))
+        if not math.isfinite(length) or length < .001 or not 0 < tip_radius <= radius < 1:
+            raise ValueError("Invalid branch")
+        axis = tuple(v/length for v in direction)
+        helper = (1,0,0) if abs(axis[0]) < .8 else (0,0,1)
+        def cross(a, b):
+            return (a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0])
+        u = cross(axis, helper)
+        norm = math.sqrt(sum(v*v for v in u))
+        u = tuple(v/norm for v in u)
+        v = cross(axis, u)
+        def ring(center, size):
+            return [tuple(center[i]+size*(a*u[i]+b*v[i]) for i in range(3))
+                    for a, b in ((-1,-1),(1,-1),(1,1),(-1,1))]
+        base, tip = ring(start, radius), ring(end, tip_radius)
+        for i in range(4):
+            j = (i+1) % 4
+            self.quad((base[i],base[j],tip[j],tip[i]), WOOD, section)
+        self.quad(tuple(reversed(base)), WOOD, section)
+        self.quad(tuple(tip), WOOD, section)
+
+    def canopy(self, volumes):
+        rooted = tuple(((x,y-GROUND_Y,z),radii) for (x,y,z),radii in volumes)
+        append_volume(self, rooted, FOLIAGE_CELL, FOLIAGE, "forest",
+                      origin=(0,GROUND_Y,0), flat_color=True)
+
+    def tree(self, x, z, height, spread, seed, trunk_section="forest_trunks"):
+        if not all(math.isfinite(v) and abs(v) <= 45 for v in (x,z)):
+            raise ValueError("Tree origin outside scenery bounds")
+        shape = make_tree_shape(height,spread,seed)
+        y = ground_height(x,z)
+        def world(p):
+            return (x+p[0],y+p[1],z+p[2])
+        first = len(self.triangles)
+        for start,end,radius,tip in shape.branches:
+            self.branch(world(start),world(end),radius,tip,trunk_section)
+        self.canopy(tuple((world(center),radii) for center,radii in shape.canopies))
+        if len(self.triangles)-first > MAX_TREE_TRIANGLES:
+            raise ValueError("Tree mesh budget exceeded")
 
     def save(self, name="countryside", metadata=True):
         assert len(self.triangles) <= MAX_TRIANGLES
@@ -105,10 +147,7 @@ class Mesh:
 
 def build():
     mesh = Mesh()
-    for x in range(-50,50,5):
-        for z in range(-74,86,5):
-            points = tuple((a,ground_height(a,b),b) for a,b in ((x,z),(x,z+5),(x+5,z+5),(x+5,z)))
-            mesh.quad(points,GRASS,"ground")
+    mesh.ground()
     road = ((11,-16),(11,-3),(9.5,4),(7,11),(8.5,20),(12,32))
     road_y, half_width, median = GROUND_Y+.02, .95, .18
     for (x0,z0),(x1,z1) in zip(road,road[1:]):
@@ -128,13 +167,9 @@ def build():
         if z0 >= 3:
             mesh.box(x0+half_width+.35,GROUND_Y+.25,z0,.035,.28,.035,WOOD,"road_posts")
     rng = random.Random(20260930)
-    for x,z in TREE_POSITIONS:
-        y = ground_height(x,z)
+    for index,(x,z) in enumerate(TREE_POSITIONS):
         height = rng.uniform(4.8,6.2)
-        mesh.box(x,y+height*.36,z,.14,height*.36,.14,WOOD,"forest_trunks")
-        mesh.crown(x,y+height*.78,z,rng.uniform(1.6,2.1),height*.22,1.55)
-        mesh.crown(x-.85,y+height*.64,z-.2,1.5,height*.27,1.2)
-        mesh.crown(x+.95,y+height*.70,z+.25,1.3,height*.23,1.1)
+        mesh.tree(x,z,height,rng.uniform(1.6,2.1),20261021+index)
     for x,z in BUSH_POSITIONS:
         mesh.crown(x,ground_height(x,z)+.55,z,.85,.55,.65)
     return mesh

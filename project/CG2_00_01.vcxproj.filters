@@ -697,6 +697,8 @@
     <ClCompile Include="application\farm\system\FarmArrivalAudioSystem.cpp" />
     <ClCompile Include="application\farm\render\FarmSeedShopRenderer.cpp" />
     <ClInclude Include="application\farm\render\FarmSeedShopRenderer.h" />
+    <ClInclude Include="application\farm\system\FarmStageAccessSystem.h" />
+    <ClInclude Include="application\farm\system\FarmContestGoalSystem.h" />
     <ClInclude Include="application\farm\system\FarmSeedShopSystem.h" />
     <ClInclude Include="application\farm\ui\FarmSeedShopView.h" />
     <ClInclude Include="application\farm\ui\FarmHarvestDisplayView.h" />
@@ -704,6 +706,7 @@
     <ClInclude Include="application\farm\render\FarmRenderer.h" />
     <ClInclude Include="application\farm\render\FarmMeshLayout.h" />
     <ClInclude Include="application\farm\render\FarmMaterialStyle.h" />
+    <ClInclude Include="application\farm\render\FarmOutdoorLighting.h" />
     <ClInclude Include="application\farm\render\FarmSoilSurface.h" />
     <ClInclude Include="application\farm\system\FarmTerrainQuerySystem.h" />
   </ItemGroup>
@@ -784,6 +787,7 @@
     <None Include="Resources\shader\TitleSky.PS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitlePond.PS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleReflection.hlsli"><Filter>Title</Filter></None>
+    <None Include="Resources\shader\OutdoorLighting.hlsli"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleReflection.VS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleReflection.PS.hlsl"><Filter>Title</Filter></None>
     <None Include="Resources\shader\TitleGrassReflection.PS.hlsl"><Filter>Title</Filter></None>

@@ -272,6 +272,8 @@ private:
 	// Farm Systems own mutation; the Scene only schedules them.
 	farm::FarmGrid farmGrid_;
 	FarmDateSystem farmDateSystem_;
+	FarmProgressionSystem farmProgressionSystem_;
+	FarmStageAccessSystem farmStageAccessSystem_;
 	FarmContestDaySystem farmContestDaySystem_;
 	FarmDocumentSystem farmDocumentSystem_;
     bool layoutLibraryRequested_ = false;
@@ -285,7 +287,6 @@ private:
 	FarmInputSystem farmInputSystem_;
 	farm::FarmIrrigationPreviewSystem farmIrrigationPreviewSystem_;
 	farm::FarmIrrigationSystem farmIrrigationSystem_;
-	FarmProgressionSystem farmProgressionSystem_;
 	FarmToolSystem farmToolSystem_;
 	FarmToolActionSystem farmToolActionSystem_;
 	farm::FarmVisualSystem farmVisualSystem_;

@@ -1,6 +1,6 @@
 {
   "triangles": {
-    "scenery": 2028,
+    "scenery": 4740,
     "leaf": 192,
     "drop": 200,
     "wet": 32,
@@ -10,7 +10,7 @@
     "packet_tomato": 2,
     "packet_pumpkin": 2
   },
-  "grassInstances": 384,
+  "grassInstances": 565,
   "plotKeepout": [
     -4,
     4,

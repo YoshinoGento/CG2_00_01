@@ -2,6 +2,7 @@
 #include "title/TitleCelestialGeometry.h"
 #include "title/TitleCropPresentation.h"
 #include "farm/render/FarmMaterialStyle.h"
+#include "farm/render/FarmOutdoorLighting.h"
 #include "3d/ModelManager.h"
 #include "3d/Object3d.h"
 #include "3d/Object3dCommon.h"
@@ -190,6 +191,9 @@ void TitleFarmRenderer::Update(const Frame& frame) {
     sky_.Update(frame,camera_);
     grass_.Update(frame,camera_);
     reflection_.Update(frame,camera_,pond_.center.y,lights_->GetDirectionalLight());
+    const auto ambient = farm::BuildOutdoorAmbientTint(frame.skyTop,frame.skyHorizon);
+    landscape_->SetOutdoorAmbient(ambient);
+    pondShore_->SetOutdoorAmbient(ambient);
     landscape_->Update(&camera_,0);
     pondShore_->Update(&camera_,0);
     // Unlit canal surfaces still follow daylight; otherwise they glow against the night pond.
@@ -200,6 +204,7 @@ void TitleFarmRenderer::Update(const Frame& frame) {
         (.70f*frame.waterColor.z+.30f*frame.skyHorizon.z)*waterExposure,1};
     for (std::size_t i=0; i<parts_.size(); ++i) {
         const auto& part = parts_[i]; auto& object = *objects_[i];
+        object.SetOutdoorAmbient(ambient);
         if (part.surface == farm::FarmMeshSurface::Crop) continue;
         drawColors_[i] = part.water ? canalColor : part.color;
         object.SetColor(drawColors_[i]);

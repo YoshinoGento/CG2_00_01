@@ -1,12 +1,17 @@
 """Bounds, topology, texture availability and audio checks for the staged opening."""
 import json
 import math
+import sys
 import unittest
 import wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'project/Resources/farm/arrival'
+sys.path.insert(0,str(ROOT/'tools/title'))
+import generate_farm_arrival as arrival
+import generate_title_grass as grass
+import generate_title_landscape as landscape
 
 
 class ArrivalAssets(unittest.TestCase):
@@ -56,13 +61,65 @@ class ArrivalAssets(unittest.TestCase):
 
     def test_grass_excludes_plot_road_and_props(self):
         layout=json.loads((OUT/'grass_layout.json').read_text())
+        generated=arrival.build_grass_layout()
+        self.assertEqual(layout,generated)
+        self.assertEqual(generated,arrival.build_grass_layout())
+        self.assertEqual(len(layout['patches']),json.loads((OUT/'manifest.json').read_text())['grassInstances'])
+        self.assertGreater(len(layout['patches']),400)
         self.assertLessEqual(len(layout['patches']),1024)
-        self.assertLessEqual(layout['shadowCount'],len(layout['patches']))
+        self.assertEqual(layout['shadowCount'],60)
+        previous_distance = -1
         for patch in layout['patches']:
-            x,_,z=patch['position']
-            self.assertFalse(-6.8<x<5.8 and 1.8<z<13.2)
-            self.assertFalse(5.4<x<10.8)
-            self.assertTrue(.75<=patch['scale']<=1.2)
+            x,y,z=patch['position']
+            scale=patch['scale']
+            self.assertTrue(all(math.isfinite(v) for v in (*patch['position'],scale,*patch['tint'])))
+            self.assertTrue(.95<=scale<=1.05)
+            self.assertEqual(patch['yaw'],0)
+            self.assertAlmostEqual(y,grass.terrain_height(x,z))
+            extent=scale*(grass.PATCH_RADIUS+grass.MAX_LEAN+grass.MAX_WIDTH/2)+grass.MAX_WIND*(grass.MAX_HEIGHT*scale)**2/grass.BEND_HEIGHT
+            self.assertTrue(-50<x-extent<x+extent<50 and -74<z-extent<z+extent<86)
+            for a,b,c,d in arrival.GRASS_KEEPOUTS:
+                self.assertFalse(x+extent>=a and x-extent<=b and z+extent>=c and z-extent<=d)
+            distance=math.hypot(x,z-8)
+            self.assertGreaterEqual(distance,previous_distance)
+            previous_distance=distance
+
+    def test_grass_contiguous_background_rows(self):
+        patches=arrival.build_grass_layout()['patches']
+        # Away from the authored road/props, no missing cells or random square rotations.
+        for zi in range(25):
+            z=-14+zi*2.5
+            row=sorted(p['position'][0] for p in patches if abs(p['position'][2]-z)<.061 and p['position'][0]<-10)
+            self.assertGreaterEqual(len(row),8)
+            for a,b in zip(row,row[1:]):
+                self.assertLessEqual(b-a,2.62)
+
+    def test_ground_shared_edges_sample_identical_uvs(self):
+        mesh=landscape.Mesh()
+        mesh.ground()
+        self.assertEqual(len(mesh.triangles),1280)
+        edges={}
+        for points,uv,normal,material,section in mesh.triangles:
+            self.assertEqual((material,section),(landscape.GRASS,'ground'))
+            self.assertGreater(normal[1],.99)
+            for point in points:
+                self.assertEqual(point[1],landscape.ground_height(point[0],point[2]))
+            for i,j in ((0,1),(1,2),(2,0)):
+                key=tuple(sorted((points[i],points[j])))
+                samples=dict(zip((points[i],points[j]),(uv[i],uv[j])))
+                if key in edges:
+                    self.assertEqual(edges[key],samples)
+                else:
+                    edges[key]=samples
+        self.assertEqual(mesh.triangles,[t for t in arrival.build_scenery().triangles if t[4]=='ground'])
+        # Check exported UVs too, including rounding and the Model loader's winding conversion.
+        for path,digits in ((OUT/'scenery.obj',6),(ROOT/'project/Resources/title/countryside.obj',7)):
+            exported=[tuple(map(float,line.split()[1:])) for line in path.read_text().splitlines() if line.startswith('vt ')]
+            for i,(_,uv,_,_,_) in enumerate(mesh.triangles):
+                for j,k in enumerate((0,2,1)):
+                    expected=((.025+uv[k][0]*.95)/3,1-(.025+uv[k][1]*.95)/2)
+                    for a,b in zip(exported[i*3+j],expected):
+                        self.assertAlmostEqual(a,b,places=digits-1)
 
     def test_private_audio_is_short_pcm(self):
         for name,maximum in [('dew',.3),('morning',16.01)]:

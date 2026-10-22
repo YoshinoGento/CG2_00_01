@@ -4,6 +4,7 @@
 #include "farm/data/FarmRules.h"
 #include "farm/system/FarmCropQualitySystem.h"
 #include "farm/system/FarmToolSystem.h"
+#include "farm/system/FarmStageAccessSystem.h"
 #include "command/CommandHistory.h"
 
 #include <vector>
@@ -28,6 +29,7 @@ enum class FarmToolActionStatus {
 	InventoryFull,
 	NotReady,
 	UnsupportedTool,
+	Locked,
 };
 
 struct FarmToolActionResult {
@@ -52,6 +54,10 @@ public:
 	static constexpr int kMaximumHeightLevel = 2;
 
 	void Initialize(const farm::FarmRules& rules = {}) noexcept;
+	void BindStageAccess(const FarmStageAccessSystem& access) noexcept { stageAccess_=&access; }
+	[[nodiscard]] int MaximumAllowedHeight() const noexcept {
+		return stageAccess_ ? stageAccess_->Get().maximumHeight : kMaximumHeightLevel;
+	}
 	bool CommitHarvestProtection(FarmEconomySystem& economy, int recordId,
 		bool protect, uint64_t inventoryGeneration);
 	bool CommitContestReservation(FarmEconomySystem& economy, int recordId,
@@ -87,12 +93,19 @@ public:
 	[[nodiscard]] bool CanToggleWaterSource(
 		const farm::FarmGrid& grid, int tileIndex) const noexcept;
 	bool ToggleSelectedWaterSource(farm::FarmGrid& grid);
-	bool Undo() { return history_.Undo(); }
-	bool Redo() { return history_.Redo(); }
-	void ClearHistory() noexcept { history_.Clear(); }
+	bool Undo() { SynchronizeHistoryAccess(); return history_.Undo(); }
+	bool Redo() { SynchronizeHistoryAccess(); return history_.Redo(); }
+	void ClearHistory() noexcept { history_.Clear(); historyAccessKey_=AccessKey(); }
 	[[nodiscard]] const CommandHistory& GetHistory() const noexcept { return history_; }
 
 private:
+	const FarmStageAccessSystem* stageAccess_=nullptr; // Borrowed; stage access reads live date/policy.
+	int historyAccessKey_ = 0;
+	int AccessKey() const noexcept {
+		const auto access = stageAccess_ ? stageAccess_->Get() : FarmStageAccess{};
+		return access.restricted ? 1 + access.stage : 0;
+	}
+	void SynchronizeHistoryAccess() noexcept { if (historyAccessKey_ != AccessKey()) ClearHistory(); }
 	bool CommitCanalPath(farm::FarmGrid& grid, const std::vector<int>& tileIndices, bool remove);
 	bool CommitTileChange(
 		farm::FarmGrid& grid, int tileIndex, const farm::FarmTile& before,

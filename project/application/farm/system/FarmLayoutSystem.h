@@ -13,7 +13,7 @@ class FarmLayoutSystem final {
 public:
     bool Initialize(const std::string& directory);
     bool SaveNew(const std::string& name, const farm::FarmGrid& grid);
-    bool Load(const std::string& id, farm::FarmGrid& grid);
+    bool Load(const std::string& id, farm::FarmGrid& grid, int maximumHeight = 2);
     const std::vector<FarmLayoutEntry>& Entries() const noexcept { return entries_; }
     const std::string& Error() const noexcept { return error_; }
 private:

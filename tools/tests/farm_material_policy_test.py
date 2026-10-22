@@ -13,7 +13,8 @@ for source in (renderer, title):
     assert "material.detail.x > 0.0f" in source
 assert "surfaceDetail = {1.0f, 0.0f, 0.0f, 0.0f}" in object_cpp
 assert "offsetof(Material, surfaceDetail) == 96" in object_h
-assert "sizeof(Material) == 112" in object_h
+assert "offsetof(Material, outdoorAmbient) == 112" in object_h
+assert "sizeof(Material) == 128" in object_h
 assert "spec_dir * directionalShadow * specularGain" in shader
 assert "gMaterial.shininess) * specularGain" in shader
 assert "EvaluateDirectionalShadow(input.worldPosition, geometricNormal" in shader

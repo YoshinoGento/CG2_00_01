@@ -1,4 +1,5 @@
 #include "title/TitleReflectionRenderer.h"
+#include "farm/render/FarmOutdoorLighting.h"
 #include "base/DirectXCommon.h"
 #include "base/SrvManager.h"
 #include "3d/Model.h"
@@ -90,6 +91,7 @@ void TitleReflectionRenderer::Update(const Frame& frame, const Camera& camera, f
     const LightingSystem::DirectionalLight& light) noexcept {
     if (!pipeline_ || !std::isfinite(waterHeight)) return;
     viewProjection_ = camera.GetViewProjectionMatrix(); light_ = light; waterHeight_ = waterHeight;
+    outdoorAmbient_ = farm::BuildOutdoorAmbientTint(frame.skyTop,frame.skyHorizon);
     sky_.Update(frame,camera,true);
 }
 void TitleReflectionRenderer::Transition(D3D12_RESOURCE_STATES after) {
@@ -122,6 +124,7 @@ void TitleReflectionRenderer::Draw(Model* model, const Matrix4x4& world, Texture
     values[36] = light_.direction.x; values[37] = light_.direction.y; values[38] = light_.direction.z; values[39] = light_.intensity;
     std::memcpy(values.data()+40,&light_.color,sizeof(light_.color));
     values[44] = waterHeight_; values[45] = lit ? 1.0f : 0.0f;
+    std::memcpy(values.data()+48,&outdoorAmbient_,sizeof(outdoorAmbient_));
     for (float value : values) if (!std::isfinite(value)) return;
     auto* commands = dx_->GetCommandList();
     commands->SetGraphicsRootSignature(root_.Get()); commands->SetPipelineState(pipeline_.Get());

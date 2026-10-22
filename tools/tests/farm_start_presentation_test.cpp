@@ -1,13 +1,90 @@
 #include "farm/system/FarmStartPresentationSystem.h"
 #include "farm/system/FarmPlayFlow.h"
+#include "farm/system/FarmDateSystem.h"
 #include <cassert>
 #include <cstdio>
 #include <limits>
 
 using System = FarmStartPresentationSystem;
+
+static void TestArrivalEligibility(farm::OverviewPose final) {
+    farm::FarmGrid field;
+    assert(!System::SupportsArrival(field));
+    for (const auto size : {std::array{4, 5}, std::array{6, 4}, std::array{5, 3}}) {
+        assert(field.Initialize(size[0], size[1]));
+        assert(!System::SupportsArrival(field));
+    }
+    assert(field.Initialize(System::kArrivalGridWidth, System::kArrivalGridHeight));
+    assert(System::SupportsArrival(field));
+    const auto generation = field.GetGeneration();
+    assert(field.SetSelectedIndex(19));
+    assert(System::SupportsArrival(field) && field.GetSelectedIndex() == 19);
+    assert(field.GetGeneration() == generation);
+
+    // Every cell, including the last, can disqualify the authored empty-field opening.
+    std::array<farm::FarmTile, 10> edited{};
+    edited[0].state = farm::FarmTileState::Tilled;
+    edited[1].state = farm::FarmTileState::Planted;
+    edited[2].crop = farm::CropType::Carrot;
+    edited[3].feature = farm::FarmTileFeature::WaterSource;
+    edited[4].feature = farm::FarmTileFeature::Canal;
+    edited[5].heightLevel = 1;
+    edited[6].moisture = .5f;
+    edited[7].growth = .5f;
+    edited[8].moisture = std::numeric_limits<float>::quiet_NaN();
+    edited[9].growth = std::numeric_limits<float>::infinity();
+    for (int i = 0; i < field.GetTileCount(); ++i) {
+        auto* tile = field.GetMutableTile(i);
+        assert(tile);
+        for (const auto& changed : edited) {
+            *tile = changed; // Also inject invalid floating-point data past loader validation.
+            assert(!System::SupportsArrival(field));
+        }
+        *tile = {};
+        assert(System::SupportsArrival(field));
+    }
+
+    FarmDateSystem clock;
+    // The reported save is day1 at1.5166659s, with all20 cells still empty.
+    for (const auto savedClock : {FarmDateSystem::Snapshot{1, 1.5166659f, 1},
+        FarmDateSystem::Snapshot{2, 0, 1}, FarmDateSystem::Snapshot{30, 12, 4}}) {
+        assert(clock.RestoreSnapshot(savedClock));
+        farm::FarmGrid::Snapshot savedField;
+        field.CaptureSnapshot(savedField);
+        farm::FarmGrid loaded;
+        assert(loaded.Initialize(savedField.width, savedField.height));
+        assert(loaded.RestoreSnapshot(savedField));
+        System presentation;
+        FarmPlayFlow flow;
+        // Reuse the timeline on re-entry/load/restart, with no playback-history veto.
+        for (int entry = 0; entry < 3; ++entry) {
+            flow.Reset();
+            assert(System::SupportsArrival(loaded));
+            assert(presentation.BeginArrival(final));
+            flow.BeginStart();
+            float seconds = 0;
+            while (presentation.Active() && seconds < 16) {
+                assert(flow.BlocksSimulation());
+                presentation.Update(1.0f / 60, false, false);
+                seconds += 1.0f / 60;
+                assert(presentation.GetFrame().arrival);
+            }
+            assert(seconds >= farm::arrival::kDuration && seconds < farm::arrival::kDuration + .05f);
+            assert(presentation.ConsumeCompleted() && !presentation.ConsumeCompleted());
+            flow.FinishStart();
+            flow.BeginStart(); // Ordinary menu/control updates cannot re-enter Starting from Playing.
+            assert(flow.GetPhase() == FarmPlayFlow::Phase::Playing && !flow.BlocksSimulation());
+            assert(clock.GetDay() == savedClock.day);
+            assert(clock.GetElapsedSecondsInDay() == savedClock.elapsedSecondsInDay);
+            assert(loaded.GetSelectedIndex() == 19 && System::SupportsArrival(loaded));
+        }
+    }
+}
+
 int main() {
     const farm::OverviewPose initial{{0, 15, -10}, {.7f, 0, 0}};
     const farm::OverviewPose final{{2, 18, -12}, {.7f, 0, 0}};
+    TestArrivalEligibility(final);
     std::array<System::Cell, 9> cells{};
     for (std::size_t i = 0; i < cells.size(); ++i) {
         cells[i].pose = {{static_cast<float>(i%3), 10, static_cast<float>(i/3)}, {.86f,0,0}};
@@ -124,5 +201,5 @@ int main() {
     flow.Reset(); assert(!flow.RequestsTitle()); flow.Continue();
     flow.Observe(true); flow.Continue(); assert(flow.GetPhase()==FarmPlayFlow::Phase::Review);
     flow.Reset(); assert(flow.GetPhase()==FarmPlayFlow::Phase::Briefing);
-    std::puts("PASS: connected route, cycles/OOB/nonfinite/oversize fallbacks, camera continuity, held start/skip, exact completion, play-flow gate");
+    std::puts("PASS: empty-field eligibility after elapsed time/day/load/re-entry, edited/invalid field rejection, connected route, cycles/OOB/nonfinite/oversize fallbacks, camera continuity, held start/skip, exact completion, play-flow gate");
 }
