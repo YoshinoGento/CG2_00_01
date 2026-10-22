@@ -318,7 +318,7 @@ bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float ti
 	canalDemand_.assign(size, 0.0f);
 	soilCanals_.assign(size, -1);
 	for (int i = 0; i < count; ++i) {
-		auto& tile = *grid.GetMutableTile(i);
+		auto tile = *grid.GetTile(i);
 		const float oldWater = tile.waterAmount;
 		measuredTiles_[i] = { tile.heightLevel, tile.feature, tile.state, tile.crop, tile.irrigationEnabled };
 		measurable &= std::isfinite(oldWater) && oldWater >= 0.0f && oldWater <= 1.0f &&
@@ -336,6 +336,7 @@ bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float ti
 			lastStep_.sourceRefill += lastTileFlows_[i].sourceRefill;
 		}
 		changed |= oldWater != tile.waterAmount;
+        (void)grid.SetTile(i, tile);
 	}
 	// All transfers read the same snapshot. Incoming water cannot travel twice in this step.
 	for (int child : traversalQueue_) {
@@ -352,7 +353,9 @@ bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float ti
 		lastStep_.transferred += amount;
 	}
 	for (int i = 0; i < count; ++i) {
-		grid.GetMutableTile(i)->waterAmount = std::clamp(waterBefore_[i] + waterDelta_[i], 0.0f, 1.0f);
+		auto tile = *grid.GetTile(i);
+        tile.waterAmount = std::clamp(waterBefore_[i] + waterDelta_[i], 0.0f, 1.0f);
+        (void)grid.SetTile(i, tile);
 		waterBefore_[i] = grid.GetTile(i)->waterAmount;
 	}
 	// Soil demands share a canal's finite stock proportionally, independently of tile iteration order.
@@ -375,16 +378,19 @@ bool FarmIrrigationSystem::UpdateWater(FarmGrid& grid, float deltaTime, float ti
 		const float ratio = (std::min)(1.0f, waterBefore_[canal] / canalDemand_[canal]);
 		const float delivered = soilDemand_[i] * ratio;
 		changed |= delivered > 0.0f;
-		auto& soil = *grid.GetMutableTile(i);
+		auto soil = *grid.GetTile(i);
 		const float moistureBefore = soil.moisture;
 		soil.moisture = std::clamp(soil.moisture + delivered, 0.0f, 1.0f);
-		const float actual = soil.moisture - moistureBefore;
+		(void)grid.SetTile(i, soil);
+        const float actual = soil.moisture - moistureBefore;
 		lastTileFlows_[i].soilReceived = actual;
 		lastTileFlows_[canal].soilSent += actual;
 		lastStep_.soilDelivered += actual;
 	}
 	for (int i = 0; i < count; ++i) {
-		grid.GetMutableTile(i)->waterAmount = (std::max)(0.0f, waterBefore_[i] - canalDemand_[i]);
+		auto tile = *grid.GetTile(i);
+        tile.waterAmount = (std::max)(0.0f, waterBefore_[i] - canalDemand_[i]);
+        (void)grid.SetTile(i, tile);
 		lastStep_.stockAfter += grid.GetTile(i)->waterAmount;
 	}
 	lastStep_.balanceError = lastStep_.stockBefore + lastStep_.sourceRefill -

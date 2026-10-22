@@ -65,19 +65,9 @@ int FarmGrid::GetSelectedIndex() const
 	return selectedY_ * width_ + selectedX_;
 }
 
-FarmTile* FarmGrid::GetSelectedTile()
-{
-	return GetMutableSelectedTile();
-}
-
 const FarmTile* FarmGrid::GetSelectedTile() const
 {
 	return GetTile(GetSelectedIndex());
-}
-
-FarmTile* FarmGrid::GetTile(int index)
-{
-	return GetMutableTile(index);
 }
 
 const FarmTile* FarmGrid::GetTile(int index) const
@@ -89,48 +79,31 @@ const FarmTile* FarmGrid::GetTile(int index) const
 	return &tiles_[static_cast<std::size_t>(index)];
 }
 
-FarmTile* FarmGrid::GetMutableSelectedTile()
+bool FarmGrid::IsValidTile(const FarmTile& tile) noexcept
 {
-	return GetMutableTile(GetSelectedIndex());
-}
-
-FarmTile* FarmGrid::GetMutableTile(int index)
-{
-	if (index < 0 || index >= GetTileCount()) {
-		return nullptr;
-	}
-
-	return &tiles_[static_cast<std::size_t>(index)];
+    const auto unit = [](float value) { return std::isfinite(value) && value >= 0.0f && value <= 1.0f; };
+    if (!unit(tile.moisture) || !unit(tile.growth) || !unit(tile.waterAmount) ||
+        !unit(tile.soilNutrients) || !tile.careHistory.IsValid() ||
+        tile.heightLevel < 0 || tile.heightLevel > 2 || !IsValidFarmTileFeature(tile.feature)) return false;
+    switch (tile.state) {
+    case FarmTileState::Empty: case FarmTileState::Tilled: case FarmTileState::Watered:
+    case FarmTileState::Planted: case FarmTileState::ReadyToHarvest: break;
+    default: return false;
+    }
+    if (tile.crop != CropType::None && ToCropSlot(tile.crop) < 0) return false;
+    if (tile.feature == FarmTileFeature::None && tile.waterAmount != 0.0f) return false;
+    if (tile.state != FarmTileState::Planted && !tile.careHistory.IsEmpty()) return false;
+    if (tile.feature != FarmTileFeature::None &&
+        (tile.state != FarmTileState::Empty || tile.crop != CropType::None ||
+         tile.moisture != 0.0f || tile.growth != 0.0f || !tile.careHistory.IsEmpty())) return false;
+    return true;
 }
 
 bool FarmGrid::SetTile(int index, const FarmTile& tile)
 {
-	FarmTile* destination = GetMutableTile(index);
-	if (destination == nullptr || !std::isfinite(tile.moisture) ||
-		!std::isfinite(tile.growth) || !tile.careHistory.IsValid() ||
-		!std::isfinite(tile.soilNutrients) || tile.soilNutrients < 0.0f || tile.soilNutrients > 1.0f) {
-		return false;
-	}
-	if (tile.heightLevel < 0 || tile.heightLevel > 2) {
-		return false;
-	}
-	if (!IsValidFarmTileFeature(tile.feature) || !std::isfinite(tile.waterAmount) ||
-		tile.waterAmount < 0.0f || tile.waterAmount > 1.0f ||
-		(tile.feature == FarmTileFeature::None && tile.waterAmount != 0.0f)) {
-		return false;
-	}
-	if (tile.state != FarmTileState::Planted && !tile.careHistory.IsEmpty()) {
-		return false;
-	}
-	if (tile.feature != FarmTileFeature::None &&
-		(tile.state != FarmTileState::Empty || tile.crop != CropType::None ||
-		 tile.moisture != 0.0f || tile.growth != 0.0f ||
-		 !tile.careHistory.IsEmpty())) {
-		return false;
-	}
-
-	*destination = tile;
-	return true;
+    if (index < 0 || index >= GetTileCount() || !IsValidTile(tile)) return false;
+    tiles_[static_cast<std::size_t>(index)] = tile;
+    return true;
 }
 
 void FarmGrid::CaptureSnapshot(Snapshot& snapshot) const
@@ -150,26 +123,8 @@ bool FarmGrid::RestoreSnapshot(const Snapshot& snapshot)
 	}
 
 	for (const FarmTile& tile : snapshot.tiles) {
-		if (tile.heightLevel < 0 || tile.heightLevel > 2 ||
-			!IsValidFarmTileFeature(tile.feature) ||
-			!std::isfinite(tile.waterAmount) || tile.waterAmount < 0.0f ||
-			tile.waterAmount > 1.0f ||
-			(tile.feature == FarmTileFeature::None && tile.waterAmount != 0.0f) ||
-			!std::isfinite(tile.moisture) || !std::isfinite(tile.growth) ||
-			!tile.careHistory.IsValid() || !std::isfinite(tile.soilNutrients) ||
-			tile.soilNutrients < 0.0f || tile.soilNutrients > 1.0f) {
-			return false;
-		}
-		if (tile.state != FarmTileState::Planted && !tile.careHistory.IsEmpty()) {
-			return false;
-		}
-		if (tile.feature != FarmTileFeature::None &&
-			(tile.state != FarmTileState::Empty || tile.crop != CropType::None ||
-			 tile.moisture != 0.0f || tile.growth != 0.0f ||
-			 !tile.careHistory.IsEmpty())) {
-			return false;
-		}
-	}
+        if (!IsValidTile(tile)) return false;
+    }
 
 	selectedX_ = std::clamp(snapshot.selectedX, 0, width_ - 1);
 	selectedY_ = std::clamp(snapshot.selectedY, 0, height_ - 1);

@@ -1,3 +1,4 @@
+#include "farm_test_edit.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmDocumentSystem.h"
 #include "farm/system/FarmGrowthSystem.h"
@@ -45,7 +46,8 @@ int main() {
         assert(actions.CompostSelectedTile(grid));
         assert(actions.ApplyTool(grid,FarmTool::Seed,crop,economy));
         assert(economy.GetSeedCount(crop)==0 && grid.GetTile(0)->crop==crop);
-        auto* tile=grid.GetMutableTile(0);
+        auto candidate=*grid.GetTile(0);
+        auto* tile=&candidate;
         tile->heightLevel=i==2 ? 0 : 1;
         tile->moisture=.55f;
         const auto good=growth.Evaluate(*tile);
@@ -56,7 +58,9 @@ int main() {
         assert(FarmGrowthSystem::AnalyzeWater(tile,excess,farm::FarmWaterStatus::Available).advice==FarmWaterAdvice::CloseIntake);
         for(int step=0;step<1000 && !farm::IsHarvestReady(*tile);++step) {
             tile->moisture=.55f;
+            assert(grid.SetTile(0,*tile));
             assert(growth.Update(grid,.1f,1.f)); durations[i]+=.1f;
+            candidate=*grid.GetTile(0);
         }
         assert(farm::IsHarvestReady(*tile) && tile->careHistory.IsValid());
         assert(tile->soilNutrients<1 && tile->careHistory.GetAverageEfficiency()>.99f);
@@ -107,10 +111,11 @@ int main() {
     for(int i=0;i<3;++i) {
         assert(economy.BuySeed(crops[i]).Succeeded());
         for(int stage=0;stage<4;++stage) {
-            auto* tile=grid.GetMutableTile(stage*5+i); *tile=ideal; tile->crop=crops[i];
+            auto candidate=ideal; auto* tile=&candidate; tile->crop=crops[i];
             tile->state=farm::FarmTileState::Planted; tile->heightLevel=i==2 ? 0 : 1;
             tile->growth=std::array{.10f,.45f,.8f,1.f}[stage]; tile->moisture=.55f;
             tile->careHistory.nutrientGrowth=tile->growth; tile->careHistory.nutrientSupply=tile->growth;
+            assert(grid.SetTile(stage*5+i,*tile));
         }
         ideal.crop=crops[i]; assert(economy.AddHarvest(quality.Evaluate(ideal),1,1));
     }
@@ -146,8 +151,9 @@ int main() {
     FarmEconomySystem oldEconomy; oldEconomy.Initialize();
     FarmCropSelectionSystem oldSelection; oldSelection.Initialize();
     assert(oldSelection.SetSelectedCrop(CropType::TestCrop));
-    auto* oldTile=oldGrid.GetMutableTile(0); oldTile->crop=CropType::TestCrop;
+    auto legacyTile=*oldGrid.GetTile(0); auto* oldTile=&legacyTile; oldTile->crop=CropType::TestCrop;
     oldTile->state=farm::FarmTileState::Planted; oldTile->growth=.4f;
+    assert(oldGrid.SetTile(0,*oldTile));
     assert(oldEconomy.BuySeed(CropType::TestCrop).Succeeded());
     assert(oldEconomy.AddSeed(CropType::Carrot,2));
     farm::FarmTile mature; mature.state=farm::FarmTileState::Planted; mature.growth=1;

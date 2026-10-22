@@ -1,6 +1,6 @@
 #pragma once
 #include "3d/Object3dCommon.h"
-#include "3d/Model.h" 
+#include "3d/Model.h"
 #include "math/Matrix.h"
 #include "3d/Camera.h"
 #include "3d/Skeleton.h"
@@ -33,10 +33,11 @@ public:
 	void SetModel(Model* model);
 	void InitializeSkeleton();
 
-	std::optional<Skeleton>& GetSkeleton() { return skeleton_; }
+	const std::optional<Skeleton>& GetSkeleton() const noexcept { return skeleton_; }
+    bool SetJointTranslationScale(std::size_t index, const Vector3& translation, const Vector3& scale);
 	Model* GetModel() const { return model_; }
 	const Matrix4x4& GetWorldMatrix() const { return worldMatrix_; }
-	// ルートノードのローカル行列を含まない、オブジェクト自身の純粋なアフィン変換行列を取得する（日本語コメント付き）
+	// Excludes the model root transform, so skeleton gizmos use the same object space.
 	const Matrix4x4& GetObjectWorldMatrix() const { return objectWorldMatrix_; }
 	Vector3 GetPosition() const { return transform_.translate; }
 	Vector3 GetRotation() const { return transform_.rotate; }
@@ -48,15 +49,15 @@ public:
 	bool SetShearY(const Vector2& slope);
 	void SetTexture(Texture2DHandle textureHandle) { textureHandle_ = textureHandle; }
 	void SetTexture(uint32_t textureHandle);
-	void SetColor(const Vector4& color) { materialData_->color = color; }
-	void SetEnableLighting(bool enabled) { materialData_->enableLighting = enabled ? 1 : 0; }
+	void SetColor(const Vector4& color);
+	void SetEnableLighting(bool enabled) { if (materialData_) materialData_->enableLighting = enabled ? 1 : 0; }
 	// 環境マップ用のテクスチャハンドルをセット
 	void SetEnvironmentMap(TextureCubeHandle handle) { environmentMapHandle_ = handle; }
 	// 反射強度のセット
-	void SetEnvironmentCoefficient(float coef) { materialData_->environmentCoefficient = coef; }
+	void SetEnvironmentCoefficient(float coef);
 	void SetCullMode(int cullMode);
-	void SetShininess(float shininess) { materialData_->shininess = shininess; }
-	void SetSpecularType(SpecularType type) { materialData_->specularType = static_cast<int32_t>(type); }
+	void SetShininess(float shininess);
+	void SetSpecularType(SpecularType type) { if (materialData_) materialData_->specularType = static_cast<int32_t>(type); }
 	// x: specular gain, y: grain contrast, z: cells/world-unit, w: normal variation.
 	bool SetSurfaceDetail(const Vector4& detail);
 	// RGB: sky-fill tint, W: opt-in blend. Zero preserves legacy lighting.
@@ -65,13 +66,14 @@ public:
 
 	// 平行光源の設定
 
-	// ★追加：スポットライトの設定用Setter
+
 
 	// アニメーション用アクセサ
 	void SetAnimation(const Animation& animation) { animation_ = animation; }
-	float& GetAnimationTime() { return animationTime_; }
-	bool& GetIsAnimationPlaying() { return isAnimationPlaying_; }
-	float& GetAnimationSpeed() { return animationSpeed_; }
+	float GetAnimationTime() const noexcept { return animationTime_; }
+    bool SetAnimationTime(float seconds) noexcept;
+	bool GetIsAnimationPlaying() const noexcept { return isAnimationPlaying_; }
+	float GetAnimationSpeed() const noexcept { return animationSpeed_; }
 	const Animation& GetAnimation() const { return animation_; }
 	bool HasAnimation() const { return animation_.duration > 0.0f; }
 	bool HasSkeleton() const { return skeleton_.has_value(); }
@@ -82,7 +84,8 @@ public:
 	float GetAnimationDuration() const { return animation_.duration; }
 	float GetAnimationTimeValue() const { return animationTime_; }
 	float GetPlaybackSpeed() const { return animationSpeed_; }
-	void SetPlaybackSpeed(float speed) { animationSpeed_ = speed; }
+	bool SetPlaybackSpeed(float speed) noexcept;
+    void SetBoneManualControl(bool enabled) noexcept { isBoneManualControl_ = enabled; }
 
 
 private:
@@ -142,11 +145,5 @@ private:
 
 	// スポットライト用
 
-	public:
-		// 修正：構造体の定義より後ろのこの位置に配置することで、コンパイルが正常に通ります
-		Material* GetMaterialData() { return materialData_; }
-		TransformationMatrix* GetTransformationMatrixData() { return transformationMatrixData_; }
-
-		// アニメーションによる骨の上書きを制御するためのフラグ操作（オプション）
-		bool isBoneManualControl_ = false;
+    bool isBoneManualControl_ = false;
 };

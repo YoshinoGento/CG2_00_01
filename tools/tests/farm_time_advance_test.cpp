@@ -1,3 +1,5 @@
+#include <cassert>
+#include "farm_test_edit.h"
 #include "farm/system/FarmTimeAdvanceSystem.h"
 #include <iostream>
 #include <limits>
@@ -167,20 +169,24 @@ int main() try {
         std::numeric_limits<float>::infinity(), -0.1f, 1.1f}) {
         for (const bool corruptGrowth : {false, true}) {
             Fixture f; f.Crop(farm::CropType::Carrot, 0.55f);
-            // Bypass SetTile validation only to model corrupted in-memory input.
-            auto* tile = f.grid.GetMutableTile(19);
+            // Corrupted values must be rejected before reaching the simulation.
+            auto candidate = *f.grid.GetTile(19);
+            auto* tile = &candidate;
             Require(tile != nullptr, "corrupt fixture pointer");
             if (corruptGrowth) tile->growth = value;
             else tile->moisture = value;
-            CheckBlocked(f, Reason::InvalidState, 19);
+            Require(!f.grid.SetTile(19, candidate), "invalid write accepted");
+            Require(f.grid.GetTile(19)->growth == 0.2f && f.grid.GetTile(19)->moisture == 0.55f, "invalid write changed state");
         }
     }
     {
         Fixture f; f.Crop(farm::CropType::Carrot, 0.55f);
-        auto* tile = f.grid.GetMutableTile(19);
+        auto candidate = *f.grid.GetTile(19);
+            auto* tile = &candidate;
         Require(tile != nullptr, "invalid crop fixture pointer");
         tile->crop = static_cast<farm::CropType>(99);
-        CheckBlocked(f, Reason::InvalidState, 19);
+        Require(!f.grid.SetTile(19, candidate), "invalid write accepted");
+            Require(f.grid.GetTile(19)->growth == 0.2f && f.grid.GetTile(19)->moisture == 0.55f, "invalid write changed state");
     }
     {
         Fixture f;

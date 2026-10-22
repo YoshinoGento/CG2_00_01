@@ -28,13 +28,10 @@ public:
 	void UpdateGrowth(float deltaTime);
 	bool SelectTile(int index);
 
-	FarmTile* GetTile(int index);
 	const FarmTile* GetTile(int index) const;
-	FarmTile* GetSelectedTile();
 	const FarmTile* GetSelectedTile() const;
-	FarmTile* GetMutableSelectedTile();
-	FarmTile* GetMutableTile(int index);
 	bool SetTile(int index, const FarmTile& tile);
+	[[nodiscard]] static bool IsValidTile(const FarmTile& tile) noexcept;
 	void CaptureSnapshot(Snapshot& output) const;
 	bool RestoreSnapshot(const Snapshot& snapshot);
 	[[nodiscard]] uint64_t GetGeneration() const noexcept { return generation_; }

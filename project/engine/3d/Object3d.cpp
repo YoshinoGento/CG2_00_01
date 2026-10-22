@@ -278,3 +278,34 @@ void Object3d::InitializeSkeleton() {
 		skeleton_ = SkeletonSystem::CreateSkeleton(model_->GetRootNode());
 	}
 }
+
+// These commands never expose the mapped constant buffer or mutable skeleton storage.
+bool Object3d::SetAnimationTime(float seconds) noexcept {
+    if (!std::isfinite(seconds)) return false;
+    animationTime_ = std::clamp(seconds, 0.0f, (std::max)(0.0f, animation_.duration));
+    return true;
+}
+bool Object3d::SetPlaybackSpeed(float speed) noexcept {
+    if (!std::isfinite(speed)) return false;
+    animationSpeed_ = speed;
+    return true;
+}
+bool Object3d::SetJointTranslationScale(std::size_t index, const Vector3& translation, const Vector3& scale) {
+    const auto finite = [](const Vector3& v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); };
+    if (!skeleton_ || index >= skeleton_->joints.size() || !finite(translation) || !finite(scale) ||
+        scale.x <= 0.0f || scale.y <= 0.0f || scale.z <= 0.0f) return false;
+    auto& transform = skeleton_->joints[index].transform;
+    transform.translate = translation;
+    transform.scale = scale;
+    return true;
+}
+void Object3d::SetColor(const Vector4& color) {
+    if (materialData_ && std::isfinite(color.x) && std::isfinite(color.y) && std::isfinite(color.z) && std::isfinite(color.w))
+        materialData_->color = color;
+}
+void Object3d::SetEnvironmentCoefficient(float coefficient) {
+    if (materialData_ && std::isfinite(coefficient)) materialData_->environmentCoefficient = coefficient;
+}
+void Object3d::SetShininess(float shininess) {
+    if (materialData_ && std::isfinite(shininess) && shininess >= 0.0f) materialData_->shininess = shininess;
+}

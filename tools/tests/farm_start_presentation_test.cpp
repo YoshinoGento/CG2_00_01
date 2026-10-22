@@ -1,3 +1,4 @@
+#include "farm_test_edit.h"
 #include "farm/system/FarmStartPresentationSystem.h"
 #include "farm/system/FarmPlayFlow.h"
 #include "farm/system/FarmDateSystem.h"
@@ -34,13 +35,13 @@ static void TestArrivalEligibility(farm::OverviewPose final) {
     edited[8].moisture = std::numeric_limits<float>::quiet_NaN();
     edited[9].growth = std::numeric_limits<float>::infinity();
     for (int i = 0; i < field.GetTileCount(); ++i) {
-        auto* tile = field.GetMutableTile(i);
-        assert(tile);
         for (const auto& changed : edited) {
-            *tile = changed; // Also inject invalid floating-point data past loader validation.
-            assert(!System::SupportsArrival(field));
+            assert(field.SetTile(i, {}));
+            const bool valid = farm::FarmGrid::IsValidTile(changed);
+            assert(field.SetTile(i, changed) == valid);
+            assert(System::SupportsArrival(field) == !valid);
         }
-        *tile = {};
+        assert(field.SetTile(i, {}));
         assert(System::SupportsArrival(field));
     }
 

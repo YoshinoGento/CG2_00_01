@@ -810,14 +810,14 @@ void FieldManager::SpawnPebbles(const Vector3& position) {
 }
 
 void FieldManager::SetObjectColor(Object3d* object, const Vector4& color) {
-	if (!object || !object->GetMaterialData()) {
+	if (!object) {
 		return;
 	}
-	object->GetMaterialData()->color = color;
+	object->SetColor(color);
 	// Field colors are state indicators. Use an unlit material path so they stay readable
 	// even when the scene light direction or skybox makes ordinary 3D objects dark.
-	object->GetMaterialData()->enableLighting = 0;
-	object->GetMaterialData()->environmentCoefficient = 0.0f;
+	object->SetEnableLighting(false);
+	object->SetEnvironmentCoefficient(0.0f);
 }
 
 void FieldManager::InitializeCropPart(std::unique_ptr<Object3d>& object, Model* model) {

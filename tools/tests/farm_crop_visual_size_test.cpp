@@ -1,3 +1,4 @@
+#include "farm_test_edit.h"
 #include "farm/system/FarmVisualSystem.h"
 #include "farm/system/FarmIrrigationSystem.h"
 #include "farm/core/FarmGrid.h"
@@ -49,8 +50,9 @@ int main() {
     for(auto crop : {farm::CropType::TestCrop, farm::CropType::Carrot, farm::CropType::Tomato, farm::CropType::Pumpkin}) {
         farm::FarmGrid field; assert(field.Initialize(1,1));
         farm::FarmTile before; before.crop=crop; before.state=farm::FarmTileState::Planted; before.growth=1;
-        before.heightLevel=2; auto* after=field.GetMutableTile(0);
+        before.heightLevel=2; auto candidate=*field.GetTile(0); auto* after=&candidate;
         after->state=farm::FarmTileState::Tilled; after->heightLevel=2;
+        assert(field.SetTile(0,*after));
         const auto saved=*after;
         FarmToolActionResult action; action.status=FarmToolActionStatus::Harvested;
         action.tileIndex=0; action.harvestedTile=before;
@@ -61,12 +63,13 @@ int main() {
         assert(pulled.count>0 && pulled.parts[0].position.y>visual.GetTileVisualData(field,0).center.y);
         for(int frame=0;frame<100;++frame) effect.Update(field,1.f/60.f);
         assert(effect.GetActiveCount(field)==0);
-        assert(after->state==saved.state && after->crop==saved.crop && after->growth==saved.growth && after->moisture==saved.moisture);
+        const auto* actual=field.GetTile(0);
+        assert(actual->state==saved.state && actual->crop==saved.crop && actual->growth==saved.growth && actual->moisture==saved.moisture);
     }
     for(auto crop : {farm::CropType::Tomato, farm::CropType::Pumpkin}) {
         farm::FarmGrid grid; assert(grid.Initialize(1,1));
         farm::FarmTile before; before.crop=crop; before.state=farm::FarmTileState::Planted; before.growth=1;
-        auto* current=grid.GetMutableTile(0); current->state=farm::FarmTileState::Tilled;
+        assert(EditFarmTile(grid,0,[](auto& current) { current.state=farm::FarmTileState::Tilled; }));
         FarmToolActionResult result; result.status=FarmToolActionStatus::Harvested; result.tileIndex=0; result.harvestedTile=before;
         farm::FarmVisualSystem visual; visual.Initialize({});
         farm::FarmHarvestVisualSystem harvest; assert(harvest.Start(result,grid,visual));
@@ -178,9 +181,9 @@ int main() {
         assert(Near(visual.GetTileVisualData(grid,0).cropScale,1.05f));
         assert(farm::BuildFarmCropMeshParts(grid,0,visual).count == 1);
         assert(farm::BuildFarmCropMeshParts(grid,0,visual).parts[0].shape == leafShape);
-        grid.GetMutableTile(0)->growth = std::numeric_limits<float>::quiet_NaN();
+        assert(!EditFarmTile(grid, 0, [&](auto& candidate) { candidate.growth = std::numeric_limits<float>::quiet_NaN(); }));
         assert(std::isfinite(visual.GetTileVisualData(grid,0).cropScale));
-        assert(farm::BuildFarmCropMeshParts(grid,0,visual).count == 0);
+        assert(farm::BuildFarmCropMeshParts(grid,0,visual).count == 1);
     }
     assert(!visual.GetTileVisualData(grid,-1).valid && !visual.GetTileVisualData(grid,1).valid);
     assert(farm::BuildFarmCropMeshParts(grid,-1,visual).count == 0);

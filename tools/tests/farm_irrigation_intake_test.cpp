@@ -1,3 +1,5 @@
+#include <cassert>
+#include "farm_test_edit.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmIrrigationSystem.h"
 #include "farm/system/FarmIrrigationPreviewSystem.h"
@@ -43,8 +45,8 @@ int main() try {
             Check(flows[2].soilReceived == 0 && flows[4].soilReceived > 0, "independent intake");
             Check(grid.GetTile(2)->moisture == moisture, "closed moisture retained");
         }
-        grid.GetMutableTile(2)->growth = 0.4f;
-        grid.GetMutableTile(2)->moisture = 0.15f;
+        assert(EditFarmTile(grid, 2, [&](auto& candidate) { candidate.growth = 0.4f; }));
+        assert(EditFarmTile(grid, 2, [&](auto& candidate) { candidate.moisture = 0.15f; }));
         const float evolvedStock = grid.GetTile(1)->waterAmount;
         Check(tools.Undo() && grid.GetTile(2)->irrigationEnabled, "undo flag");
         Check(grid.GetTile(2)->growth == 0.4f && grid.GetTile(2)->moisture == 0.15f &&
@@ -56,10 +58,10 @@ int main() try {
         Check(tools.SetSelectedIrrigation(grid, true), "reopen");
         water.UpdateWater(grid, 0.1f, speed);
         Check(water.GetLastTileFlows(grid)[2].soilReceived > 0, "reopened delivery");
-        grid.GetMutableTile(2)->heightLevel = 1;
+        assert(EditFarmTile(grid, 2, [&](auto& candidate) { candidate.heightLevel = 1; }));
         water.Rebuild(grid);
         Check(water.GetAvailableIrrigationStrength(grid, 2) == 0, "no uphill supply");
-        grid.GetMutableTile(2)->heightLevel = 0;
+        assert(EditFarmTile(grid, 2, [&](auto& candidate) { candidate.heightLevel = 0; }));
         Check(grid.SetTile(0, FarmTile{}), "remove source"); water.Rebuild(grid);
         Check(water.GetWaterStatus(grid, 2) == FarmWaterStatus::Retained, "disconnected reservoir available");
         Check(tools.SetSelectedIrrigation(grid, false), "close retained");

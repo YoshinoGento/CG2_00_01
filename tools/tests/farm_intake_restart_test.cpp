@@ -1,3 +1,4 @@
+#include "farm_test_edit.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmDocumentSystem.h"
 #include "farm/system/FarmLayoutSystem.h"
@@ -15,8 +16,8 @@ void Require(bool condition, const char* message) {
 }
 void SetIntakes(farm::FarmGrid& grid, bool first) {
     Require(grid.GetTileCount() == 2, "Expected two tiles");
-    grid.GetMutableTile(0)->irrigationEnabled = first;
-    grid.GetMutableTile(1)->irrigationEnabled = !first;
+    Require(EditFarmTile(grid, 0, [&](auto& candidate) { candidate.irrigationEnabled = first; }), "First intake fixture");
+    Require(EditFarmTile(grid, 1, [&](auto& candidate) { candidate.irrigationEnabled = !first; }), "Second intake fixture");
 }
 void CheckIntakes(const farm::FarmGrid& grid, bool first) {
     Require(grid.GetTileCount() == 2, "Loaded tile count");
@@ -51,10 +52,11 @@ int main(int argc, char** argv) {
 
         if (mode == "write") {
             SetIntakes(grid, false);
-            auto* tile = grid.GetMutableTile(0);
+            auto candidate = *grid.GetTile(0); auto* tile = &candidate;
             tile->state = farm::FarmTileState::Tilled;
             tile->heightLevel = 1;
             tile->moisture = 0.37f;
+            Require(grid.SetTile(0,*tile), "Soil fixture");
             Require(date.RestoreSnapshot({7, 12.5f, 2.f}), "Clock fixture");
             Require(documents.SaveAs(kDocumentName, grid, economy, selection), "Named document save");
             Require(layouts.SaveNew(kLayoutName, grid), "Named layout save");

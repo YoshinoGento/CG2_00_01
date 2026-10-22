@@ -1,3 +1,4 @@
+#include "farm_test_edit.h"
 #include "farm/system/FarmDocumentSystem.h"
 #include "farm/core/FarmGrid.h"
 #include "farm/system/FarmContestSubmissionSystem.h"
@@ -73,7 +74,7 @@ int main() {
         std::cout << "PASS: contest-day pause, speed boundaries, large-step cap, acknowledgement, reload and rewind\n";
     }
     farm::FarmGrid grid; assert(grid.Initialize(2, 1));
-    grid.GetMutableTile(0)->irrigationEnabled = false;
+    assert(EditFarmTile(grid, 0, [&](auto& candidate) { candidate.irrigationEnabled = false; }));
     FarmEconomySystem economy; economy.Initialize();
     FarmCropSelectionSystem selection; selection.Initialize();
     FarmDocumentSystem documents;

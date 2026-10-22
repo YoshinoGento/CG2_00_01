@@ -23,7 +23,6 @@
 #include <string>
 #include <vector>
 
-class GamePlayScene;
 class Object3d;
 
 namespace farm {
@@ -425,44 +424,41 @@ struct ParticleEditorCommand {
 	float alphaReference = 0.0f;
 };
 
-// Builds read-only editor snapshots and routes typed commands to owning systems.
-// All bound pointers are non-owning and must outlive the binding.
-class GamePlayEditorBridge final {
+// Snapshot/Command boundary. The target owns validation and state transitions.
+class GamePlayEditorTarget {
 public:
-	void Bind(
-		GamePlayScene& scene,
-		farm::FarmGrid& farmGrid,
-		FarmToolActionSystem& farmToolActionSystem,
-		farm::FarmIrrigationSystem& farmIrrigationSystem,
-		FarmDocumentSystem& farmDocumentSystem) noexcept;
-	void Unbind() noexcept;
-
-	[[nodiscard]] bool IsBound() const noexcept;
-	void BuildViewModel(GamePlayEditorViewModel& output) const;
-	bool Execute(const GamePlayEditorCommand& command);
-	bool Execute(const FarmDocumentCommand& command);
-	bool Execute(const VisibilityEditorCommand& command);
-	bool Execute(const CameraEditorCommand& command);
-	bool Execute(const ObjectInspectorEditorCommand& command);
-	bool Execute(const ParticleEditorCommand& command);
-	bool Execute(const SimulationEditorCommand& command);
-
-	void SetViewportState(
-		const Vector2& imageTopLeft,
-		const Vector2& imageSize,
-		const Vector2& mousePosition,
-		bool hovered,
-		bool focused) noexcept;
-	[[nodiscard]] Object3d* GetAnimationObjectForDebug() const noexcept;
-
-private:
-	bool SelectCommandTarget(const GamePlayEditorCommand& command);
-
-	GamePlayScene* scene_ = nullptr;
-	farm::FarmGrid* farmGrid_ = nullptr;
-	FarmToolActionSystem* farmToolActionSystem_ = nullptr;
-	farm::FarmIrrigationSystem* farmIrrigationSystem_ = nullptr;
-	FarmDocumentSystem* farmDocumentSystem_ = nullptr;
+    virtual ~GamePlayEditorTarget() = default;
+    virtual void BuildViewModel(GamePlayEditorViewModel& output) const = 0;
+    virtual bool Execute(const GamePlayEditorCommand& command) = 0;
+    virtual bool Execute(const FarmDocumentCommand& command) = 0;
+    virtual bool Execute(const VisibilityEditorCommand& command) = 0;
+    virtual bool Execute(const CameraEditorCommand& command) = 0;
+    virtual bool Execute(const ObjectInspectorEditorCommand& command) = 0;
+    virtual bool Execute(const ParticleEditorCommand& command) = 0;
+    virtual bool Execute(const SimulationEditorCommand& command) = 0;
+    virtual void SetViewportState(const Vector2& imageTopLeft, const Vector2& imageSize,
+        const Vector2& mousePosition, bool hovered, bool focused) noexcept = 0;
+    virtual Object3d* GetAnimationObjectForDebug() const noexcept = 0;
 };
 
+// Borrowed target is cleared before the owning gameplay session is finalized.
+class GamePlayEditorBridge final {
+public:
+    void Bind(GamePlayEditorTarget& target) noexcept { target_ = &target; }
+    void Unbind() noexcept { target_ = nullptr; }
+    bool IsBound() const noexcept { return target_ != nullptr; }
+    void BuildViewModel(GamePlayEditorViewModel& output) const;
+    bool Execute(const GamePlayEditorCommand& command);
+    bool Execute(const FarmDocumentCommand& command);
+    bool Execute(const VisibilityEditorCommand& command);
+    bool Execute(const CameraEditorCommand& command);
+    bool Execute(const ObjectInspectorEditorCommand& command);
+    bool Execute(const ParticleEditorCommand& command);
+    bool Execute(const SimulationEditorCommand& command);
+    void SetViewportState(const Vector2& imageTopLeft, const Vector2& imageSize,
+        const Vector2& mousePosition, bool hovered, bool focused) noexcept;
+    Object3d* GetAnimationObjectForDebug() const noexcept;
+private:
+    GamePlayEditorTarget* target_ = nullptr;
+};
 } // namespace editor

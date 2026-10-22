@@ -9,9 +9,12 @@ class SceneManager;
  * すべてのシーンの親クラスです（スライド25,26準拠）。
  */
 class BaseScene {
-protected:
+private:
 	// シーンマネージャを借りてくる（前方宣言を利用）
 	SceneManager* sceneManager_ = nullptr;
+
+protected:
+    SceneManager* GetSceneManager() const noexcept { return sceneManager_; }
 
 public:
 	virtual ~BaseScene() = default;

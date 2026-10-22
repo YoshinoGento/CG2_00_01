@@ -214,7 +214,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="engine\debug\ResourceLeakChecker.cpp" />
-    <ClCompile Include="engine\debug\SkinningDebugWindow.cpp">
+    <ClCompile Include="engine\inspection\SkinningDebugWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="engine\audio\Audio.cpp" />
@@ -563,7 +563,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="engine\debug\EngineDebugWindowManager.h" />
     <ClInclude Include="engine\debug\InputDebugWindow.h" />
     <ClInclude Include="engine\debug\ResourceLeakChecker.h" />
-    <ClInclude Include="engine\debug\SkinningDebugWindow.h" />
+    <ClInclude Include="engine\inspection\SkinningDebugWindow.h" />
     <ClInclude Include="engine\audio\Audio.h" />
     <ClInclude Include="application\scene\BaseScene.h" />
     <ClInclude Include="engine\3d\Camera.h" />
@@ -723,4 +723,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="application\gameplay\GamePlaySessionSystem.cpp" />
+    <ClCompile Include="application\gameplay\GamePlaySessionEditor.cpp" />
+    <ClInclude Include="application\gameplay\GamePlaySessionSystem.h" />
+    <ClInclude Include="application\farm\system\FarmRuntimeContext.h" />
+  </ItemGroup>
 </Project>

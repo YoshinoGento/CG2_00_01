@@ -29,7 +29,7 @@ InitializationTask TitleScene::InitializeIncrementally() {
     if (!audio_.Initialize(framework->GetAudio())) Logger::Warning("Title audio unavailable; continuing without sound.");
     co_await std::suspend_always{};
     if (!worldReady || !ready_) Logger::Log("TitleScene initialization failed: required title resources unavailable.\n");
-    if (sceneManager_ && sceneManager_->IsTransitionCoverPresented()) presentation_.CompleteEntryFade();
+    if (GetSceneManager() && GetSceneManager()->IsTransitionCoverPresented()) presentation_.CompleteEntryFade();
     renderer_.Update(presentation_.GetFrame());
     pond_.Update(0,presentation_.GetFrame());
     co_return worldReady && ready_;
@@ -71,9 +71,9 @@ void TitleScene::Update() {
     renderer_.Update(frame);
     audio_.Update(settings_.Apply(frame.audio));
     // A failed visual asset must not strand the player; start still reaches the game.
-    if (presentation_.ConsumeStart() && sceneManager_) {
+    if (presentation_.ConsumeStart() && GetSceneManager()) {
         const auto& path = pond_.GetStartPath();
-        sceneManager_->ChangeSceneWithRipple("GAMEPLAY",path.impact,path);
+        GetSceneManager()->ChangeSceneWithRipple("GAMEPLAY",path.impact,path);
     }
 }
 

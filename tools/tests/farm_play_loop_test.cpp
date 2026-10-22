@@ -1,3 +1,4 @@
+#include "farm_test_edit.h"
 #include "farm/system/FarmPlayFlow.h"
 #include "farm/system/FarmProgressionSystem.h"
 #include "farm/system/FarmEconomySystem.h"
@@ -647,13 +648,13 @@ int main() {
 			assert(actions.ApplyTool(grid, FarmTool::Water, crop, economy));
 		}
 		assert(actions.ApplyTool(grid, FarmTool::Seed, crop, economy));
-		grid.GetMutableSelectedTile()->moisture = 0.0f;
+		assert(EditFarmTile(grid, grid.GetSelectedIndex(), [&](auto& candidate) { candidate.moisture = 0.0f; }));
 		assert(growth.Update(grid, 0.25f, 1.0f));
-		grid.GetMutableSelectedTile()->moisture = 0.10f;
+		assert(EditFarmTile(grid, grid.GetSelectedIndex(), [&](auto& candidate) { candidate.moisture = 0.10f; }));
 		assert(growth.Update(grid, 0.25f, 1.0f));
-		grid.GetMutableSelectedTile()->moisture = 0.50f;
+		assert(EditFarmTile(grid, grid.GetSelectedIndex(), [&](auto& candidate) { candidate.moisture = 0.50f; }));
 		assert(growth.Update(grid, 0.25f, 1.0f));
-		grid.GetMutableSelectedTile()->moisture = 0.90f;
+		assert(EditFarmTile(grid, grid.GetSelectedIndex(), [&](auto& candidate) { candidate.moisture = 0.90f; }));
 		assert(growth.Update(grid, 0.25f, 1.0f));
 		const farm::FarmTile* growingTile = grid.GetSelectedTile();
 		assert(growingTile != nullptr);

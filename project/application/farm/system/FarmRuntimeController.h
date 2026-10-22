@@ -7,7 +7,7 @@
 #include "farm/system/FarmSeedShopSystem.h"
 #include "farm/system/FarmHarvestDisplaySystem.h"
 
-class GamePlayScene;
+struct FarmRuntimeContext;
 class Input;
 
 // Routes Release controls to existing gameplay Systems; owns only menu/input state.
@@ -18,7 +18,7 @@ public:
         ready_ = co_await ui_.InitializeIncrementally(common);
         co_return ready_;
     }
-    bool Update(GamePlayScene& scene, const Input& input);
+    bool Update(const FarmRuntimeContext& context, const Input& input);
     void InitializeArrivalAudio(Audio* audio) { (void)arrivalAudio_.Initialize(audio); }
     void FinalizeArrivalAudio() { arrivalAudio_.Finalize(); }
     FarmStartPresentationSystem::Frame StartFrame() const noexcept {
@@ -38,23 +38,23 @@ public:
     int SeedShopSelection() const noexcept { return shop_.Selection(); }
     bool ShowsHarvestDisplay() const noexcept { return view_.harvestDisplay; }
     int HarvestDisplaySelection() const noexcept { return view_.counterSelection; }
-    [[nodiscard]] int ResolveHoveredTile(const GamePlayScene& scene) const;
-    void Refresh(GamePlayScene& scene) { BuildView(scene); }
-    void CommitScreenTransition(GamePlayScene& scene);
-    void OpenLayoutLibrary(GamePlayScene& scene);
-    void UpdateFollowCamera(GamePlayScene& scene) { FrameFarm(scene, true); }
+    [[nodiscard]] int ResolveHoveredTile(const FarmRuntimeContext& context) const;
+    void Refresh(const FarmRuntimeContext& context) { BuildView(context); }
+    void CommitScreenTransition(const FarmRuntimeContext& context);
+    void OpenLayoutLibrary(const FarmRuntimeContext& context);
+    void UpdateFollowCamera(const FarmRuntimeContext& context) { FrameFarm(context, true); }
 private:
-    void BuildView(GamePlayScene& scene);
-    void Execute(GamePlayScene& scene, farmui::Request request, bool allowTransition = true);
-    bool DeferScreenTransition(GamePlayScene& scene, farmui::Request request);
-    void EnterObservation(GamePlayScene& scene);
-    void EnterTerrain(GamePlayScene& scene);
-    void LeaveTerrain(GamePlayScene& scene);
-    bool UpdateTerrain(GamePlayScene& scene, const Input& input, bool click);
-    bool FrameFarm(GamePlayScene& scene, bool followPlayer = false, bool briefing = false);
-    void BeginFarmStart(GamePlayScene& scene);
-    void ApplyStartCamera(GamePlayScene& scene);
-    bool UpdateObservation(GamePlayScene& scene, const Input& input, bool click);
+    void BuildView(const FarmRuntimeContext& context);
+    void Execute(const FarmRuntimeContext& context, farmui::Request request, bool allowTransition = true);
+    bool DeferScreenTransition(const FarmRuntimeContext& context, farmui::Request request);
+    void EnterObservation(const FarmRuntimeContext& context);
+    void EnterTerrain(const FarmRuntimeContext& context);
+    void LeaveTerrain(const FarmRuntimeContext& context);
+    bool UpdateTerrain(const FarmRuntimeContext& context, const Input& input, bool click);
+    bool FrameFarm(const FarmRuntimeContext& context, bool followPlayer = false, bool briefing = false);
+    void BeginFarmStart(const FarmRuntimeContext& context);
+    void ApplyStartCamera(const FarmRuntimeContext& context);
+    bool UpdateObservation(const FarmRuntimeContext& context, const Input& input, bool click);
     farmui::RuntimeUI ui_;
     FarmPlayFlow flow_;
     FarmStartPresentationSystem startPresentation_;

@@ -49,10 +49,11 @@ public:
 private:
 	bool Apply(bool expected, bool value) {
 		if (!grid_ || grid_->GetGeneration() != generation_) return false;
-		auto* tile = grid_->GetMutableTile(index_);
+		auto* tile = grid_->GetTile(index_);
 		if (!tile || tile->feature != farm::FarmTileFeature::None || tile->irrigationEnabled != expected) return false;
-		tile->irrigationEnabled = value;
-		return true;
+		auto candidate = *tile;
+        candidate.irrigationEnabled = value;
+        return grid_->SetTile(index_, candidate);
 	}
 	// History is owned by the scene and cleared before its grid is destroyed.
 	farm::FarmGrid* grid_ = nullptr;

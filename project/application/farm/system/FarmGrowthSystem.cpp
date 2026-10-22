@@ -231,10 +231,10 @@ bool FarmGrowthSystem::Update(
 	}
 	bool changed = false;
 	for (int tileIndex = 0; tileIndex < grid.GetTileCount(); ++tileIndex) {
-		farm::FarmTile* tile = grid.GetMutableTile(tileIndex);
-		if (tile == nullptr) {
-			continue;
-		}
+		const auto* source = grid.GetTile(tileIndex);
+        if (!source) continue;
+        farm::FarmTile candidate = *source;
+        auto* tile = &candidate;
 
 		const float previousMoisture = tile->moisture;
 		const float previousGrowth = tile->growth;
@@ -251,11 +251,13 @@ bool FarmGrowthSystem::Update(
 			!CareHistoriesEqual(previousCareHistory, tile->careHistory);
 		if (!IsCultivated(*tile) || tile->state != farm::FarmTileState::Planted ||
 			tile->crop == farm::CropType::None || farm::IsHarvestReady(*tile)) {
+			(void)grid.SetTile(tileIndex, candidate);
 			continue;
 		}
 		const farm::FarmCropGrowthProfile* profile =
 			GetGrowthProfile(rules_, tile->crop);
 		if (profile == nullptr) {
+			(void)grid.SetTile(tileIndex, candidate);
 			continue;
 		}
 
@@ -278,6 +280,7 @@ bool FarmGrowthSystem::Update(
 		changed |= previousMoisture != tile->moisture ||
 			previousGrowth != tile->growth ||
 			!CareHistoriesEqual(previousCareHistory, tile->careHistory);
+        (void)grid.SetTile(tileIndex, candidate);
 	}
 	return changed;
 }

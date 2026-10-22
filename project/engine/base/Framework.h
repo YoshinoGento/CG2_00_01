@@ -56,6 +56,9 @@ public:
 	TextureManager* GetTextureManager() const;
 
 protected:
+    void RequestEnd() noexcept { endRequest_ = true; }
+
+private:
 	// 各種マネージャ（スマートポインタで安全に管理）
 	std::unique_ptr<WinApp> winApp_;
 	std::unique_ptr<DirectXCommon> dxCommon_;

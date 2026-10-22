@@ -1,6 +1,15 @@
 #include "farm/system/FarmRuntimeController.h"
 #include "farm/ui/FarmHotbarView.h"
-#include "scene/GamePlayScene.h"
+#include "farm/system/FarmRuntimeContext.h"
+#include "editor/GamePlayEditorBridge.h"
+#include "farm/render/FarmArrivalRenderer.h"
+#include "farm/render/FarmSeedShopRenderer.h"
+#include "farm/system/FarmInputSystem.h"
+#include "farm/system/FarmProgressionSystem.h"
+#include "farm/system/FarmContestDaySystem.h"
+#include "farm/system/FarmVisualSystem.h"
+#include "level/LevelGameplaySystem.h"
+#include "3d/Camera.h"
 #include "scene/SceneManager.h"
 #include "io/Input.h"
 #include "farm/system/FarmLayoutSystem.h"
@@ -45,62 +54,62 @@ template<class... Args> std::string Numbers(const char* format, Args... args) {
 }
 }
 
-void FarmRuntimeController::BuildView(GamePlayScene& s) {
+void FarmRuntimeController::BuildView(const FarmRuntimeContext& s) {
     view_ = {};
     contestNotice_ = false;
     const auto previousPhase = flow_.GetPhase();
-    flow_.Observe(s.farmProgressionSystem_.IsCleared());
-    if (s.farmProgressionSystem_.IsContestSeason() && previousPhase != FarmPlayFlow::Phase::Result &&
+    flow_.Observe(s.farmProgressionSystem.IsCleared());
+    if (s.farmProgressionSystem.IsContestSeason() && previousPhase != FarmPlayFlow::Phase::Result &&
         flow_.GetPhase() == FarmPlayFlow::Phase::Result) {
         open_ = false; pending_ = Action::None; observation_ = false; terrain_ = false; pickingSlot_ = -1;
     }
     if (flow_.BlocksSimulation() && !open_ && pending_ == Action::None) {
         shop_.Close();
         if (flow_.GetPhase() == FarmPlayFlow::Phase::Starting) {
-            farmui::BuildFarmStartView(view_, startPresentation_.GetFrame(), s.BuildFarmHUDViewData());
+            farmui::BuildFarmStartView(view_, startPresentation_.GetFrame(), s.host.BuildFarmHUDViewData());
             return;
         }
         if (flow_.GetPhase() == FarmPlayFlow::Phase::Briefing) FrameFarm(s, false, true);
-        if (s.farmProgressionSystem_.IsContestSeason() && flow_.GetPhase()==FarmPlayFlow::Phase::Result)
-            farmui::BuildSeasonEndView(view_, s.farmEconomySystem_.GetContestResults(),
-                FarmContestSeasonSystem::Evaluate(s.farmDateSystem_.GetDay(),s.farmEconomySystem_.GetContestResults()),
-                FarmContestGoalSystem::Evaluate(s.farmDateSystem_.GetDay(), s.farmEconomySystem_.GetContestResults(),
-                    s.farmProgressionSystem_.StagePolicy().enabled));
-        else farmui::BuildPlayFlowView(view_, flow_.GetPhase(), s.BuildFarmHUDViewData(), s.farmProgressionSystem_.StagePolicy().enabled);
+        if (s.farmProgressionSystem.IsContestSeason() && flow_.GetPhase()==FarmPlayFlow::Phase::Result)
+            farmui::BuildSeasonEndView(view_, s.farmEconomySystem.GetContestResults(),
+                FarmContestSeasonSystem::Evaluate(s.farmDateSystem.GetDay(),s.farmEconomySystem.GetContestResults()),
+                FarmContestGoalSystem::Evaluate(s.farmDateSystem.GetDay(), s.farmEconomySystem.GetContestResults(),
+                    s.farmProgressionSystem.StagePolicy().enabled));
+        else farmui::BuildPlayFlowView(view_, flow_.GetPhase(), s.host.BuildFarmHUDViewData(), s.farmProgressionSystem.StagePolicy().enabled);
         if (focusedItem_ >= 0 && focusedItem_ < static_cast<int>(view_.count)) view_.items[focusedItem_].focused = true;
         return;
     }
-    contestNotice_ = s.farmContestDaySystem_.PendingDay() > 0 &&
-        !s.farmProgressionSystem_.IsCleared() && pending_ == Action::None;
+    contestNotice_ = s.farmContestDaySystem.PendingDay() > 0 &&
+        !s.farmProgressionSystem.IsCleared() && pending_ == Action::None;
     if (contestNotice_) {
         shop_.Close();
-        farmui::BuildContestDayNoticeView(view_, s.farmContestDaySystem_.PendingDay());
+        farmui::BuildContestDayNoticeView(view_, s.farmContestDaySystem.PendingDay());
         if (focusedItem_ >= 0 && focusedItem_ < static_cast<int>(view_.count)) view_.items[focusedItem_].focused = true;
         return;
     }
     if (shop_.IsOpen()) {
-        if (s.farmProgressionSystem_.IsCleared() || s.farmIrrigationPreviewSystem_.IsActive()) shop_.Close();
-        else { farmui::BuildSeedShopView(view_, shop_, s.farmEconomySystem_); return; }
+        if (s.farmProgressionSystem.IsCleared() || s.farmIrrigationPreviewSystem.IsActive()) shop_.Close();
+        else { farmui::BuildSeedShopView(view_, shop_, s.farmEconomySystem); return; }
     }
     view_.modal = open_;
     if (!open_) {
         if (terrain_) {
-            const auto& preview = s.farmIrrigationPreviewSystem_;
-            const int index = s.farmGrid_.GetSelectedIndex();
-            const auto* tile = s.farmGrid_.GetTile(index);
-            const bool unlocked = !s.farmProgressionSystem_.IsCleared();
+            const auto& preview = s.farmIrrigationPreviewSystem;
+            const int index = s.farmGrid.GetSelectedIndex();
+            const auto* tile = s.farmGrid.GetTile(index);
+            const bool unlocked = !s.farmProgressionSystem.IsCleared();
             farmui::TerrainViewState state;
             state.preview = preview.IsActive();
-            state.canConfirm = preview.CanConfirm(s.farmGrid_);
-            state.canRaise = unlocked && tile && tile->heightLevel < s.farmToolActionSystem_.MaximumAllowedHeight();
+            state.canConfirm = preview.CanConfirm(s.farmGrid);
+            state.canRaise = unlocked && tile && tile->heightLevel < s.farmToolActionSystem.MaximumAllowedHeight();
             state.canLower = unlocked && tile && tile->heightLevel > FarmToolActionSystem::kMinimumHeightLevel;
-            state.canCanal = unlocked && s.farmToolActionSystem_.CanToggleCanal(s.farmGrid_, index);
-            state.canSource = unlocked && s.farmToolActionSystem_.CanToggleWaterSource(s.farmGrid_, index);
+            state.canCanal = unlocked && s.farmToolActionSystem.CanToggleCanal(s.farmGrid, index);
+            state.canSource = unlocked && s.farmToolActionSystem.CanToggleWaterSource(s.farmGrid, index);
             state.canPath = unlocked && tile;
-            state.canUndo = unlocked && s.farmToolActionSystem_.GetHistory().CanUndo();
-            state.canRedo = unlocked && s.farmToolActionSystem_.GetHistory().CanRedo();
+            state.canUndo = unlocked && s.farmToolActionSystem.GetHistory().CanUndo();
+            state.canRedo = unlocked && s.farmToolActionSystem.GetHistory().CanRedo();
             state.canCompost = unlocked && tile && FarmSoilSystem::CanCompost(*tile);
-            state.canSetIrrigation = unlocked && s.farmToolActionSystem_.CanSetIrrigation(s.farmGrid_, index);
+            state.canSetIrrigation = unlocked && s.farmToolActionSystem.CanSetIrrigation(s.farmGrid, index);
             state.irrigationEnabled = tile && tile->irrigationEnabled;
             state.status = state.preview ? (brush_ == 1 ? Label::PathActive : brush_ == 2 ? Label::RemoveActive : Label::Preview)
                 : (status_ == Label::Failure ? status_ : Label::PauseCapture);
@@ -123,55 +132,55 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
             return;
         }
         if (observation_) {
-            const auto comparison = s.farmGrowthComparisonSystem_.GetView(s.farmGrid_);
+            const auto comparison = s.farmGrowthComparisonSystem.GetView(s.farmGrid);
             if (lastComparisonStatus_ == FarmComparisonStatus::Running && comparison.status != FarmComparisonStatus::Running) paused_ = true;
             lastComparisonStatus_ = comparison.status;
             const bool valid = comparison.status != FarmComparisonStatus::Invalidated;
-            const std::array<bool, 2> jumps = {valid && s.farmGrid_.GetTile(comparison.rows[0].tileIndex), valid && s.farmGrid_.GetTile(comparison.rows[1].tileIndex)};
-            farmui::BuildObservationView(view_, comparison, jumps, pickingSlot_, s.farmGrid_.GetSelectedIndex(),
-                paused_, s.farmDateSystem_.GetTimeScale(), !s.farmProgressionSystem_.IsCleared() && !s.farmIrrigationPreviewSystem_.IsActive());
+            const std::array<bool, 2> jumps = {valid && s.farmGrid.GetTile(comparison.rows[0].tileIndex), valid && s.farmGrid.GetTile(comparison.rows[1].tileIndex)};
+            farmui::BuildObservationView(view_, comparison, jumps, pickingSlot_, s.farmGrid.GetSelectedIndex(),
+                paused_, s.farmDateSystem.GetTimeScale(), !s.farmProgressionSystem.IsCleared() && !s.farmIrrigationPreviewSystem.IsActive());
             return;
         }
-        const auto hud = s.BuildFarmHUDViewData();
+        const auto hud = s.host.BuildFarmHUDViewData();
         view_.compactHUD = true;
         view_.selectedTile = hud.selectedTileValid;
         view_.goalVisible = !hud.freeFarming;
         view_.feedback = hud.feedback != FarmHUDFeedback::None;
         view_.IconButton(Label::Menu, farmui::HUDIcon::Menu, farmui::HUDLayout::UtilitySlot(5), {Action::Menu});
-        if (s.farmIrrigationPreviewSystem_.IsActive()) {
-            view_.Add(Label::Confirm, {1040, 544, 216, 44}, {Action::Confirm}, s.farmIrrigationPreviewSystem_.CanConfirm(s.farmGrid_));
+        if (s.farmIrrigationPreviewSystem.IsActive()) {
+            view_.Add(Label::Confirm, {1040, 544, 216, 44}, {Action::Confirm}, s.farmIrrigationPreviewSystem.CanConfirm(s.farmGrid));
             view_.Add(Label::Cancel, {1040, 596, 216, 44}, {Action::Cancel});
-        } else if (!s.farmCropSelectionSystem_.IsOpen()) {
-            farmui::BuildHotbarView(view_, hud, !s.farmProgressionSystem_.IsCleared());
-            farmui::BuildPlayQuickView(view_, paused_, !s.farmProgressionSystem_.IsCleared(),
-                !s.farmProgressionSystem_.IsCleared(), s.farmDateSystem_.GetTimeScale());
-            const auto* reserved = s.farmEconomySystem_.GetContestReservation();
-            const auto* tile = s.farmGrid_.GetSelectedTile();
-            const int index = s.farmGrid_.GetSelectedIndex();
-            const auto forecast = tile ? s.farmGrowthSystem_.Evaluate(*tile,
-                s.farmCropSelectionSystem_.GetSelectedCrop(), s.farmDateSystem_.GetTimeScale(),
-                s.farmIrrigationSystem_.GetAvailableIrrigationStrength(s.farmGrid_, index)) : FarmGrowthForecast{};
+        } else if (!s.farmCropSelectionSystem.IsOpen()) {
+            farmui::BuildHotbarView(view_, hud, !s.farmProgressionSystem.IsCleared());
+            farmui::BuildPlayQuickView(view_, paused_, !s.farmProgressionSystem.IsCleared(),
+                !s.farmProgressionSystem.IsCleared(), s.farmDateSystem.GetTimeScale());
+            const auto* reserved = s.farmEconomySystem.GetContestReservation();
+            const auto* tile = s.farmGrid.GetSelectedTile();
+            const int index = s.farmGrid.GetSelectedIndex();
+            const auto forecast = tile ? s.farmGrowthSystem.Evaluate(*tile,
+                s.farmCropSelectionSystem.GetSelectedCrop(), s.farmDateSystem.GetTimeScale(),
+                s.farmIrrigationSystem.GetAvailableIrrigationStrength(s.farmGrid, index)) : FarmGrowthForecast{};
             farmui::BuildWaterGuidanceView(view_, FarmGrowthSystem::AnalyzeWater(tile, forecast,
-                s.farmIrrigationSystem_.GetWaterStatus(s.farmGrid_, index)), !s.farmProgressionSystem_.IsCleared(),
-                s.farmToolActionSystem_.CanSetIrrigation(s.farmGrid_, index));
+                s.farmIrrigationSystem.GetWaterStatus(s.farmGrid, index)), !s.farmProgressionSystem.IsCleared(),
+                s.farmToolActionSystem.CanSetIrrigation(s.farmGrid, index));
             farmui::BuildPlayCropStatusView(view_, hud.feedback != FarmHUDFeedback::None,
-                s.farmEconomySystem_.GetProtectedCropCount(),
+                s.farmEconomySystem.GetProtectedCropCount(),
                 reserved ? reserved->quality.crop : farm::CropType::None, nullptr);
-            farmui::BuildCameraView(view_, s.usePlayerCamera_, s.levelGameplay_.HasPlayer());
+            farmui::BuildCameraView(view_, s.host.IsFollowingPlayer(), s.levelGameplay.HasPlayer());
             view_.IconButton(Label::ShopTitle, farmui::HUDIcon::Shop, farmui::HUDLayout::UtilitySlot(0),
-                {Action::OpenSeedShop}, !s.farmProgressionSystem_.IsCleared());
+                {Action::OpenSeedShop}, !s.farmProgressionSystem.IsCleared());
             view_.IconButton(Label::HarvestDisplay, farmui::HUDIcon::Inventory, farmui::HUDLayout::UtilitySlot(1),
-                {Action::HarvestDisplay}, !s.farmProgressionSystem_.IsCleared());
-            const auto evaluation = s.farmToolActionSystem_.EvaluateTool(s.farmGrid_,
-                s.farmToolSystem_.GetCurrentTool(), s.farmCropSelectionSystem_.GetSelectedCrop(), &s.farmEconomySystem_);
-            farmui::BuildFieldActionView(view_, evaluation, paused_, s.farmProgressionSystem_.IsCleared(),
+                {Action::HarvestDisplay}, !s.farmProgressionSystem.IsCleared());
+            const auto evaluation = s.farmToolActionSystem.EvaluateTool(s.farmGrid,
+                s.farmToolSystem.GetCurrentTool(), s.farmCropSelectionSystem.GetSelectedCrop(), &s.farmEconomySystem);
+            farmui::BuildFieldActionView(view_, evaluation, paused_, s.farmProgressionSystem.IsCleared(),
                 hud.nextAction, hud.contestSeason);
         }
         return;
     }
     if (page_ == kHarvestDisplayPage && pending_ == Action::None) {
-        farmui::BuildHarvestDisplayView(view_, harvestDisplay_.Observe(s.farmEconomySystem_, s.farmDateSystem_.GetDay()),
-            !s.farmProgressionSystem_.IsCleared() && !s.farmIrrigationPreviewSystem_.IsActive() && !s.timelineScrubbing_);
+        farmui::BuildHarvestDisplayView(view_, harvestDisplay_.Observe(s.farmEconomySystem, s.farmDateSystem.GetDay()),
+            !s.farmProgressionSystem.IsCleared() && !s.farmIrrigationPreviewSystem.IsActive() && !s.host.IsTimelineScrubbing());
         if (focusedItem_ >= 0 && focusedItem_ < static_cast<int>(view_.count)) view_.items[focusedItem_].focused = true;
         return;
     }
@@ -197,10 +206,10 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         const int i = row++;
         view_.Add(label, {170.0f + (i % 2) * 476, 130.0f + (i / 2) * 57, 450, 48}, {action, argument}, enabled, selected);
     };
-    const auto hud = s.BuildFarmHUDViewData();
-    const bool unlocked = !s.farmProgressionSystem_.IsCleared() && !s.farmIrrigationPreviewSystem_.IsActive();
-    const auto* tile = s.farmGrid_.GetSelectedTile();
-    const auto crop = s.farmCropSelectionSystem_.GetSelectedCrop();
+    const auto hud = s.host.BuildFarmHUDViewData();
+    const bool unlocked = !s.farmProgressionSystem.IsCleared() && !s.farmIrrigationPreviewSystem.IsActive();
+    const auto* tile = s.farmGrid.GetSelectedTile();
+    const auto crop = s.farmCropSelectionSystem.GetSelectedCrop();
     if (page_ == 0) {
         button(Label::Hoe, Action::Tool, 0, unlocked, hud.currentToolIndex == 0);
         button(Label::Water, Action::Tool, 1, unlocked, hud.currentToolIndex == 1);
@@ -209,46 +218,46 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         button(Label::Tomato, Action::Crop, 2, unlocked, crop == farm::CropType::Tomato);
         button(Label::Carrot, Action::Crop, 1, unlocked, crop == farm::CropType::Carrot);
         button(Label::ShopTitle, Action::OpenSeedShop, 0, unlocked);
-        button(Label::Sell, Action::Sell, 0, unlocked && s.farmEconomySystem_.PreviewSale(crop).Succeeded());
-        button(Label::SellAll, Action::SellAll, 0, unlocked && s.farmEconomySystem_.PreviewSale().Succeeded());
+        button(Label::Sell, Action::Sell, 0, unlocked && s.farmEconomySystem.PreviewSale(crop).Succeeded());
+        button(Label::SellAll, Action::SellAll, 0, unlocked && s.farmEconomySystem.PreviewSale().Succeeded());
         button(Label::Pumpkin, Action::Crop, 3, unlocked, crop == farm::CropType::Pumpkin);
         button(Label::SoilCare, Action::SoilCare);
         button(Label::QualityOpen, Action::Quality);
         view_.Value(Label::Money, 482, Numbers("%dG / %dG", hud.money, hud.seedPrice));
-        view_.Value(Label::Inventory, 528, Numbers("%d / %d / %dG", hud.seedCount, s.farmEconomySystem_.GetCropCount(crop), s.farmEconomySystem_.PreviewSale(crop).earnedMoney));
+        view_.Value(Label::Inventory, 528, Numbers("%d / %d / %dG", hud.seedCount, s.farmEconomySystem.GetCropCount(crop), s.farmEconomySystem.PreviewSale(crop).earnedMoney));
         view_.Add(Label::HarvestDisplay, {176,574,450,42}, {Action::HarvestDisplay});
         view_.Add(Label::StageGuide, {646,574,450,42}, {Action::StageGuide});
     } else if (page_ == 1) {
-        button(Label::Raise, Action::Raise, 0, unlocked && tile && tile->heightLevel < s.farmToolActionSystem_.MaximumAllowedHeight());
+        button(Label::Raise, Action::Raise, 0, unlocked && tile && tile->heightLevel < s.farmToolActionSystem.MaximumAllowedHeight());
         button(Label::Lower, Action::Lower, 0, unlocked && tile && tile->heightLevel > FarmToolActionSystem::kMinimumHeightLevel);
-        button(Label::Canal, Action::Canal, 0, unlocked && s.farmToolActionSystem_.CanToggleCanal(s.farmGrid_, hud.selectedTileIndex));
-        button(Label::Source, Action::Source, 0, unlocked && s.farmToolActionSystem_.CanToggleWaterSource(s.farmGrid_, hud.selectedTileIndex));
+        button(Label::Canal, Action::Canal, 0, unlocked && s.farmToolActionSystem.CanToggleCanal(s.farmGrid, hud.selectedTileIndex));
+        button(Label::Source, Action::Source, 0, unlocked && s.farmToolActionSystem.CanToggleWaterSource(s.farmGrid, hud.selectedTileIndex));
         button(Label::Path, Action::Path, 0, unlocked && tile);
         button(Label::RemovePath, Action::RemovePath, 0, unlocked && tile);
-        button(Label::Undo, Action::Undo, 0, unlocked && s.farmToolActionSystem_.GetHistory().CanUndo());
-        button(Label::Redo, Action::Redo, 0, unlocked && s.farmToolActionSystem_.GetHistory().CanRedo());
-        button(Label::Confirm, Action::Confirm, 0, s.farmIrrigationPreviewSystem_.CanConfirm(s.farmGrid_));
-        button(Label::Cancel, Action::Cancel, 0, s.farmIrrigationPreviewSystem_.IsActive());
-        button(Label::Overview, Action::TerrainField, 0, !s.farmProgressionSystem_.IsCleared());
+        button(Label::Undo, Action::Undo, 0, unlocked && s.farmToolActionSystem.GetHistory().CanUndo());
+        button(Label::Redo, Action::Redo, 0, unlocked && s.farmToolActionSystem.GetHistory().CanRedo());
+        button(Label::Confirm, Action::Confirm, 0, s.farmIrrigationPreviewSystem.CanConfirm(s.farmGrid));
+        button(Label::Cancel, Action::Cancel, 0, s.farmIrrigationPreviewSystem.IsActive());
+        button(Label::Overview, Action::TerrainField, 0, !s.farmProgressionSystem.IsCleared());
         view_.Value(Label::Tile, 478, Numbers("%d / H%d / %d / %d", hud.selectedTileIndex, hud.selectedTileHeight, hud.selectedTileMoisturePercent, hud.selectedTileGrowthPercent));
-        view_.Value(Label::WaterStats, 524, Numbers("%d / %d", s.farmIrrigationSystem_.GetSuppliedCanalCount(), s.farmIrrigationSystem_.GetIrrigationRangeTileCount()));
-        view_.Metric(Label::StageHeight, {176,574,450,38}, 240, "H" + std::to_string(s.farmToolActionSystem_.MaximumAllowedHeight()));
+        view_.Value(Label::WaterStats, 524, Numbers("%d / %d", s.farmIrrigationSystem.GetSuppliedCanalCount(), s.farmIrrigationSystem.GetIrrigationRangeTileCount()));
+        view_.Metric(Label::StageHeight, {176,574,450,38}, 240, "H" + std::to_string(s.farmToolActionSystem.MaximumAllowedHeight()));
         view_.Add(Label::StageGuide, {646,574,450,38}, {Action::StageGuide});
     } else if (page_ == 2) {
-        const auto& docs = s.farmDocumentSystem_.GetDocuments();
+        const auto& docs = s.farmDocumentSystem.GetDocuments();
         documentIndex_ = std::clamp(documentIndex_, 0, (std::max)(0, static_cast<int>(docs.size()) - 1));
-        button(Label::Save, Action::Save, 0, !s.farmIrrigationPreviewSystem_.IsActive() && s.farmDocumentSystem_.FileExists());
-        button(Label::SaveCopy, Action::SaveCopy, 0, !s.farmIrrigationPreviewSystem_.IsActive());
+        button(Label::Save, Action::Save, 0, !s.farmIrrigationPreviewSystem.IsActive() && s.farmDocumentSystem.FileExists());
+        button(Label::SaveCopy, Action::SaveCopy, 0, !s.farmIrrigationPreviewSystem.IsActive());
         button(Label::Previous, Action::Previous, 0, documentIndex_ > 0);
         button(Label::Next, Action::Next, 0, documentIndex_ + 1 < static_cast<int>(docs.size()));
         button(Label::Load, Action::Load, 0, !docs.empty());
         button(Label::Restart, Action::Restart);
-        button(Label::LayoutLibrary, Action::LayoutLibrary, 0, !s.farmIrrigationPreviewSystem_.IsActive());
+        button(Label::LayoutLibrary, Action::LayoutLibrary, 0, !s.farmIrrigationPreviewSystem.IsActive());
         view_.Value(Label::Record, 382, Numbers("%d / %zu", docs.empty() ? 0 : documentIndex_ + 1, docs.size()));
-        view_.recordNames = {s.farmDocumentSystem_.GetDisplayName(), docs.empty() ? "記録なし" : docs[documentIndex_].displayName};
-        view_.Add(docs.empty() ? Label::NoSaves : (s.farmDocumentSystem_.IsDirty() ? Label::Dirty : Label::Clean), {176, 554, 900, 40});
+        view_.recordNames = {s.farmDocumentSystem.GetDisplayName(), docs.empty() ? "記録なし" : docs[documentIndex_].displayName};
+        view_.Add(docs.empty() ? Label::NoSaves : (s.farmDocumentSystem.IsDirty() ? Label::Dirty : Label::Clean), {176, 554, 900, 40});
     } else if (page_ == 3) {
-        const auto comparison = s.farmGrowthComparisonSystem_.GetView(s.farmGrid_);
+        const auto comparison = s.farmGrowthComparisonSystem.GetView(s.farmGrid);
         const bool running = comparison.status == FarmComparisonStatus::Running;
         button(Label::PinA, Action::PinA, 0, unlocked && tile && !running);
         button(Label::PinB, Action::PinB, 0, unlocked && tile && !running);
@@ -259,39 +268,39 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         view_.Value(Label::Compare, 330, Numbers("%d / %d / %.1f", comparison.rows[0].tileIndex, comparison.rows[1].tileIndex, comparison.elapsedSeconds));
         view_.Add(comparison.status == FarmComparisonStatus::Running ? Label::Running : Label::NotRunning, {176, 374, 500, 38});
         if (tile && farm::IsPlantableCrop(tile->crop)) {
-            const auto quality = s.farmToolActionSystem_.EvaluateHarvestQuality(*tile);
+            const auto quality = s.farmToolActionSystem.EvaluateHarvestQuality(*tile);
             view_.Value(Label::Quality, 418, Numbers("%.0f / %.0f / %.0f", quality.maturity * 100, quality.waterBalance * 100, quality.terrainFit * 100));
             view_.Value(Label::Score, 462, Numbers("%d / %dG", quality.score, quality.salePrice));
         } else view_.Add(Label::NoCrop, {176, 418, 850, 38});
         view_.Value(Label::Status, 506, Numbers("A %.0f/%.0f B %.0f/%.0f", comparison.rows[0].current.moisture * 100, comparison.rows[0].current.growth * 100, comparison.rows[1].current.moisture * 100, comparison.rows[1].current.growth * 100));
         if (comparison.startIssue != FarmComparisonIssue::None) view_.Add(farmui::ComparisonIssueLabel(comparison.startIssue), {176, 550, 910, 38});
         if (tile && farm::IsPlantableCrop(tile->crop)) {
-            const auto quality = s.farmToolActionSystem_.EvaluateHarvestQuality(*tile);
+            const auto quality = s.farmToolActionSystem.EvaluateHarvestQuality(*tile);
             view_.Value(Label::NutrientQuality, 590, Numbers("%.0f / 100", quality.nutrientBalance * 100));
         }
     } else if (page_ == kStageGuidePage) {
-        farmui::BuildStageGuideView(view_, s.farmStageAccessSystem_.Get());
+        farmui::BuildStageGuideView(view_, s.farmStageAccessSystem.Get());
     } else if (page_ == kContestPreviewPage) {
-        farmui::BuildContestJudgeView(view_, FarmContestJudgeSystem::Evaluate(s.farmEconomySystem_.GetContestReservation()));
+        farmui::BuildContestJudgeView(view_, FarmContestJudgeSystem::Evaluate(s.farmEconomySystem.GetContestReservation()));
     } else if (page_ == kContestEntryPage) {
-        farmui::BuildContestEntryView(view_, FarmContestEntrySystem::Evaluate(s.farmDateSystem_.GetDay(),
-            s.farmEconomySystem_.GetContestReservation()),
-            FarmContestSubmissionSystem::Evaluate(s.farmEconomySystem_,s.farmDateSystem_.GetDay()),
-            {Action::SubmitContest,s.farmEconomySystem_.GetContestReservationId(),s.farmEconomySystem_.GetInventoryGeneration()});
+        farmui::BuildContestEntryView(view_, FarmContestEntrySystem::Evaluate(s.farmDateSystem.GetDay(),
+            s.farmEconomySystem.GetContestReservation()),
+            FarmContestSubmissionSystem::Evaluate(s.farmEconomySystem,s.farmDateSystem.GetDay()),
+            {Action::SubmitContest,s.farmEconomySystem.GetContestReservationId(),s.farmEconomySystem.GetInventoryGeneration()});
     } else if (page_ == kContestResultsPage) {
-        farmui::BuildContestResultsView(view_,s.farmEconomySystem_.GetContestResults(),
-            FarmContestSeasonSystem::Evaluate(s.farmDateSystem_.GetDay(),s.farmEconomySystem_.GetContestResults()),
-            FarmContestGoalSystem::Evaluate(s.farmDateSystem_.GetDay(), s.farmEconomySystem_.GetContestResults(),
-                s.farmProgressionSystem_.StagePolicy().enabled));
+        farmui::BuildContestResultsView(view_,s.farmEconomySystem.GetContestResults(),
+            FarmContestSeasonSystem::Evaluate(s.farmDateSystem.GetDay(),s.farmEconomySystem.GetContestResults()),
+            FarmContestGoalSystem::Evaluate(s.farmDateSystem.GetDay(), s.farmEconomySystem.GetContestResults(),
+                s.farmProgressionSystem.StagePolicy().enabled));
     } else if (page_ == kHarvestInventoryPage) {
-        const auto& economy = s.farmEconomySystem_;
+        const auto& economy = s.farmEconomySystem;
         farmui::HarvestInventoryViewState state;
         state.records = static_cast<int>(economy.GetHarvestRecordCount());
         state.capacity = static_cast<int>(FarmEconomySystem::kMaxHarvestRecords);
         state.unknownCount = economy.GetUnrecordedCropCount();
         state.protectedCount = economy.GetProtectedCropCount();
         state.inventoryGeneration = economy.GetInventoryGeneration();
-        state.canChangeProtection = !s.farmIrrigationPreviewSystem_.IsActive() && !s.timelineScrubbing_;
+        state.canChangeProtection = !s.farmIrrigationPreviewSystem.IsActive() && !s.host.IsTimelineScrubbing();
         state.contestReservationId = economy.GetContestReservationId();
         if (const auto* reserved = economy.GetContestReservation()) state.reservedCrop = reserved->quality.crop;
         state.pages = (std::max)(1, (state.records + state.kRows - 1) / state.kRows);
@@ -303,8 +312,8 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         }
         farmui::BuildHarvestInventoryView(view_, state);
     } else if (page_ == kQualityCurrentPage || page_ == kQualityHarvestPage) {
-        const auto quality = page_ == kQualityHarvestPage ? s.farmEconomySystem_.GetLastHarvestQuality()
-            : tile ? s.farmToolActionSystem_.EvaluateHarvestQuality(*tile) : FarmCropQualityResult{};
+        const auto quality = page_ == kQualityHarvestPage ? s.farmEconomySystem.GetLastHarvestQuality()
+            : tile ? s.farmToolActionSystem.EvaluateHarvestQuality(*tile) : FarmCropQualityResult{};
         farmui::BuildQualityView(view_, quality, FarmCropQualitySystem::Analyze(quality),
             hud.selectedTileIndex, page_ == kQualityHarvestPage);
     } else if (page_ == kSoilCarePage) {
@@ -319,7 +328,7 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         view_.Value(Label::SoilNutrients, 286, soil ? Numbers("%.0f / 100", tile->soilNutrients * 100) : "--");
         view_.Value(Label::NutrientTarget, 332, profile ? Numbers("%.0f / 100", profile->target * 100) : "--");
         view_.Value(Label::NutrientUse, 378, profile ? Numbers("%.0f", profile->consumptionPerGrowth * 100) : "--");
-        const auto quality = tile ? s.farmToolActionSystem_.EvaluateHarvestQuality(*tile) : FarmCropQualityResult{};
+        const auto quality = tile ? s.farmToolActionSystem.EvaluateHarvestQuality(*tile) : FarmCropQualityResult{};
         view_.Value(Label::NutrientQuality, 424, quality.IsValid() ? Numbers("%.0f / 100", quality.nutrientBalance * 100) : "--");
         const Label advice = !soil || tile->state == farm::FarmTileState::Empty ? Label::SoilTill
             : farm::IsPlantableCrop(tile->crop) ? Label::SoilGrowing
@@ -332,7 +341,7 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         preview.state = farm::FarmTileState::Tilled;
         preview.feature = farm::FarmTileFeature::None;
         preview.crop = soilCrop;
-        const auto water = s.farmGrowthSystem_.Evaluate(preview, soilCrop);
+        const auto water = s.farmGrowthSystem.Evaluate(preview, soilCrop);
         view_.Value(Label::OptimalWater, 580, Numbers("%.0f - %.0f %%",
             water.goodMoistureMinimum * 100, water.goodMoistureMaximum * 100));
     } else {
@@ -340,8 +349,8 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
         button(Label::Speed1, Action::Speed, 1, unlocked, !paused_ && hud.timeScale == 1);
         button(Label::Speed2, Action::Speed, 2, unlocked, !paused_ && hud.timeScale == 2);
         button(Label::Speed4, Action::Speed, 4, unlocked, !paused_ && hud.timeScale == 4);
-        button(Label::Follow, Action::Follow, 0, true, s.usePlayerCamera_);
-        button(Label::Overview, Action::Overview, 0, true, !s.usePlayerCamera_);
+        button(Label::Follow, Action::Follow, 0, true, s.host.IsFollowingPlayer());
+        button(Label::Overview, Action::Overview, 0, true, !s.host.IsFollowingPlayer());
         button(Label::Exit, Action::Exit);
         button(Label::SeasonMode, Action::ChangePlayMode, 1, true, hud.contestSeason);
         button(Label::TrialMode, Action::ChangePlayMode, 0, true, !hud.contestSeason && !hud.freeFarming);
@@ -353,9 +362,8 @@ void FarmRuntimeController::BuildView(GamePlayScene& s) {
     if (focusedItem_ >= 0 && focusedItem_ < static_cast<int>(view_.count)) view_.items[focusedItem_].focused = true;
 }
 
-bool FarmRuntimeController::DeferScreenTransition(GamePlayScene& s, farmui::Request request) {
+bool FarmRuntimeController::DeferScreenTransition(const FarmRuntimeContext& s, farmui::Request request) {
     if (pendingScreenTransition_.action != Action::None) return true;
-    if (!s.sceneManager_) return false;
     scene::RipplePoint origin{};
     if (pointerTriggered_ && std::isfinite(pointer_.x) && std::isfinite(pointer_.y) &&
         pointer_.x >= 0 && pointer_.x <= WinApp::kClientWidth && pointer_.y >= 0 && pointer_.y <= WinApp::kClientHeight)
@@ -371,13 +379,13 @@ bool FarmRuntimeController::DeferScreenTransition(GamePlayScene& s, farmui::Requ
     case Action::Close: sound = scene::TransitionSoundTheme::ReturnToFarm; break;
     default: break;
     }
-    const auto result = s.sceneManager_->BeginScreenTransition(&s, origin, sound, style);
+    const auto result = s.host.BeginScreenTransition(origin, sound, style);
     if (result == ScreenTransitionResult::Unavailable) return false;
     if (result == ScreenTransitionResult::Started) pendingScreenTransition_ = request;
     return true;
 }
 
-void FarmRuntimeController::CommitScreenTransition(GamePlayScene& s) {
+void FarmRuntimeController::CommitScreenTransition(const FarmRuntimeContext& s) {
     const auto request = pendingScreenTransition_;
     pendingScreenTransition_ = {};
     if (request.action == Action::None) return;
@@ -385,14 +393,14 @@ void FarmRuntimeController::CommitScreenTransition(GamePlayScene& s) {
     BuildView(s);
 }
 
-void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, bool allowTransition) {
+void FarmRuntimeController::Execute(const FarmRuntimeContext& s, farmui::Request request, bool allowTransition) {
     using C = GamePlayEditorCommandType;
     const auto dispatch = [&](C type) {
         editor::GamePlayEditorCommand command{};
         command.type = type;
-        command.farmGeneration = s.farmGrid_.GetGeneration();
-        command.farmTileIndex = type == C::ConfirmFarmIrrigationPreview ? s.farmIrrigationPreviewSystem_.GetTileIndex() : s.farmGrid_.GetSelectedIndex();
-        return s.gamePlayEditorBridge_.Execute(command);
+        command.farmGeneration = s.farmGrid.GetGeneration();
+        command.farmTileIndex = type == C::ConfirmFarmIrrigationPreview ? s.farmIrrigationPreviewSystem.GetTileIndex() : s.farmGrid.GetSelectedIndex();
+        return s.gamePlayEditorBridge.Execute(command);
     };
     bool success = false;
     switch (request.action) {
@@ -401,7 +409,7 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
     case Action::ShopQuantity:
         shop_.ChangeQuantity(request.argument); return;
     case Action::ShopReview:
-        shop_.BeginConfirmation(s.farmEconomySystem_); return;
+        shop_.BeginConfirmation(s.farmEconomySystem); return;
     case Action::ShopCancel:
         shop_.CancelConfirmation(); return;
     case Action::ShopClose:
@@ -409,34 +417,34 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         if (allowTransition && DeferScreenTransition(s, request)) return;
         shop_.Close(); return;
     case Action::ShopConfirm: {
-        if (s.farmProgressionSystem_.IsCleared() || s.farmIrrigationPreviewSystem_.IsActive()) { shop_.Close(); return; }
-        const auto result = shop_.Confirm(s.farmEconomySystem_);
+        if (s.farmProgressionSystem.IsCleared() || s.farmIrrigationPreviewSystem.IsActive()) { shop_.Close(); return; }
+        const auto result = shop_.Confirm(s.farmEconomySystem);
         if (result.Succeeded()) {
-            s.farmCropSelectionSystem_.SetSelectedCrop(result.crop);
-            s.farmDocumentSystem_.MarkDirty();
-            s.farmFeedbackSystem_.ShowSeedPurchased(result.crop, result.purchasedCount, result.spentMoney);
+            s.farmCropSelectionSystem.SetSelectedCrop(result.crop);
+            s.farmDocumentSystem.MarkDirty();
+            s.farmFeedbackSystem.ShowSeedPurchased(result.crop, result.purchasedCount, result.spentMoney);
         }
         return;
     }
     case Action::OpenSeedShop:
         if (shop_.IsOpen() || observation_ || terrain_ || pending_ != Action::None || flow_.BlocksSimulation() ||
-            s.farmProgressionSystem_.IsCleared() || s.farmIrrigationPreviewSystem_.IsActive() ||
-            s.farmCropSelectionSystem_.IsOpen()) return;
-        if (!s.farmSeedShopRenderer_.IsReady()) { status_ = Label::Failure; return; }
+            s.farmProgressionSystem.IsCleared() || s.farmIrrigationPreviewSystem.IsActive() ||
+            s.farmCropSelectionSystem.IsOpen()) return;
+        if (!s.farmSeedShopRenderer.IsReady()) { status_ = Label::Failure; return; }
         if (allowTransition && DeferScreenTransition(s, request)) return;
-        shop_.Open(s.farmCropSelectionSystem_.GetSelectedCrop()); open_ = false; focusedItem_ = -1;
+        shop_.Open(s.farmCropSelectionSystem.GetSelectedCrop()); open_ = false; focusedItem_ = -1;
         return;
     case Action::ContestDayReview:
     case Action::ContestDayPrepare:
     case Action::ContestDayResume: {
         editor::GamePlayEditorCommand command{};
         command.type = C::AcknowledgeContestDay;
-        command.farmGeneration = s.farmGrid_.GetGeneration();
+        command.farmGeneration = s.farmGrid.GetGeneration();
         command.contestDay = request.argument;
-        if (!s.gamePlayEditorBridge_.Execute(command)) return;
+        if (!s.gamePlayEditorBridge.Execute(command)) return;
         if (terrain_) LeaveTerrain(s);
         observation_ = false; pickingSlot_ = -1;
-        s.farmCropSelectionSystem_.Cancel();
+        s.farmCropSelectionSystem.Cancel();
         pending_ = Action::None;
         paused_ = request.action != Action::ContestDayResume;
         open_ = request.action == Action::ContestDayReview;
@@ -446,18 +454,18 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         return;
     }
     case Action::TerrainField:
-        if (!flow_.BlocksSimulation() && !s.farmProgressionSystem_.IsCleared()) EnterTerrain(s);
+        if (!flow_.BlocksSimulation() && !s.farmProgressionSystem.IsCleared()) EnterTerrain(s);
         return;
     case Action::TerrainExit: LeaveTerrain(s); return;
     case Action::ApplyTool: {
         if (open_ || observation_ || terrain_ || flow_.BlocksSimulation() ||
-            s.farmProgressionSystem_.IsCleared() || s.farmIrrigationPreviewSystem_.IsActive() ||
-            s.farmCropSelectionSystem_.IsOpen()) return;
+            s.farmProgressionSystem.IsCleared() || s.farmIrrigationPreviewSystem.IsActive() ||
+            s.farmCropSelectionSystem.IsOpen()) return;
         // Revalidate on execution; the displayed evaluation is not mutation authority.
-        const auto result = s.farmToolActionSystem_.ApplyToolDetailed(s.farmGrid_,
-            s.farmToolSystem_.GetCurrentTool(), s.farmCropSelectionSystem_.GetSelectedCrop(), s.farmEconomySystem_, s.farmDateSystem_.GetDay());
-        if (result.Succeeded()) s.farmDocumentSystem_.MarkDirty();
-        s.RouteFarmToolFeedback(result);
+        const auto result = s.farmToolActionSystem.ApplyToolDetailed(s.farmGrid,
+            s.farmToolSystem.GetCurrentTool(), s.farmCropSelectionSystem.GetSelectedCrop(), s.farmEconomySystem, s.farmDateSystem.GetDay());
+        if (result.Succeeded()) s.farmDocumentSystem.MarkDirty();
+        s.host.RouteFarmToolFeedback(result);
         status_ = result.Succeeded() ? Label::Success : Label::Failure;
         return;
     }
@@ -472,22 +480,22 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         if (request.argument < 0 || request.argument > 1) return;
         open_ = true; page_ = request.argument == 1 ? kQualityHarvestPage : kQualityCurrentPage;
         focusedItem_ = -1; status_ = Label::Paused; return;
-    case Action::Menu: open_ = true; if (observation_) page_ = 3; else if (terrain_) page_ = 1; focusedItem_ = -1; s.farmCropSelectionSystem_.Cancel(); return;
+    case Action::Menu: open_ = true; if (observation_) page_ = 3; else if (terrain_) page_ = 1; focusedItem_ = -1; s.farmCropSelectionSystem.Cancel(); return;
     case Action::ObserveField: EnterObservation(s); return;
     case Action::ObserveExit:
         observation_ = false; pickingSlot_ = -1; paused_ = pauseBeforeObservation_;
-        if (!s.usePlayerCamera_) FrameFarm(s);
+        if (!s.host.IsFollowingPlayer()) FrameFarm(s);
         return;
     case Action::PickSlot:
         if (request.argument == -1) { pickingSlot_ = -1; return; }
-        if (request.argument < 0 || request.argument > 1 || s.farmGrowthComparisonSystem_.GetView(s.farmGrid_).status == FarmComparisonStatus::Running) return;
+        if (request.argument < 0 || request.argument > 1 || s.farmGrowthComparisonSystem.GetView(s.farmGrid).status == FarmComparisonStatus::Running) return;
         EnterObservation(s); pickingSlot_ = request.argument; paused_ = true; return;
     case Action::JumpSlot: {
         if (request.argument < 0 || request.argument > 1) return;
-        const auto comparison = s.farmGrowthComparisonSystem_.GetView(s.farmGrid_);
+        const auto comparison = s.farmGrowthComparisonSystem.GetView(s.farmGrid);
         const int index = comparison.rows[request.argument].tileIndex;
-        if (comparison.status != FarmComparisonStatus::Invalidated && s.farmGrid_.GetTile(index)) {
-            s.farmGrid_.SetSelectedIndex(index); pickingSlot_ = -1;
+        if (comparison.status != FarmComparisonStatus::Invalidated && s.farmGrid.GetTile(index)) {
+            s.farmGrid.SetSelectedIndex(index); pickingSlot_ = -1;
         }
         return;
     }
@@ -504,18 +512,18 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         if (terrain_ && page_ != 1) LeaveTerrain(s);
         if (page_ < 3 && observation_) {
             observation_ = false; pickingSlot_ = -1; paused_ = pauseBeforeObservation_;
-            if (!s.usePlayerCamera_) FrameFarm(s);
+            if (!s.host.IsFollowingPlayer()) FrameFarm(s);
         }
         return;
     case Action::Cancel:
         if (pending_ != Action::None) { pending_ = Action::None; return; }
-        s.farmIrrigationPreviewSystem_.Cancel(); brush_ = 0; success = true; break;
+        s.farmIrrigationPreviewSystem.Cancel(); brush_ = 0; success = true; break;
     case Action::Load:
     {
-        const auto& docs = s.farmDocumentSystem_.GetDocuments();
+        const auto& docs = s.farmDocumentSystem.GetDocuments();
         std::vector<std::string> names;
         for (const auto& doc : docs) names.push_back(doc.displayName + "  /  " + doc.savedAt);
-        const auto result = farmui::ShowRecordDialog(s.framework_->GetWinApp()->GetHwnd(),
+        const auto result = farmui::ShowRecordDialog(s.window->GetHwnd(),
             farmui::RecordDialogMode::ProgressPicker, names);
         if (result.action != farmui::RecordDialogAction::Load || result.selected < 0 || result.selected >= static_cast<int>(docs.size())) return;
         documentIndex_ = result.selected;
@@ -540,38 +548,38 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         }
         if (action == Action::ChangePlayMode) {
             editor::GamePlayEditorCommand command{};
-            command.type=C::SetFarmProgressionMode; command.farmGeneration=s.farmGrid_.GetGeneration();
+            command.type=C::SetFarmProgressionMode; command.farmGeneration=s.farmGrid.GetGeneration();
             command.progressionMode=static_cast<FarmProgressionMode>(pendingPlayMode_);
-            success=s.gamePlayEditorBridge_.Execute(command);
+            success=s.gamePlayEditorBridge.Execute(command);
             if (success) {
                 flow_.Reset(); open_=false; observation_=false; terrain_=false; pickingSlot_=-1; paused_=false;
-                focusedItem_=-1; s.farmCropSelectionSystem_.Cancel();
+                focusedItem_=-1; s.farmCropSelectionSystem.Cancel();
             }
             status_=success ? Label::Success : Label::Failure;
             return;
         }
         if (action == Action::SubmitContest) {
             editor::GamePlayEditorCommand command{};
-            command.type=C::SubmitContestHarvest; command.farmGeneration=s.farmGrid_.GetGeneration();
+            command.type=C::SubmitContestHarvest; command.farmGeneration=s.farmGrid.GetGeneration();
             command.harvestRecordId=pendingSubmission_.argument; command.inventoryGeneration=pendingSubmission_.inventoryGeneration;
             command.contestDay=pendingContestDay_;
-            success=s.gamePlayEditorBridge_.Execute(command);
+            success=s.gamePlayEditorBridge.Execute(command);
             status_=success ? Label::ContestSubmitted : Label::Failure;
             if(success) page_=kContestResultsPage;
             pendingSubmission_={}; pendingContestDay_=0; focusedItem_=-1;
             return;
         }
         if (action == Action::Exit) { PostQuitMessage(0); return; }
-        s.farmIrrigationPreviewSystem_.Cancel(); s.farmCropSelectionSystem_.Cancel(); brush_ = 0;
-        if (action == Action::Restart) { s.ResetFarmSession(); success = true; }
+        s.farmIrrigationPreviewSystem.Cancel(); s.farmCropSelectionSystem.Cancel(); brush_ = 0;
+        if (action == Action::Restart) { s.host.ResetFarmSession(); success = true; }
         else {
             editor::FarmDocumentCommand command{};
             command.type = editor::FarmDocumentCommandType::Load;
             command.documentId = pendingDocumentId_;
-            success = s.gamePlayEditorBridge_.Execute(command);
+            success = s.gamePlayEditorBridge.Execute(command);
         }
         if (success) {
-            s.farmGrowthComparisonSystem_.Reset(); s.InitializeTimeline();
+            s.farmGrowthComparisonSystem.Reset(); s.host.InitializeTimeline();
             flow_.Reset(); open_ = false; observation_ = false; terrain_ = false; pickingSlot_ = -1; paused_ = false;
             status_ = action == Action::Restart ? Label::Success : Label::Loaded;
         }
@@ -579,17 +587,17 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         return;
     }
     case Action::HarvestDisplay:
-        if (pending_ != Action::None || s.farmIrrigationPreviewSystem_.IsActive() || s.timelineScrubbing_ || !s.farmSeedShopRenderer_.IsReady()) return;
+        if (pending_ != Action::None || s.farmIrrigationPreviewSystem.IsActive() || s.host.IsTimelineScrubbing() || !s.farmSeedShopRenderer.IsReady()) return;
         if (open_ && page_ == kHarvestDisplayPage) return;
         if (allowTransition && DeferScreenTransition(s, request)) return;
         open_ = true; page_ = kHarvestDisplayPage; harvestDisplay_.Reset(); focusedItem_ = -1; return;
     case Action::HarvestDisplaySelect:
         if (open_ && page_ == kHarvestDisplayPage && pending_ == Action::None)
-            static_cast<void>(harvestDisplay_.Select(s.farmEconomySystem_, request.argument, request.inventoryGeneration));
+            static_cast<void>(harvestDisplay_.Select(s.farmEconomySystem, request.argument, request.inventoryGeneration));
         return;
     case Action::HarvestDisplayPage:
         if (open_ && page_ == kHarvestDisplayPage && pending_ == Action::None) {
-            harvestDisplay_.MovePage(s.farmEconomySystem_, request.argument); focusedItem_ = -1;
+            harvestDisplay_.MovePage(s.farmEconomySystem, request.argument); focusedItem_ = -1;
         }
         return;
     case Action::HarvestInventory:
@@ -605,8 +613,8 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         page_=kContestResultsPage; focusedItem_=-1; return;
     case Action::SubmitContest:
         if(!open_ || page_!=kContestEntryPage || pending_!=Action::None ||
-            FarmContestSubmissionSystem::Evaluate(s.farmEconomySystem_,s.farmDateSystem_.GetDay())!=FarmContestSubmissionStatus::Ready) return;
-        pending_=Action::SubmitContest; pendingSubmission_=request; pendingContestDay_=s.farmDateSystem_.GetDay(); focusedItem_=-1; return;
+            FarmContestSubmissionSystem::Evaluate(s.farmEconomySystem,s.farmDateSystem.GetDay())!=FarmContestSubmissionStatus::Ready) return;
+        pending_=Action::SubmitContest; pendingSubmission_=request; pendingContestDay_=s.farmDateSystem.GetDay(); focusedItem_=-1; return;
     case Action::HarvestPage:
         if (page_ == kHarvestInventoryPage && (request.argument == -1 || request.argument == 1))
             harvestPage_ = std::clamp(harvestPage_ + request.argument, 0, static_cast<int>(FarmEconomySystem::kMaxHarvestRecords));
@@ -615,10 +623,10 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
     case Action::UnprotectHarvest: {
         if (!open_ || (page_ != kHarvestInventoryPage && page_ != kHarvestDisplayPage)) return;
         editor::GamePlayEditorCommand command{};
-        command.type = C::SetHarvestProtection; command.farmGeneration = s.farmGrid_.GetGeneration();
+        command.type = C::SetHarvestProtection; command.farmGeneration = s.farmGrid.GetGeneration();
         command.harvestRecordId = request.argument; command.inventoryGeneration = request.inventoryGeneration;
         command.harvestProtected = request.action == Action::ProtectHarvest;
-        status_ = s.gamePlayEditorBridge_.Execute(command) ? Label::ProtectionCommitted : Label::Failure;
+        status_ = s.gamePlayEditorBridge.Execute(command) ? Label::ProtectionCommitted : Label::Failure;
         return;
     }
     case Action::ReserveContestHarvest:
@@ -626,30 +634,30 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         if (!open_ || (page_ != kHarvestInventoryPage && page_ != kHarvestDisplayPage)) return;
         editor::GamePlayEditorCommand command{};
         command.type = request.action == Action::ReserveContestHarvest ? C::ReserveContestHarvest : C::CancelContestReservation;
-        command.farmGeneration = s.farmGrid_.GetGeneration();
+        command.farmGeneration = s.farmGrid.GetGeneration();
         command.harvestRecordId = request.argument; command.inventoryGeneration = request.inventoryGeneration;
-        status_ = s.gamePlayEditorBridge_.Execute(command) ? Label::ContestChanged : Label::Failure;
+        status_ = s.gamePlayEditorBridge.Execute(command) ? Label::ContestChanged : Label::Failure;
         return;
     }
     case Action::Previous: --documentIndex_; return;
     case Action::Next: ++documentIndex_; return;
     case Action::Save:
     case Action::SaveCopy: {
-        if (s.farmIrrigationPreviewSystem_.IsActive()) break;
+        if (s.farmIrrigationPreviewSystem.IsActive()) break;
         editor::FarmDocumentCommand command{};
         command.type = request.action == Action::Save ? editor::FarmDocumentCommandType::Save : editor::FarmDocumentCommandType::SaveAs;
         if (request.action == Action::SaveCopy) {
-            const auto result = farmui::ShowRecordDialog(s.framework_->GetWinApp()->GetHwnd(),
-                farmui::RecordDialogMode::Name, {}, s.farmDocumentSystem_.GetDisplayName());
+            const auto result = farmui::ShowRecordDialog(s.window->GetHwnd(),
+                farmui::RecordDialogMode::Name, {}, s.farmDocumentSystem.GetDisplayName());
             if (result.action != farmui::RecordDialogAction::SaveNew) return;
             command.displayName = result.name;
         }
-        success = s.gamePlayEditorBridge_.Execute(command);
-        if (!success) farmui::RecordNotice(s.framework_->GetWinApp()->GetHwnd(), s.farmDocumentSystem_.GetStatusMessage());
+        success = s.gamePlayEditorBridge.Execute(command);
+        if (!success) farmui::RecordNotice(s.window->GetHwnd(), s.farmDocumentSystem.GetStatusMessage());
         status_ = success ? Label::Saved : Label::Failure; return;
     }
     case Action::Pause: paused_ = !paused_; if (!paused_) pickingSlot_ = -1; return;
-    case Action::Follow: s.SetUsePlayerCamera(true); open_ = false; return;
+    case Action::Follow: s.host.SetUsePlayerCamera(true); open_ = false; return;
     case Action::Overview: {
         if (FrameFarm(s)) open_ = false;
         else status_ = Label::Failure;
@@ -658,9 +666,9 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
     default: break;
     }
     if (request.action == Action::Confirm) { success = dispatch(C::ConfirmFarmIrrigationPreview); if (success) brush_ = 0; }
-    else if (request.action == Action::Stop) { success = s.farmGrowthComparisonSystem_.Stop(); if (success && observation_) paused_ = true; }
-    else if (request.action == Action::Clear) { s.farmGrowthComparisonSystem_.Reset(); pickingSlot_ = -1; success = true; }
-    else if (s.farmProgressionSystem_.IsCleared() || s.farmIrrigationPreviewSystem_.IsActive()) {
+    else if (request.action == Action::Stop) { success = s.farmGrowthComparisonSystem.Stop(); if (success && observation_) paused_ = true; }
+    else if (request.action == Action::Clear) { s.farmGrowthComparisonSystem.Reset(); pickingSlot_ = -1; success = true; }
+    else if (s.farmProgressionSystem.IsCleared() || s.farmIrrigationPreviewSystem.IsActive()) {
         if (request.action != Action::Cancel) { status_ = Label::Failure; return; }
     } else {
         switch (request.action) {
@@ -668,10 +676,10 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
             if (request.argument != 0 && request.argument != 1) break;
             editor::GamePlayEditorCommand command{};
             command.type = C::SetFarmIrrigation;
-            command.farmGeneration = s.farmGrid_.GetGeneration();
-            command.farmTileIndex = s.farmGrid_.GetSelectedIndex();
+            command.farmGeneration = s.farmGrid.GetGeneration();
+            command.farmTileIndex = s.farmGrid.GetSelectedIndex();
             command.irrigationEnabled = request.argument == 1;
-            success = s.gamePlayEditorBridge_.Execute(command);
+            success = s.gamePlayEditorBridge.Execute(command);
             break;
         }
         case Action::Compost:
@@ -681,30 +689,30 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         case Action::Tool: {
             constexpr FarmTool tools[] = {FarmTool::Hoe, FarmTool::Water, FarmTool::Seed, FarmTool::Harvest};
             if (request.argument < 0 || request.argument >= 4) break;
-            s.farmToolSystem_.SetTool(tools[request.argument]); open_ = false; success = true; break;
+            s.farmToolSystem.SetTool(tools[request.argument]); open_ = false; success = true; break;
         }
         case Action::Crop: {
             if (request.argument < 0 || request.argument >= farm::kFarmCropTypeCount ||
                 !farm::IsPlantableCrop(farm::CropTypeFromSlot(request.argument))) break;
-            const auto previous = s.farmCropSelectionSystem_.GetSelectedCrop();
-            success = s.farmCropSelectionSystem_.SetSelectedCrop(farm::CropTypeFromSlot(request.argument));
-            if (success && previous != s.farmCropSelectionSystem_.GetSelectedCrop()) s.farmDocumentSystem_.MarkDirty();
-            if (success && !open_) s.farmToolSystem_.SetTool(FarmTool::Seed);
-            s.farmFeedbackSystem_.ShowCropSelected(s.farmCropSelectionSystem_.GetSelectedCrop()); break;
+            const auto previous = s.farmCropSelectionSystem.GetSelectedCrop();
+            success = s.farmCropSelectionSystem.SetSelectedCrop(farm::CropTypeFromSlot(request.argument));
+            if (success && previous != s.farmCropSelectionSystem.GetSelectedCrop()) s.farmDocumentSystem.MarkDirty();
+            if (success && !open_) s.farmToolSystem.SetTool(FarmTool::Seed);
+            s.farmFeedbackSystem.ShowCropSelected(s.farmCropSelectionSystem.GetSelectedCrop()); break;
         }
         case Action::Buy:
         case Action::BuyAndReturn: {
-            const auto result = s.farmEconomySystem_.BuySeed(s.farmCropSelectionSystem_.GetSelectedCrop());
+            const auto result = s.farmEconomySystem.BuySeed(s.farmCropSelectionSystem.GetSelectedCrop());
             success = result.Succeeded();
-            if (success) { s.farmDocumentSystem_.MarkDirty(); s.farmFeedbackSystem_.ShowSeedPurchased(result.crop, result.purchasedCount, result.spentMoney); }
-            else s.farmFeedbackSystem_.ShowInsufficientMoney();
+            if (success) { s.farmDocumentSystem.MarkDirty(); s.farmFeedbackSystem.ShowSeedPurchased(result.crop, result.purchasedCount, result.spentMoney); }
+            else s.farmFeedbackSystem.ShowInsufficientMoney();
             if (success && request.action == Action::BuyAndReturn) {
-                s.farmToolSystem_.SetTool(FarmTool::Seed); open_ = false;
+                s.farmToolSystem.SetTool(FarmTool::Seed); open_ = false;
             }
             break;
         }
         case Action::Sell: case Action::SellAll:
-            s.RouteFarmSale(request.action == Action::SellAll ? s.farmEconomySystem_.SellAll() : s.farmEconomySystem_.SellCrop(s.farmCropSelectionSystem_.GetSelectedCrop()));
+            s.host.RouteFarmSale(request.action == Action::SellAll ? s.farmEconomySystem.SellAll() : s.farmEconomySystem.SellCrop(s.farmCropSelectionSystem.GetSelectedCrop()));
             open_ = false; success = true; break;
         case Action::Raise: success = dispatch(C::BeginFarmRaiseTerrainPreview); break;
         case Action::Lower: success = dispatch(C::BeginFarmLowerTerrainPreview); break;
@@ -715,65 +723,65 @@ void FarmRuntimeController::Execute(GamePlayScene& s, farmui::Request request, b
         case Action::Undo: success = dispatch(C::UndoFarmEdit); break;
         case Action::Redo: success = dispatch(C::RedoFarmEdit); break;
         case Action::PinA: case Action::PinB:
-            success = s.farmGrowthComparisonSystem_.Pin(s.farmGrid_, request.action == Action::PinA ? 0 : 1, s.farmGrid_.GetSelectedIndex());
+            success = s.farmGrowthComparisonSystem.Pin(s.farmGrid, request.action == Action::PinA ? 0 : 1, s.farmGrid.GetSelectedIndex());
             if (success) {
                 EnterObservation(s);
                 const int other = request.action == Action::PinA ? 1 : 0;
-                const auto comparison = s.farmGrowthComparisonSystem_.GetView(s.farmGrid_);
+                const auto comparison = s.farmGrowthComparisonSystem.GetView(s.farmGrid);
                 pickingSlot_ = comparison.rows[other].tileIndex < 0 ? other : -1;
                 paused_ = true;
             }
             break;
         case Action::Start:
-            success = s.farmGrowthComparisonSystem_.Start(s.farmGrid_);
+            success = s.farmGrowthComparisonSystem.Start(s.farmGrid);
             if (success) { EnterObservation(s); pickingSlot_ = -1; paused_ = false; }
             break;
         case Action::Speed:
             if (request.argument != 1 && request.argument != 2 && request.argument != 4) break;
-            s.farmDateSystem_.SetTimeScale(static_cast<float>(request.argument));
-            s.farmDocumentSystem_.MarkDirty();
+            s.farmDateSystem.SetTimeScale(static_cast<float>(request.argument));
+            s.farmDocumentSystem.MarkDirty();
             pickingSlot_ = -1; paused_ = false; success = true; break;
         default: break;
         }
-        if (s.farmIrrigationPreviewSystem_.IsActive()) EnterTerrain(s);
+        if (s.farmIrrigationPreviewSystem.IsActive()) EnterTerrain(s);
     }
     status_ = success ? Label::Success : Label::Failure;
 }
 
-void FarmRuntimeController::BeginFarmStart(GamePlayScene& s) {
-    const farm::OverviewPose initial{s.cameraPos_, s.cameraRot_};
+void FarmRuntimeController::BeginFarmStart(const FarmRuntimeContext& s) {
+    const auto initial = s.host.ReadCameraPose();
     if (!FrameFarm(s)) { flow_.Continue(); return; }
-    const farm::OverviewPose final{s.cameraPos_, s.cameraRot_};
-    const auto& grid = std::as_const(s.farmGrid_);
-    if (s.farmArrivalRenderer_.IsReady() && FarmStartPresentationSystem::SupportsArrival(grid) &&
+    const auto final = s.host.ReadCameraPose();
+    const auto& grid = std::as_const(s.farmGrid);
+    if (s.farmArrivalRenderer.IsReady() && FarmStartPresentationSystem::SupportsArrival(grid) &&
         startPresentation_.BeginArrival(final)) {
         flow_.BeginStart(); ApplyStartCamera(s); return;
     }
-    s.farmIrrigationSystem_.Rebuild(grid);
+    s.farmIrrigationSystem.Rebuild(grid);
     std::array<FarmStartPresentationSystem::Cell, FarmStartPresentationSystem::kMaximumCells> cells{};
     const auto count = static_cast<std::size_t>(grid.GetTileCount());
     std::size_t validCount = 0;
     if (count <= cells.size()) {
-        const auto& layout = s.farmVisualSystem_.GetLayout();
-        const auto& projection = s.camera_->GetProjectionMatrix();
+        const auto& layout = s.farmVisualSystem.GetLayout();
+        const auto& projection = s.host.ReadCamera()->GetProjectionMatrix();
         constexpr float kCropHeadroom = 1.5f;
         float ceiling = layout.center.y + kCropHeadroom;
         for (int i = 0; i < grid.GetTileCount(); ++i)
-            ceiling = (std::max)(ceiling, s.farmVisualSystem_.GetTileCenter(grid, i).y + kCropHeadroom);
+            ceiling = (std::max)(ceiling, s.farmVisualSystem.GetTileCenter(grid, i).y + kCropHeadroom);
         const float radius = (layout.tileSize + layout.tileGap) * 1.4f;
         constexpr farm::OverviewFrame kCinematicFrame{0.08f, 0.15f, 0.92f, 0.84f};
         for (int i = 0; i < grid.GetTileCount(); ++i) {
             const auto* tile = grid.GetTile(i);
             if (!tile) continue;
             auto& cell = cells[static_cast<std::size_t>(i)];
-            const auto center = s.farmVisualSystem_.GetTileCenter(grid, i);
+            const auto center = s.farmVisualSystem.GetTileCenter(grid, i);
             const Vector3 minimum{center.x-radius, center.y, center.z-radius};
             const Vector3 maximum{center.x+radius, ceiling, center.z+radius};
             if (!farm::FitOverviewCamera(minimum, maximum, projection.m[0][0], projection.m[1][1],
-                s.camera_->GetNearClip(), s.camera_->GetFarClip(), kCinematicFrame, cell.pose, 0.86f)) continue;
+                s.host.ReadCamera()->GetNearClip(), s.host.ReadCamera()->GetFarClip(), kCinematicFrame, cell.pose, 0.86f)) continue;
             cell.source = tile->feature == farm::FarmTileFeature::WaterSource;
             cell.canal = tile->feature == farm::FarmTileFeature::Canal;
-            cell.upstream = s.farmIrrigationSystem_.GetUpstreamTileIndex(i);
+            cell.upstream = s.farmIrrigationSystem.GetUpstreamTileIndex(i);
         }
         validCount = count;
     }
@@ -784,90 +792,88 @@ void FarmRuntimeController::BeginFarmStart(GamePlayScene& s) {
     ApplyStartCamera(s);
 }
 
-void FarmRuntimeController::ApplyStartCamera(GamePlayScene& s) {
+void FarmRuntimeController::ApplyStartCamera(const FarmRuntimeContext& s) {
     const auto pose = startPresentation_.GetFrame().pose;
-    s.SetUsePlayerCamera(false);
-    s.cameraPos_ = s.debugCameraPos_ = pose.position;
-    s.cameraRot_ = s.debugCameraRot_ = pose.rotation;
+    s.host.SetUsePlayerCamera(false);
+    s.host.ApplyCameraPose(pose, true);
 }
 
-bool FarmRuntimeController::FrameFarm(GamePlayScene& s, bool followPlayer, bool briefing) {
-    if (!s.camera_ || s.farmGrid_.GetWidth() <= 0 || s.farmGrid_.GetHeight() <= 0) return false;
-    const auto& layout = s.farmVisualSystem_.GetLayout();
+bool FarmRuntimeController::FrameFarm(const FarmRuntimeContext& s, bool followPlayer, bool briefing) {
+    if (!s.host.ReadCamera() || s.farmGrid.GetWidth() <= 0 || s.farmGrid.GetHeight() <= 0) return false;
+    const auto& layout = s.farmVisualSystem.GetLayout();
     const float pitch = layout.tileSize + layout.tileGap;
-    const float halfX = static_cast<float>(s.farmGrid_.GetWidth())*pitch*0.5f;
-    const float halfZ = static_cast<float>(s.farmGrid_.GetHeight())*pitch*0.5f;
+    const float halfX = static_cast<float>(s.farmGrid.GetWidth())*pitch*0.5f;
+    const float halfZ = static_cast<float>(s.farmGrid.GetHeight())*pitch*0.5f;
     // Include every editable height and modest crop headroom, not only the current two corner tiles.
     constexpr float cropHeadroom = 0.8f;
     const Vector3 minimum{layout.center.x-halfX, layout.center.y +
         FarmToolActionSystem::kMinimumHeightLevel*layout.heightStep, layout.center.z-halfZ};
     const Vector3 maximum{layout.center.x+halfX, layout.center.y +
         FarmToolActionSystem::kMaximumHeightLevel*layout.heightStep+cropHeadroom, layout.center.z+halfZ};
-    const auto& projection = s.camera_->GetProjectionMatrix();
+    const auto& projection = s.host.ReadCamera()->GetProjectionMatrix();
     farm::OverviewPose pose;
     constexpr farm::OverviewFrame kBriefingFrame{0.06f, 0.16f, 0.94f, 0.66f};
     const auto frame = briefing ? kBriefingFrame : terrain_ ? farm::kTerrainOverviewFrame :
         observation_ ? farm::kObservationOverviewFrame : farm::kFarmOverviewFrame;
     if (followPlayer) {
-        if (!s.levelGameplay_.HasPlayer() || !farm::FitFarmFollowCamera(minimum, maximum,
-            s.levelGameplay_.GetPlayerColliderCenter(), s.levelGameplay_.GetPlayerColliderHalfExtents(),
-            projection.m[0][0], projection.m[1][1], s.camera_->GetNearClip(), s.camera_->GetFarClip(), frame, pose)) return false;
+        if (!s.levelGameplay.HasPlayer() || !farm::FitFarmFollowCamera(minimum, maximum,
+            s.levelGameplay.GetPlayerColliderCenter(), s.levelGameplay.GetPlayerColliderHalfExtents(),
+            projection.m[0][0], projection.m[1][1], s.host.ReadCamera()->GetNearClip(), s.host.ReadCamera()->GetFarClip(), frame, pose)) return false;
     } else {
         if (!farm::FitOverviewCamera(minimum, maximum, projection.m[0][0], projection.m[1][1],
-            s.camera_->GetNearClip(), s.camera_->GetFarClip(), frame, pose)) return false;
-        s.SetUsePlayerCamera(false);
+            s.host.ReadCamera()->GetNearClip(), s.host.ReadCamera()->GetFarClip(), frame, pose)) return false;
+        s.host.SetUsePlayerCamera(false);
     }
-    s.cameraPos_ = pose.position; s.cameraRot_ = pose.rotation;
-    if (!followPlayer) { s.debugCameraPos_ = pose.position; s.debugCameraRot_ = pose.rotation; }
+    s.host.ApplyCameraPose(pose, !followPlayer);
     return true;
 }
 
-int FarmRuntimeController::ResolveHoveredTile(const GamePlayScene& s) const {
-    if (!ready_ || !s.viewportFocused_ || !s.viewportHovered_ || open_ || observation_ ||
-        frameCaptured_ || flow_.BlocksSimulation() || s.farmProgressionSystem_.IsCleared() ||
-        s.farmIrrigationPreviewSystem_.IsActive() || s.farmCropSelectionSystem_.IsOpen() ||
+int FarmRuntimeController::ResolveHoveredTile(const FarmRuntimeContext& s) const {
+    if (!ready_ || !s.host.IsViewportFocused() || !s.host.IsViewportHovered() || open_ || observation_ ||
+        frameCaptured_ || flow_.BlocksSimulation() || s.farmProgressionSystem.IsCleared() ||
+        s.farmIrrigationPreviewSystem.IsActive() || s.farmCropSelectionSystem.IsOpen() ||
         view_.Covers(pointer_)) return -1;
     Vector3 origin{}, direction{};
     int index = -1;
-    if (!s.TryBuildViewportRay(origin, direction) ||
-        !s.farmVisualSystem_.TryPickTile(s.farmGrid_, origin, direction, index)) return -1;
+    if (!s.host.TryBuildViewportRay(origin, direction) ||
+        !s.farmVisualSystem.TryPickTile(s.farmGrid, origin, direction, index)) return -1;
     return index;
 }
 
-void FarmRuntimeController::EnterObservation(GamePlayScene& s) {
+void FarmRuntimeController::EnterObservation(const FarmRuntimeContext& s) {
     if (terrain_) LeaveTerrain(s);
     const bool entering = !observation_;
     if (entering) { pauseBeforeObservation_ = paused_; paused_ = true; }
     observation_ = true; open_ = false; focusedItem_ = -1;
     if (entering) FrameFarm(s);
-    s.farmCropSelectionSystem_.Cancel();
+    s.farmCropSelectionSystem.Cancel();
 }
 
-void FarmRuntimeController::EnterTerrain(GamePlayScene& s) {
+void FarmRuntimeController::EnterTerrain(const FarmRuntimeContext& s) {
     const bool entering = !terrain_;
     if (observation_) {
         observation_ = false; pickingSlot_ = -1; paused_ = pauseBeforeObservation_;
     }
     terrain_ = true; open_ = false; focusedItem_ = -1;
-    s.farmCropSelectionSystem_.Cancel();
+    s.farmCropSelectionSystem.Cancel();
     if (entering) { status_ = Label::Terrain; FrameFarm(s); }
 }
 
-void FarmRuntimeController::LeaveTerrain(GamePlayScene& s) {
+void FarmRuntimeController::LeaveTerrain(const FarmRuntimeContext& s) {
     // Uncommitted edits are discarded; the player's explicit pause setting is unchanged.
-    s.farmIrrigationPreviewSystem_.Cancel(); brush_ = 0;
+    s.farmIrrigationPreviewSystem.Cancel(); brush_ = 0;
     terrain_ = false;
-    if (!s.usePlayerCamera_) FrameFarm(s);
+    if (!s.host.IsFollowingPlayer()) FrameFarm(s);
 }
 
-bool FarmRuntimeController::UpdateTerrain(GamePlayScene& s, const Input& input, bool click) {
+bool FarmRuntimeController::UpdateTerrain(const FarmRuntimeContext& s, const Input& input, bool click) {
     const int dx = (input.TriggerKey(InputKey::ArrowRight) ? 1 : 0) - (input.TriggerKey(InputKey::ArrowLeft) ? 1 : 0);
     const int dy = (input.TriggerKey(InputKey::ArrowDown) ? 1 : 0) - (input.TriggerKey(InputKey::ArrowUp) ? 1 : 0);
-    if (dx || dy) s.farmGrid_.MoveSelection(dx, dy);
+    if (dx || dy) s.farmGrid.MoveSelection(dx, dy);
     if (click && !view_.Covers(pointer_)) {
         Vector3 origin{}, direction{}; int index = -1;
-        if (s.TryBuildViewportRay(origin, direction) && s.farmVisualSystem_.TryPickTile(s.farmGrid_, origin, direction, index))
-            s.farmGrid_.SetSelectedIndex(index);
+        if (s.host.TryBuildViewportRay(origin, direction) && s.farmVisualSystem.TryPickTile(s.farmGrid, origin, direction, index))
+            s.farmGrid.SetSelectedIndex(index);
     }
     Action action = Action::None;
     if (input.TriggerKey(InputKey::N)) action = Action::Canal;
@@ -879,21 +885,21 @@ bool FarmRuntimeController::UpdateTerrain(GamePlayScene& s, const Input& input, 
     return true;
 }
 
-bool FarmRuntimeController::UpdateObservation(GamePlayScene& s, const Input& input, bool click) {
+bool FarmRuntimeController::UpdateObservation(const FarmRuntimeContext& s, const Input& input, bool click) {
     // Observation captures gameplay input, but only explicit pause blocks simulation.
     // Panel backgrounds and disabled buttons must not pick a tile behind the UI.
     if (input.TriggerMouseButton(InputMouseButton::Right)) { pickingSlot_ = -1; BuildView(s); return true; }
     const int dx = (input.TriggerKey(InputKey::ArrowRight) ? 1 : 0) - (input.TriggerKey(InputKey::ArrowLeft) ? 1 : 0);
     const int dy = (input.TriggerKey(InputKey::ArrowDown) ? 1 : 0) - (input.TriggerKey(InputKey::ArrowUp) ? 1 : 0);
-    if (dx || dy) { s.farmGrid_.MoveSelection(dx, dy); BuildView(s); }
+    if (dx || dy) { s.farmGrid.MoveSelection(dx, dy); BuildView(s); }
     if (pickingSlot_ >= 0 && input.TriggerKey(InputKey::Enter)) {
         Execute(s, {pickingSlot_ == 0 ? Action::PinA : Action::PinB}); BuildView(s); frameCaptured_ = true; return true;
     }
     if (view_.Covers(pointer_)) return true;
     if (click) {
         Vector3 origin{}, direction{}; int index = -1;
-        if (s.TryBuildViewportRay(origin, direction) && s.farmVisualSystem_.TryPickTile(s.farmGrid_, origin, direction, index)) {
-            s.farmGrid_.SetSelectedIndex(index);
+        if (s.host.TryBuildViewportRay(origin, direction) && s.farmVisualSystem.TryPickTile(s.farmGrid, origin, direction, index)) {
+            s.farmGrid.SetSelectedIndex(index);
             if (pickingSlot_ >= 0) Execute(s, {pickingSlot_ == 0 ? Action::PinA : Action::PinB});
             BuildView(s); frameCaptured_ = true;
         }
@@ -901,12 +907,12 @@ bool FarmRuntimeController::UpdateObservation(GamePlayScene& s, const Input& inp
     return true;
 }
 
-void FarmRuntimeController::OpenLayoutLibrary(GamePlayScene& s) {
-    if (!s.framework_ || !s.framework_->GetWinApp() || s.farmIrrigationPreviewSystem_.IsActive()) return;
-    const HWND owner = s.framework_->GetWinApp()->GetHwnd();
+void FarmRuntimeController::OpenLayoutLibrary(const FarmRuntimeContext& s) {
+    if (!s.window || s.farmIrrigationPreviewSystem.IsActive()) return;
+    const HWND owner = s.window->GetHwnd();
     FarmLayoutSystem layouts;
     if (!layouts.Initialize("Settings/farm_layouts")) { farmui::RecordNotice(owner, layouts.Error()); return; }
-    s.farmCropSelectionSystem_.Cancel();
+    s.farmCropSelectionSystem.Cancel();
     std::string name;
     for (;;) {
         std::vector<std::string> names;
@@ -915,22 +921,22 @@ void FarmRuntimeController::OpenLayoutLibrary(GamePlayScene& s) {
         if (result.action == farmui::RecordDialogAction::Cancel) return;
         if (result.action == farmui::RecordDialogAction::SaveNew) {
             name = result.name;
-            if (!layouts.SaveNew(name, s.farmGrid_)) farmui::RecordNotice(owner, layouts.Error());
+            if (!layouts.SaveNew(name, s.farmGrid)) farmui::RecordNotice(owner, layouts.Error());
             else { farmui::RecordNotice(owner, "配置を保存しました。進行セーブは変更していません。"); name.clear(); }
             continue;
         }
         if (result.selected < 0 || result.selected >= static_cast<int>(layouts.Entries().size())) continue;
         if (!farmui::ConfirmLayoutReplacement(owner)) continue;
-        if (!layouts.Load(layouts.Entries()[result.selected].id, s.farmGrid_, s.farmToolActionSystem_.MaximumAllowedHeight())) {
+        if (!layouts.Load(layouts.Entries()[result.selected].id, s.farmGrid, s.farmToolActionSystem.MaximumAllowedHeight())) {
             farmui::RecordNotice(owner, layouts.Error()); continue;
         }
-        s.farmToolActionSystem_.ClearHistory();
-        s.farmIrrigationPreviewSystem_.Cancel();
-        s.farmGrowthComparisonSystem_.Reset();
-        s.farmFeedbackSystem_.Clear();
-        s.farmIrrigationSystem_.Rebuild(s.farmGrid_);
-        s.farmDocumentSystem_.MarkDirty();
-        s.InitializeTimeline();
+        s.farmToolActionSystem.ClearHistory();
+        s.farmIrrigationPreviewSystem.Cancel();
+        s.farmGrowthComparisonSystem.Reset();
+        s.farmFeedbackSystem.Clear();
+        s.farmIrrigationSystem.Rebuild(s.farmGrid);
+        s.farmDocumentSystem.MarkDirty();
+        s.host.InitializeTimeline();
         brush_ = 0;
         status_ = Label::Loaded;
         farmui::RecordNotice(owner, "配置を再現しました。所持金・持ち物・日数はそのままです。");
@@ -938,15 +944,15 @@ void FarmRuntimeController::OpenLayoutLibrary(GamePlayScene& s) {
     }
 }
 
-bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
+bool FarmRuntimeController::Update(const FarmRuntimeContext& s, const Input& input) {
     frameCaptured_ = false;
     if (!ready_) return false;
-    if (!s.viewportFocused_) {
+    if (!s.host.IsViewportFocused()) {
         arrivalAudio_.Update(StartFrame(),flow_.GetPhase()==FarmPlayFlow::Phase::Starting,false);
-        s.farmIrrigationPreviewSystem_.EndTerrainStroke();
+        s.farmIrrigationPreviewSystem.EndTerrainStroke();
         frameCaptured_ = true; return true;
     }
-    s.ConvertMouseToVirtualScreen(input.GetMousePosition(), pointer_);
+    s.host.ConvertMouseToVirtualScreen(input.GetMousePosition(), pointer_);
     BuildView(s);
     const bool click = input.TriggerMouseButton(InputMouseButton::Left);
     pointerTriggered_ = click || input.TriggerMouseButton(InputMouseButton::Right);
@@ -984,7 +990,7 @@ bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
         BuildView(s); frameCaptured_ = true; return true;
     }
     if (click && hit.action != Action::None) {
-        s.farmIrrigationPreviewSystem_.EndTerrainStroke();
+        s.farmIrrigationPreviewSystem.EndTerrainStroke();
         focusedItem_ = -1;
         Execute(s, hit); BuildView(s); frameCaptured_ = true; return true;
     }
@@ -992,14 +998,14 @@ bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
         if (pending_ != Action::None) pending_ = Action::None;
         else if (open_) Execute(s, {Action::Close});
         else if (observation_ && pickingSlot_ >= 0) pickingSlot_ = -1;
-        else if (s.farmIrrigationPreviewSystem_.IsActive()) { s.farmIrrigationPreviewSystem_.Cancel(); brush_ = 0; }
+        else if (s.farmIrrigationPreviewSystem.IsActive()) { s.farmIrrigationPreviewSystem.Cancel(); brush_ = 0; }
         else if (terrain_) LeaveTerrain(s);
-        else if (s.farmCropSelectionSystem_.IsOpen()) s.farmCropSelectionSystem_.Cancel();
+        else if (s.farmCropSelectionSystem.IsOpen()) s.farmCropSelectionSystem.Cancel();
         else open_ = true;
         BuildView(s); frameCaptured_ = true; return true;
     }
     if (contestNotice_ || open_ || flow_.BlocksSimulation()) {
-        s.farmIrrigationPreviewSystem_.EndTerrainStroke();
+        s.farmIrrigationPreviewSystem.EndTerrainStroke();
         if (!contestNotice_ && open_ && input.TriggerKey(InputKey::Tab) && pending_ == Action::None) {
             Execute(s, {Action::Tab, (page_ + 1) % 5});
         }
@@ -1019,11 +1025,11 @@ bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
     }
     if (observation_) return UpdateObservation(s, input, click);
     if (click && view_.Covers(pointer_)) {
-        s.farmIrrigationPreviewSystem_.EndTerrainStroke();
+        s.farmIrrigationPreviewSystem.EndTerrainStroke();
         frameCaptured_ = true; return true;
     }
-    if (s.farmIrrigationPreviewSystem_.IsActive()) {
-        auto& preview = s.farmIrrigationPreviewSystem_;
+    if (s.farmIrrigationPreviewSystem.IsActive()) {
+        auto& preview = s.farmIrrigationPreviewSystem;
         const auto operation = preview.GetOperation();
         const bool heightBrush = operation == farm::FarmIrrigationPreviewOperation::RaiseTerrain ||
             operation == farm::FarmIrrigationPreviewOperation::LowerTerrain;
@@ -1031,15 +1037,15 @@ bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
         else if (input.TriggerMouseButton(InputMouseButton::Right)) Execute(s, {Action::Cancel});
         else if ((brush_ || heightBrush) && !view_.Covers(pointer_) && input.PushMouseButton(InputMouseButton::Left)) {
             Vector3 origin{}, direction{}; int index = -1;
-            if (s.TryBuildViewportRay(origin, direction) && s.farmVisualSystem_.TryPickTile(s.farmGrid_, origin, direction, index)) {
-                if (heightBrush) static_cast<void>(preview.VisitTerrainTile(s.farmGrid_, index));
-                else static_cast<void>(preview.VisitCanalPathTile(s.farmGrid_, index));
+            if (s.host.TryBuildViewportRay(origin, direction) && s.farmVisualSystem.TryPickTile(s.farmGrid, origin, direction, index)) {
+                if (heightBrush) static_cast<void>(preview.VisitTerrainTile(s.farmGrid, index));
+                else static_cast<void>(preview.VisitCanalPathTile(s.farmGrid, index));
             } else preview.EndTerrainStroke();
         } else preview.EndTerrainStroke();
         BuildView(s); frameCaptured_ = true; return true;
     }
     if (terrain_) return UpdateTerrain(s, input, click);
-    if (!s.farmCropSelectionSystem_.IsOpen()) {
+    if (!s.farmCropSelectionSystem.IsOpen()) {
         if (click) {
             // A HUD click must never select or modify a tile hidden behind it.
             if (view_.Covers(pointer_)) { frameCaptured_ = true; return true; }
@@ -1054,19 +1060,19 @@ bool FarmRuntimeController::Update(GamePlayScene& s, const Input& input) {
     if (paused_) {
         // Pause freezes simulation, not explicit farm edits. Consume this frame so
         // Scene cannot repeat the action or move the player after the edit.
-        if (s.farmProgressionSystem_.IsCleared() || s.farmCropSelectionSystem_.IsOpen()) return true;
-        if (click && s.viewportHovered_) {
+        if (s.farmProgressionSystem.IsCleared() || s.farmCropSelectionSystem.IsOpen()) return true;
+        if (click && s.host.IsViewportHovered()) {
             Vector3 origin{}, direction{}; int index = -1;
-            if (s.TryBuildViewportRay(origin, direction) &&
-                s.farmVisualSystem_.TryPickTile(s.farmGrid_, origin, direction, index))
-                s.farmGrid_.SetSelectedIndex(index);
+            if (s.host.TryBuildViewportRay(origin, direction) &&
+                s.farmVisualSystem.TryPickTile(s.farmGrid, origin, direction, index))
+                s.farmGrid.SetSelectedIndex(index);
         }
         FarmInputContext context{};
-        context.currentDay = s.farmDateSystem_.GetDay();
-        const auto result = s.farmInputSystem_.Update(input, context, s.farmGrid_, s.farmToolSystem_,
-            s.farmCropSelectionSystem_.GetSelectedCrop(), s.farmEconomySystem_, s.farmToolActionSystem_);
-        if (result.contentChanged) s.farmDocumentSystem_.MarkDirty();
-        s.RouteFarmToolFeedback(result.toolAction);
+        context.currentDay = s.farmDateSystem.GetDay();
+        const auto result = s.farmInputSystem.Update(input, context, s.farmGrid, s.farmToolSystem,
+            s.farmCropSelectionSystem.GetSelectedCrop(), s.farmEconomySystem, s.farmToolActionSystem);
+        if (result.contentChanged) s.farmDocumentSystem.MarkDirty();
+        s.host.RouteFarmToolFeedback(result.toolAction);
         if (result.buySeedRequested) Execute(s, {Action::Buy});
         if (result.sellSelectedRequested) Execute(s, {Action::Sell});
         else if (result.sellRequested) Execute(s, {Action::SellAll});

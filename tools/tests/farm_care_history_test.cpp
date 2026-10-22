@@ -86,7 +86,7 @@ int main()
 
 	nlohmann::json savedJson;
 	assert(JsonFile::Load(savedPath, savedJson));
-    assert(savedJson["schemaVersion"].get<int>() == 15);
+    assert(savedJson["schemaVersion"].get<int>() == 18);
 	assert(savedJson["tiles"][0]["careHistory"].is_object());
 	assert(Near(
 		savedJson["tiles"][0]["careHistory"]["efficiencySeconds"].get<float>(),
@@ -112,6 +112,9 @@ int main()
 
 	nlohmann::json legacyJson = savedJson;
 	legacyJson["schemaVersion"] = 5;
+    for (const char* field : {"cropCounts", "cropValues", "seedCounts"}) {
+        legacyJson["economy"][field] = nlohmann::json::array({savedJson["economy"][field][0], savedJson["economy"][field][1]});
+    }
 	legacyJson["document"]["id"] = "legacy";
 	legacyJson["document"]["displayName"] = "Legacy Care";
 	for (auto& tile : legacyJson["tiles"]) {
@@ -139,6 +142,9 @@ int main()
 	assert(legacyEconomy.GetLastHarvestQuality().score == harvested.score);
 	legacyJson = savedJson;
 	legacyJson["schemaVersion"] = 6;
+    for (const char* field : {"cropCounts", "cropValues", "seedCounts"}) {
+        legacyJson["economy"][field] = nlohmann::json::array({savedJson["economy"][field][0], savedJson["economy"][field][1]});
+    }
 	legacyJson["document"]["id"] = "legacy";
 	for (auto& tile : legacyJson["tiles"]) {
 		tile.erase("soilNutrients");
@@ -153,5 +159,5 @@ int main()
 
 	std::filesystem::remove_all(root, error);
 	assert(!error);
-	std::cout << "PASS: schema 12 soil/history round trip, invalid input, schema 5/6 migration\n";
+	std::cout << "PASS: schema 18 soil/history round trip, invalid input, schema 5/6 migration\n";
 }

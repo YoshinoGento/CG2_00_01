@@ -47,7 +47,7 @@ class HUDIconTests(unittest.TestCase):
         cls.icons = source(UI / "FarmHUDIcons.h")
         cls.hud = source(UI / "FarmHUD.cpp")
         cls.controller = source(ROOT / "project/application/farm/system/FarmRuntimeController.cpp")
-        cls.scene = source(ROOT / "project/application/scene/GamePlayScene.cpp")
+        cls.scene = source(ROOT / "project/application/gameplay/GamePlaySessionSystem.cpp")
         spec = importlib.util.spec_from_file_location(
             "farm_hud_icon_generator", ROOT / "tools/ui/generate_farm_hud_icons.py"
         )
@@ -133,7 +133,7 @@ class HUDIconTests(unittest.TestCase):
         )
         self.assertRegex(
             self.controller,
-            r"else if\s*\(!s\.farmCropSelectionSystem_\.IsOpen\(\)\)\s*\{\s*farmui::BuildHotbarView\(",
+            r"else if\s*\(!s\.farmCropSelectionSystem\.IsOpen\(\)\)\s*\{\s*farmui::BuildHotbarView\(",
         )
         self.assertEqual(self.controller.count("farmui::BuildHotbarView("), 1)
         self.assertNotIn("hotbarVisible = true", self.controller)
@@ -232,7 +232,7 @@ class HUDIconTests(unittest.TestCase):
         branch = controller.split("case Action::Crop: {", 1)[1].split("case Action::Buy:", 1)[0]
         self.assertIn("request.argument >= farm::kFarmCropTypeCount", branch)
         self.assertIn("SetSelectedCrop(farm::CropTypeFromSlot(request.argument))", branch)
-        self.assertRegex(branch, r"if\s*\(success\s*&&\s*!open_\)\s*s\.farmToolSystem_\.SetTool\(FarmTool::Seed\)")
+        self.assertRegex(branch, r"if\s*\(success\s*&&\s*!open_\)\s*s\.farmToolSystem\.SetTool\(FarmTool::Seed\)")
         self.assertNotIn("ApplyTool(", branch)
         self.assertIn("view_.selectedTile = hud.selectedTileValid;", controller)
         self.assertIn("view_.goalVisible = !hud.freeFarming;", controller)

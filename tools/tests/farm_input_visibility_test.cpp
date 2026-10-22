@@ -1,3 +1,4 @@
+#include "farm_test_edit.h"
 #include "io/MouseButtonEdges.h"
 #include "farm/render/FarmMeshLayout.h"
 #include "3d/LineDrawer.h"
@@ -64,8 +65,8 @@ int main() {
     for (int pattern=0; pattern<243; ++pattern) {
         int levels = pattern;
         for (int i=0; i<9; ++i) {
-            auto* tile = grid.GetMutableTile(i);
-            tile->heightLevel = levels%3; levels = levels/3 + (i%2);
+            assert(EditFarmTile(grid,i,[&](auto& tile) { tile.heightLevel = levels%3; }));
+            levels = levels/3 + (i%2);
         }
         for (int index=0; index<9; ++index) {
             const auto center = visual.GetTileCenter(grid,index);
@@ -108,13 +109,15 @@ int main() {
         }
     }
     for (const auto feature : {farm::FarmTileFeature::None, farm::FarmTileFeature::Canal, farm::FarmTileFeature::WaterSource}) {
-        auto* tile = grid.GetMutableTile(4);
-        tile->feature = feature; tile->state = farm::FarmTileState::Tilled;
+        assert(EditFarmTile(grid,4,[&](auto& tile) {
+            tile.feature = feature; tile.state = feature == farm::FarmTileFeature::None ? farm::FarmTileState::Tilled : farm::FarmTileState::Empty;
+        }));
+        const auto* tile = grid.GetTile(4);
         const auto parts = farm::BuildFarmTileMeshParts(grid,4,visual);
         for (std::size_t i=0; i<parts.count; ++i) assert(parts.parts[i].surface != farm::FarmMeshSurface::SoilBoundary);
         const auto marker = farm::BuildFarmSelectionMeshParts(grid,4,visual);
         const auto hover = farm::BuildFarmHoverMeshParts(grid,4,visual);
-        assert(marker.count == 8 && hover.count == 8 && tile->feature == feature && tile->state == farm::FarmTileState::Tilled);
+        assert(marker.count == 8 && hover.count == 8 && tile->feature == feature && tile->state == (feature == farm::FarmTileFeature::None ? farm::FarmTileState::Tilled : farm::FarmTileState::Empty));
         if (feature != farm::FarmTileFeature::None) {
             const auto& layout = visual.GetLayout();
             const float rim = visual.GetTileCenter(grid,4).y + layout.waterBottomOffset + layout.waterMaxDepth + 0.045f;
