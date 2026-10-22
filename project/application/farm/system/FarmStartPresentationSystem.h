@@ -1,4 +1,5 @@
 #pragma once
+#include "farm/core/FarmGrid.h"
 #include "farm/system/FarmOverviewCamera.h"
 #include "farm/system/FarmArrivalPresentation.h"
 #include <array>
@@ -16,6 +17,9 @@ public:
     static constexpr float kDuration = 6.50f;
     static constexpr float kSkipSeconds = 0.35f;
     static constexpr float kOverviewOnlySeconds = 3.0f;
+    // The arrival props and camera are authored around this initial field footprint.
+    static constexpr int kArrivalGridWidth = 5;
+    static constexpr int kArrivalGridHeight = 4;
     enum class Subject { Farm, Source, Canal };
     struct Cell {
         farm::OverviewPose pose{};
@@ -32,6 +36,19 @@ public:
         bool arrival = false;
         float arrivalTime = 0, cover = 0;
     };
+
+    [[nodiscard]] static bool SupportsArrival(const farm::FarmGrid& grid) noexcept {
+        if (grid.GetWidth() != kArrivalGridWidth || grid.GetHeight() != kArrivalGridHeight ||
+            grid.GetTileCount() != kArrivalGridWidth * kArrivalGridHeight) return false;
+        // Clock/load history does not describe the field. No Grid reference is retained.
+        for (int i = 0; i < grid.GetTileCount(); ++i) {
+            const auto* tile = grid.GetTile(i);
+            if (!tile || tile->feature != farm::FarmTileFeature::None ||
+                tile->state != farm::FarmTileState::Empty || tile->crop != farm::CropType::None ||
+                tile->heightLevel != 0 || tile->moisture != 0.0f || tile->growth != 0.0f) return false;
+        }
+        return true;
+    }
 
     bool Begin(std::span<const Cell> cells, int width,
         farm::OverviewPose initial, farm::OverviewPose final) noexcept {

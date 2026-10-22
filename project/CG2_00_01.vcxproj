@@ -500,6 +500,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\farm\system\FarmContestDaySystem.h" />
 	<ClInclude Include="application\farm\system\FarmTimeAdvanceSystem.h" />
 	<ClInclude Include="application\farm\system\FarmContestSeasonSystem.h" />
+	<ClInclude Include="application\farm\system\FarmStageAccessSystem.h" />
+	<ClInclude Include="application\farm\system\FarmContestGoalSystem.h" />
 	<ClInclude Include="application\farm\system\FarmHarvestVisualSystem.h" />
     <ClInclude Include="application\farm\system\FarmGrowthSystem.h" />
     <ClInclude Include="application\farm\system\FarmSoilSystem.h" />

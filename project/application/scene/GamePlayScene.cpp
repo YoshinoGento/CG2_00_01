@@ -495,6 +495,10 @@ InitializationTask GamePlayScene::InitializeIncrementally() {
 	farmFeedbackSystem_.Initialize();
 	farmHarvestVisualSystem_.Clear();
 	farmProgressionSystem_.Initialize({}, FarmProgressionMode::ContestSeason);
+	farmStageAccessSystem_.Bind(farmDateSystem_, farmProgressionSystem_.StagePolicy());
+	farmEconomySystem_.BindStageAccess(farmStageAccessSystem_);
+	farmToolActionSystem_.BindStageAccess(farmStageAccessSystem_);
+	farmIrrigationPreviewSystem_.BindStageAccess(farmStageAccessSystem_);
 	farmVisualSystem_.Initialize(kFarmVisualLayout);
 	farmIrrigationSystem_.Rebuild(farmGrid_);
 	if (!farmDocumentSystem_.Initialize(

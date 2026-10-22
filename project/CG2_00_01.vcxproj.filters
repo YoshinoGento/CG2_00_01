@@ -697,6 +697,8 @@
     <ClCompile Include="application\farm\system\FarmArrivalAudioSystem.cpp" />
     <ClCompile Include="application\farm\render\FarmSeedShopRenderer.cpp" />
     <ClInclude Include="application\farm\render\FarmSeedShopRenderer.h" />
+    <ClInclude Include="application\farm\system\FarmStageAccessSystem.h" />
+    <ClInclude Include="application\farm\system\FarmContestGoalSystem.h" />
     <ClInclude Include="application\farm\system\FarmSeedShopSystem.h" />
     <ClInclude Include="application\farm\ui\FarmSeedShopView.h" />
     <ClInclude Include="application\farm\ui\FarmHarvestDisplayView.h" />

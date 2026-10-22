@@ -23,6 +23,7 @@ inline void BuildFieldActionView(View& view, const FarmToolActionResult& evaluat
     case FarmToolActionStatus::InvalidTarget: reason = Label::ActionNoTile; break;
     case FarmToolActionStatus::AlreadyWatered: reason = Label::ActionWaterFull; break;
     case FarmToolActionStatus::NoSeed: reason = Label::ActionNoSeed; break;
+    case FarmToolActionStatus::Locked: reason = Label::StageLocked; break;
     case FarmToolActionStatus::InventoryFull: reason = Label::HarvestFull; break;
     case FarmToolActionStatus::NotReady: reason = Label::ActionGrowing; break;
     default: reason = Label::ActionOtherTool; break;

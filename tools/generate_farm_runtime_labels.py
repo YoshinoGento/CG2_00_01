@@ -110,7 +110,7 @@ labels.extend([
     ["HarvestLegacyNotice", "旧記録の個別品質・サイズは不明です"],
     ["HarvestPageNumber", "ページ"],
 ])
-columns = 4
+columns = 5
 labels.extend([
     ["HarvestProtection", "売却保護"],
     ["HarvestProtect", "保護する"],
@@ -266,6 +266,17 @@ labels.extend([
     ["StartSkip", "スキップ"],
     ["ReturnTitle", "タイトルへ戻る"],
     ["ReturnTitleConfirm", "タイトルへ戻ります。未保存の変更は失われます"],
+])
+labels.extend([
+    ["StageGuide", "大会の目標・解放"], ["StageUnlockDay", "解放日"],
+    ["StageLocked", "この種はまだ解放されていません"],
+    ["StageCurrent", "現在の段階"], ["StageHeight", "地形の上限"],
+    ["StageThreshold", "合格点"], ["StagePassed", "入賞"], ["StageFailed", "入賞ならず"],
+    ["StageShortfall", "あと必要な点数"], ["StageGuideColumns", "解放日 / 大会日 / 合格点 / 高さ上限"],
+    ["StageBasicTools", "水源・水路・給水調整・堆肥は初日から使えます"],
+    ["StageCropChoice", "表は新たに解放される種。以前の作物も出品可"],
+    ["StageDateUnlock", "入賞・欠場に関係なく、日付で次の段階へ進みます"],
+    ["StageLegacy", "この農場は段階解放の対象外です"],
 ])
 ascii_y = ((len(labels) + columns - 1) // columns) * cell_h
 height = ascii_y + 128

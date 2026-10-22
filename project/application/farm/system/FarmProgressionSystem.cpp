@@ -19,6 +19,7 @@ void FarmProgressionSystem::Initialize(const farm::FarmRules& rules, FarmProgres
 	targetMoney_ = (std::max)(1, rules.clearMoneyTarget);
 	cleared_ = false;
 	mode_ = ValidMode(mode) ? mode : FarmProgressionMode::Trial;
+	stagePolicy_.enabled = mode_ == FarmProgressionMode::ContestSeason;
 }
 
 bool FarmProgressionSystem::EvaluateClear(int currentMoney) noexcept
@@ -38,6 +39,8 @@ bool FarmProgressionSystem::EvaluateSeason(const FarmContestSeasonSummary& summa
 
 bool FarmProgressionSystem::SetMode(FarmProgressionMode mode, int money, const FarmContestSeasonSummary& summary) noexcept {
 	if (!ValidMode(mode) || money < 0 || !summary.valid) return false;
+	// Existing farms are not re-locked by switching modes. Restart creates a new staged campaign.
+	if (mode != mode_) stagePolicy_.enabled = false;
 	mode_ = mode;
 	cleared_ = false;
 	static_cast<void>(EvaluateClear(money));
@@ -88,17 +91,19 @@ float FarmProgressionSystem::GetProgress(int currentMoney, int day) const noexce
 
 FarmProgressionSystem::Snapshot FarmProgressionSystem::CaptureSnapshot() const noexcept
 {
-	return { targetMoney_, cleared_, mode_ };
+	return { targetMoney_, cleared_, mode_, stagePolicy_.enabled };
 }
 
 bool FarmProgressionSystem::RestoreSnapshot(const Snapshot& snapshot) noexcept
 {
 	if (snapshot.targetMoney <= 0 || !ValidMode(snapshot.mode) ||
-		(snapshot.mode == FarmProgressionMode::FreeFarming && snapshot.cleared)) {
+		(snapshot.mode == FarmProgressionMode::FreeFarming && snapshot.cleared) ||
+		(snapshot.stagedUnlocks && snapshot.mode != FarmProgressionMode::ContestSeason)) {
 		return false;
 	}
 	targetMoney_ = snapshot.targetMoney;
 	cleared_ = snapshot.cleared;
 	mode_ = snapshot.mode;
+	stagePolicy_.enabled = snapshot.stagedUnlocks;
 	return true;
 }

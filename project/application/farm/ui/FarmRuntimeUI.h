@@ -21,7 +21,7 @@ enum class Action {
     HarvestInventory, HarvestPage, ProtectHarvest, UnprotectHarvest, ReserveContestHarvest, CancelContestReservation,
     ContestPreview, SubmitContest, ContestResults, ContestDayReview, ContestDayPrepare, ContestDayResume, ChangePlayMode,
     ShopSelect, ShopQuantity, ShopReview, ShopConfirm, ShopCancel, ShopClose,
-    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage, StartSkip
+    HarvestDisplay, HarvestDisplaySelect, HarvestDisplayPage, StartSkip, StageGuide
 };
 struct Request { Action action = Action::None; int argument = 0; std::uint64_t inventoryGeneration = 0; };
 struct Item {

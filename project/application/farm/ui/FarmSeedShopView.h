@@ -46,8 +46,9 @@ inline void BuildSeedShopView(View& view, const FarmSeedShopSystem& shop, const 
         view.Add(CropLabel(crop), SeedShopLayout::SelectionTarget(i), {Action::ShopSelect, product}, !confirming, shop.Selection() == product);
         view.Add(CropLabel(crop), {rect.x, 454, 240, 40}, {}, true, shop.Selection() == product);
         view.items[view.count-1].darkInk = true;
-        view.Metric(Label::ShopUnitPrice, {rect.x, 498, 300, 38}, 100,
-            std::to_string(economy.GetSeedPrice(crop)) + "G");
+        const bool available = economy.IsCropUnlocked(crop);
+        view.Metric(available ? Label::ShopUnitPrice : Label::StageUnlockDay, {rect.x, 498, 300, 38}, 100,
+            available ? std::to_string(economy.GetSeedPrice(crop)) + "G" : std::to_string(FarmStageAccessSystem::UnlockDay(crop)));
         view.items[view.count-1].darkInk = true;
     }
     constexpr std::array<Label,3> titles{Label::ShopCarrot, Label::ShopTomato, Label::ShopPumpkin};
@@ -68,7 +69,8 @@ inline void BuildSeedShopView(View& view, const FarmSeedShopSystem& shop, const 
         else if (shop.GetNotice() == FarmSeedShopSystem::Notice::Failed) notice = Label::Failure;
         else if (!quote.available) notice = quote.total > quote.money ? Label::ShopNoMoney : Label::ShopUnavailable;
     }
-    view.Add(notice, {48, 554, 1140, 42});
+    if (quote.unlockDay > 0) view.Metric(Label::StageUnlockDay, {48,554,1140,42}, 200, std::to_string(quote.unlockDay));
+    else view.Add(notice, {48, 554, 1140, 42});
     view.Add(confirming ? Label::ShopPay : Label::ShopReview, {48, 620, 300, 52},
         {confirming ? Action::ShopConfirm : Action::ShopReview}, quote.available);
     view.Add(confirming ? Label::Cancel : Label::Resume, {928, 620, 300, 52},

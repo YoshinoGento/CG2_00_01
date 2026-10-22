@@ -22,13 +22,14 @@ inline void BuildFarmStartView(View& view, const FarmStartPresentationSystem::Fr
     }
     view.Add(Label::StartSkip, {1024, 652, 216, 48}, {Action::StartSkip}, frame.canSkip);
 }
-inline void BuildPlayFlowView(View& view, FarmPlayFlow::Phase phase, const FarmHUDViewData& data) {
+inline void BuildPlayFlowView(View& view, FarmPlayFlow::Phase phase, const FarmHUDViewData& data, bool staged = false) {
     view.modal = true;
     const bool result = phase == FarmPlayFlow::Phase::Result;
     if (phase == FarmPlayFlow::Phase::Briefing) {
         view.briefing = true;
         view.Add(data.freeFarming ? Label::FreeMode : data.contestSeason ? Label::SeasonMode : Label::TrialStart,
-            {40, 28, 810, 44});
+            {40, 28, staged ? 530.0f : 810.0f, 44});
+        if (staged) view.Add(Label::StageGuide, {600,28,272,44}, {Action::StageGuide});
         view.Metric(Label::TrialDay, {900, 28, 332, 44}, 170, std::to_string(data.day));
         if (data.freeFarming || data.contestSeason)
             view.Add(data.freeFarming ? Label::FreeGoal : Label::SeasonGoal, {40, 510, 1184, 42});

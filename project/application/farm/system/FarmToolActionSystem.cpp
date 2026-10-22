@@ -308,6 +308,9 @@ FarmToolActionResult FarmToolActionSystem::EvaluateTool(
 	case FarmTool::Seed:
 		if (!farm::IsPlantableCrop(selectedCrop)) {
 			result.status = FarmToolActionStatus::InvalidState;
+		} else if ((stageAccess_ && !stageAccess_->Get().Allows(selectedCrop)) ||
+			(economySystem && !economySystem->IsCropUnlocked(selectedCrop))) {
+			result.status = FarmToolActionStatus::Locked;
 		} else if (tile->state != farm::FarmTileState::Tilled) {
 			result.status = FarmToolActionStatus::InvalidState;
 		} else if (economySystem != nullptr &&
@@ -434,7 +437,7 @@ bool FarmToolActionSystem::RaiseSelectedTile(farm::FarmGrid& grid)
 {
 	const int tileIndex = grid.GetSelectedIndex();
 	const farm::FarmTile* selectedTile = grid.GetTile(tileIndex);
-	if (selectedTile == nullptr) {
+	if (selectedTile == nullptr || selectedTile->heightLevel >= MaximumAllowedHeight()) {
 		return false;
 	}
 	const farm::FarmTile before = *selectedTile;
@@ -474,6 +477,7 @@ bool FarmToolActionSystem::SetSelectedIrrigation(farm::FarmGrid& grid, bool enab
 	if (!CanSetIrrigation(grid, index)) return false;
 	const bool before = grid.GetTile(index)->irrigationEnabled;
 	if (before == enabled) return false;
+	SynchronizeHistoryAccess();
 	return history_.Execute(std::make_unique<FarmIntakeCommand>(grid, index, before, enabled));
 }
 
@@ -555,6 +559,7 @@ bool FarmToolActionSystem::CommitCanalPath(
 		entries.push_back(entry);
 	}
 
+	SynchronizeHistoryAccess();
 	return history_.Execute(std::make_unique<FarmTileBatchEditCommand>(
 		grid, std::move(entries), remove ? "Remove Canal Path" : "Place Canal Path"));
 }
@@ -570,13 +575,14 @@ bool FarmToolActionSystem::ChangeTerrainBatch(
 		const int index = tileIndices[i];
 		const auto* tile = grid.GetTile(index);
 		if (!tile || tile->heightLevel < kMinimumHeightLevel || tile->heightLevel > kMaximumHeightLevel ||
-			(delta > 0 && tile->heightLevel == kMaximumHeightLevel) ||
+			(delta > 0 && tile->heightLevel >= MaximumAllowedHeight()) ||
 			(delta < 0 && tile->heightLevel == kMinimumHeightLevel) ||
 			std::find(tileIndices.begin(), tileIndices.begin() + i, index) != tileIndices.begin() + i) return false;
 		FarmTileBatchEntry entry{index, *tile, *tile};
 		entry.after.heightLevel += delta;
 		entries.push_back(entry);
 	}
+	SynchronizeHistoryAccess();
 	return history_.Execute(std::make_unique<FarmTileBatchEditCommand>(
 		grid, std::move(entries), delta > 0 ? "Raise Terrain Batch" : "Lower Terrain Batch"));
 }
@@ -648,6 +654,7 @@ bool FarmToolActionSystem::CommitTileChange(
 	if (TilesEqual(before, after)) {
 		return false;
 	}
+	SynchronizeHistoryAccess();
 	return history_.Execute(std::make_unique<FarmTileEditCommand>(
 		grid, tileIndex, before, after, commandName,
 		economySystem, harvestedQuality, harvestedQuantity,

@@ -130,7 +130,7 @@ bool FarmLayoutSystem::SaveNew(const std::string& name, const farm::FarmGrid& gr
         error_ = "配置を保存できません。ディスク容量・配置データを確認してください。"; return false;
     }
 }
-bool FarmLayoutSystem::Load(const std::string& id, farm::FarmGrid& grid) {
+bool FarmLayoutSystem::Load(const std::string& id, farm::FarmGrid& grid, int maximumHeight) {
     if (!ValidId(id)) { error_ = "配置IDが不正です。"; return false; }
     try {
         auto snapshot = Decode(Read(Utf8Path(directory_) / (id + ".json")));
@@ -139,6 +139,10 @@ bool FarmLayoutSystem::Load(const std::string& id, farm::FarmGrid& grid) {
         snapshot.selectedX = selection >= 0 ? selection % snapshot.width : 0;
         snapshot.selectedY = selection >= 0 ? selection / snapshot.width : 0;
         // Validation completes before one atomic grid replacement; economy/date are not inputs.
+        if (maximumHeight < 0 || maximumHeight > 2) { error_ = "地形の高さ上限が不正です。"; return false; }
+        for (const auto& tile : snapshot.tiles) if (tile.heightLevel > maximumHeight) {
+            error_ = "未解放の高さを含む配置です。現在の畑は変更していません。"; return false;
+        }
         Require(grid.RestoreSnapshot(snapshot)); error_.clear(); return true;
     } catch (...) { error_ = "配置を読み込めません。形式・マス数・高さを確認してください。現在の畑は変更していません。"; return false; }
 }

@@ -59,7 +59,6 @@ private:
     FarmPlayFlow flow_;
     FarmStartPresentationSystem startPresentation_;
     FarmArrivalAudioSystem arrivalAudio_;
-    bool arrivalSeen_ = false;
     FarmSeedShopSystem shop_;
     FarmHarvestDisplaySystem harvestDisplay_;
     farmui::View view_;

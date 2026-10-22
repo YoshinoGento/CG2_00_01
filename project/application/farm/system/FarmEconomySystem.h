@@ -3,6 +3,7 @@
 #include "farm/core/FarmTypes.h"
 #include "farm/data/FarmRules.h"
 #include "farm/system/FarmCropQualitySystem.h"
+#include "farm/system/FarmStageAccessSystem.h"
 
 #include <array>
 #include <cstdint>
@@ -26,6 +27,7 @@ enum class FarmSeedPurchaseStatus {
 	Unavailable,
 	InsufficientMoney,
 	Overflow,
+	Locked,
 };
 
 struct FarmSeedPurchaseResult {
@@ -74,6 +76,10 @@ public:
 	};
 
 	void Initialize(const farm::FarmRules& rules = {});
+	void BindStageAccess(const FarmStageAccessSystem& access) noexcept { stageAccess_=&access; }
+	[[nodiscard]] bool IsCropUnlocked(farm::CropType crop) const noexcept {
+		return (stageAccess_ ? stageAccess_->Get() : FarmStageAccess{}).Allows(crop);
+	}
 
 	[[nodiscard]] bool AddHarvest(farm::CropType crop, int quantity = 1) noexcept;
 	[[nodiscard]] bool RemoveHarvest(farm::CropType crop, int quantity = 1) noexcept;
@@ -126,6 +132,7 @@ public:
 	bool RestoreSnapshot(const Snapshot& snapshot) noexcept;
 
 private:
+	const FarmStageAccessSystem* stageAccess_=nullptr; // Borrowed for the owning Scene's lifetime; not saved.
 	[[nodiscard]] FarmSaleResult SellMatching(farm::CropType crop) noexcept;
 	int money_ = 0;
 	std::array<int, farm::kFarmCropTypeCount> cropCounts_{};

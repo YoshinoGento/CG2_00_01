@@ -2,6 +2,7 @@
 
 #include "farm/data/FarmRules.h"
 #include "farm/system/FarmContestSeasonSystem.h"
+#include "farm/system/FarmStageAccessSystem.h"
 
 enum class FarmProgressionMode { Trial, ContestSeason, FreeFarming };
 
@@ -11,6 +12,7 @@ public:
 		int targetMoney = 1;
 		bool cleared = false;
 		FarmProgressionMode mode = FarmProgressionMode::Trial;
+		bool stagedUnlocks = false;
 	};
 
 	void Initialize(const farm::FarmRules& rules = {}, FarmProgressionMode mode = FarmProgressionMode::Trial) noexcept;
@@ -20,6 +22,7 @@ public:
 	[[nodiscard]] FarmProgressionMode GetMode() const noexcept { return mode_; }
 	[[nodiscard]] bool IsContestSeason() const noexcept { return mode_ == FarmProgressionMode::ContestSeason; }
 	[[nodiscard]] bool IsFreeFarming() const noexcept { return mode_ == FarmProgressionMode::FreeFarming; }
+	[[nodiscard]] const FarmStagePolicy& StagePolicy() const noexcept { return stagePolicy_; }
 	[[nodiscard]] static farm::FarmRules InitialRules(FarmProgressionMode mode) noexcept;
 	[[nodiscard]] static bool ValidMode(FarmProgressionMode mode) noexcept {
 		return mode == FarmProgressionMode::Trial || mode == FarmProgressionMode::ContestSeason ||
@@ -38,4 +41,5 @@ private:
 	int targetMoney_ = 1;
 	bool cleared_ = false;
 	FarmProgressionMode mode_ = FarmProgressionMode::Trial;
+	FarmStagePolicy stagePolicy_{};
 };
